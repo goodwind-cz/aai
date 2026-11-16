@@ -585,13 +585,54 @@ NODE
   local state_root
   state_root="$TMP_ROOT/scope-bound-state"
   rm -rf "$state_root"; cp -R "$root" "$state_root"
-  mkdir -p "$state_root/.aai"
-  cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$state_root/.aai/STATE.yaml"
-  node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-focus --state "$state_root/.aai/STATE.yaml" \
+  mkdir -p "$state_root/docs/ai"
+  cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$state_root/docs/ai/STATE.yaml"
+  node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-focus --state "$state_root/docs/ai/STATE.yaml" \
     --type intake_change --ref test-013 --path intake.md --spec-path spec.md >/dev/null
   assert_admissible --report report.md --ref test-013 --since 2026-06-01T00:00:00Z --root "$state_root"
 
   log_pass "TEST-013: intake and spec sources are bound to the ref's own documents (CLI pair or STATE focus), and an unbound invocation fails closed"
+}
+
+test_3775_state_focus_read_from_docs_ai() {
+  # metrics-integrity-fixes Spec-AC-06: the checker reads the live STATE at
+  # docs/ai/STATE.yaml, the only path state.mjs writes; a copy at .aai/STATE.yaml
+  # is not a binding and the refusal names the path the checker did read.
+  local root good bad output rc
+  root="$(make_fixture test-3775 repository)"
+
+  good="$TMP_ROOT/state-docs-ai"
+  rm -rf "$good"; cp -R "$root" "$good"
+  mkdir -p "$good/docs/ai"
+  cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$good/docs/ai/STATE.yaml"
+  node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-focus --state "$good/docs/ai/STATE.yaml" \
+    --type intake_change --ref test-3775 --path intake.md --spec-path spec.md >/dev/null
+  set +e
+  output="$(node "$CHECKER" --report report.md --ref test-3775 --since 2026-06-01T00:00:00Z --root "$good" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-3775: STATE at docs/ai/STATE.yaml exited $rc, want 0: $output"
+
+  bad="$TMP_ROOT/state-dot-aai"
+  rm -rf "$bad"; cp -R "$root" "$bad"
+  mkdir -p "$bad/.aai"
+  cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$bad/.aai/STATE.yaml"
+  node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-focus --state "$bad/.aai/STATE.yaml" \
+    --type intake_change --ref test-3775 --path intake.md --spec-path spec.md >/dev/null
+  set +e
+  output="$(node "$CHECKER" --report report.md --ref test-3775 --since 2026-06-01T00:00:00Z --root "$bad" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] \
+    || log_fail "TEST-3775: STATE only at .aai/STATE.yaml exited $rc, want 1: $output"
+  [[ "$output" == *'OUTCOME-CHECK: scope sources are unbound'* ]] \
+    || log_fail "TEST-3775: STATE only at .aai/STATE.yaml was not refused as unbound: $output"
+  [[ "$output" == *'docs/ai/STATE.yaml'* ]] \
+    || log_fail "TEST-3775: the unbound message does not name docs/ai/STATE.yaml: $output"
+
+  if /usr/bin/grep -qF '.aai/STATE.yaml' "$CHECKER" || /usr/bin/grep -qE "'\.aai', *'STATE\.yaml'" "$CHECKER"; then
+    log_fail "TEST-3775: the checker source still holds a .aai STATE path"
+  fi
+  log_pass "TEST-3775: the checker reads STATE from docs/ai/STATE.yaml only and names it when unbound"
 }
 
 test_010_code_only_and_compatibility() {
@@ -690,6 +731,7 @@ main() {
       CURRENT_TEST_ID=TEST-012; test_012_cli_symlink_entrypoint
       CURRENT_TEST_ID=TEST-010; test_010_code_only_and_compatibility
       CURRENT_TEST_ID=TEST-013; test_013_sources_bound_to_scope
+      CURRENT_TEST_ID=TEST-3775; test_3775_state_focus_read_from_docs_ai
       ;;
     test_001_requirement_assessments) CURRENT_TEST_ID=TEST-001; test_001_requirement_assessments ;;
     test_003_saved_target_identity) CURRENT_TEST_ID=TEST-003; test_003_saved_target_identity ;;
@@ -700,6 +742,12 @@ main() {
     test_012_cli_symlink_entrypoint) CURRENT_TEST_ID=TEST-012; test_012_cli_symlink_entrypoint ;;
     test_010_code_only_and_compatibility) CURRENT_TEST_ID=TEST-010; test_010_code_only_and_compatibility ;;
     test_013_sources_bound_to_scope) CURRENT_TEST_ID=TEST-013; test_013_sources_bound_to_scope ;;
+    test_3775_*)
+      declare -F "$selected" >/dev/null || log_fail "unknown selector: $selected"
+      local fn="$selected"
+      CURRENT_TEST_ID=TEST-3775
+      "$fn"
+      ;;
     *) log_fail "unknown selector: $selected" ;;
   esac
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="

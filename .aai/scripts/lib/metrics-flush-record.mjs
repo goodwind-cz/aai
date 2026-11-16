@@ -164,28 +164,57 @@ export function recoverStateCopy({ scriptDir, root, copy, rel, writable, dryRun 
   const metrics = path.join(root, 'docs', 'ai', 'METRICS.jsonl');
   const held = [];
   let tmp = null;
-  if (origin) {
-    held.push(path.join(origin, 'docs', 'ai', 'METRICS.jsonl'));
-    const blob = base ? spawnSync('git', ['-C', origin, 'show', `refs/remotes/origin/${base}:docs/ai/METRICS.jsonl`], { encoding: 'utf8', maxBuffer: 1 << 30 }) : null;
-    tmp = path.join(os.tmpdir(), `aai-held-ledger-${process.pid}-${Date.now()}.jsonl`);
-    if (blob && blob.status === 0 && blob.stdout) { fs.writeFileSync(tmp, blob.stdout); held.push(tmp); }
-  }
+  const unchecked = (text) => ({ would: 0, refs: [], recovered: 0, keep: keepText(rel, text) });
   try {
+    if (origin) {
+      held.push(path.join(origin, 'docs', 'ai', 'METRICS.jsonl'));
+      const b = base ? readBaseLedger(origin, base) : { absent: true };
+      if (b.reason) return unchecked('base ledger unreadable (' + b.reason + ')');
+      if (b.bytes) {
+        tmp = path.join(os.tmpdir(), `aai-held-ledger-${process.pid}-${Date.now()}.jsonl`);
+        try { fs.writeFileSync(tmp, b.bytes); } catch (e) { return unchecked('held ledger temp write failed (' + (e.code ?? e.message) + ')'); }
+        held.push(tmp);
+      }
+    }
     return recoverWith({ scriptDir, root, copy, rel, writable, dryRun, metrics, held });
   } finally {
-    if (tmp) fs.rmSync(tmp, { force: true });
+    if (tmp) { try { fs.rmSync(tmp, { force: true }); } catch { /* the temp copy is disposable */ } }
   }
 }
 
+const fallbackOf = (rel) => `node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state ${rel} --archive ${rel}`;
+const keepText = (rel, text) => `${text}; run from the main checkout: ${fallbackOf(rel)}`;
+
+// The base ledger at refs/remotes/origin/<base>: { absent: true } when there is no such ref or its tree has no
+// docs/ai/METRICS.jsonl (nothing held), { bytes } when the blob is read, { reason } for anything else (a git call
+// that exits otherwise, a spawn error, a blob that cannot be read): the caller keeps the step.
+function readBaseLedger(origin, base) {
+  const ref = `refs/remotes/origin/${base}`;
+  const file = 'docs/ai/METRICS.jsonl';
+  const git = (args) => spawnSync('git', ['-C', origin, ...args], { encoding: 'utf8', maxBuffer: 1 << 30 });
+  const bad = (r, what) => ({ reason: r.error?.code ?? r.error?.message ?? `${what} exit ${r.status}` });
+  // Absent only when rev-parse says exit 1 with nothing on stderr; a broken ref (garbage, a missing object) is unreadable.
+  const has = git(['rev-parse', '--verify', '-q', ref]);
+  if (has.error || (has.status !== 0 && !(has.status === 1 && !has.stderr))) return bad(has, 'git rev-parse');
+  if (has.status === 1) return { absent: true };
+  const commit = git(['rev-parse', '--verify', '-q', `${ref}^{commit}`]); // the ref resolves: anything but a readable commit is unreadable
+  if (commit.error || commit.status !== 0) return bad(commit, 'git rev-parse commit');
+  const tree = git(['ls-tree', ref, '--', file]);
+  if (tree.error || tree.status !== 0) return bad(tree, 'git ls-tree');
+  if (tree.stdout.trim() === '') return { absent: true };
+  const blob = git(['show', `${ref}:${file}`]);
+  if (blob.error || blob.status !== 0) return bad(blob, 'git show');
+  return blob.stdout ? { bytes: blob.stdout } : { absent: true };
+}
+
 function recoverWith({ scriptDir, root, copy, rel, writable, dryRun, metrics, held }) {
-  const fallback = `node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state ${rel} --archive ${rel}`;
   const args = [path.join(scriptDir, 'metrics-flush.mjs'), '--recover-archives', '--include-focus', '--archive', copy,
     '--state', path.join(root, 'docs', 'ai', 'STATE.yaml'), '--metrics', metrics, '--pricing', path.join(scriptDir, '..', 'system', 'PRICING.yaml'), ...held.flatMap((f) => ['--held-in', f])];
   const cwd = root;
   writable = writable && fs.existsSync(metrics);
   const run = (extra) => spawnSync(process.execPath, [...args, ...extra], { cwd, encoding: 'utf8' });
   const why = (r) => (r.error?.message ?? `${r.stderr ?? ''}${r.stdout ?? ''}`.trim().split('\n')[0]) || `exit ${r.status}`;
-  const keep = (text) => `${text}; run from the main checkout: ${fallback}`;
+  const keep = (text) => keepText(rel, text);
   const probe = run(['--dry-run']);
   let plan = null;
   try { plan = probe.status === 0 ? JSON.parse(probe.stdout) : null; } catch { /* reported below */ }

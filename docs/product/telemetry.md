@@ -216,7 +216,7 @@ one capability:
   names the runs it would write and writes nothing. If the worktree is not at
   the merged head or has no ledger, or the check fails, the step is kept
   (`ledger_runs_unchecked`) and prints the exact command to run from the main
-  checkout; the archive copy holds the runs meanwhile. The manual worktree
+  checkout; the archive copy holds the runs meanwhile. An unreadable base-branch ledger (the ref lists the file but its object cannot be read) or an unwritable temporary copy keeps the step the same way (`ledger_runs_unchecked`) and writes nothing, so a run already merged on the base is never written twice; a base branch with no such ref or no such file holds nothing and the recovery runs. The Validation outcome check (`validation-outcome-check.mjs`) binds scope sources from `docs/ai/STATE.yaml` when `--intake` and `--spec` are not passed. The manual worktree
   cleanup in `SKILL_WORKTREE` runs that command right after its `cp` (pull a
   merged branch's main first, or its flushed runs are written twice):
   `node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state <copy> --archive <copy>`.

@@ -1105,9 +1105,46 @@ NODE
   log_pass "TEST-024 role enum rejects bypass spellings and accepts canonical roles"
 }
 
+# --- TEST-3776 — the outcome binding is read from docs/ai/STATE.yaml ---------
+test_3776_outcome_binding_from_state_focus() {
+  log_info "TEST-3776: check-role-output binds the outcome report from STATE focus at docs/ai/STATE.yaml..."
+  local cwd="$TMP_ROOT/t3776-cwd" out rc
+  rm -rf "$cwd"; mkdir -p "$cwd/tests/fixtures" "$cwd/docs/ai"
+  cp -R "$FIXTURES_DIR" "$cwd/tests/fixtures/role-outputs"
+  # Without STATE and without the outcome flags the binding is unbound.
+  set +e
+  ( cd "$cwd" && node "$CHECKER" --file tests/fixtures/role-outputs/validation-valid.md --now 2026-06-01T00:00:00Z ) > "$TMP_ROOT/t3776.out" 2>&1; rc=$?
+  out="$(cat "$TMP_ROOT/t3776.out")"
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-3776: no STATE expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "TEST-3776: no STATE expected E-OUTCOME-REPORT, got: $out"
+  assert_payload_contains "$out" "scope sources are unbound" "TEST-3776: no STATE expected unbound, got: $out"
+  # With the focus written where state.mjs writes it, the same run is clean.
+  cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$cwd/docs/ai/STATE.yaml"
+  node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-focus --state "$cwd/docs/ai/STATE.yaml" \
+    --type intake_change --ref role-output-contracts \
+    --path tests/fixtures/role-outputs/outcome-intake.md \
+    --spec-path tests/fixtures/role-outputs/outcome-spec.md >/dev/null
+  set +e
+  ( cd "$cwd" && node "$CHECKER" --file tests/fixtures/role-outputs/validation-valid.md --now 2026-06-01T00:00:00Z ) > "$TMP_ROOT/t3776.out" 2>&1; rc=$?
+  out="$(cat "$TMP_ROOT/t3776.out")"
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3776: STATE focus at docs/ai/STATE.yaml expected exit 0, got $rc: $out"
+  case "$out" in *E-OUTCOME-REPORT*) log_fail "TEST-3776: STATE focus run still reports E-OUTCOME-REPORT: $out" ;; esac
+  log_pass "TEST-3776 outcome binding comes from the docs/ai/STATE.yaml focus"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
+  if [[ $# -ge 1 ]]; then
+    local fn="$1"
+    [[ "$fn" == TEST-3776 ]] && fn=test_3776_outcome_binding_from_state_focus
+    declare -F "$fn" >/dev/null || log_fail "unknown selector: $fn"
+    "$fn"
+    echo "=== ALL TESTS PASSED: $TEST_NAME ==="
+    return
+  fi
   test_001_valid_fixtures
   test_002_violating_fixtures
   test_003_extra_fields_ignored
@@ -1125,6 +1162,7 @@ main() {
   test_022_planning_verdict_controls
   test_023_validation_pass_requires_outcome_report
   test_024_role_enum_is_closed
+  test_3776_outcome_binding_from_state_focus
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

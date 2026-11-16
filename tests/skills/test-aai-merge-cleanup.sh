@@ -1432,10 +1432,103 @@ test_024_canon_merge_direction_signs() {
   echo 'PASS: TEST-024 prompts are free of dead signing instructions'
 }
 
+# The TEST-026 verdict oracle, written once and run by both halves: over the rows of a ledger it names the merged
+# contract amendments that are not signed. Env: AAI_ORACLE_ROWS (list --json output), AAI_ORACLE_LEDGER (optional,
+# the ledger the owner sign-offs are read from), AAI_ORACLE_UNMERGED (the ref of the ride that stays unmerged),
+# AAI_ORACLE_MIN (fewest merged contract records), AAI_MERGED_DOC_MODEL. The cwd is the repository holding origin/main.
+oracle_026() {
+  cat <<'JS'
+import fs from "node:fs";
+import {execFileSync} from "node:child_process";
+import {pathToFileURL} from "node:url";
+const {parseFrontmatter} = await import(pathToFileURL(process.env.AAI_MERGED_DOC_MODEL).href);
+const rows = JSON.parse(fs.readFileSync(process.env.AAI_ORACLE_ROWS, "utf8")).items;
+const unmergedRef = process.env.AAI_ORACLE_UNMERGED;
+const minimum = Number(process.env.AAI_ORACLE_MIN);
+const mergedCache = new Map();
+function rideMerged(ref) {
+  if (mergedCache.has(ref)) return mergedCache.get(ref);
+  let yes = false;
+  try {
+    let listed;
+    try {
+      listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean);
+    } catch (error) {
+      if (error.status === 1 && !String(error.stderr || "").trim()) listed = []; // Only a diagnostic-free no-match is a valid negative.
+      else throw error;
+    }
+    for (const path of listed) {
+      const text = execFileSync("git", ["show", path], {encoding:"utf8"});
+      const fm = parseFrontmatter(text);
+      const raw = fm?.links?.pr;
+      // The existing model returns nested inline lists as strings, and block
+      // lists as arrays. Normalize only this observed list representation.
+      const values = Array.isArray(raw) ? raw : typeof raw === "string" && /^\[.*\]$/.test(raw) ? raw.slice(1,-1).split(",") : [];
+      const prItems = values.some(value => !["", "null", "~"].includes(String(value).trim().replace(/^["\x27]|["\x27]$/g, "").trim()));
+      if (fm?.id === ref && fm.status === "done" && prItems) yes = true;
+    }
+  } catch (error) { throw new Error(`cannot determine merge status for ${ref}: ${error.message}`); }
+  mergedCache.set(ref, yes);
+  return yes;
+}
+const heldOut = r => r.ref_id === unmergedRef;
+const mergedContract = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && (r.bucket === "signed" || rideMerged(r.ref_id)));
+const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && r.bucket !== "signed" && rideMerged(r.ref_id));
+if (unsignedMerged.length > 0) {
+  console.log(`FAIL ${unsignedMerged.length} merged contract amendments not signed: ${unsignedMerged.map(u => u.record_key).slice(0, 5).join(", ")}`);
+  process.exit(1);
+}
+if (mergedContract.length < minimum) {
+  console.log(`FAIL only ${mergedContract.length} merged contract amendments found, want >= ${minimum}`);
+  process.exit(1);
+}
+const unmerged = rows.filter(r => r.ref_id === unmergedRef && r.amendment_class === "contract");
+// No merge signs an unmerged ride; only an explicit owner classification of
+// the record itself may.
+const ledgerLines = (process.env.AAI_ORACLE_LEDGER ? fs.readFileSync(process.env.AAI_ORACLE_LEDGER, "utf8") : "").split("\n").filter(l => l.startsWith("{")).map(l => JSON.parse(l));
+const ownerSigned = k => ledgerLines.some(l => l.type === "spec_amendment_classification" && l.classifies_record === k && l.owner_signoff === true);
+if (unmerged.length === 0 || !unmerged.every(r => r.bucket === "unsigned-tracked" || (r.bucket === "signed" && ownerSigned(r.record_key)))) {
+  console.log(`FAIL unmerged ref ${unmergedRef} must remain unsigned-tracked unless the owner classifies it`);
+  process.exit(1);
+}
+console.log(`OK ${mergedContract.length} merged contract records fold to signed, unmerged preserved`);
+JS
+}
+
+# f026_commit <repo> <date> <message>: a commit whose committer time is <date> (the ride's merge time is that time).
+f026_commit() {
+  [[ -n "$1" && "$1" = /* && -d "$1" ]] || fail SETUP 'f026_commit repo'
+  run git -C "$1" add -A
+  GIT_COMMITTER_DATE="$2" GIT_AUTHOR_DATE="$2" git -C "$1" commit -q -m "$3" || fail SETUP "f026 commit $3"
+}
+# f026_doc <repo> <ref> <status> <pr list>: a ride doc and, outside docs/, the spec file its amendments name.
+f026_doc() {
+  printf -- '---\nid: %s\ntype: issue\nstatus: %s\nlinks:\n  pr: %s\n  commits: []\n---\n# %s\n' "$2" "$3" "$4" "$2" > "$1/docs/$2.md"
+  printf -- '---\nid: spec-%s\ntype: spec\nnumber: null\nstatus: implementing\nlinks:\n  requirement: %s\n  pr: []\n  commits: []\n---\n\n# Spec %s\n' "$2" "$2" "$2" > "$1/work/$2-spec.md"
+}
+# f026_add <repo> <ledger> <ref> <what>: one contract amendment, written by the real spec-amend add.
+f026_add() {
+  ( cd "$1" && env -u AAI_ROLE node "$SPEC_AMEND" add --ledger "$2" --spec "$1/work/$3-spec.md" --ref "$3" --what "$4" --why "fixture $4" --signoff none >/dev/null 2>&1 ) || fail SETUP "f026 spec-amend add $3 $4"
+}
+# f026_rows <repo> <ledger>: list --json of that ledger with cwd the repo.
+f026_rows() {
+  ( cd "$1" && env -u AAI_ROLE node "$SPEC_AMEND" list --json --ledger "$2" ) || fail TEST-026 "spec-amend list --json over $2 failed"
+}
+# f026_oracle <repo> <rows file> <ledger> <unmerged ref> <minimum>: sets F026_OUT and F026_RC.
+f026_oracle() {
+  local prog="$SCRATCH/oracle-026.mjs"
+  [[ -n "$1" && "$1" = /* && -d "$1" ]] || fail SETUP 'f026_oracle repo'
+  oracle_026 > "$prog"
+  F026_RC=0
+  ( cd "$1" && AAI_ORACLE_ROWS="$2" AAI_ORACLE_LEDGER="$3" AAI_ORACLE_UNMERGED="$4" AAI_ORACLE_MIN="$5" AAI_MERGED_DOC_MODEL="$ROOT/.aai/scripts/lib/docs-model.mjs" node "$prog" ) > "$SCRATCH/f026.out" 2>&1 || F026_RC=$?
+  F026_OUT="$(cat "$SCRATCH/f026.out")"
+}
+
 test_026_backlog_signed_on_live_ledger() {
   # Execute this tests actual live verdict against real Git/object fixtures.
   # A >=300 signed backlog must not conceal one merged-but-unsigned record.
-  AAI_PREDICATE_SUITE="$ROOT/tests/skills/test-aai-merge-cleanup.sh" AAI_PREDICATE_MODEL="$ROOT/.aai/scripts/lib/docs-model.mjs" AAI_PREDICATE_SCRATCH="${AAI_PREDICATE_SCRATCH:-$SCRATCH}" node <<'JS' || fail TEST-026 'merged predicate fixture assertions failed'
+  oracle_026 > "$SCRATCH/oracle-026.mjs"
+  AAI_PREDICATE_ORACLE="$SCRATCH/oracle-026.mjs" AAI_PREDICATE_MODEL="$ROOT/.aai/scripts/lib/docs-model.mjs" AAI_PREDICATE_SCRATCH="${AAI_PREDICATE_SCRATCH:-$SCRATCH}" node <<'JS' || fail TEST-026 'merged predicate fixture assertions failed'
 const fs = require("fs");
 const path = require("path");
 const {execFileSync, spawnSync} = require("child_process");
@@ -1444,11 +1537,7 @@ if (!scratch || !path.isAbsolute(scratch)) throw Error("absolute predicate scrat
 fs.mkdirSync(scratch, {recursive:true});
 const fixture = fs.mkdtempSync(path.join(scratch, "merged-predicate."));
 try {
-  const source = fs.readFileSync(process.env.AAI_PREDICATE_SUITE, "utf8");
-  const start = source.indexOf("import fs from \"node:fs\";\nimport {execFileSync} from \"node:child_process\";");
-  const end = source.indexOf("\n' \"$d/live-rows.json\"", start);
-  if (start < 0 || end < 0) throw Error("live verdict extraction failed");
-  const program = source.slice(start, end);
+  const program = fs.readFileSync(process.env.AAI_PREDICATE_ORACLE, "utf8");
   const git = (...args) => execFileSync("git", args, {cwd:fixture, encoding:"utf8"}).trim();
   git("init", "-q", "-b", "main"); git("config", "user.name", "predicate-fixture");
   git("config", "user.email", "predicate@example.invalid"); git("config", "core.hooksPath", "/dev/null");
@@ -1482,12 +1571,12 @@ try {
   git("add", "--", "docs"); git("commit", "-qm", "fixture docs");
   git("update-ref", "refs/remotes/origin/main", "HEAD");
   const signed = Array.from({length:300}, (_,i) => ({amendment_class:"contract",ref_id:"signed-"+i,bucket:"signed",record_key:"signed-"+i}));
-  const unmerged = {amendment_class:"contract",ref_id:"routing-tables-have-an-owner-and-a-seam",bucket:"unsigned-tracked",record_key:"unmerged"};
-  fs.writeFileSync(path.join(fixture,"fu.json"), JSON.stringify({items:[]}));
+  const unmerged = {amendment_class:"contract",ref_id:"fixture-unmerged-ride",bucket:"unsigned-tracked",record_key:"unmerged"};
   let failures = 0;
   function check(label, extra, wanted, message) {
     fs.writeFileSync(path.join(fixture,"rows.json"), JSON.stringify({items:[...signed, unmerged, ...extra]}));
-    const result = spawnSync(process.execPath,["--input-type=module","-e",program,path.join(fixture,"rows.json"),path.join(fixture,"fu.json")],{cwd:fixture,encoding:"utf8",env:{...process.env,AAI_MERGED_DOC_MODEL:model}});
+    const oracle = path.join(fixture,"oracle.mjs"); fs.writeFileSync(oracle, program);
+    const result = spawnSync(process.execPath,[oracle],{cwd:fixture,encoding:"utf8",env:{...process.env,AAI_MERGED_DOC_MODEL:model,AAI_ORACLE_ROWS:path.join(fixture,"rows.json"),AAI_ORACLE_LEDGER:"",AAI_ORACLE_UNMERGED:"fixture-unmerged-ride",AAI_ORACLE_MIN:"300"}});
     const output = (result.stdout || "") + (result.stderr || "");
     const ok = result.status === wanted && output.includes(message);
     console.log(`TEST-026 ${ok ? "PASS" : "FAIL"} ${label} expected=${wanted} exit=${result.status}\n${output.trim()}`);
@@ -1509,106 +1598,58 @@ try {
   process.exitCode = failures ? 1 : 0;
 } finally { fs.rmSync(fixture,{recursive:true,force:true}); }
 JS
-  local d="$SCRATCH/live_026" live="$ROOT/docs/ai/decisions.jsonl" verdict rc=0
-  run mkdir -p "$d"
-  [[ -s "$live" ]] || fail TEST-026 "the live ledger is missing: $live"
-  ( cd "$ROOT" && env -u AAI_ROLE node "$SPEC_AMEND" list --json --ledger "$live" ) > "$d/live-rows.json" || fail TEST-026 'spec-amend list --json over the live ledger failed'
-  ( cd "$ROOT" && env -u AAI_ROLE node "$FOLLOW_UPS" list --status all --json --ledger "$live" ) > "$d/live-fu.json" || fail TEST-026 'follow-ups list --json over the live ledger failed'
-  verdict="$(AAI_MERGED_DOC_MODEL="$ROOT/.aai/scripts/lib/docs-model.mjs" node --input-type=module -e '
-import fs from "node:fs";
-import {execFileSync} from "node:child_process";
-import {pathToFileURL} from "node:url";
-const {parseFrontmatter} = await import(pathToFileURL(process.env.AAI_MERGED_DOC_MODEL).href);
-const rows = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).items;
-const fu = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).items;
-const unmergedRef = "routing-tables-have-an-owner-and-a-seam";
-const mergedCache = new Map();
-function rideMerged(ref) {
-  if (mergedCache.has(ref)) return mergedCache.get(ref);
-  let yes = false;
-  try {
-    let listed;
-    try {
-      listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean);
-    } catch (error) {
-      if (error.status === 1 && !String(error.stderr || "").trim()) listed = []; // Only a diagnostic-free no-match is a valid negative.
-      else throw error;
-    }
-    for (const path of listed) {
-      const text = execFileSync("git", ["show", path], {encoding:"utf8"});
-      const fm = parseFrontmatter(text);
-      const raw = fm?.links?.pr;
-      // The existing model returns nested inline lists as strings, and block
-      // lists as arrays. Normalize only this observed list representation.
-      const values = Array.isArray(raw) ? raw : typeof raw === "string" && /^\[.*\]$/.test(raw) ? raw.slice(1,-1).split(",") : [];
-      const prItems = values.some(value => !["", "null", "~"].includes(String(value).trim().replace(/^["\x27]|["\x27]$/g, "").trim()));
-      if (fm?.id === ref && fm.status === "done" && prItems) yes = true;
-    }
-  } catch (error) { throw new Error(`cannot determine merge status for ${ref}: ${error.message}`); }
-  mergedCache.set(ref, yes);
-  return yes;
-}
-// The pinned example ride stayed unmerged from SPEC-0226 (2026-10-12) until
-// PR #553 merged it on 2026-11-13. Once its own doc is done with a PR on
-// origin/main it is an ordinary merged ride: its rows join the merged
-// population (and must be signed), and the unmerged arm below reports n/a
-// instead of asserting a state the ledger can no longer hold. The fixture
-// above (TEST-006 negatives) still proves an unmerged ride is never signed.
-// links.pr may stay empty on a merged ride (CHANGE-0192 did); spec-amend then
-// reads the squash subject of the newest first-parent origin/main commit that
-// touched the doc (squashPrFromBase), so this arm reads the same evidence.
-function squashMerged(ref) {
-  let listed = [];
-  try { listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean); }
-  catch (error) { if (!(error.status === 1 && !String(error.stderr || "").trim())) throw error; }
-  return listed.some(entry => {
-    const rel = entry.replace(/^origin\/main:/, "");
-    const fm = parseFrontmatter(execFileSync("git", ["show", entry], {encoding:"utf8"}));
-    if (fm?.id !== ref || fm.status !== "done") return false;
-    const subject = execFileSync("git", ["log", "-1", "--first-parent", "--format=%s", "origin/main", "--", rel], {encoding:"utf8"}).trim();
-    return / \(#[1-9][0-9]*\)$/.test(subject);
-  });
-}
-const exampleMerged = rideMerged(unmergedRef) || squashMerged(unmergedRef);
-const heldOut = r => !exampleMerged && r.ref_id === unmergedRef;
-const mergedContract = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && (r.bucket === "signed" || rideMerged(r.ref_id)));
-// a90cdce977d5 was recorded after its ride merged, so the
-// merge-time binding (provider-adapter-surfaces-closing-slice D6) leaves it unsigned-tracked.
-const postMergeRecord = "a90cdce977d5";
-// 91c688d47ba3 (ref doctor-determinize, SPEC-0100 TEST-009 change) was filed
-// under an already-merged ride, so no merge can ever sign it; the same change
-// is re-filed under the small-pairs ride (which its merge signs). The ledger is
-// append-only, so the original cannot be withdrawn, only exempted here.
-const supersededRecord = "91c688d47ba3";
-const isMergedRide = ref => (exampleMerged && ref === unmergedRef) || rideMerged(ref);
-const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && r.record_key !== postMergeRecord && r.record_key !== supersededRecord && r.bucket !== "signed" && isMergedRide(r.ref_id));
-if (unsignedMerged.length > 0) {
-  console.log(`FAIL ${unsignedMerged.length} merged contract amendments not signed: ${unsignedMerged.map(u => u.record_key).slice(0, 5).join(", ")}`);
-  process.exit(1);
-}
-if (mergedContract.length < 300) {
-  console.log(`FAIL only ${mergedContract.length} merged contract amendments found, want >= 300`);
-  process.exit(1);
-}
-const unmerged = rows.filter(r => r.ref_id === unmergedRef && r.amendment_class === "contract");
-// No merge signs an unmerged ride; only an explicit owner classification of
-// the record itself may (the owner signed both on 2026-11-05).
-const ledgerLines = (process.argv[3] ? fs.readFileSync(process.argv[3], "utf8") : "").split("\n").filter(l => l.startsWith("{")).map(l => JSON.parse(l));
-const ownerSigned = k => ledgerLines.some(l => l.type === "spec_amendment_classification" && l.classifies_record === k && l.owner_signoff === true);
-if (exampleMerged) {
-  console.log(`OK ${mergedContract.length} merged contract records fold to signed, unmerged arm n/a (${unmergedRef} merged)`);
-  process.exit(0);
-}
-if (unmerged.length === 0 || !unmerged.every(r => r.bucket === "unsigned-tracked" || (r.bucket === "signed" && ownerSigned(r.record_key)))) {
-  console.log(`FAIL unmerged ref ${unmergedRef} must remain unsigned-tracked unless the owner classifies it`);
-  process.exit(1);
-}
-console.log(`OK ${mergedContract.length} merged contract records fold to signed, unmerged preserved`);
-' "$d/live-rows.json" "$d/live-fu.json" "$live")" || rc=$?
-  [[ "$rc" -eq 0 ]] || fail TEST-026 "$verdict"
-  ( cd "$ROOT" && env -u AAI_ROLE node "$SPEC_AMEND" list --strict --ledger "$live" >/dev/null 2>&1 ) || rc=$?
-  [[ "$rc" -eq 0 ]] || fail TEST-026 "spec-amend list --strict over the live ledger exited $rc"
-  echo "PASS: TEST-026 the merged-ride backlog is signed on the live ledger ($verdict)"
+  # Second half: the fold over a fixture world of its own. Repository F has refs/remotes/origin/main and ledgers
+  # written by the real spec-amend; nothing here reads this repository's ledger or its origin/main.
+  local d="$SCRATCH/f_026" fx L1 L2 rows okey late_key ok_l1
+  fx="$d/repo"; L2="$d/L2.jsonl"
+  local led="$fx/docs/ai/decisions.jsonl"
+  L1="$led"
+  [[ -n "$d" && "$d" = /* ]] || fail SETUP 'TEST-026 fixture path'
+  run mkdir -p "$fx/docs/specs" "$fx/docs/ai" "$fx/work"
+  run git -C "$fx" init -q -b main
+  run git -C "$fx" config core.hooksPath /dev/null
+  f026_doc "$fx" ride-merged done '[465]'
+  f026_commit "$fx" 2099-01-01T00:00:00Z 'ride-merged is done'
+  f026_doc "$fx" ride-open implementing '[]'
+  f026_commit "$fx" 2000-06-01T00:00:00Z 'ride-open is implementing'
+  f026_doc "$fx" ride-late done '[466]'
+  f026_commit "$fx" 2000-01-01T00:00:00Z 'ride-late is done'
+  run git -C "$fx" update-ref refs/remotes/origin/main HEAD
+  run : > "$L1"
+  f026_add "$fx" "$L1" ride-merged 'merged one'
+  f026_add "$fx" "$L1" ride-merged 'merged two'
+  f026_add "$fx" "$L1" ride-open 'open one'
+  f026_add "$fx" "$L1" ride-open 'open two'
+  rows="$(f026_rows "$fx" "$L1")"
+  [[ "$(json_get "$rows" 'j.items.filter(i=>i.ref_id==="ride-merged").length')" == 2 ]] || fail TEST-026 'L1 does not hold two ride-merged records (positive control)'
+  [[ "$(json_get "$rows" 'j.items.filter(i=>i.ref_id==="ride-merged").every(i=>i.bucket==="signed")')" == true ]] || fail TEST-026 "ride-merged rows are not all signed by the fold: $rows"
+  [[ "$(json_get "$rows" 'j.items.filter(i=>i.ref_id==="ride-open").map(i=>i.bucket).join()')" == unsigned-tracked,unsigned-tracked ]] || fail TEST-026 "ride-open rows are not unsigned-tracked before the owner classifies one: $rows"
+  # the owner signs the second open record: the one record the oracle may accept as signed on an unmerged ride
+  okey="$(json_get "$rows" 'j.items.filter(i=>i.ref_id==="ride-open")[1].record_key')"
+  [[ -n "$okey" ]] || fail TEST-026 'no ride-open record key to classify'
+  ( cd "$fx" && env -u AAI_ROLE node "$SPEC_AMEND" classify --ledger "$L1" --ts "$(json_get "$rows" 'j.items.filter(i=>i.ref_id==="ride-open")[1].ts')" --ref ride-open --record "$okey" --signoff owner --why 'fixture owner decision' --source 'fixture' >/dev/null 2>&1 ) || fail TEST-026 'spec-amend classify --signoff owner failed'
+  rows="$(f026_rows "$fx" "$L1")"
+  [[ "$(json_get "$rows" 'j.items.filter(i=>i.ref_id==="ride-merged").every(i=>i.bucket==="signed")')" == true ]] || fail TEST-026 'ride-merged rows are not signed over L1'
+  [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$okey\").bucket")" == signed ]] || fail TEST-026 'the owner-classified ride-open row is not signed'
+  [[ "$(json_get "$rows" "j.items.filter(i=>i.ref_id===\"ride-open\"&&i.record_key!==\"$okey\").map(i=>i.bucket).join()")" == unsigned-tracked ]] || fail TEST-026 'the other ride-open row is not unsigned-tracked'
+  run printf '%s' "$rows" > "$d/L1-rows.json"
+  f026_oracle "$fx" "$d/L1-rows.json" "$L1" ride-open 2
+  [[ "$F026_RC" -eq 0 ]] || fail TEST-026 "the oracle over L1 exited $F026_RC: $F026_OUT"
+  want TEST-026 "$F026_OUT" 'OK 2 merged contract records'
+  ok_l1="$F026_OUT"
+  ( cd "$fx" && env -u AAI_ROLE node "$SPEC_AMEND" list --strict --ledger "$L1" >/dev/null 2>&1 ) || fail TEST-026 'spec-amend list --strict over L1 failed'
+  # L2 = L1 plus a record that postdates its ride's merge: the fold leaves it unsigned and the oracle must say so
+  run cp "$L1" "$L2"
+  f026_add "$fx" "$L2" ride-late 'late one'
+  rows="$(f026_rows "$fx" "$L2")"
+  late_key="$(json_get "$rows" 'j.items.find(i=>i.ref_id==="ride-late").record_key')"
+  [[ -n "$late_key" && "$(json_get "$rows" 'j.items.find(i=>i.ref_id==="ride-late").bucket')" != signed ]] || fail TEST-026 'the ride-late record is signed by the fold (positive control)'
+  run printf '%s' "$rows" > "$d/L2-rows.json"
+  f026_oracle "$fx" "$d/L2-rows.json" "$L2" ride-open 2
+  [[ "$F026_RC" -eq 1 ]] || fail TEST-026 "the oracle over L2 exited $F026_RC, want 1: $F026_OUT"
+  want TEST-026 "$F026_OUT" 'merged contract amendments not signed'
+  want TEST-026 "$F026_OUT" "$late_key"
+  echo "PASS: TEST-026 the fold signs a merged ride's records, leaves an unmerged and a late one, and the oracle tells them apart ($ok_l1)"
 }
 
 # ---------------------------------------------------------------------------
@@ -4584,6 +4625,146 @@ test_3761_run_merged_on_base_not_yet_pulled() {
 }
 
 # ---------------------------------------------------------------------------
+# metrics-integrity-fixes: TEST-3772..3774 (an unreadable base ledger or temp file keeps the archive step)
+
+# held_fixture <name> <blob|noref|nofile>: a main checkout (refs/remotes/origin/main in the given shape) and a ride
+# checkout whose STATE holds foo's Planning run that the ride METRICS lacks. Sets HF_MAIN and HF_RIDE.
+held_fixture() {
+  local d="$SCRATCH/$1" RIDE
+  HF_MAIN="$d/main"; HF_RIDE="$d/ride"; RIDE="$HF_RIDE"
+  run mkdir -p "$HF_MAIN/docs/ai" "$HF_RIDE/docs/ai"
+  run git -C "$HF_MAIN" init -q
+  if [[ "$2" == nofile ]]; then printf 'x\n' > "$HF_MAIN/README"
+  else printf '%s\n' '{"date_utc":"2026-10-01","ref_id":"other-item","title":"Other","agent_runs":[],"verdict":"PASS"}' > "$HF_MAIN/docs/ai/METRICS.jsonl"
+  fi
+  run git -C "$HF_MAIN" add -A
+  run git -C "$HF_MAIN" commit -q -m base
+  if [[ "$2" != noref ]]; then run git -C "$HF_MAIN" update-ref refs/remotes/origin/main HEAD; fi
+  printf '%s\n' '{"date_utc":"2026-10-01","ref_id":"other-item","title":"Other","agent_runs":[],"verdict":"PASS"}' > "$HF_RIDE/docs/ai/METRICS.jsonl"
+  ride_state_runs 0
+}
+
+# held_recover: recoverStateCopy over the fixture, printed as one JSON line (a throw prints {"threw":...}).
+held_recover() {
+  node --input-type=module -e '
+    const [lib, scriptDir, root, origin] = process.argv.slice(1);
+    const { recoverStateCopy } = await import(lib);
+    try {
+      const r = recoverStateCopy({ scriptDir, root, copy: root + "/docs/ai/STATE.yaml", rel: "docs/ai/archive/x/STATE.yaml", writable: true, origin, base: "main" });
+      console.log(JSON.stringify(r));
+    } catch (e) { console.log(JSON.stringify({ threw: String(e && e.message) })); }
+  ' "$ROOT/.aai/scripts/lib/metrics-flush-record.mjs" "$ROOT/.aai/scripts" "$HF_RIDE" "$HF_MAIN"
+}
+
+test_3772_unreadable_base_ledger_keeps_the_step() {
+  local out blob obj before after
+  held_fixture t3772 blob
+  blob="$(git -C "$HF_MAIN" rev-parse "refs/remotes/origin/main:docs/ai/METRICS.jsonl")" || fail SETUP 'blob id'
+  obj="$HF_MAIN/.git/objects/${blob:0:2}/${blob:2}"
+  [[ -f "$obj" ]] || fail TEST-3772 "the loose blob object is not there to remove (positive control): $obj"
+  run rm -f "$obj"
+  before="$(sha_of "$HF_RIDE/docs/ai/METRICS.jsonl")"
+  out="$(held_recover)"
+  want TEST-3772 "$out" '"recovered":0'
+  want TEST-3772 "$out" '"keep":"base ledger unreadable ('
+  want TEST-3772 "$out" 'run from the main checkout: node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state docs/ai/archive/x/STATE.yaml --archive docs/ai/archive/x/STATE.yaml'
+  after="$(sha_of "$HF_RIDE/docs/ai/METRICS.jsonl")"
+  [[ "$before" == "$after" ]] || fail TEST-3772 'the unreadable base ledger left the ride METRICS changed'
+  # a broken ref (garbage loose ref, a ref to an object that is not there) is unreadable, not absent
+  local shape
+  for shape in garbage missing tree; do
+    held_fixture "t3772-$shape" noref
+    mkdir -p "$HF_MAIN/.git/refs/remotes/origin"
+    if [[ "$shape" == garbage ]]; then printf 'garbage\n' > "$HF_MAIN/.git/refs/remotes/origin/main"
+    elif [[ "$shape" == tree ]]; then git -C "$HF_MAIN" rev-parse 'HEAD^{tree}' > "$HF_MAIN/.git/refs/remotes/origin/main"
+    else printf '%s\n' deadbeefdeadbeefdeadbeefdeadbeefdeadbeef > "$HF_MAIN/.git/refs/remotes/origin/main"; fi
+    before="$(sha_of "$HF_RIDE/docs/ai/METRICS.jsonl")"
+    out="$(held_recover)"
+    want TEST-3772 "$out" '"recovered":0'
+    want TEST-3772 "$out" '"keep":"base ledger unreadable ('
+    after="$(sha_of "$HF_RIDE/docs/ai/METRICS.jsonl")"
+    [[ "$before" == "$after" ]] || fail TEST-3772 "a $shape base ref left the ride METRICS changed"
+  done
+  # controls: no such ref and a tree without the file hold nothing, so the run is written
+  held_fixture t3772a noref
+  out="$(held_recover)"
+  want TEST-3772 "$out" '"keep":null'
+  want TEST-3772 "$out" '"recovered":1'
+  [[ "$(runs_of "$HF_RIDE/docs/ai/METRICS.jsonl" Planning 2026-10-10T10:00:00Z)" == 1 ]] || fail TEST-3772 'no ref: the run is not in the ride METRICS'
+  held_fixture t3772b nofile
+  out="$(held_recover)"
+  want TEST-3772 "$out" '"keep":null'
+  want TEST-3772 "$out" '"recovered":1'
+  [[ "$(runs_of "$HF_RIDE/docs/ai/METRICS.jsonl" Planning 2026-10-10T10:00:00Z)" == 1 ]] || fail TEST-3772 'no file in the tree: the run is not in the ride METRICS'
+  echo 'PASS: TEST-3772 an unreadable base ledger keeps the step and writes nothing, an absent one does not'
+}
+
+test_3773_unwritable_tmpdir_keeps_the_step() {
+  local out before after
+  held_fixture t3773 blob
+  printf 'x\n' > "$SCRATCH/t3773/notadir"
+  before="$(sha_of "$HF_RIDE/docs/ai/METRICS.jsonl")"
+  out="$(TMPDIR="$SCRATCH/t3773/notadir/sub" held_recover)"
+  unwanted TEST-3773 "$out" '"threw"'
+  want TEST-3773 "$out" '"recovered":0'
+  want TEST-3773 "$out" '"keep":"held ledger temp write failed ('
+  want TEST-3773 "$out" 'run from the main checkout: node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state docs/ai/archive/x/STATE.yaml --archive docs/ai/archive/x/STATE.yaml'
+  after="$(sha_of "$HF_RIDE/docs/ai/METRICS.jsonl")"
+  [[ "$before" == "$after" ]] || fail TEST-3773 'the failed temp write left the ride METRICS changed'
+  # positive control: the same fixture with a usable TMPDIR writes the run
+  held_fixture t3773c blob
+  out="$(held_recover)"
+  want TEST-3773 "$out" '"recovered":1'
+  echo 'PASS: TEST-3773 an unwritable temp directory keeps the step instead of throwing'
+}
+
+test_3774_plan_names_the_temp_write_failure() {
+  local before
+  metrics_world t3774 1
+  printf 'x\n' > "$W/notadir"
+  before="$(world_digest)"
+  TMPDIR="$W/notadir/sub" run_engine plan --pr "$PR" --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3774 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-3774 'plan changed the world'
+  [[ ! -e "$ORIGIN/docs/ai/archive" ]] || fail TEST-3774 'plan created an archive'
+  want TEST-3774 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="archive-runtime").targets')" 'keep (ledger_runs_unchecked held ledger temp write failed ('
+  echo 'PASS: TEST-3774 plan reports an unwritable temp directory as a kept step'
+}
+
+# metrics-integrity-fixes: TEST-3771 (TEST-026 is hermetic), TEST-3777 (the changelog heading and the product doc)
+
+test_3771_test_026_is_hermetic() {
+  local copy="$SCRATCH/t3771" out rc=0 text needle
+  [[ -n "$copy" && "$copy" = /* ]] || fail SETUP 'TEST-3771 copy path'
+  run mkdir -p "$copy"
+  run cp -R "$ROOT/.aai" "$copy/.aai"
+  run cp -R "$ROOT/tests" "$copy/tests"
+  [[ ! -e "$copy/.git" && ! -e "$copy/docs" ]] || fail TEST-3771 'the scratch copy holds a .git or a docs directory (positive control)'
+  [[ -s "$copy/tests/skills/test-aai-merge-cleanup.sh" ]] || fail TEST-3771 'the scratch copy has no suite (positive control)'
+  ( cd "$copy" && env -u AAI_ROLE -u AAI_GIT_WRITE bash tests/skills/test-aai-merge-cleanup.sh TEST-026 ) > "$copy.out" 2>&1 || rc=$?
+  out="$(cat "$copy.out")"
+  [[ "$rc" -eq 0 ]] || fail TEST-3771 "TEST-026 over a copy without .git and docs/ai exited $rc: ${out: -600}"
+  want TEST-3771 "$out" 'PASS: TEST-026'
+  text="$(cat "$ROOT/tests/skills/test-aai-merge-cleanup.sh")"
+  for needle in '$R''OOT/docs/ai/' 'cd "$R''OOT"' 'a90cdce9''77d5' '91c688d4''7ba3' 'routing-tables-have-an-owner-''and-a-seam'; do
+    unwanted TEST-3771 "$text" "$needle"
+  done
+  echo 'PASS: TEST-3771 TEST-026 runs in a tree without .git and without the live ledger'
+}
+
+test_3777_changelog_and_product_doc() {
+  local n doc
+  n="$(/usr/bin/grep -c -E '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — fix: an unreadable base ledger or temp file keeps the archive step' "$ROOT/CHANGELOG.md" || true)"
+  [[ "$n" == 1 ]] || fail TEST-3777 "CHANGELOG.md holds $n headings for the unreadable-ledger fix, want exactly 1"
+  doc="$(cat "$ROOT/docs/product/telemetry.md")"
+  want TEST-3777 "$doc" 'base-branch ledger'
+  want TEST-3777 "$doc" 'ledger_runs_unchecked'
+  want TEST-3777 "$doc" 'unwritable temporary copy'
+  want TEST-3777 "$doc" 'binds scope sources from `docs/ai/STATE.yaml`'
+  echo 'PASS: TEST-3777 the changelog names the fix and the product doc states both keeps and the STATE path'
+}
+
+# ---------------------------------------------------------------------------
 case "$SELECTED" in
   '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -4610,7 +4791,9 @@ case "$SELECTED" in
      test_075_reconcile_origin_step
      test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms; test_2925_preflight_retry_is_bounded; test_2926_unactionable_clash_choices_not_offered; test_2927_locally_deleted_files_sync_cleanly; test_2928_recovery_waits_for_protection_check; test_2929_null_identity_never_matches; test_2930_symlink_overlap_never_written_through
      test_3753_archive_runtime_writes_missing_runs; test_3754_flushed_state_changes_nothing; test_3755_plan_names_the_recovery_read_only; test_3756_unwritable_ledger_kept_with_command
-     test_3759_interrupted_cleanup_writes_once; test_3760_run_in_main_ledger_not_rewritten; test_3761_run_merged_on_base_not_yet_pulled ;;
+     test_3759_interrupted_cleanup_writes_once; test_3760_run_in_main_ledger_not_rewritten; test_3761_run_merged_on_base_not_yet_pulled
+     test_3772_unreadable_base_ledger_keeps_the_step; test_3773_unwritable_tmpdir_keeps_the_step; test_3774_plan_names_the_temp_write_failure
+     test_3771_test_026_is_hermetic; test_3777_changelog_and_product_doc ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -4708,5 +4891,10 @@ case "$SELECTED" in
   TEST-3759|test_3759_interrupted_cleanup_writes_once) test_3759_interrupted_cleanup_writes_once ;;
   TEST-3760|test_3760_run_in_main_ledger_not_rewritten) test_3760_run_in_main_ledger_not_rewritten ;;
   TEST-3761|test_3761_run_merged_on_base_not_yet_pulled) test_3761_run_merged_on_base_not_yet_pulled ;;
+  TEST-3772|test_3772_unreadable_base_ledger_keeps_the_step) test_3772_unreadable_base_ledger_keeps_the_step ;;
+  TEST-3773|test_3773_unwritable_tmpdir_keeps_the_step) test_3773_unwritable_tmpdir_keeps_the_step ;;
+  TEST-3774|test_3774_plan_names_the_temp_write_failure) test_3774_plan_names_the_temp_write_failure ;;
+  TEST-3771|test_3771_test_026_is_hermetic) test_3771_test_026_is_hermetic ;;
+  TEST-3777|test_3777_changelog_and_product_doc) test_3777_changelog_and_product_doc ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

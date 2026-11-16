@@ -388,7 +388,7 @@ function uniqueIds(entries, label, refuse) {
 function readStateFocus(root, ref) {
   let text;
   try {
-    text = fs.readFileSync(path.join(path.resolve(root), '.aai', 'STATE.yaml'), 'utf8');
+    text = fs.readFileSync(path.join(path.resolve(root), 'docs', 'ai', 'STATE.yaml'), 'utf8');
   } catch {
     return null;
   }
@@ -404,7 +404,7 @@ function readStateFocus(root, ref) {
   const intake = field('primary_path');
   const spec = field('spec_path');
   if (!intake || !spec) return null;
-  return { intake, spec, origin: '.aai/STATE.yaml current_focus' };
+  return { intake, spec, origin: 'docs/ai/STATE.yaml current_focus' };
 }
 
 function resolveScopeBinding({ root, ref, intake, spec }) {
@@ -415,7 +415,7 @@ function resolveScopeBinding({ root, ref, intake, spec }) {
   const fromState = readStateFocus(root, ref);
   if (fromState) return fromState;
   return {
-    error: `scope sources are unbound: pass --intake and --spec, or run where .aai/STATE.yaml holds a current_focus on ${ref}`,
+    error: `scope sources are unbound: pass --intake and --spec, or run where docs/ai/STATE.yaml holds a current_focus on ${ref}`,
   };
 }
 
