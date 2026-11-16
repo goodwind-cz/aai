@@ -801,8 +801,12 @@ export function validatePolicy(policy, decisionsText) {
     }
 
     // Delegated approvers (relayed approval): a written list must be
-    // non-empty, duplicate-free and a subset of requester_logins.
-    if (Array.isArray(lane.delegated_approvers)) {
+    // non-empty, duplicate-free and a subset of requester_logins. A key
+    // present with a non-list value (only a hand-built lane can carry one;
+    // the parser stores lists only) is parse_error, never "no delegation".
+    if (lane.delegated_approvers !== undefined && !Array.isArray(lane.delegated_approvers)) {
+      errors.push({ lane: id, code: 'parse_error' });
+    } else if (Array.isArray(lane.delegated_approvers)) {
       const requesters = Array.isArray(lane.requester_logins) ? lane.requester_logins : [];
       if (lane.delegated_approvers.length === 0) {
         errors.push({ lane: id, code: 'delegated_empty' });
@@ -954,7 +958,7 @@ export function classifyFiles(files, policy) {
 // Requester approval and CI-green predicates (P6, P7/Spec-AC-08).
 // ---------------------------------------------------------------------------
 
-// requesterApproved(reviews, logins, headOid) — P6, Spec-AC-07. Only
+// P6, Spec-AC-07: only
 // APPROVED, CHANGES_REQUESTED and DISMISSED reviews decide anything;
 // COMMENTED never overrides. For each listed login, take that login's
 // latest deciding review by submittedAt. Satisfied when at least one
@@ -1018,6 +1022,8 @@ export function requesterVerdict(reviews, logins, headOid, delegated) {
   return relayFailure || { ok: false, reason: 'requester_approval_missing' };
 }
 
+// requesterApproved(reviews, logins, headOid) — the SPEC-0207 P6 predicate
+// with no delegated login: true when requesterVerdict allows.
 export function requesterApproved(reviews, logins, headOid) {
   return requesterVerdict(reviews, logins, headOid, []).ok;
 }
@@ -1281,6 +1287,16 @@ function readStateStatus(statePath, blockName) {
   return null;
 }
 
+// delegatedList(lane) — the lane's delegated_approvers: [] when the key is
+// absent; when it is present but not a list (a hand-built lane that
+// bypassed parsePolicy), every requester login is treated as delegated, so
+// the lane fails closed instead of reading as "no delegation".
+function delegatedList(lane) {
+  if (lane.delegated_approvers === undefined) return [];
+  if (Array.isArray(lane.delegated_approvers)) return lane.delegated_approvers;
+  return Array.isArray(lane.requester_logins) ? lane.requester_logins : [];
+}
+
 // evaluateLane(lane, ctx) — lane-level codes in P10 order. `kind_not_in_lane`
 // (Spec-AC-05), `ceremony_exceeds` (Spec-AC-11) and `requester_approval_
 // missing` (Spec-AC-07) were real from earlier batches. This batch (Spec-
@@ -1306,11 +1322,6 @@ function readStateStatus(statePath, blockName) {
 // file order), so this walks paths in that same deterministic order and
 // denies on the FIRST uncovered one, naming it (P10's kind_not_in_lane line
 // now carries `path=<p>`) so the denial is actionable without a re-run.
-// delegatedList(lane) — the lane's delegated_approvers, [] when absent.
-function delegatedList(lane) {
-  return Array.isArray(lane.delegated_approvers) ? lane.delegated_approvers : [];
-}
-
 export function evaluateLane(lane, ctx) {
   const kinds = Array.isArray(lane.kinds) ? lane.kinds : [];
   const kindSet = new Set(kinds);

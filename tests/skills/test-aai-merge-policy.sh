@@ -5286,6 +5286,7 @@ test_3854_mixed_lane_and_stale_relay() {
 
   rl_check "[$bot_relay_head]"
   assert_payload_has_line "$OUT" "$RL_ALLOWED" "TEST-3854 [relay_only]: expected allowed, got: $OUT"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-3854 [relay_only]: expected exit 0, got $RC: $OUT"
 
   rl_check "[$bot_relay_base]"
   rl_expect_deny TEST-3854 stale_commit requester_approval_missing ""
@@ -5333,6 +5334,24 @@ test_3855_delegated_validation_codes() {
   VOUT="$(node "$MP" --validate --path "$RL_REPO/docs/ai/merge-policy.yaml" --repo-root "$RL_REPO" 2>&1)" && VRC=0 || VRC=$?
   assert_payload_has_line "$VOUT" "INVALID lane=lane-relay code=duplicate_key" \
     "TEST-3855 [duplicate_key]: expected duplicate_key, got: $VOUT"
+  # A hand-built lane (no parser) whose delegated_approvers is not a list:
+  # validatePolicy refuses it, and evaluateLane fails closed (every
+  # requester is treated as delegated, so an empty-body approval denies).
+  local HB_OUT
+  HB_OUT="$(MP_PATH="$MP" node --input-type=module -e '
+const mp = await import(process.env.MP_PATH);
+const lane = { id: "hb", decision_ref: "x@2026-01-01T00:00:00Z", decision_match: "x", signed_by: "o",
+  kinds: ["docs"], merge_reaches: "nothing", marker: "AAI_HB_MERGE",
+  requester_logins: ["content-gateway"], delegated_approvers: "content-gateway" };
+const v = mp.validatePolicy({ deploy: { preview: "none", production_on_merge: false }, kinds: [{ id: "docs", globs: ["**"] }], lanes: [lane] }, "");
+console.log("validate=" + (v.errors || []).map((e) => e.code).join(","));
+const r = mp.evaluateLane(lane, { fileKinds: new Map(), ceremony: 0, headOid: "h",
+  reviews: [{ author: { login: "content-gateway" }, state: "APPROVED", submittedAt: "2026-11-16T11:00:00Z", commit: { oid: "h" }, body: "" }] });
+console.log("evaluate=" + (r.ok ? "ok" : r.reason));
+' 2>&1)"
+  assert_payload_contains "$HB_OUT" "parse_error" "TEST-3855 [hand_built_non_list]: validatePolicy must refuse, got: $HB_OUT"
+  assert_payload_has_line "$HB_OUT" "evaluate=relay_reference_missing" \
+    "TEST-3855 [hand_built_non_list]: evaluateLane must fail closed, got: $HB_OUT"
   # Control: a well-formed delegated list validates.
   rl_repo 3855 "[alice, content-gateway]" "[content-gateway]"
   VOUT="$(node "$MP" --validate --path "$RL_REPO/docs/ai/merge-policy.yaml" --repo-root "$RL_REPO" 2>&1)" && VRC=0 || VRC=$?

@@ -117,7 +117,11 @@ AAI-RELAY chat=<platform>:<message-id> requester=<platform>:<user-id>
   `[A-Za-z0-9_.:/-]`.
 - The line is matched whole: single spaces, fixed field order, no other
   tokens, no leading or trailing whitespace; the capital `AAI-RELAY` prefix
-  is required. Other lines in the body are ignored. CRLF line ends are fine.
+  is required. CRLF line ends are fine.
+- Every body line whose trimmed text starts with `aai-relay`, in any letter
+  case, counts as a relay line; any other line is ignored. Keep gateway
+  footers and prose from starting with that word: a second such line makes
+  the review malformed.
 - A review that is APPROVED at head but has no line is denied
   `relay_reference_missing`; one with a line that is near-miss, doubled or
   otherwise not the exact form is denied `relay_reference_malformed`. Both
@@ -171,6 +175,9 @@ requester id in the line against any list.
 - `?` in a glob matches one UTF-16 unit, not one character
   (follow-up `fu-merge-policy-glob-unicode-question`); decision timestamps
   must be whole seconds (follow-up `fu-merge-policy-decision-ref-frac-ts`).
+- A delegated approver's review body is read as GitHub returns it on each
+  `--check`; editing a review body changes the verdict, and an edit does
+  not move the review's commit.
 - Only Claude Code sessions are mechanically guarded by the hook; other
   harnesses must call `--check` themselves. Markers are a guardrail, not a
   security boundary; server-side branch protection remains the real one.
