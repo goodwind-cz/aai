@@ -5408,8 +5408,10 @@ test_3857_delegated_docs_strings() {
   for s in 'delegated_approvers' 'AAI-RELAY'; do
     grep -qF -- "$s" "$ug" || log_fail "TEST-3857 [user_guide]: missing '$s'"
   done
-  grep -qiE '^## \[unreleased\] — .*delegated approver' "$cl" \
-    || log_fail "TEST-3857 [changelog]: no '## [unreleased] — ' heading naming delegated approvers"
+  # The release dry-run rolls `## [unreleased] — ` into `## [vYYYY.MM.DD] — `;
+  # either form names this entry.
+  grep -qiE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — .*delegated approver' "$cl" \
+    || log_fail "TEST-3857 [changelog]: no unreleased or rolled heading naming delegated approvers"
   log_pass "TEST-3857: docs and CHANGELOG name the delegated-approver key, the relay line and the trust wording"
 }
 

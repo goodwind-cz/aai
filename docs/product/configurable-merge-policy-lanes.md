@@ -22,7 +22,12 @@ a recorded bot sweep and the requester's GitHub approval". Each such rule is
 a lane, and each lane must point at a decision the owner signed. Anything
 outside every lane, and anything touching architecture (containers,
 dependencies, migrations, CI, credentials) as the owner defines it, still
-goes to the operator. With no policy file, nothing changes.
+goes to the operator. With no policy file, nothing changes. A requester
+without a GitHub account can approve in chat: a gateway holding its own bot
+credential submits the approval, the lane lists that bot in
+`delegated_approvers`, and the approval counts only when its review body
+carries one `AAI-RELAY chat=<platform>:<message-id> requester=<platform>:<user-id>`
+line.
 
 ## How to use it
 
@@ -97,7 +102,9 @@ bot credential:
    review as the bot at that `headRefOid`. The review body carries one
    relay line (below).
 3. The owner lists the bot in the lane's `requester_logins` and also in
-   `delegated_approvers`.
+   `delegated_approvers`, spelled as `gh pr view --json reviews` reports
+   `author.login` (for a GitHub App, its slug without the `[bot]` suffix
+   the REST comment API shows).
 
 ```yaml
     requester_logins: [alice, content-gateway]
