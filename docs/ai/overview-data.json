@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-16T01:41:30.005Z",
+  "generatedAt": "2026-11-16T19:40:13.657Z",
   "project": "aai",
   "counts": {
-    "delivered": 364,
+    "delivered": 365,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 189310311
+    "tokens_total": 190598384
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -232,7 +232,20 @@
       "token_total": 1739375,
       "spec": "docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-metrics-integrity-fixes-r1-20261115T224845Z.md"
+      "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
+    },
+    {
+      "ref": "issue-gate-via-spec",
+      "title": "The docs close gate fails every intake doc whose acceptance table lives in its spec",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0120-issue-gate-via-spec.md",
+      "closed_on": "2026-11-16",
+      "agent_minutes": 225,
+      "token_total": 1288073,
+      "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "recover-archived-state-runs",
@@ -4991,7 +5004,20 @@
           "token_total": 1739375,
           "spec": "docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-metrics-integrity-fixes-r1-20261115T224845Z.md"
+          "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
+        },
+        {
+          "ref": "issue-gate-via-spec",
+          "title": "The docs close gate fails every intake doc whose acceptance table lives in its spec",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0120-issue-gate-via-spec.md",
+          "closed_on": "2026-11-16",
+          "agent_minutes": 225,
+          "token_total": 1288073,
+          "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "recover-archived-state-runs",

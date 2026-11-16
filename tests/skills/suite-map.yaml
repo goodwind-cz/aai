@@ -394,6 +394,19 @@ suites:
       - tests/skills/suite-map.yaml
       - .aai/scripts/check-state.mjs
       - .aai/scripts/select-suites.mjs
+      # issue-gate-via-spec TEST-3807 and TEST-3808 (registered with a trailing
+      # comment, so TEST-2306 does not scan them): the real files they read.
+      # CHANGELOG.md is deliberately not listed (it would select this suite on
+      # every PR); the full sweep covers it.
+      - docs/issues/ISSUE-0115-recover-archived-state-runs.md
+      - docs/issues/ISSUE-0116-archive-ledger-check.md
+      - docs/issues/ISSUE-0117-effort-direct-append.md
+      - docs/issues/ISSUE-0118-metrics-integrity-fixes.md
+      - docs/specs/SPEC-0292-spec-recover-archived-state-runs.md
+      - docs/specs/SPEC-0293-spec-archive-ledger-check.md
+      - docs/specs/SPEC-0294-spec-effort-direct-append.md
+      - docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md
+      - docs/product/docs-close-gate.md
 
   aai-docs-canon:
     globs:
