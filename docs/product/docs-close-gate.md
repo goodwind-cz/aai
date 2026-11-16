@@ -60,7 +60,10 @@ fields; these are the links intake and planning already write.
 ## Limits and non-goals
 
 - A spec never gates through another spec; a doc that carries its own AC
-  table is gated on that table only.
+  table is gated on that table only. A table counts as its own as soon as a
+  `Spec-AC-NN` row sits under an `## Acceptance Criteria` or
+  `## Acceptance Criteria Status` heading, even when that table is
+  malformed.
 - An umbrella RFC or PRD whose own `## Rollout Status` still lists an
   unfinished phase does not pass because the specs written so far pass.
 - Release plans (`docs/releases/`) carry no acceptance table; the hook does
@@ -75,4 +78,4 @@ fields; these are the links intake and planning already write.
 
 - Request: docs/issues/ISSUE-DRAFT-issue-gate-via-spec.md
 - Spec: docs/specs/SPEC-DRAFT-issue-gate-via-spec.md
-- Validation evidence (local, gitignored): docs/ai/validation/VALIDATION-issue-gate-via-spec-r2-20261116T173028Z.md
+- Validation evidence (local, gitignored): docs/ai/validation/VALIDATION-issue-gate-via-spec-r4.md (final round)

@@ -9484,6 +9484,101 @@ MD
   log_pass "An own table with unparseable rows keeps failing and never delegates (TEST-3811)"
 }
 
+test_3812_unrecognised_own_table_never_delegates() {  # TEST-3812 / Spec-AC-12
+  log_info "Test: an own Spec-AC table the parsers do not recognise is still the doc's own and never delegates (TEST-3812)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3812)"
+  mkdir -p "$d/docs/issues"
+  # A: canonical heading, no Review-By column, implicit L2.
+  cat > "$d/docs/issues/CHANGE-5818-no-reviewby.md" <<'MD'
+---
+id: change-5818
+type: change
+status: done
+links:
+  pr: []
+---
+# Own table without a Review-By column
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       |
+|------------|-------------|--------------|
+| Spec-AC-01 | own row     | implementing |
+MD
+  # B: lean heading at implicit L2.
+  cat > "$d/docs/issues/CHANGE-5819-lean-at-l2.md" <<'MD'
+---
+id: change-5819
+type: change
+status: done
+links:
+  pr: []
+---
+# Lean-shaped own table at L2
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status       |
+|------------|-------------|--------------|
+| Spec-AC-01 | own row     | implementing |
+MD
+  # C: L1 with justification, lean table whose status column is "State".
+  cat > "$d/docs/issues/CHANGE-5820-state-column.md" <<'MD'
+---
+id: change-5820
+type: change
+status: done
+ceremony_level: 1
+links:
+  pr: []
+---
+# L1 own table with a State column
+
+Ceremony justification: single-surface fixture.
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | State        |
+|------------|-------------|--------------|
+| Spec-AC-01 | own row     | implementing |
+MD
+  # Control: an example Spec-AC table under another heading is not the doc's own.
+  cat > "$d/docs/issues/CHANGE-5821-example-table.md" <<'MD'
+---
+id: change-5821
+type: change
+status: done
+links:
+  pr: []
+---
+# Change whose body only shows an example table
+
+## Example
+
+| Spec-AC    | Description | Status  |
+|------------|-------------|---------|
+| Spec-AC-01 | example     | planned |
+MD
+  local id
+  for id in 5818 5819 5820 5821; do
+    igs_spec "$d/docs/specs/SPEC-$id-reconciled.md" "spec-$id" done requirement "change-$id"
+  done
+  local ec
+  for id in 5818 5819 5820; do
+    ec="$(igs_gate "$d" "$d/g-$id.log" --gate "CHANGE-$id")"
+    [[ "$ec" == 1 ]] || log_fail "TEST-3812: CHANGE-$id declares its own Spec-AC row and must fail on it (got $ec): $(cat "$d/g-$id.log")"
+    if grep -qF "via linked spec" "$d/g-$id.log" || grep -qF "Decided by" "$d/g-$id.log"; then
+      log_fail "TEST-3812: CHANGE-$id must never delegate to its linked spec: $(cat "$d/g-$id.log")"
+    fi
+  done
+  ec="$(igs_gate "$d" "$d/g-5821.log" --gate CHANGE-5821)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3812: control: an example table under another heading must not block delegation (got $ec): $(cat "$d/g-5821.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "Unrecognised own Spec-AC tables never delegate; an example table elsewhere does not count (TEST-3812)"
+}
+
 test_3808_changelog_and_product_doc() {  # TEST-3808 / Spec-AC-08
   log_info "Test: CHANGELOG heading and product doc for the close gate change (TEST-3808)..."
   local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/docs-close-gate.md" n
@@ -9588,6 +9683,7 @@ main() {
   test_3809_unfinished_rollout_keeps_reason  # issue-gate-via-spec
   test_3810_path_link_lean_and_own_reasons  # issue-gate-via-spec
   test_3811_unparseable_own_table_never_delegates  # issue-gate-via-spec
+  test_3812_unrecognised_own_table_never_delegates  # issue-gate-via-spec
   test_536_unparseable_ac_table_shape
   test_582_status_vocabulary_scoped_to_spec_ac_col
   test_538_duplicate_ac_id_multiplicity

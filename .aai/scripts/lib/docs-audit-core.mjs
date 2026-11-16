@@ -1843,6 +1843,25 @@ export function duplicateDocIdsFor(docs) {
 // resolution). Reused by both gateDoc (resolve-by-id, worktree file) and gateFile
 // (an explicit file path — e.g. a materialized STAGED blob) so the two entry points
 // apply byte-identical gate logic to whatever content they were handed.
+// issue-gate-via-spec D1 (amended after review round 3) — does the doc
+// declare an AC row of its OWN? True when any `| Spec-AC-NN` table row sits
+// under a `## Acceptance Criteria` or `## Acceptance Criteria Status` heading,
+// whatever that table's header columns are and whether or not the parsers
+// accept its shape (an unparseable or near-miss own table is still the doc's
+// own). Fenced code blocks are skipped, and only those two headings count, so
+// an example table elsewhere in the body does not.
+function declaresOwnAcRows(content) {
+  let inSection = false;
+  let inFence = false;
+  for (const line of String(content ?? '').split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    if (/^#{1,2}\s/.test(line)) { inSection = /^##\s+Acceptance Criteria(?:\s+Status)?\s*$/i.test(line); continue; }
+    if (inSection && /^\s*\|\s*Spec-AC-\d+\b/.test(line)) return true;
+  }
+  return false;
+}
+
 function gateContent(content, extraMethods) {
   const ac = parseAcTable(content);
   const reasons = [];
@@ -1906,7 +1925,7 @@ function gateContent(content, extraMethods) {
   if (!isLeanCeremonyLevel(clRaw)) {
     // Legacy path — absent/null/garbage/2/3: unchanged behavior.
     if (!ac.hasGate || ac.rows.length === 0) {
-      if (ac.declaredIds.length === 0) missingTable = 'missing AC Status table';
+      if (!declaresOwnAcRows(content)) missingTable = 'missing AC Status table';
       reasons.push('missing AC Status table');
     } else {
       reconcileCanonical();
@@ -1922,7 +1941,7 @@ function gateContent(content, extraMethods) {
     const lean = parseLeanAcTable(content);
     if (!lean.hasLean || lean.rows.length === 0) {
       const leanMissing = `missing AC table (ceremony_level ${clRaw} lean shape: a "## Acceptance Criteria" table with Spec-AC + Status columns)`;
-      if (lean.declaredIds.length === 0 && ac.declaredIds.length === 0) missingTable = leanMissing;
+      if (!declaresOwnAcRows(content)) missingTable = leanMissing;
       reasons.push(leanMissing);
     } else {
       for (const id of unparseableAcIds(lean)) {
