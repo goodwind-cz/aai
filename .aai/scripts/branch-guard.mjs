@@ -675,6 +675,10 @@ function main() {
   // (doPin/doVerifyPin/checkBranchPin all eventually shell out to git), so
   // this checks that FIRST and exits with the same named exit-4 refusal
   // guard mode uses below, instead of letting an uncaught exception through.
+  if (opts.preCommitHead !== null && !opts.syncReady) {
+    console.error('branch-guard: --pre-commit-head is only valid with --sync-ready');
+    exit(4);
+  }
   if (opts.pin || opts.verifyPin) {
     const pinProbe = workTreeProbe(cwd);
     if (!pinProbe.inside) {
@@ -685,10 +689,6 @@ function main() {
   if (opts.pin) doPin(cwd);
   if (opts.verifyPin) doVerifyPin(cwd);
 
-  if (opts.preCommitHead !== null && !opts.syncReady) {
-    console.error('branch-guard: --pre-commit-head is only valid with --sync-ready');
-    exit(4);
-  }
   if (opts.syncReady) {
     const syncProbe = workTreeProbe(cwd);
     if (!syncProbe.inside) {
