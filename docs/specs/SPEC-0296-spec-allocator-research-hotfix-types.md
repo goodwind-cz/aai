@@ -10,7 +10,7 @@ links:
   requirement: allocator-research-hotfix-types
   rfc: null
   pr:
-    - TBD
+    - 563
   commits:
     - 01f6d32c
 ---
