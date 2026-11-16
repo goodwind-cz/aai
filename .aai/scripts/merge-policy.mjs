@@ -108,8 +108,9 @@ export const EXIT_NO_POLICY = 4;
 //     entry `- id:` then `globs:`; a lane `- id:` then decision_ref,
 //     decision_match, signed_by, kinds, merge_reaches,
 //     allow_public_side_effect, max_ceremony, marker, requester_logins,
-//     requires; requires intake_types, exclude_roadmap_capability,
-//     validation_pass, review_pass, pr_body_contains.
+//     delegated_approvers (optional, never defaulted in), requires;
+//     requires intake_types, exclude_roadmap_capability, validation_pass,
+//     review_pass, pr_body_contains.
 //   * Two-space indentation per level; `key: value` with exactly one space
 //     after the colon; a block header is the bare `key:`.
 //   * An optional key appears only when it was written. An empty block
@@ -125,8 +126,8 @@ export const EXIT_NO_POLICY = 4;
 //     otherwise it is wrapped in double quotes, verbatim. Single quotes are
 //     never canonical. A string containing `"`, `\` or a control character
 //     has no canonical spelling and is parse_error.
-//   * Every list (globs, kinds, requester_logins, intake_types) is ONE
-//     flow list on the key's own line: `[a, b]` — items by the string rule
+//   * Every list (globs, kinds, requester_logins, delegated_approvers,
+//     intake_types) is ONE flow list on the key's own line: `[a, b]` — items by the string rule
 //     above, separated by `, `; the empty list is `[]`.
 //   * No comments. Comments in the file are fine: textualNormalize strips
 //     them before the comparison.
@@ -208,7 +209,7 @@ function canonicalScalarText(v) {
 // ["X"]) emits a spelling that differs from the file (`marker: "X"`), and
 // the textual comparison catches it -- the emitter cannot echo a misreading
 // back in the file's own shape.
-const LIST_KEYS = new Set(['globs', 'kinds', 'requester_logins', 'intake_types']);
+const LIST_KEYS = new Set(['globs', 'kinds', 'requester_logins', 'delegated_approvers', 'intake_types']);
 
 function emitLeaf(key, v) {
   if (LIST_KEYS.has(key)) return `[${(Array.isArray(v) ? v : [v]).map(canonicalScalarText).join(', ')}]`;
@@ -379,7 +380,8 @@ const TOP_KEYS = new Set(['version', 'deploy', 'architecture', 'kinds', 'lanes']
 const DEPLOY_KEYS = new Set(['preview', 'production_on_merge']);
 const LANE_SCALAR_KEYS = [
   'decision_ref', 'decision_match', 'signed_by', 'kinds', 'merge_reaches',
-  'allow_public_side_effect', 'max_ceremony', 'marker', 'requester_logins',
+  'allow_public_side_effect', 'max_ceremony',
+  'marker', 'requester_logins', 'delegated_approvers',
 ];
 
 // validation-round1 B2 — every lane must carry these (missing_key); max_ceremony
@@ -606,7 +608,7 @@ function parsePolicyLoose(text) {
           const b = parseBooleanScalar(kv3.rest);
           if (b === undefined) return fail(lane.id, 'parse_error');
           lane[kv3.key] = b;
-        } else if (kv3.key === 'kinds' || kv3.key === 'requester_logins') {
+        } else if (kv3.key === 'kinds' || kv3.key === 'requester_logins' || kv3.key === 'delegated_approvers') {
           // R2-B2: list-typed, closed shape.
           const list = parseRequiredList(kv3.rest);
           if (list === null) return fail(lane.id, 'parse_error');
@@ -798,6 +800,21 @@ export function validatePolicy(policy, decisionsText) {
       errors.push({ lane: id, code: 'requester_missing' });
     }
 
+    // Delegated approvers (relayed approval): a written list must be
+    // non-empty, duplicate-free and a subset of requester_logins.
+    if (Array.isArray(lane.delegated_approvers)) {
+      const requesters = Array.isArray(lane.requester_logins) ? lane.requester_logins : [];
+      if (lane.delegated_approvers.length === 0) {
+        errors.push({ lane: id, code: 'delegated_empty' });
+      }
+      if (new Set(lane.delegated_approvers).size !== lane.delegated_approvers.length) {
+        errors.push({ lane: id, code: 'delegated_duplicate' });
+      }
+      if (lane.delegated_approvers.some((d) => !requesters.includes(d))) {
+        errors.push({ lane: id, code: 'delegated_not_requester' });
+      }
+    }
+
     // validation-round1 B2 — `max_ceremony` is optional, but WHEN written it
     // must be one of the four real ceremony levels (canon 0-3); a stray
     // string or an out-of-range integer must never silently widen or narrow
@@ -944,9 +961,44 @@ export function classifyFiles(files, policy) {
 // listed login's latest deciding review is APPROVED at headOid.
 const DECIDING_REVIEW_STATES = new Set(['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED']);
 
-export function requesterApproved(reviews, logins, headOid) {
+// relayReference(body) — the relay line a delegated approver's review body
+// must carry: exactly one line `AAI-RELAY chat=<platform>:<id>
+// requester=<platform>:<id>`, matched whole after splitting on LF and
+// dropping one trailing CR per line. A line whose trimmed text starts with
+// `aai-relay` in any case is a candidate: zero candidates is missing, more
+// than one or a candidate that does not match whole (or names two
+// platforms) is malformed, so a near-miss is never read as "no line" nor as
+// a valid one.
+const RELAY_MISSING = 'relay_reference_missing';
+const RELAY_MALFORMED = 'relay_reference_malformed';
+const RELAY_LINE_RE = /^AAI-RELAY chat=([a-z][a-z0-9-]{0,31}):([A-Za-z0-9_.:/-]{1,128}) requester=([a-z][a-z0-9-]{0,31}):([A-Za-z0-9_.:/-]{1,128})$/;
+
+function stripTrailingCr(line) {
+  return line.endsWith('\r') ? line.slice(0, -1) : line;
+}
+
+export function relayReference(body) {
+  const text = typeof body === 'string' ? body : '';
+  const candidates = text.split('\n').map(stripTrailingCr)
+    .filter((line) => line.trim().toLowerCase().startsWith('aai-relay'));
+  if (candidates.length === 0) return { ok: false, reason: RELAY_MISSING };
+  if (candidates.length > 1) return { ok: false, reason: RELAY_MALFORMED };
+  const m = RELAY_LINE_RE.exec(candidates[0]);
+  if (!m || m[1] !== m[3]) return { ok: false, reason: RELAY_MALFORMED };
+  return { ok: true, platform: m[1], chat: m[2], requester: m[4] };
+}
+
+// requesterVerdict(reviews, logins, headOid, delegated) — P6 extended. A
+// non-delegated login satisfies the lane with its latest deciding review
+// APPROVED at headOid; a delegated login also needs a valid relay line in
+// that review's body. When no login satisfies and a delegated login's
+// approval at head failed only on its relay line, the verdict names that
+// relay reason and login (first in list order).
+export function requesterVerdict(reviews, logins, headOid, delegated) {
   const list = Array.isArray(reviews) ? reviews : [];
   const loginList = Array.isArray(logins) ? logins : [];
+  const delegatedSet = new Set(Array.isArray(delegated) ? delegated : []);
+  let relayFailure = null;
   for (const login of loginList) {
     let latest = null;
     for (const rev of list) {
@@ -955,11 +1007,19 @@ export function requesterApproved(reviews, logins, headOid) {
       if (!latest || String(rev.submittedAt || '') > String(latest.submittedAt || '')) latest = rev;
     }
     const r = latest;
-    if (r && r.state === 'APPROVED' && r.commit && r.commit.oid === headOid) {
-      return true;
-    }
+    if (!r || r.state !== 'APPROVED') continue;
+    const atHead = Boolean(r.commit) && r.commit.oid === headOid;
+    if (!atHead) continue;
+    if (!delegatedSet.has(login)) return { ok: true };
+    const relay = relayReference(r.body);
+    if (relay.ok) return { ok: true };
+    if (!relayFailure) relayFailure = { ok: false, reason: relay.reason, login };
   }
-  return false;
+  return relayFailure || { ok: false, reason: 'requester_approval_missing' };
+}
+
+export function requesterApproved(reviews, logins, headOid) {
+  return requesterVerdict(reviews, logins, headOid, []).ok;
 }
 
 // ciGreen(rollup) — Spec-AC-08. `rollup` is the GitHub `statusCheckRollup`
@@ -1246,6 +1306,11 @@ function readStateStatus(statePath, blockName) {
 // file order), so this walks paths in that same deterministic order and
 // denies on the FIRST uncovered one, naming it (P10's kind_not_in_lane line
 // now carries `path=<p>`) so the denial is actionable without a re-run.
+// delegatedList(lane) — the lane's delegated_approvers, [] when absent.
+function delegatedList(lane) {
+  return Array.isArray(lane.delegated_approvers) ? lane.delegated_approvers : [];
+}
+
 export function evaluateLane(lane, ctx) {
   const kinds = Array.isArray(lane.kinds) ? lane.kinds : [];
   const kindSet = new Set(kinds);
@@ -1287,8 +1352,14 @@ export function evaluateLane(lane, ctx) {
     return { ok: false, reason: 'ceremony_exceeds' };
   }
   const logins = Array.isArray(lane.requester_logins) ? lane.requester_logins : [];
-  if (logins.length > 0 && !requesterApproved(ctx.reviews, logins, ctx.headOid)) {
-    return { ok: false, reason: 'requester_approval_missing' };
+  const delegated = delegatedList(lane);
+  if (logins.length > 0) {
+    const verdict = requesterVerdict(ctx.reviews, logins, ctx.headOid, delegated);
+    if (!verdict.ok) {
+      return verdict.login !== undefined
+        ? { ok: false, reason: verdict.reason, login: verdict.login }
+        : { ok: false, reason: verdict.reason };
+    }
   }
   if (req.validation_pass === true && ctx.validationStatus !== 'pass') {
     return { ok: false, reason: 'validation_not_pass' };
@@ -1641,7 +1712,8 @@ function runCheck(opts) {
     // carries the first changed path that lane does not cover, so the
     // denial names the specific gap without a re-run under --debug-inputs.
     const pathSuffix = verdict.path !== undefined ? ` path=${escapeForLine(verdict.path)}` : '';
-    laneLines.push(`lane=${lane.id} reason=${verdict.reason}${pathSuffix}`);
+    const loginSuffix = verdict.login !== undefined ? ` login=${escapeForLine(verdict.login)}` : '';
+    laneLines.push(`lane=${lane.id} reason=${verdict.reason}${pathSuffix}${loginSuffix}`);
   }
 
   if (!allowedLane) {

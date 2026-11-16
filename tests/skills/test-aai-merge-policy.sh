@@ -5128,6 +5128,272 @@ JSON
   log_pass "TEST-1579 (Spec-AC-24 amendment, NB-3 coverage) an explicit null mergeStateStatus denies merge_state_not_clean state=missing, same as an omitted field"
 }
 
+# --- TEST-3850..3857 (delegated requester approval, relayed approval) --------
+# Shared fixture helpers. rl_repo builds a scratch repo whose base carries one
+# lane (`lane-relay`) with the given requester_logins flow list and, when the
+# second argument is non-empty, a delegated_approvers flow list. The head
+# commit is a docs-only change. Sets RL_REPO, RL_BASE, RL_HEAD, RL_ALLOWED.
+RL_LINE='AAI-RELAY chat=telegram:-1001234567890/42 requester=telegram:98765'
+
+rl_repo() {
+  local tag="$1" requesters="$2" delegated="$3"
+  mk
+  RL_REPO="$TEST_DIR/repo"
+  new_repo "$RL_REPO"
+  mkdir -p "$RL_REPO/docs/ai" "$RL_REPO/docs"
+  {
+    printf '%s\n' 'version: 1' 'kinds:' '  - id: docs' '    globs: ["docs/**"]' 'lanes:' \
+      '  - id: lane-relay' \
+      "    decision_ref: test${tag}-ride@2026-11-16T10:00:00Z" \
+      "    decision_match: \"MERGE LANE test${tag}\"" \
+      '    signed_by: owner-login' '    kinds: [docs]' '    merge_reaches: nothing' \
+      '    max_ceremony: 3' "    marker: AAI_RLY${tag}_MERGE" \
+      "    requester_logins: $requesters"
+    [[ -n "$delegated" ]] && printf '%s\n' "    delegated_approvers: $delegated"
+  } > "$RL_REPO/docs/ai/merge-policy.yaml"
+  printf '{"type":"hitl_decision","ref_id":"test%s-ride","ts":"2026-11-16T10:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test%s approved"}\n' \
+    "$tag" "$tag" > "$RL_REPO/docs/ai/decisions.jsonl"
+  echo "base doc" > "$RL_REPO/docs/base.md"
+  commit_all "$RL_REPO" "base ($tag)"
+  RL_BASE="$(head_sha "$RL_REPO")"
+  echo "a docs change" > "$RL_REPO/docs/changed-$tag.md"
+  commit_all "$RL_REPO" "head ($tag)"
+  RL_HEAD="$(head_sha "$RL_REPO")"
+  write_sweep_record "$RL_REPO" 7
+  RL_ALLOWED="MERGE-POLICY allowed pr=7 lane=lane-relay marker=AAI_RLY${tag}_MERGE decision_ref=test${tag}-ride@2026-11-16T10:00:00Z merge_reaches=nothing"
+}
+
+# rl_review <login> <state> <submittedAt> <oid> [body] — one review object as
+# JSON (the body goes through JSON.stringify, so CR and LF stay valid JSON).
+# With no body argument the body key is absent; the literal word NULLBODY
+# writes "body": null.
+rl_review() {
+  node -e '
+const [login, state, ts, oid, body] = process.argv.slice(1);
+const r = { author: { login }, state, submittedAt: ts, commit: { oid } };
+if (body === "NULLBODY") r.body = null; else if (body !== undefined) r.body = body;
+process.stdout.write(JSON.stringify(r));
+' "$@"
+}
+
+# rl_check <reviews-json> — serve a PR carrying those reviews through the gh
+# stub and run the real --check. Sets OUT and RC.
+rl_check() {
+  local reviews="$1" ghbin="$RL_REPO/../gh-bin" json="$RL_REPO/../pr.json" log="$RL_REPO/../gh.log"
+  cat > "$json" <<JSON
+{"number":7,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$RL_BASE","headRefOid":"$RL_HEAD","reviews":$reviews,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+  run_check "$RL_REPO" "$ghbin" 7
+}
+
+# rl_expect_deny <test> <case> <reason> <login-or-empty>
+rl_expect_deny() {
+  local t="$1" c="$2" reason="$3" login="$4" want
+  want="lane=lane-relay reason=$reason"
+  [[ -n "$login" ]] && want="$want login=$login"
+  assert_payload_has_line "$OUT" "$want" "$t [$c]: expected '$want', got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "$t [$c]: expected exit 3, got $RC: $OUT"
+}
+
+test_3850_no_delegated_key_bot_empty_body_allowed() {
+  log_info "TEST-3850: no delegated_approvers key: a bot requester login APPROVED at head with an empty body still allows (P6 unchanged)"
+  rl_repo 3850 "[content-gateway]" ""
+  rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" "")]"
+  assert_payload_has_line "$OUT" "$RL_ALLOWED" "TEST-3850 [empty_body]: expected allowed, got: $OUT"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-3850 [empty_body]: expected exit 0, got $RC: $OUT"
+  rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD")]"
+  assert_payload_has_line "$OUT" "$RL_ALLOWED" "TEST-3850 [absent_body]: expected allowed, got: $OUT"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-3850 [absent_body]: expected exit 0, got $RC: $OUT"
+  log_pass "TEST-3850: without delegated_approvers a bot login with an empty or absent review body is judged exactly as before"
+}
+
+test_3851_valid_relay_line_allowed() {
+  log_info "TEST-3851: a delegated login APPROVED at head with one valid relay line (alone, among prose, CRLF) allows with the unchanged allowed line"
+  rl_repo 3851 "[content-gateway]" "[content-gateway]"
+  local case_name body
+  for case_name in alone prose crlf crlf_alone; do
+    case "$case_name" in
+      alone) body="$RL_LINE" ;;
+      prose) body=$'Approved from chat.\n'"$RL_LINE"$'\nThanks.' ;;
+      crlf) body=$'Approved from chat.\r\n'"$RL_LINE"$'\r\nThanks.\r\n' ;;
+      crlf_alone) body="$RL_LINE"$'\r' ;;
+    esac
+    rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" "$body")]"
+    assert_payload_has_line "$OUT" "$RL_ALLOWED" "TEST-3851 [$case_name]: expected allowed, got: $OUT"
+    [[ "$RC" -eq 0 ]] || log_fail "TEST-3851 [$case_name]: expected exit 0, got $RC: $OUT"
+  done
+  log_pass "TEST-3851: a valid relay line allows alone, among prose lines, and with CRLF line ends"
+}
+
+test_3852_relay_reference_missing() {
+  log_info "TEST-3852: a delegated login APPROVED at head with no candidate relay line denies relay_reference_missing login=..."
+  rl_repo 3852 "[content-gateway]" "[content-gateway]"
+  local case_name body
+  for case_name in empty prose_only no_body null_body; do
+    case "$case_name" in
+      empty) rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" "")]" ;;
+      prose_only) rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" "Approved in chat, message 42 from user 98765.")]" ;;
+      no_body) rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD")]" ;;
+      null_body) rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" NULLBODY)]" ;;
+    esac
+    rl_expect_deny TEST-3852 "$case_name" relay_reference_missing content-gateway
+    assert_payload_not_contains "$OUT" "reason=requester_approval_missing" \
+      "TEST-3852 [$case_name]: a relay denial must not print requester_approval_missing, got: $OUT"
+  done
+  log_pass "TEST-3852: a delegated approval without a relay line denies relay_reference_missing, naming the login"
+}
+
+test_3853_relay_reference_malformed() {
+  log_info "TEST-3853: eight malformed relay shapes and two-line bodies deny relay_reference_malformed login=..."
+  rl_repo 3853 "[content-gateway]" "[content-gateway]"
+  local long_id; long_id="$(printf 'a%.0s' $(seq 1 129))"
+  local -a names bodies
+  names=(lowercase_prefix leading_space trailing_token missing_requester two_platforms id_with_space id_out_of_set id_too_long two_identical_lines valid_plus_invalid)
+  bodies=(
+    'aai-relay chat=telegram:1/2 requester=telegram:3'
+    ' AAI-RELAY chat=telegram:1/2 requester=telegram:3'
+    'AAI-RELAY chat=telegram:1/2 requester=telegram:3 extra'
+    'AAI-RELAY chat=telegram:1/2'
+    'AAI-RELAY chat=telegram:1/2 requester=signal:3'
+    'AAI-RELAY chat=telegram:1 2 requester=telegram:3'
+    'AAI-RELAY chat=telegram:1#2 requester=telegram:3'
+    "AAI-RELAY chat=telegram:$long_id requester=telegram:3"
+    "$RL_LINE"$'\n'"$RL_LINE"
+    "$RL_LINE"$'\n''AAI-RELAY chat=telegram:1 requester=telegram'
+  )
+  local i
+  for i in 0 1 2 3 4 5 6 7 8 9; do
+    rl_check "[$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" "${bodies[$i]}")]"
+    rl_expect_deny TEST-3853 "${names[$i]}" relay_reference_malformed content-gateway
+  done
+  log_pass "TEST-3853: all ten malformed shapes (eight shapes, two-line bodies) deny relay_reference_malformed"
+}
+
+test_3854_mixed_lane_and_stale_relay() {
+  log_info "TEST-3854: mixed lane: a human approval allows; a stale or superseded relayed approval denies requester_approval_missing"
+  rl_repo 3854 "[alice, content-gateway]" "[content-gateway]"
+  local human bot_norelay bot_relay_head bot_relay_base cr_later
+  human="$(rl_review alice APPROVED 2026-11-16T11:00:00Z "$RL_HEAD")"
+  bot_norelay="$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" "ok")"
+  bot_relay_head="$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_HEAD" "$RL_LINE")"
+  bot_relay_base="$(rl_review content-gateway APPROVED 2026-11-16T11:00:00Z "$RL_BASE" "$RL_LINE")"
+  cr_later="$(rl_review content-gateway CHANGES_REQUESTED 2026-11-16T12:00:00Z "$RL_HEAD" "no")"
+
+  rl_check "[$human,$bot_norelay]"
+  assert_payload_has_line "$OUT" "$RL_ALLOWED" "TEST-3854 [human_wins]: expected allowed, got: $OUT"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-3854 [human_wins]: expected exit 0, got $RC: $OUT"
+
+  rl_check "[$bot_relay_head]"
+  assert_payload_has_line "$OUT" "$RL_ALLOWED" "TEST-3854 [relay_only]: expected allowed, got: $OUT"
+
+  rl_check "[$bot_relay_base]"
+  rl_expect_deny TEST-3854 stale_commit requester_approval_missing ""
+  assert_payload_not_contains "$OUT" "reason=relay_reference" "TEST-3854 [stale_commit]: no relay reason expected, got: $OUT"
+
+  rl_check "[$bot_relay_head,$cr_later]"
+  rl_expect_deny TEST-3854 superseded requester_approval_missing ""
+  assert_payload_not_contains "$OUT" "reason=relay_reference" "TEST-3854 [superseded]: no relay reason expected, got: $OUT"
+
+  rl_check "[$bot_norelay]"
+  rl_expect_deny TEST-3854 no_human_no_relay relay_reference_missing content-gateway
+  log_pass "TEST-3854: a human approval allows; stale or superseded relayed approvals deny requester_approval_missing"
+}
+
+test_3855_delegated_validation_codes() {
+  log_info "TEST-3855: --validate refuses malformed, empty, duplicate and non-requester delegated_approvers; --check denies policy_invalid"
+  local case_name flow expect_code
+  for case_name in scalar empty_item empty_list duplicate not_requester; do
+    case "$case_name" in
+      scalar) flow="content-gateway"; expect_code=parse_error ;;
+      empty_item) flow="[content-gateway,]"; expect_code=parse_error ;;
+      empty_list) flow="[]"; expect_code=delegated_empty ;;
+      duplicate) flow="[content-gateway, content-gateway]"; expect_code=delegated_duplicate ;;
+      not_requester) flow="[bob]"; expect_code=delegated_not_requester ;;
+    esac
+    rl_repo 3855 "[alice, content-gateway]" "$flow"
+    VOUT="$(node "$MP" --validate --path "$RL_REPO/docs/ai/merge-policy.yaml" --repo-root "$RL_REPO" 2>&1)" && VRC=0 || VRC=$?
+    [[ "$VRC" -eq 1 ]] || log_fail "TEST-3855 [$case_name]: expected exit 1, got $VRC: $VOUT"
+    assert_payload_has_line "$VOUT" "INVALID lane=lane-relay code=$expect_code" \
+      "TEST-3855 [$case_name]: expected code $expect_code, got: $VOUT"
+    if [[ "$expect_code" != "parse_error" ]]; then
+      rl_check "[$(rl_review alice APPROVED 2026-11-16T11:00:00Z "$RL_HEAD")]"
+      assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=7 reason=policy_invalid" \
+        "TEST-3855 [$case_name]: --check expected policy_invalid, got: $OUT"
+    fi
+  done
+  # A lane with no requester_logins at all: delegated_not_requester too.
+  rl_repo 3855 "[]" "[content-gateway]"
+  VOUT="$(node "$MP" --validate --path "$RL_REPO/docs/ai/merge-policy.yaml" --repo-root "$RL_REPO" 2>&1)" && VRC=0 || VRC=$?
+  assert_payload_has_line "$VOUT" "INVALID lane=lane-relay code=delegated_not_requester" \
+    "TEST-3855 [no_requesters]: expected delegated_not_requester, got: $VOUT"
+  # A second delegated_approvers line is duplicate_key.
+  rl_repo 3855 "[alice, content-gateway]" "[content-gateway]"
+  printf '%s\n' '    delegated_approvers: [content-gateway]' >> "$RL_REPO/docs/ai/merge-policy.yaml"
+  VOUT="$(node "$MP" --validate --path "$RL_REPO/docs/ai/merge-policy.yaml" --repo-root "$RL_REPO" 2>&1)" && VRC=0 || VRC=$?
+  assert_payload_has_line "$VOUT" "INVALID lane=lane-relay code=duplicate_key" \
+    "TEST-3855 [duplicate_key]: expected duplicate_key, got: $VOUT"
+  # Control: a well-formed delegated list validates.
+  rl_repo 3855 "[alice, content-gateway]" "[content-gateway]"
+  VOUT="$(node "$MP" --validate --path "$RL_REPO/docs/ai/merge-policy.yaml" --repo-root "$RL_REPO" 2>&1)" && VRC=0 || VRC=$?
+  assert_payload_has_line "$VOUT" "VALID lanes=1" "TEST-3855 [control]: expected VALID lanes=1, got: $VOUT"
+  log_pass "TEST-3855: parse_error, delegated_empty, delegated_duplicate and delegated_not_requester refuse, and --check denies policy_invalid"
+}
+
+test_3856_delegated_canonical_position() {
+  log_info "TEST-3856: --canonical prints delegated_approvers right after requester_logins; before it is noncanonical; absent emits no line"
+  rl_repo 3856 "[alice, content-gateway]" "[content-gateway]"
+  local pol="$RL_REPO/docs/ai/merge-policy.yaml" out rc prev="" line found=0 after_ok=0
+  out="$(node "$MP" --canonical --path "$pol" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3856 [canonical]: exit $rc: $out"
+  while IFS= read -r line; do
+    if [[ "$line" == "    delegated_approvers: [content-gateway]" ]]; then
+      found=1
+      [[ "$prev" == "    requester_logins: [alice, content-gateway]" ]] && after_ok=1
+    fi
+    prev="$line"
+  done <<< "$out"
+  [[ "$found" -eq 1 && "$after_ok" -eq 1 ]] \
+    || log_fail "TEST-3856 [position]: delegated_approvers must follow requester_logins directly, got: $out"
+  # The written file is itself canonical.
+  validate_file_in "$pol" "$RL_REPO"
+  assert_payload_has_line "$VOUT" "VALID lanes=1" "TEST-3856 [valid]: expected VALID lanes=1, got: $VOUT"
+  # Swapped order: noncanonical.
+  local swapped="$RL_REPO/docs/ai/swapped.yaml"
+  perturb "$pol" "$swapped" move_after '^    requester_logins: ' - '^    delegated_approvers: ' \
+    || { log_fail "TEST-3856 [swapped]: perturb failed"; return; }
+  validate_file_in "$swapped" "$RL_REPO"
+  [[ "$VRC" -eq 1 ]] || log_fail "TEST-3856 [swapped]: expected exit 1, got $VRC: $VOUT"
+  assert_payload_contains "$VOUT" "code=noncanonical" "TEST-3856 [swapped]: expected noncanonical, got: $VOUT"
+  # Absent key: no line is emitted.
+  rl_repo 3856 "[alice]" ""
+  out="$(node "$MP" --canonical --path "$RL_REPO/docs/ai/merge-policy.yaml" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3856 [absent]: exit $rc: $out"
+  assert_payload_not_contains "$out" "delegated_approvers" "TEST-3856 [absent]: no line expected when the key is absent, got: $out"
+  assert_payload_contains "$out" "requester_logins: [alice]" "TEST-3856 [absent]: requester_logins must still print, got: $out"
+  log_pass "TEST-3856: delegated_approvers is canonical directly after requester_logins and never defaulted in"
+}
+
+validate_file_in() {
+  VOUT="$(node "$MP" --validate --path "$1" --repo-root "$2" 2>&1)" && VRC=0 || VRC=$?
+}
+
+test_3857_delegated_docs_strings() {
+  log_info "TEST-3857: the product doc, USER_GUIDE and CHANGELOG carry the delegated-approver strings"
+  local pd="$PROJECT_ROOT/docs/product/configurable-merge-policy-lanes.md"
+  local ug="$PROJECT_ROOT/docs/USER_GUIDE.md" cl="$PROJECT_ROOT/CHANGELOG.md" s
+  for s in 'delegated_approvers' 'AAI-RELAY' 'relay_reference_missing' 'relay_reference_malformed' \
+           'unreachable from agent tools' 'guardrail, not a security boundary'; do
+    grep -qF -- "$s" "$pd" || log_fail "TEST-3857 [product]: missing '$s'"
+  done
+  for s in 'delegated_approvers' 'AAI-RELAY'; do
+    grep -qF -- "$s" "$ug" || log_fail "TEST-3857 [user_guide]: missing '$s'"
+  done
+  grep -qiE '^## \[unreleased\] — .*delegated approver' "$cl" \
+    || log_fail "TEST-3857 [changelog]: no '## [unreleased] — ' heading naming delegated approvers"
+  log_pass "TEST-3857: docs and CHANGELOG name the delegated-approver key, the relay line and the trust wording"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -5201,6 +5467,14 @@ main() {
   test_1577_merge_queue_unknown_fails_closed
   test_1578_auto_merge_request_missing_key_denies
   test_1579_merge_state_null_denies_as_missing
+  test_3850_no_delegated_key_bot_empty_body_allowed
+  test_3851_valid_relay_line_allowed
+  test_3852_relay_reference_missing
+  test_3853_relay_reference_malformed
+  test_3854_mixed_lane_and_stale_relay
+  test_3855_delegated_validation_codes
+  test_3856_delegated_canonical_position
+  test_3857_delegated_docs_strings
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

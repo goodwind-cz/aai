@@ -74,13 +74,69 @@ lanes:
   to the operator), `kinds` (id + globs; closed world, an unmatched path
   denies), `lanes` (id, `decision_ref`, `decision_match`, `signed_by`,
   `kinds`, `merge_reaches`, opt-ins `allow_public_side_effect` and
-  `max_ceremony`, a unique `AAI_*_MERGE` marker, `requester_logins`, and
-  optional `requires` conditions). The file is valid only when, after
-  comments and whitespace are stripped, it equals its canonical text.
+  `max_ceremony`, a unique `AAI_*_MERGE` marker, `requester_logins`, the
+  optional `delegated_approvers` (a subset of `requester_logins`, written
+  right after it), and optional `requires` conditions). The file is valid
+  only when, after comments and whitespace are stripped, it equals its
+  canonical text.
 - `docs/ai/decisions.jsonl`: each lane binds to exactly one owner-signed
   `hitl_decision` record.
 - This repository's own policy carries one lane, `internal-standing`, which
   replaces the former prose standing merge authorization of 2026-09-12.
+
+## Requesters without GitHub (relayed approval)
+
+A requester who has no GitHub account can still be the human at the merge.
+The supported pattern is a chat gateway that holds a dedicated GitHub App or
+bot credential:
+
+1. The gateway shows the requester a preview of one exact head (the PR's
+   `headRefOid`) in chat.
+2. When the requester answers OK in chat, the gateway submits an APPROVED
+   review as the bot at that `headRefOid`. The review body carries one
+   relay line (below).
+3. The owner lists the bot in the lane's `requester_logins` and also in
+   `delegated_approvers`.
+
+```yaml
+    requester_logins: [alice, content-gateway]
+    delegated_approvers: [content-gateway]
+```
+
+A delegated login satisfies the requester step only when its latest
+deciding review is APPROVED at `headRefOid` and its body carries exactly one
+line of this form:
+
+```
+AAI-RELAY chat=<platform>:<message-id> requester=<platform>:<user-id>
+```
+
+- `<platform>` is `[a-z][a-z0-9-]{0,31}` (for example `telegram`) and is the
+  same in both fields.
+- `<message-id>` and `<user-id>` are 1 to 128 characters from
+  `[A-Za-z0-9_.:/-]`.
+- The line is matched whole: single spaces, fixed field order, no other
+  tokens, no leading or trailing whitespace; the capital `AAI-RELAY` prefix
+  is required. Other lines in the body are ignored. CRLF line ends are fine.
+- A review that is APPROVED at head but has no line is denied
+  `relay_reference_missing`; one with a line that is near-miss, doubled or
+  otherwise not the exact form is denied `relay_reference_malformed`. Both
+  lane lines end in `login=<login>`. Any other failure (a stale commit, a
+  later CHANGES_REQUESTED) stays `requester_approval_missing`. A human
+  login in the same lane is unaffected and needs no line.
+- `--validate` refuses a `delegated_approvers` list that is written empty
+  (`delegated_empty`), repeats a login (`delegated_duplicate`) or names a
+  login missing from `requester_logins` (`delegated_not_requester`).
+
+Trust assumption: the approving identity's credential must be
+unreachable from agent tools (never in the agent's environment, profile
+config or any file the agent can read). On a single host where the agent
+runs as the same OS user this is a guardrail, not a security boundary; server-side branch
+protection remains the real boundary. The relay line tells a relayed
+Approve from one pressed by hand with the bot's credential only as long as
+whoever presses it by hand does not type the line: it is a guardrail
+against habit, not proof of origin. The evaluator does not check the
+requester id in the line against any list.
 
 ## Interfaces and contracts
 
@@ -88,6 +144,10 @@ lanes:
   (exit 0), `MERGE-POLICY denied ...` plus one line per lane (exit 3), or
   `MERGE-POLICY no_policy` (exit 4); usage error exit 2. Printed paths are
   escaped so every verdict stays one physical line.
+- A lane denied for a delegated approver's relay line prints
+  `lane=<id> reason=relay_reference_missing login=<login>` or
+  `lane=<id> reason=relay_reference_malformed login=<login>`; the allowed
+  line is unchanged.
 - `merge-policy.mjs --validate`: `VALID lanes=<n>` (exit 0) or
   `INVALID lane=<id> code=<code>` lines (exit 1); exit 4 with no file.
 - `merge-policy.mjs --canonical` and `--classify`: print the canonical
@@ -119,4 +179,6 @@ lanes:
 
 - Request: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md (goodwind-cz/aai#429)
 - Spec: docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md
+- Relayed approval (goodwind-cz/aai#474):
+  docs/specs/SPEC-DRAFT-delegated-requester-approval.md
 - Validation evidence: docs/ai/reports/VALIDATION-20261005T0412Z-configurable-merge-policy-lanes.md

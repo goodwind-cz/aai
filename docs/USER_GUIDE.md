@@ -2896,6 +2896,8 @@ Bootstrap records which git host the project lives on (GitHub, Azure DevOps, unk
 
 By default an AAI agent never merges a pull request; merging is the operator's job. A repository owner can now write down, in one project-owned file, which kinds of pull requests the agent may merge on its own, for example "a change that only touches content or design files, with green CI, a recorded bot sweep and the requester's GitHub approval". Each such rule is a lane, and each lane must point at a decision the owner signed. Anything outside every lane, and anything touching architecture (containers, dependencies, migrations, CI, credentials) as the owner defines it, still goes to the operator. With no policy file, nothing changes.
 
+A requester without a GitHub account can approve in chat: a gateway holding its own bot credential submits the approval, and the lane lists that bot in `delegated_approvers` (as well as in `requester_logins`). That approval counts only when its review body carries one `AAI-RELAY chat=<platform>:<message-id> requester=<platform>:<user-id>` line, so a relayed approval stays distinguishable from one pressed by hand. The product doc below describes the pattern and its trust assumption.
+
 [Product doc](product/configurable-merge-policy-lanes.md) · [Spec](specs/SPEC-0207-spec-configurable-merge-policy-lanes.md)
 
 ### Downstream autopilot: rides ask nothing until the merge
