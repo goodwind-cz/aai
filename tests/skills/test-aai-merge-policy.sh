@@ -5405,7 +5405,9 @@ test_3857_delegated_docs_strings() {
            'unreachable from agent tools' 'guardrail, not a security boundary'; do
     grep -qF -- "$s" "$pd" || log_fail "TEST-3857 [product]: missing '$s'"
   done
-  for s in 'delegated_approvers' 'AAI-RELAY'; do
+  # The user guide's generated entry carries the trust assumption too
+  # (spec D4), not only the key and the line.
+  for s in 'delegated_approvers' 'AAI-RELAY' 'out of reach of agent tools'; do
     grep -qF -- "$s" "$ug" || log_fail "TEST-3857 [user_guide]: missing '$s'"
   done
   # The release dry-run rolls `## [unreleased] — ` into `## [vYYYY.MM.DD] — `;

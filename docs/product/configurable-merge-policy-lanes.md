@@ -27,7 +27,10 @@ without a GitHub account can approve in chat: a gateway holding its own bot
 credential submits the approval, the lane lists that bot in
 `delegated_approvers`, and the approval counts only when its review body
 carries one `AAI-RELAY chat=<platform>:<message-id> requester=<platform>:<user-id>`
-line.
+line. The bot credential must stay out of reach of agent tools: an agent
+that can read it can write that review itself. On a single host this is a
+guardrail, not a security boundary; branch protection remains the real
+one.
 
 ## How to use it
 
