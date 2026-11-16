@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 42483160fc75caef23cc6c3e4bdde0707933a12d82e556f57a652fb6cb9dfca0
+frozen_sha256: 876623a0d4da1b0f8ac7c5bedf0bc8f6e096e97e6b1354ed0dc6ac65343c8029
 ceremony_level: 2
 links:
   requirement: metrics-integrity-fixes
@@ -305,6 +305,8 @@ above.
 ## Registry items closed by this scope
 
 From `node .aai/scripts/follow-ups.mjs list` (347 lines, run 2026-11-15):
+
+CLOSED FULLY:
 - `fu-merge-cleanup-026-live-decisions-pin` (P2): Spec-AC-01, Spec-AC-02.
 - `fu-test026-unmerged-example-arm-vacant` (P3): Spec-AC-01 (the unmerged
   arm is a fixture ride that stays unmerged).
@@ -312,7 +314,7 @@ From `node .aai/scripts/follow-ups.mjs list` (347 lines, run 2026-11-15):
 - `fu-held-ledger-tmp-write-throws` (P3): Spec-AC-04, Spec-AC-05.
 - `fu-outcome-check-state-path` (P2): Spec-AC-06, Spec-AC-07.
 
-Touched subject, not closed: `fu-assertions-pinned-to-one-world` (P2) names
+NOT CLOSED: touched subject `fu-assertions-pinned-to-one-world` (P2) names
 a missing check for the shape "an assertion that can only hold in one state
 of the world"; this scope removes one instance and adds no general check.
 
@@ -347,3 +349,13 @@ is unreadable (step 4) and keeps the step. Reason: a garbage loose ref and a ref
 to a tree both exit 1 with stderr and were wrongly read as absent, so the
 recovery wrote runs with no base ledger held. TEST-3772 gains garbage, missing
 object and tree ref shapes; the mutation record is refreshed.
+
+## Post-freeze amendment A2 (Validation round 3, VAL3-1)
+
+Disclosure, additive: no owner sign-off was obtained (class measurement). The
+section "Registry items closed by this scope" stays as frozen text apart from
+two labels: `CLOSED FULLY:` now precedes the five-item list and the
+not-closed paragraph now begins `NOT CLOSED:`. Reason: the closure parser
+(`follow-ups verify-closures`) read the unlabelled section as claiming
+`fu-assertions-pinned-to-one-world` too. No claim changed; only how the
+claims are read by the check.
