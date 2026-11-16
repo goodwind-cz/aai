@@ -1,10 +1,10 @@
 ---
 id: spec-metrics-integrity-fixes
 type: spec
-number: null
-status: implementing
+number: 295
+status: done
 mutation_gate: v1
-frozen_sha256: 876623a0d4da1b0f8ac7c5bedf0bc8f6e096e97e6b1354ed0dc6ac65343c8029
+frozen_sha256: a7b75de1ddde90446df60eaae1832f5189c38880ff97cd2e5f35ba954b73fde4
 ceremony_level: 2
 links:
   requirement: metrics-integrity-fixes
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-metrics-integrity-fixes.md (four open
+- Requirement: docs/issues/ISSUE-0118-metrics-integrity-fixes.md (four open
   follow-ups: `fu-merge-cleanup-026-live-decisions-pin` P2,
   `fu-held-ledger-git-show-silent` P3, `fu-held-ledger-tmp-write-throws` P3,
   `fu-outcome-check-state-path` P2).
@@ -60,8 +60,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-merge-cleanup.sh;
   tests/skills/test-aai-outcome-backcheck.sh;
   tests/skills/test-aai-role-output.sh; docs/product/telemetry.md;
-  CHANGELOG.md; docs/issues/ISSUE-DRAFT-metrics-integrity-fixes.md;
-  docs/specs/SPEC-DRAFT-spec-metrics-integrity-fixes.md.
+  CHANGELOG.md; docs/issues/ISSUE-0118-metrics-integrity-fixes.md;
+  docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md.
 
 ## Ceremony
 

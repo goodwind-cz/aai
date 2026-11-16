@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-15T22:19:05.322Z",
+  "generatedAt": "2026-11-16T01:41:30.005Z",
   "project": "aai",
   "counts": {
-    "delivered": 363,
+    "delivered": 364,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 187570936
+    "tokens_total": 189310311
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -222,6 +222,19 @@
   ],
   "delivered": [
     {
+      "ref": "metrics-integrity-fixes",
+      "title": "Four open follow-ups: a live-ledger test pin, two silent held-ledger failures, an outcome check reading the wrong STATE",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0118-metrics-integrity-fixes.md",
+      "closed_on": "2026-11-16",
+      "agent_minutes": 231,
+      "token_total": 1739375,
+      "spec": "docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-metrics-integrity-fixes-r1-20261115T224845Z.md"
+    },
+    {
       "ref": "recover-archived-state-runs",
       "title": "Role runs that live only in archived STATE copies never reach METRICS, and nothing can recover them",
       "type": "issue",
@@ -258,7 +271,7 @@
       "token_total": 376334,
       "spec": "docs/specs/SPEC-0294-spec-effort-direct-append.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261115T2123Z-effort-direct-append.md"
     },
     {
       "ref": "consumer-config-routing-override",
@@ -4968,6 +4981,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "metrics-integrity-fixes",
+          "title": "Four open follow-ups: a live-ledger test pin, two silent held-ledger failures, an outcome check reading the wrong STATE",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0118-metrics-integrity-fixes.md",
+          "closed_on": "2026-11-16",
+          "agent_minutes": 231,
+          "token_total": 1739375,
+          "spec": "docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-metrics-integrity-fixes-r1-20261115T224845Z.md"
+        },
+        {
           "ref": "recover-archived-state-runs",
           "title": "Role runs that live only in archived STATE copies never reach METRICS, and nothing can recover them",
           "type": "issue",
@@ -5004,7 +5030,7 @@
           "token_total": 376334,
           "spec": "docs/specs/SPEC-0294-spec-effort-direct-append.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261115T2123Z-effort-direct-append.md"
         },
         {
           "ref": "consumer-config-routing-override",

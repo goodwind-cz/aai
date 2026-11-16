@@ -1,8 +1,8 @@
 ---
 id: metrics-integrity-fixes
 type: issue
-number: null
-status: draft
+number: 118
+status: done
 links:
   pr: []
   commits: []

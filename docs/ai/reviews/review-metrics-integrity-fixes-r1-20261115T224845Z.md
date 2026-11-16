@@ -2,8 +2,8 @@
 
 ```yaml
 review:
-  scope: "uncommitted diff vs origin/main 16773cdf in /Users/ales/Projects/aai-worktrees/metrics-integrity-fixes, paths: .aai/scripts/lib/metrics-flush-record.mjs; .aai/scripts/validation-outcome-check.mjs; tests/skills/test-aai-merge-cleanup.sh; tests/skills/test-aai-outcome-backcheck.sh; tests/skills/test-aai-role-output.sh; docs/product/telemetry.md; CHANGELOG.md; docs/issues/ISSUE-DRAFT-metrics-integrity-fixes.md; docs/specs/SPEC-DRAFT-spec-metrics-integrity-fixes.md"
-  spec: docs/specs/SPEC-DRAFT-spec-metrics-integrity-fixes.md
+  scope: "uncommitted diff vs origin/main 16773cdf in /Users/ales/Projects/aai-worktrees/metrics-integrity-fixes, paths: .aai/scripts/lib/metrics-flush-record.mjs; .aai/scripts/validation-outcome-check.mjs; tests/skills/test-aai-merge-cleanup.sh; tests/skills/test-aai-outcome-backcheck.sh; tests/skills/test-aai-role-output.sh; docs/product/telemetry.md; CHANGELOG.md; docs/issues/ISSUE-0118-metrics-integrity-fixes.md; docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md"
+  spec: docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -23,7 +23,7 @@ review:
       - { rank: BLOCKING, file: .aai/scripts/lib/metrics-flush-record.mjs, line: 198,
           issue: "readBaseLedger classifies rev-parse exit 1 as 'absent' without the spec's no-stderr condition, so a broken base ref is read as 'nothing held' and the recovery writes",
           failure_scenario: "main checkout whose refs/remotes/origin/main is a broken loose ref (truncated/garbage after an interrupted fetch) or points at a non-commit: rev-parse prints 'warning: ignoring broken ref' / 'expected commit type' and exits 1; recoverStateCopy returns keep null, recovered 1 and writes the ride's run with no base ledger held, so a run already merged on the base but not yet pulled is written twice (the exact class fu-held-ledger-git-show-silent closes). Repro exits 1 for both shapes." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-metrics-integrity-fixes.md, line: 124,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md, line: 124,
           issue: "spec D2 step 1 itself admits a ref whose object is missing as 'absent': rev-parse --verify -q <ref>^{commit} exits 1 with NO stderr when the ref file names a missing object",
           failure_scenario: "refs/remotes/origin/main names a commit object that was pruned/lost: rev-parse exit 1 silent, classified absent, recovery writes without the base ledger (same double-write class). git ls-tree <ref> on that ref exits 128, so probing existence with rev-parse --verify -q <ref> (no ^{commit}) and letting ls-tree classify would keep the step." }
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-role-output.sh, line: 1140,
@@ -41,7 +41,7 @@ security_relevant: false
 ## Scope and spec
 
 - Scope: the uncommitted diff of branch `fix/metrics-integrity-fixes` against `origin/main` (16773cdf), worktree mode (STATE `worktree.user_decision: worktree`), the nine paths named in STATE `code_review.scope`. `git status --porcelain` showed only those paths plus `docs/ai/EVENTS.jsonl` (append-only: 18 added lines, base is a byte-exact prefix).
-- Spec: docs/specs/SPEC-DRAFT-spec-metrics-integrity-fixes.md (frozen, ceremony 2, tdd).
+- Spec: docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md (frozen, ceremony 2, tdd).
 - Dispatch note: the dispatch relayed the validator's remark about the missing stderr check in D2 step 1. Recorded here as a characterization of an expected finding; the full scope was reviewed regardless, and the finding below rests on an independent probe that reaches a different conclusion from the validator (the validation report NB-3 says exit 1 happens "only for a missing ref"; it does not).
 
 ## Verdict 1 — spec_compliance: FAIL
