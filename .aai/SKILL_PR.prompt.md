@@ -237,6 +237,7 @@ PROCESS
      project's `git log` history.
    - Reference the ref id (e.g. CHANGE-0007 / SPEC-0013) in the subject or body.
    - Commit only after the step-3 audit passes and the PRECONDITIONS hold.
+   - Before committing, note `git rev-parse HEAD` as <pre-commit-head>.
 
 4a. VERIFY THE COMMITTED BLOB (spec-lessons-that-must-hold-downstream-are-guards
    D3) — AFTER the commit above and BEFORE the push, run
@@ -357,6 +358,8 @@ PROCESS
      ```
 
 5b. MERGE-CONFLICT RESOLUTION + VERIFY MERGE (when syncing the branch with base):
+   - Before any `git merge` of base run `node .aai/scripts/branch-guard.mjs --sync-ready --pre-commit-head <pre-commit-head>`
+     (drop the flag if this session ran no step 4); non-zero: STOP, print its stderr.
    - Resolve conflicts by file class:
        docs/INDEX.md        → NEVER hand-merge; take either side, then regenerate:
                               node .aai/scripts/generate-docs-index.mjs

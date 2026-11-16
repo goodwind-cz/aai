@@ -218,8 +218,10 @@ test_3454_small_input_parity() {
     cmp -s "$TEST_DIR/new.err" "$TEST_DIR/old.err" || log_fail "TEST-3454: $kind stderr differs from the baseline"
   done
   numstat="$(git -C "$PROJECT_ROOT" diff --numstat "$BASE_SHA" -- .aai/scripts/pre-commit-checks.sh | awk '{print $1" "$2}')"
-  [[ "$numstat" == "7 7" ]] || log_fail "TEST-3454: git diff --numstat $BASE_SHA on the script reads '$numstat', expected '7 7'"
-  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 7 lines"
+  # 7 7 from the pipe-safe slice, then +12 -4 from pr-ceremony-friction-fixes (CHECK 2: staged-blob
+  # content scan, evidence-folder name check); the seven fixtures above stay byte-identical.
+  [[ "$numstat" == "19 11" ]] || log_fail "TEST-3454: git diff --numstat $BASE_SHA on the script reads '$numstat', expected '19 11'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 19 added and 11 removed lines"
 }
 
 # shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
@@ -490,7 +492,8 @@ test_3461_line_budget_and_follow_up() {
   echo "LINES before: pre-commit-checks.sh 323/239, pre-commit-checks.ps1 281/221 (total/code)"
   echo "LINES after:  pre-commit-checks.sh $sh_t/$sh_c, pre-commit-checks.ps1 $ps_t/$ps_c (total/code)"
   [[ "$ps_t" -le 5 && "$ps_c" -le 2 ]] || log_fail "TEST-3461: the launcher is $ps_t lines and $ps_c code lines, budget 5 and 2"
-  [[ "$sh_t" == 323 && "$sh_c" == 239 ]] || log_fail "TEST-3461: pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 323 and 239"
+  # 323/239 after the pipe-safe slice, then 331/247 after pr-ceremony-friction-fixes (CHECK 2, +8/+8).
+  [[ "$sh_t" == 331 && "$sh_c" == 247 ]] || log_fail "TEST-3461: pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 331 and 247"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -506,7 +509,72 @@ test_3461_line_budget_and_follow_up() {
     process.stdout.write(bad.join("; "));
   ' "$TEST_DIR/fu.json")"
   [[ -z "$out" ]] || log_fail "TEST-3461: the delete follow-up: $out"
-  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh keeps 323/239, and the delete follow-up is filed (P3)"
+  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh is 331/247, and the delete follow-up is filed (P3)"
+}
+
+# --- pr-ceremony-friction-fixes (GitHub #565): CHECK 2 in the AAI evidence folders -------------
+EVIDENCE_DIRS="docs/ai/reports docs/ai/tdd docs/ai/validation docs/ai/reviews"
+SENSITIVE="Sensitive file staged"
+SECRET_HIT="Potential secret detected in"
+
+# stage_file <fixture> <path> <content line>: writes the line to the path and stages it.
+stage_file() {
+  mkdir -p "$(dirname "$1/$2")"
+  printf '%s\n' "$3" > "$1/$2"
+  git -C "$1" add -f -- "$2"
+}
+
+test_3831_evidence_names_pass() {
+  local fx="$TEST_DIR/t3831" d n head_before
+  make_fx "$fx"
+  for d in $EVIDENCE_DIRS; do
+    stage_file "$fx" "$d/worker-env-and-secrets.txt" "API_BASE_URL DB_NAME"
+    stage_file "$fx" "$d/db-credentials-check.log" "API_BASE_URL DB_NAME"
+  done
+  run_checks "$fx"
+  n="$(count_in "$OUT" "$SENSITIVE")"
+  [[ "$RC" == 0 && "$n" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3831: eight evidence files named with secret/credentials exited $RC with $n '$SENSITIVE' line(s), expected 0 and 0"; }
+  # Through a real installed hook: the commit must be created.
+  vendor_hook_installer "$fx" sh
+  ( cd "$fx" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst3831.out" 2>&1 || { cat "$TEST_DIR/inst3831.out" >&2; log_fail "TEST-3831: the hook installer failed"; }
+  git -C "$fx" checkout -q -b work
+  head_before="$(git -C "$fx" rev-parse HEAD)"
+  RC=0
+  ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m evidence ) >"$TEST_DIR/commit3831.out" 2>&1 || RC=$?
+  [[ "$RC" == 0 ]] || { cat "$TEST_DIR/commit3831.out" >&2; log_fail "TEST-3831: git commit through the installed hook exited $RC"; }
+  [[ "$(git -C "$fx" rev-parse HEAD)" != "$head_before" ]] || log_fail "TEST-3831: HEAD did not move"
+  log_pass "TEST-3831: evidence files named with secret/credentials in the four evidence folders pass CHECK 2 and commit through the installed hook"
+}
+
+test_3832_content_scan_reads_staged_blob() {
+  local fx="$TEST_DIR/t3832" p n line
+  make_fx "$fx"
+  line="$(printf '%s = "%s"' api_key abcdefgh1234)"   # assembled so this suite does not trip CHECK 2 itself
+  for p in docs/ai/validation/run.txt app/config.txt; do
+    stage_file "$fx" "$p" "$line"
+    printf 'clean\n' > "$fx/$p"   # the working tree no longer holds it; the staged blob does
+  done
+  run_checks "$fx"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3832: a staged secret behind a clean working tree exited $RC, expected 1"; }
+  for p in docs/ai/validation/run.txt app/config.txt; do
+    n="$(count_in "$OUT" "$SECRET_HIT $p")"
+    [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3832: '$SECRET_HIT $p' printed $n time(s), expected 1"; }
+  done
+  log_pass "TEST-3832: the content scan reads the staged blob, inside and outside the evidence folders"
+}
+
+test_3833_sensitive_names_still_blocked() {
+  local p fx i=0 n
+  for p in .env .env.local config/credentials.json keys/secret.key docs/ai/validation/.env docs/ai/tdd/.env.prod; do
+    i=$((i + 1))
+    fx="$TEST_DIR/t3833-$i"
+    make_fx "$fx"
+    stage_file "$fx" "$p" "harmless"
+    run_checks "$fx"
+    n="$(count_in "$OUT" "$SENSITIVE: $p")"
+    [[ "$RC" == 1 && "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3833: staged $p exited $RC with $n '$SENSITIVE: $p' line(s), expected 1 and 1"; }
+  done
+  log_pass "TEST-3833: .env, .env.local, credentials.json, secret.key and dotenv files inside evidence folders are still blocked by name"
 }
 
 main() {
@@ -527,6 +595,9 @@ main() {
   test_3459_downstream_install
   test_3460_rfc
   test_3461_line_budget_and_follow_up
+  test_3831_evidence_names_pass
+  test_3832_content_scan_reads_staged_blob
+  test_3833_sensitive_names_still_blocked
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

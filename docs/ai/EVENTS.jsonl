@@ -4038,3 +4038,4 @@
 {"v":1,"ts":"2026-11-16T01:41:21Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-metrics-integrity-fixes","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-16T01:41:21Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-metrics-integrity-fixes","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-16T01:42:55Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":745,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-16T20:19:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-ceremony-friction-fixes","payload":{"from":"draft","to":"implementing"}}

@@ -1037,7 +1037,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 66423 -> 66523: model-effort-routing digest-clean remediation (+100 B: VALIDATION +29, SKILL_LOOP +71; credited 1:1).
   # Then 66523 -> 66791: archive-ledger-check (+268 B: SKILL_WORKTREE Cleanup step 2 metrics-flush --recover-archives --include-focus line, its pull-main-first comment and the Safety bullet naming it; credited 1:1).
   # Then 66791 -> 67057: effort-direct-append (+266 B: ROLE_COMMON direct-append --effort-applied direct and --requested-effort, SKILL_LOOP step 4 direct value and its precedence; credited 1:1).
-  local want_growth=67057
+  # Then 67057 -> 67480: pr-ceremony-friction-fixes (+423 B: SKILL_PR steps 4 and 5b --sync-ready wiring +284 B, VALIDATION step 6 evidence-name sentence +139 B; credited 1:1).
+  local want_growth=67480
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2796,7 +2797,8 @@ test_2936_skill_pr_3b_growth_ledgered() {
   fi
   # SKILL_PR.prompt.md was 32833 B at baseline commit 7d38415a (stored, not read from git: shallow clones lack the commit).
   # Later slice ride-status-and-resume adds 232 B to SKILL_PR (credited by its own entry); it is excluded here so the 72 B stays this entry's own.
-  local base_bytes=$(( 32833 + 232 )) now growth _e entry='' n=0 lead
+  # pr-ceremony-friction-fixes adds 284 B to SKILL_PR steps 4 and 5b (credited by its own entry); excluded the same way.
+  local base_bytes=$(( 32833 + 232 + 284 )) now growth _e entry='' n=0 lead
   now=$(wc -c < .aai/SKILL_PR.prompt.md | tr -d ' ')
   growth=$(( now - base_bytes ))
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
@@ -2814,6 +2816,35 @@ test_2936_skill_pr_3b_growth_ledgered() {
     return
   fi
   log_pass "TEST-2936: SKILL_PR step 3b growth $growth B credited 1:1 by one watch-ci-reread-refresh-and-p3-cleanup entry"
+}
+
+# TEST-3837 (spec-pr-ceremony-friction-fixes Spec-AC-07): the SKILL_PR steps 4 and 5b
+# --sync-ready wiring and the VALIDATION step 6 evidence-name sentence are credited 1:1 by
+# exactly one JUSTIFIED_ADDITIONS entry whose ref field is pr-ceremony-friction-fixes.
+test_3837_pr_ceremony_friction_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-3837 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  # SKILL_PR.prompt.md 33137 B + VALIDATION.prompt.md 25829 B at base commit c1034b24
+  # (stored, not read from git: shallow clones lack the commit).
+  local base_bytes=$(( 33137 + 25829 )) now growth _e entry='' n=0 ref lead
+  now=$(( $(wc -c < "$PROJECT_ROOT/.aai/SKILL_PR.prompt.md" | tr -d ' ') + $(wc -c < "$PROJECT_ROOT/.aai/VALIDATION.prompt.md" | tr -d ' ') ))
+  growth=$(( now - base_bytes ))
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "pr-ceremony-friction-fixes" ]]; then entry="$_e"; n=$((n + 1)); fi
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-3837: $n ledger entries have the ref field pr-ceremony-friction-fixes (want exactly 1)"
+    return
+  fi
+  lead="${entry%% *}"
+  if [[ "$growth" -le 0 || "$lead" != "$growth" ]]; then
+    log_fail "TEST-3837: SKILL_PR + VALIDATION grew $growth B over $base_bytes but the entry credits '$lead' B"
+    return
+  fi
+  log_pass "TEST-3837: SKILL_PR + VALIDATION growth $growth B credited 1:1 by one pr-ceremony-friction-fixes entry"
 }
 
 main() {
@@ -2876,6 +2907,7 @@ main() {
   test_2722_diet_entry_for_slice
   test_2824_diet_entry_for_binding
   test_2936_skill_pr_3b_growth_ledgered
+  test_3837_pr_ceremony_friction_growth_ledgered
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
