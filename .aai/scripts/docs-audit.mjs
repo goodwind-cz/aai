@@ -416,12 +416,22 @@ function emitGate(header, res) {
     console.log(`GATE ERROR: ${res.reasons.join('; ')}`);
     exit(2);
   }
+  // issue-gate-via-spec D3 — `via` is set when a doc with no AC table of its
+  // own was gated through its linked spec(s): name the spec(s) that decided.
+  const via = res.via ?? [];
   if (res.ok) {
-    console.log('GATE PASS: AC Status table complete (every row terminal, every done row evidenced, every Review-By valid).');
+    if (via.length) {
+      console.log(`GATE PASS via linked spec(s) ${via.map((v) => `${v.id} (${v.rel})`).join(', ')}: the doc has no AC table of its own, so its linked spec's table decides (every row terminal, every done row evidenced, every Review-By valid).`);
+    } else {
+      console.log('GATE PASS: AC Status table complete (every row terminal, every done row evidenced, every Review-By valid).');
+    }
     exit(0);
   }
   console.log('GATE FAIL — the AC Status table is not reconciled:');
   for (const r of res.reasons) console.log(`- ${r}`);
+  if (via.length) {
+    console.log(`Decided by linked spec(s): ${via.map((v) => `${v.id} ${v.ok ? 'pass' : 'fail'} (${v.rel})`).join(', ')}`);
+  }
   exit(1);
 }
 

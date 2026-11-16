@@ -36,7 +36,8 @@ fi
 # would reintroduce the committed-index non-idempotence). Belt-and-suspenders un-stage.
 git rm --cached --quiet --ignore-unmatch docs/INDEX.audit.md
 
-# AAI:INDEX-AUTOGEN close-gate (SPEC-0011 G5): for each staged spec whose diff ADDS
+# AAI:INDEX-AUTOGEN close-gate (SPEC-0011 G5): for each staged governed doc (a spec, or
+# an intake doc under docs/issues, docs/rfc or docs/requirements) whose diff ADDS
 # a 'status: done' frontmatter line, run the offline close gate. Block the commit
 # only when docs/ai/docs-audit.yaml sets close_gate: enforce; otherwise warn and
 # continue (report-only default -- absent config or close_gate: report-only never blocks).
@@ -59,7 +60,12 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     CLOSE_GATE_MODE="enforce"
   fi
   CLOSE_GATE_FAILED=0
-  STAGED_SPECS="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/specs/.*\.md$' || true)"
+  # issue-gate-via-spec D4: the governed doc directories that hold specs and
+  # the intake docs close-work-item.mjs flips in the same close commit (a doc
+  # with no AC table of its own gates through its linked spec inside
+  # docs-audit.mjs). docs/releases/ is not gated: a release plan carries no
+  # acceptance table and no spec links to it.
+  STAGED_GATED_DOCS="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/(issues|rfc|specs|requirements)/.*\.md$' || true)"
   # SPEC-0013 W2: newline-safe iteration -- an unquoted `for` word-splits paths
   # with spaces into nonexistent fragments whose failed `git show` silently
   # SKIPS the gate (the worst failure shape for a gate).
@@ -99,7 +105,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
       fi
       rm -f "$STAGED_TMP"
     fi
-  done <<< "$STAGED_SPECS"
+  done <<< "$STAGED_GATED_DOCS"
   if [[ "$CLOSE_GATE_FAILED" == 1 ]]; then
     exit 1
   fi

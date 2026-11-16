@@ -2808,6 +2808,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Docs close gate
+
+Before a governed doc (an issue, change, debt, requirement, RFC, release or spec) is flipped to `status: done`, the close gate checks that its acceptance criteria are reconciled: every row terminal, every done row evidenced, every Review-By valid. A spec is checked against its own `## Acceptance Criteria Status` table. An intake doc (an issue, change or other non-spec doc) that has no AC table of its own is checked through its linked spec instead, because that is where its acceptance table lives: every linked spec must pass, and the output names the spec that decided. An intake doc with neither its own table nor a linked spec fails and says what is missing.
+
+[Product doc](product/docs-close-gate.md) · [Spec](specs/SPEC-0297-spec-issue-gate-via-spec.md)
+
 ### A project-owned config that keeps a routing exception across updates
 
 `/aai-update` replaces the shipped model routing table (`.aai/system/MODEL_ROUTING.yaml`) on every update, by design. A project that needs a different model for one role on one harness now puts that exception in `docs/ai/project-config.yaml`, a file that belongs to the project and that no sync or update writes, seeds or deletes. The orchestration dispatch applies the exception on top of the shipped table for the running harness only, and `/aai-doctor` reports it as CAT-22 Project Config. A project without the file sees no change at all.
