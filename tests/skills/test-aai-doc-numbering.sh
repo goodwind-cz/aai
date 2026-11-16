@@ -1826,8 +1826,9 @@ test_3794_research_hotfix_types() {
 
   # 1. draftFilename builds the two exact paths.
   local built
-  built="$(cd "$d" && node --input-type=module -e '
-    import { draftFilename } from "./.aai/scripts/allocate-doc-number.mjs";
+  built="$(ALLOC_MOD="$d/.aai/scripts/allocate-doc-number.mjs" node --input-type=module -e '
+    import { pathToFileURL } from "node:url";
+    const { draftFilename } = await import(pathToFileURL(process.env.ALLOC_MOD).href);
     console.log(draftFilename("research", "probe"));
     console.log(draftFilename("hotfix", "probe"));
   ' 2>&1)" || log_fail "TEST-3794: draftFilename must build research and hotfix paths: $built"

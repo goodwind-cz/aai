@@ -4039,3 +4039,7 @@
 {"v":1,"ts":"2026-11-16T01:41:21Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-metrics-integrity-fixes","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-16T01:42:55Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":745,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-16T08:25:18Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-allocator-research-hotfix-types","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-16T08:33:12Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"allocator-research-hotfix-types","payload":{"role":"validation","head":"01f6d32c63ea7ca19157da865a789180ea9e6210","seen":"run_at:null"}}
+{"v":1,"ts":"2026-11-16T08:41:04Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"allocator-research-hotfix-types","payload":{"head":"01f6d32c63ea7ca19157da865a789180ea9e6210","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-16T08:44:26Z","actor":"ales_holubec.net","event":"check_verdict","ref":"allocator-research-hotfix-types","payload":{"role":"validation","head":"01f6d32c63ea7ca19157da865a789180ea9e6210","status":"fail","security_relevant":false}}
+{"v":1,"ts":"2026-11-16T08:49:04Z","actor":"ales_holubec.net","event":"round_reset","ref":"allocator-research-hotfix-types","payload":{"block":"last_validation","from":"fail","forced":false}}
