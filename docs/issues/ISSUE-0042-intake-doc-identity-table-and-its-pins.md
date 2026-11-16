@@ -4,6 +4,9 @@ type: issue
 number: 42
 status: done
 links:
+  spec:
+    - spec-close-ceremony-sweep
+    - spec-allocator-research-hotfix-types
   pr:
     - 563
   commits:
