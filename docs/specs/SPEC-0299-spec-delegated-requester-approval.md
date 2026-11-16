@@ -1,10 +1,10 @@
 ---
 id: spec-delegated-requester-approval
 type: spec
-number: null
-status: implementing
+number: 299
+status: done
 mutation_gate: v1
-frozen_sha256: 35ecb4bc4dd3bc258c8d0854aeada8a1c2ffb4aac9938eb321bc52af7e8564d7
+frozen_sha256: 57bc7119bc9ab5c288e7ffda69cda9d83eacee3dd4457a7d54827cd3202c7d38
 ceremony_level: 2
 links:
   requirement: delegated-requester-approval
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-delegated-requester-approval.md
+- Requirement: docs/issues/CHANGE-0258-delegated-requester-approval.md
   (GitHub goodwind-cz/aai#474, owner decision: option B, second comment).
 - Prior scope this one extends (closed, not edited):
   docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md (P1 canonical
@@ -57,8 +57,8 @@ SPEC-FROZEN: true
 - Review scope (explicit paths): .aai/scripts/merge-policy.mjs;
   tests/skills/test-aai-merge-policy.sh;
   docs/product/configurable-merge-policy-lanes.md; docs/USER_GUIDE.md;
-  CHANGELOG.md; docs/issues/CHANGE-DRAFT-delegated-requester-approval.md;
-  docs/specs/SPEC-DRAFT-delegated-requester-approval.md.
+  CHANGELOG.md; docs/issues/CHANGE-0258-delegated-requester-approval.md;
+  docs/specs/SPEC-0299-spec-delegated-requester-approval.md.
 
 ## Ceremony
 

@@ -2,8 +2,8 @@
 
 ```yaml
 review:
-  scope: "git diff origin/main...HEAD (c1a90930...043b713e) restricted to .aai/scripts/merge-policy.mjs, tests/skills/test-aai-merge-policy.sh, docs/product/configurable-merge-policy-lanes.md, docs/USER_GUIDE.md, CHANGELOG.md, docs/issues/CHANGE-DRAFT-delegated-requester-approval.md, docs/specs/SPEC-DRAFT-delegated-requester-approval.md"
-  spec: docs/specs/SPEC-DRAFT-delegated-requester-approval.md
+  scope: "git diff origin/main...HEAD (c1a90930...043b713e) restricted to .aai/scripts/merge-policy.mjs, tests/skills/test-aai-merge-policy.sh, docs/product/configurable-merge-policy-lanes.md, docs/USER_GUIDE.md, CHANGELOG.md, docs/issues/CHANGE-0258-delegated-requester-approval.md, docs/specs/SPEC-0299-spec-delegated-requester-approval.md"
+  spec: docs/specs/SPEC-0299-spec-delegated-requester-approval.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -36,7 +36,7 @@ security_relevant: true
 ## Scope and spec
 
 - Scope: `git diff origin/main...HEAD` (base c1a90930, head 043b713e) restricted to the seven paths named in the spec's review scope. Other paths in the range (docs/INDEX.md, EVENTS/decisions/roadmap ledgers) were not reviewed.
-- Spec: docs/specs/SPEC-DRAFT-delegated-requester-approval.md (frozen, one disclosed amendment to the TEST-3853 mutation cell).
+- Spec: docs/specs/SPEC-0299-spec-delegated-requester-approval.md (frozen, one disclosed amendment to the TEST-3853 mutation cell).
 - Coaching note (anti-gaming contract): the dispatch prompt pre-characterized expected findings (the product doc's "Other lines in the body are ignored" sentence, the `delegatedList` placement) and pointed at areas to examine. Recorded here; the full scope was reviewed regardless, and both points were re-derived from code (NB-1 by probe, the placement as INFO only).
 
 ## Evidence run by this reviewer

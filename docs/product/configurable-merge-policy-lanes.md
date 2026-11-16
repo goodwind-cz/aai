@@ -5,8 +5,9 @@ capability: configurable-merge-policy-lanes
 status: current
 delivered_by:
   - configurable-merge-policy-lanes
+  - delegated-requester-approval
 spec: docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md
-updated: 2026-10-05
+updated: 2026-11-16
 ---
 
 # Owner-defined merge lanes
@@ -187,5 +188,5 @@ requester id in the line against any list.
 - Request: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md (goodwind-cz/aai#429)
 - Spec: docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md
 - Relayed approval (goodwind-cz/aai#474):
-  docs/specs/SPEC-DRAFT-delegated-requester-approval.md
+  docs/specs/SPEC-0299-spec-delegated-requester-approval.md
 - Validation evidence: docs/ai/reports/VALIDATION-20261005T0412Z-configurable-merge-policy-lanes.md

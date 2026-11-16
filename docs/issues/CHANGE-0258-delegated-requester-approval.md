@@ -1,10 +1,10 @@
 ---
 id: delegated-requester-approval
 type: change
-number: null
+number: 258
 capability: configurable-merge-policy-lanes
 user_visible: true
-status: draft
+status: done
 links:
   pr: []
   commits: []
