@@ -219,9 +219,11 @@ test_3454_small_input_parity() {
   done
   numstat="$(git -C "$PROJECT_ROOT" diff --numstat "$BASE_SHA" -- .aai/scripts/pre-commit-checks.sh | awk '{print $1" "$2}')"
   # 7 7 from the pipe-safe slice, then +12 -4 from pr-ceremony-friction-fixes (CHECK 2: staged-blob
-  # content scan, evidence-folder name check); the seven fixtures above stay byte-identical.
-  [[ "$numstat" == "19 11" ]] || log_fail "TEST-3454: git diff --numstat $BASE_SHA on the script reads '$numstat', expected '19 11'"
-  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 19 added and 11 removed lines"
+  # content scan, evidence-folder name check), then +20 -18 from hook-gate-staged-content (NUL-separated
+  # staged list, index-existence test, staged-blob reads in CHECKs 2-4, *.env override); the seven
+  # fixtures above stay byte-identical.
+  [[ "$numstat" == "39 29" ]] || log_fail "TEST-3454 (TEST-3867 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '39 29'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 39 added and 29 removed lines"
 }
 
 # shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
@@ -492,8 +494,9 @@ test_3461_line_budget_and_follow_up() {
   echo "LINES before: pre-commit-checks.sh 323/239, pre-commit-checks.ps1 281/221 (total/code)"
   echo "LINES after:  pre-commit-checks.sh $sh_t/$sh_c, pre-commit-checks.ps1 $ps_t/$ps_c (total/code)"
   [[ "$ps_t" -le 5 && "$ps_c" -le 2 ]] || log_fail "TEST-3461: the launcher is $ps_t lines and $ps_c code lines, budget 5 and 2"
-  # 323/239 after the pipe-safe slice, then 331/247 after pr-ceremony-friction-fixes (CHECK 2, +8/+8).
-  [[ "$sh_t" == 331 && "$sh_c" == 247 ]] || log_fail "TEST-3461: pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 331 and 247"
+  # 323/239 after the pipe-safe slice, then 331/247 after pr-ceremony-friction-fixes (CHECK 2, +8/+8),
+  # then 333/245 after hook-gate-staged-content (staged list into an array, +2/-2).
+  [[ "$sh_t" == 333 && "$sh_c" == 245 ]] || log_fail "TEST-3461 (TEST-3867 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 333 and 245"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -509,7 +512,7 @@ test_3461_line_budget_and_follow_up() {
     process.stdout.write(bad.join("; "));
   ' "$TEST_DIR/fu.json")"
   [[ -z "$out" ]] || log_fail "TEST-3461: the delete follow-up: $out"
-  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh is 331/247, and the delete follow-up is filed (P3)"
+  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh is 333/245, and the delete follow-up is filed (P3)"
 }
 
 # --- pr-ceremony-friction-fixes (GitHub #565): CHECK 2 in the AAI evidence folders -------------
@@ -577,6 +580,70 @@ test_3833_sensitive_names_still_blocked() {
   log_pass "TEST-3833: .env, .env.local, credentials.json, secret.key and dotenv files inside evidence folders are still blocked by name"
 }
 
+# --- hook-gate-staged-content: every staged file is checked on its staged blob --------------------
+DEBUG_HIT="Debug statements in"
+
+test_3864_deleted_worktree_copy_still_scanned() {
+  local fx="$TEST_DIR/t3864" line n
+  make_fx "$fx"
+  line="$(printf '%s = "%s"' api_key abcdefgh1234)"   # assembled so this suite does not trip CHECK 2 itself
+  stage_file "$fx" app/config.txt "$line"
+  stage_file "$fx" app.js "console.log(1);"
+  rm -f "$fx/app/config.txt" "$fx/app.js"   # the index still holds both blobs
+  run_checks "$fx"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3864: a staged secret whose working copy was deleted exited $RC, expected 1"; }
+  n="$(count_in "$OUT" "$SECRET_HIT app/config.txt")"
+  [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3864: '$SECRET_HIT app/config.txt' printed $n time(s), expected 1"; }
+  n="$(count_in "$OUT" "$DEBUG_HIT app.js")"
+  [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3864: '$DEBUG_HIT app.js' printed $n time(s), expected 1"; }
+  log_pass "TEST-3864: a staged file deleted from the working tree is still scanned on its staged blob (secrets and debug statements)"
+}
+
+test_3865_suffix_dotenv_blocked_in_evidence() {
+  local p fx i=0 n
+  for p in docs/ai/tdd/prod.env docs/ai/reports/x.env docs/ai/validation/stage.env docs/ai/reviews/a.env; do
+    i=$((i + 1))
+    fx="$TEST_DIR/t3865-$i"
+    make_fx "$fx"
+    stage_file "$fx" "$p" "harmless"
+    run_checks "$fx"
+    n="$(count_in "$OUT" "$SENSITIVE: $p")"
+    [[ "$RC" == 1 && "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3865: staged $p exited $RC with $n '$SENSITIVE: $p' line(s), expected 1 and 1"; }
+  done
+  fx="$TEST_DIR/t3865-neg"
+  make_fx "$fx"
+  stage_file "$fx" docs/ai/tdd/environment-notes.txt "API_BASE_URL DB_NAME"
+  run_checks "$fx"
+  n="$(count_in "$OUT" "$SENSITIVE")"
+  [[ "$RC" == 0 && "$n" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3865: docs/ai/tdd/environment-notes.txt exited $RC with $n '$SENSITIVE' line(s), expected 0 and 0"; }
+  log_pass "TEST-3865: a *.env basename is blocked by name in each evidence folder; an env-named note is not"
+}
+
+test_3866_non_ascii_names_checked() {
+  local fx="$TEST_DIR/t3866" line n
+  make_fx "$fx"
+  line="$(printf '%s = "%s"' api_key abcdefgh1234)"
+  stage_file "$fx" "app/café.txt" "$line"
+  stage_file "$fx" "secrets/clé.txt" "harmless"
+  run_checks "$fx"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3866: staged non-ASCII names exited $RC, expected 1"; }
+  n="$(count_in "$OUT" "$SECRET_HIT app/café.txt")"
+  [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3866: '$SECRET_HIT app/café.txt' printed $n time(s), expected 1"; }
+  n="$(count_in "$OUT" "$SENSITIVE: secrets/clé.txt")"
+  [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3866: '$SENSITIVE: secrets/clé.txt' printed $n time(s), expected 1"; }
+  log_pass "TEST-3866: staged names git would quote are checked under their real path (content and name)"
+}
+
+test_3868_changelog_and_product_doc() {
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/docs-close-gate.md" n
+  n="$("$GREP" -cE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — fix: commit-time guards judge the staged content of every staged file' "$cl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3868: CHANGELOG.md holds $n headings for this fix, want exactly 1"
+  [[ -f "$doc" ]] || log_fail "TEST-3868: $doc is missing"
+  "$GREP" -qF "from the index" "$doc" || log_fail "TEST-3868: the product doc must say the hook reads the intake doc and its linked specs from the index"
+  "$GREP" -qF "HEAD" "$doc" || log_fail "TEST-3868: the product doc must name HEAD as the fallback"
+  log_pass "TEST-3868: CHANGELOG heading and product doc statement present"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461)"
   check_deps
@@ -598,6 +665,10 @@ main() {
   test_3831_evidence_names_pass
   test_3832_content_scan_reads_staged_blob
   test_3833_sensitive_names_still_blocked
+  test_3864_deleted_worktree_copy_still_scanned
+  test_3865_suffix_dotenv_blocked_in_evidence
+  test_3866_non_ascii_names_checked
+  test_3868_changelog_and_product_doc
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

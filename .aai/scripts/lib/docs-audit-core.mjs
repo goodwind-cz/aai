@@ -862,35 +862,47 @@ export function scanAuditDocs(root, { scopePath = null, scanExclude = [] } = {})
       // scanExclude glob matching (POSIX) and the Orphans section of docs/INDEX.md
       // carry forward-slash paths on every OS (no backslashes on Windows).
       const rel = toPosix(path.relative(root, full));
-      if (scanExclude.some(g => rel === g || rel.startsWith(g.replace(/\/+$/, '') + '/'))) continue;
+      if (scanExcluded(rel, scanExclude)) continue;
       if (entry.isDirectory()) { visit(full, depth + 1); continue; }
-      if (!entry.name.endsWith('.md') || entry.name === 'INDEX.md') continue;
-      const m = entry.name.match(ID_FILE_RE);
-      // RFC-0003 / SPEC-0002: canonical docs are named <domain>.md (no ID
-      // prefix); they carry their id in frontmatter and must still be scanned
-      // so their canonical-provenance schema is validated. Their fileId is
-      // derived from the frontmatter id at parse time.
-      // rel is POSIX-normalized (SPEC-0007 WARNING-1), so compare against a
-      // POSIX literal — path.join(...)+path.sep would be backslash on Windows
-      // and never match the forward-slash rel, dropping family docs there.
-      // spec-product-docs-capability-model D1 (SEAM-1, Spec-AC-02): the
-      // hardcoded `inCanonical` literal is generalized into the shared
-      // DOC_FAMILIES registry predicate — canonical AND product (and any
-      // future family) are admitted through this ONE scan-admit branch.
-      const inFamily = !!slugFamilyForPath(rel);
-      // CHANGE-0012 D3: DRAFT basenames join the scan set so `--gate <slug>`
-      // can resolve them and `--check --strict --path <DRAFT>` is non-vacuous.
-      const isDraft = !m && DRAFT_FILE_RE.test(entry.name);
-      if (!m && !isDraft && !inFamily) continue;
+      const admitted = admitScanFile(rel, entry.name);
+      if (!admitted) continue;
       if (scopePath) {
         const scope = toPosix(path.relative(root, path.resolve(root, scopePath)));
         if (rel !== scope && !rel.startsWith(scope.replace(/\/+$/, '') + '/')) continue;
       }
-      found.push({ rel, fileId: m ? m[1] : null });
+      found.push(admitted);
     }
   };
   visit(base, 0);
   return found.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+const scanExcluded = (rel, scanExclude) =>
+  scanExclude.some(g => rel === g || rel.startsWith(g.replace(/\/+$/, '') + '/'));
+
+// The per-file admission rule of the scan, shared by the working-tree walk
+// above and the staged doc set below (hook-gate-staged-content D1), so the two
+// cannot disagree on which docs exist. Returns { rel, fileId } or null.
+function admitScanFile(rel, name) {
+  if (!name.endsWith('.md') || name === 'INDEX.md') return null;
+  const m = name.match(ID_FILE_RE);
+  // RFC-0003 / SPEC-0002: canonical docs are named <domain>.md (no ID
+  // prefix); they carry their id in frontmatter and must still be scanned
+  // so their canonical-provenance schema is validated. Their fileId is
+  // derived from the frontmatter id at parse time.
+  // rel is POSIX-normalized (SPEC-0007 WARNING-1), so compare against a
+  // POSIX literal — path.join(...)+path.sep would be backslash on Windows
+  // and never match the forward-slash rel, dropping family docs there.
+  // spec-product-docs-capability-model D1 (SEAM-1, Spec-AC-02): the
+  // hardcoded `inCanonical` literal is generalized into the shared
+  // DOC_FAMILIES registry predicate — canonical AND product (and any
+  // future family) are admitted through this ONE scan-admit branch.
+  const inFamily = !!slugFamilyForPath(rel);
+  // CHANGE-0012 D3: DRAFT basenames join the scan set so `--gate <slug>`
+  // can resolve them and `--check --strict --path <DRAFT>` is non-vacuous.
+  const isDraft = !m && DRAFT_FILE_RE.test(name);
+  if (!m && !isDraft && !inFamily) return null;
+  return { rel, fileId: m ? m[1] : null };
 }
 
 // --- backlog cross-check (read-only) -----------------------------------------
@@ -1975,17 +1987,102 @@ function gateContent(content, extraMethods) {
 // The scan and the two-pass match are split out (scanGateEntries, matchDocId)
 // so the close gate's linked-spec lookup resolves a `links.spec` id with the
 // very same two passes (issue-gate-via-spec D2) — one resolver, not two.
-function scanGateEntries(root) {
+//
+// hook-gate-staged-content D1: `{ staged: true }` builds the same entries from
+// the commit being made (readStagedDocSet) instead of the working tree.
+function scanGateEntries(root, { staged = false } = {}) {
   const config = loadConfig(root);
-  const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
+  const scanExclude = config?.scan_exclude ?? [];
+  const files = staged
+    ? readStagedDocSet(root, scanExclude)
+    : scanAuditDocs(root, { scanExclude }).map(f => ({ ...f, content: fs.readFileSync(path.join(root, f.rel), 'utf8') }));
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
   const entries = files.map(f => {
-    const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
-    const fm = parseFrontmatter(content);
+    const fm = parseFrontmatter(f.content);
     const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
-    return { rel: f.rel, content, fm, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId] };
+    return { rel: f.rel, content: f.content, fm, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId] };
   });
   return { config, entries };
+}
+
+// hook-gate-staged-content D1 — the governed doc set as the commit being made
+// records it: every path under docs/ in the index or in HEAD, admitted by the
+// scan's own rule (admitScanFile), each read from its stage-0 index blob, else
+// from HEAD's committed blob. A path only in the working tree is not part of
+// the commit and is not read. Throws when root is not inside a git work tree.
+// Returns [{ rel, fileId, content }] sorted by rel.
+function readStagedDocSet(root, scanExclude) {
+  const git = (args) => execFileSync('git', ['-C', root, ...args], {
+    stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 30,
+  });
+  const prefix = git(['rev-parse', '--show-prefix']).toString('utf8').trim();
+  const zList = (buf) => buf.toString('utf8').split('\0').filter(Boolean);
+  const inIndex = new Set(zList(git(['ls-files', '-z', '--', SCAN_ROOT])));
+  let inHead = [];
+  try {
+    inHead = zList(git(['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', SCAN_ROOT]));
+  } catch {
+    inHead = [];   // no commit yet: HEAD contributes nothing
+  }
+  const admitted = [];
+  for (const rel of new Set([...inIndex, ...inHead])) {
+    const parts = rel.split('/');
+    if (parts.length > 2 && EXCLUDE_DIRS.has(parts[1])) continue;
+    if (scanExcluded(rel, scanExclude)) continue;
+    const doc = admitScanFile(rel, parts[parts.length - 1]);
+    if (doc) admitted.push(doc);
+  }
+  const refs = admitted.map((d) => {
+    const rel = prefix + d.rel;   // revision paths are relative to the top level
+    return inIndex.has(d.rel) ? ':0:' + rel : 'HEAD:' + rel;
+  });
+  const blobs = readBlobs(root, refs);
+  const read = [];
+  admitted.forEach((d, i) => {
+    if (blobs[i] == null) return;
+    read.push({ ...d, content: blobs[i], fromHead: !inIndex.has(d.rel), fmId: parseFrontmatter(blobs[i])?.id ?? null });
+  });
+  // A doc the commit renames (a DRAFT numbered at close) is in the index under
+  // its new path and in HEAD under its old one: the index copy carrying the
+  // same frontmatter id is the doc, so the stale HEAD copy is not read.
+  const indexIds = new Set(read.filter((d) => !d.fromHead && d.fmId).map((d) => d.fmId));
+  return read
+    .filter((d) => !(d.fromHead && indexIds.has(d.fmId)))
+    .map(({ rel, fileId, content }) => ({ rel, fileId, content }))
+    .sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+// Read blobs by revision name through ONE `git cat-file --batch` process; a
+// name holding a newline cannot ride that line protocol and is read by its
+// own `git show`. Returns the utf8 contents in order (null for a missing name).
+function readBlobs(root, refs) {
+  const contents = new Array(refs.length).fill(null);
+  const batched = [];
+  refs.forEach((r, i) => {
+    if (!r.includes('\n')) { batched.push(i); return; }
+    try {
+      contents[i] = execFileSync('git', ['-C', root, 'show', r], { stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 30 }).toString('utf8');
+    } catch {
+      contents[i] = null;
+    }
+  });
+  if (batched.length === 0) return contents;
+  const buf = execFileSync('git', ['-C', root, 'cat-file', '--batch'], {
+    input: batched.map(i => refs[i]).join('\n') + '\n',
+    stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 30,
+  });
+  let pos = 0;
+  for (const i of batched) {
+    const eol = buf.indexOf(0x0a, pos);
+    const header = buf.subarray(pos, eol).toString('utf8');
+    pos = eol + 1;
+    const m = header.match(/^[0-9a-f]+ (\S+) (\d+)$/);
+    if (!m) continue;   // "<name> missing" (or ambiguous): no content
+    const size = Number(m[2]);
+    if (m[1] === 'blob') contents[i] = buf.subarray(pos, pos + size).toString('utf8');
+    pos += size + 1;
+  }
+  return contents;
 }
 
 function matchDocId(entries, docId) {
@@ -2152,7 +2249,7 @@ export function acFlipCheckDoc(root, docId) {
 // temp file and gates THAT, so a staged-but-unreconciled `status: done` cannot pass
 // merely because the worktree has unstaged Evidence. Config (review_by_methods) is
 // still loaded from `root` so a project's configured methods are honored.
-export function gateFile(root, filePath) {
+export function gateFile(root, filePath, { staged = false } = {}) {
   const config = loadConfig(root);
   const extraMethods = config?.review_by_methods ?? [];
   const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
@@ -2164,8 +2261,20 @@ export function gateFile(root, filePath) {
     // issue-gate-via-spec D4 — the file may be a temporary copy (the hook's
     // staged blob), so its identity is its frontmatter id, plus the display
     // id of the ONE scanned doc carrying that same id (a spec may link back by
-    // either). Linked specs are read from the working tree.
-    const { entries } = scanGateEntries(root);
+    // either). Linked specs are read from the working tree, or with
+    // `staged` (hook-gate-staged-content D1) from the index, HEAD as the
+    // fallback, so the verdict is the one of the content being committed.
+    let entries;
+    if (!staged) {
+      ({ entries } = scanGateEntries(root));
+    } else {
+      try {
+        ({ entries } = scanGateEntries(root, { staged }));
+      } catch (err) {
+        const why = String(err?.stderr ?? err?.message ?? err).trim().split('\n')[0];
+        return { found: false, ok: false, reasons: [`staged mode could not read the index: ${why}`] };
+      }
+    }
     const fmId = fm?.id ?? null;
     const self = fmId ? entries.filter((e) => e.fmId === fmId) : [];
     const parent = { fm, fmId, fileIds: self.length === 1 ? self[0].fileIds : [], content };

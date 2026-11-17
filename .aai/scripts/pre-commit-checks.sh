@@ -58,16 +58,20 @@ else
 fi
 
 # --- CHECK 2: Secrets Detection ---
-STAGED_FILES=$(git -C "$PROJECT_ROOT" diff --cached --name-only 2>/dev/null || true)
+# The staged list is read NUL-separated, so a name git would quote (non-ASCII,
+# tab, quote) is checked under its real path. A path is checked when the index
+# holds a stage-0 blob for it, whatever the working tree holds; a staged
+# deletion has none and is skipped. CHECKs 2-4 read that blob.
+STAGED=()
+while IFS= read -r -d '' f; do STAGED+=("$f"); done < <(git -C "$PROJECT_ROOT" diff --cached --name-only -z 2>/dev/null || true)
 SECRETS_FOUND=0
 
-if [ -n "$STAGED_FILES" ]; then
-  while IFS= read -r file; do
-    filepath="$PROJECT_ROOT/$file"
-    [ -f "$filepath" ] || continue
+if [ "${#STAGED[@]}" -gt 0 ]; then
+  for file in "${STAGED[@]}"; do
+    git -C "$PROJECT_ROOT" cat-file -e ":0:$file" 2>/dev/null || continue
 
     # Check for common secret patterns in the staged blob (what the commit records)
-    hits=$(git -C "$PROJECT_ROOT" show ":$file" 2>/dev/null | grep -cEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" || true)
+    hits=$(git -C "$PROJECT_ROOT" show ":0:$file" 2>/dev/null | grep -cEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" || true)
     if [ "${hits:-0}" -gt 0 ]; then
       error "Potential secret detected in $file"
       SECRETS_FOUND=1
@@ -79,13 +83,13 @@ if [ -n "$STAGED_FILES" ]; then
       docs/ai/reports/*|docs/ai/tdd/*|docs/ai/validation/*|docs/ai/reviews/*) name_check=0 ;;
     esac
     case "${file##*/}" in
-      .env|.env.*) name_check=1 ;;
+      .env|.env.*|*.env) name_check=1 ;;
     esac
     if [ "$name_check" -eq 1 ] && { [[ "$file" == *.env* ]] || [[ "$file" == *credentials* ]] || [[ "$file" == *secret* ]]; }; then
       error "Sensitive file staged: $file"
       SECRETS_FOUND=1
     fi
-  done <<< "$STAGED_FILES"
+  done
 
   if [ "$SECRETS_FOUND" -eq 0 ]; then
     pass "No secrets detected in staged files"
@@ -96,10 +100,9 @@ fi
 
 # --- CHECK 3: Debug Statements ---
 DEBUG_FOUND=0
-if [ -n "$STAGED_FILES" ]; then
-  while IFS= read -r file; do
-    filepath="$PROJECT_ROOT/$file"
-    [ -f "$filepath" ] || continue
+if [ "${#STAGED[@]}" -gt 0 ]; then
+  for file in "${STAGED[@]}"; do
+    git -C "$PROJECT_ROOT" cat-file -e ":0:$file" 2>/dev/null || continue
 
     # Skip non-source files
     case "$file" in
@@ -107,13 +110,13 @@ if [ -n "$STAGED_FILES" ]; then
     esac
 
     # Check for debug statements
-    matches=$(grep -n 'console\.log\|debugger\|pdb\.set_trace\|binding\.pry\|var_dump' "$filepath" 2>/dev/null || true)
+    matches=$(git -C "$PROJECT_ROOT" show ":0:$file" 2>/dev/null | grep -n 'console\.log\|debugger\|pdb\.set_trace\|binding\.pry\|var_dump' || true)
     if [ -n "$matches" ]; then
       warn "Debug statements in $file:"
       head -3 <<< "$matches" | sed 's/^/    /'
       DEBUG_FOUND=1
     fi
-  done <<< "$STAGED_FILES"
+  done
 
   if [ "$DEBUG_FOUND" -eq 0 ]; then
     pass "No debug statements found"
@@ -122,19 +125,18 @@ fi
 
 # --- CHECK 4: TODO/FIXME markers ---
 TODO_COUNT=0
-if [ -n "$STAGED_FILES" ]; then
-  while IFS= read -r file; do
-    filepath="$PROJECT_ROOT/$file"
-    [ -f "$filepath" ] || continue
+if [ "${#STAGED[@]}" -gt 0 ]; then
+  for file in "${STAGED[@]}"; do
+    git -C "$PROJECT_ROOT" cat-file -e ":0:$file" 2>/dev/null || continue
     case "$file" in
       *.md|*.yaml|*.yml|*.txt|*.sh|*.ps1) continue ;;
     esac
 
-    count=$(grep -c 'TODO\|FIXME\|HACK\|XXX' "$filepath" 2>/dev/null || true)
+    count=$(git -C "$PROJECT_ROOT" show ":0:$file" 2>/dev/null | grep -c 'TODO\|FIXME\|HACK\|XXX' || true)
     if [ "$count" -gt 0 ]; then
       TODO_COUNT=$((TODO_COUNT + count))
     fi
-  done <<< "$STAGED_FILES"
+  done
 
   if [ "$TODO_COUNT" -gt 0 ]; then
     warn "$TODO_COUNT TODO/FIXME markers in staged files"

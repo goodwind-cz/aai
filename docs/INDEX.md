@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-hook-gate-staged-content | specs | implementing | 10 implementing | docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md |
 
 ## Canonical layer (0)
 
@@ -33,7 +34,7 @@ _None._
 | consumer-config | consumer-config | 1 | docs/product/consumer-config.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
-| docs-close-gate | docs-close-gate | 1 | docs/product/docs-close-gate.md |
+| docs-close-gate | docs-close-gate | 2 | docs/product/docs-close-gate.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -740,7 +741,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (13)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -756,6 +757,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| hook-gate-staged-content (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-hook-gate-staged-content.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
@@ -773,7 +775,7 @@ _None._
 
 _None._
 
-## Broken references (574)
+## Broken references (583)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1036,6 +1038,10 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5812-flip.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5813-flip.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5814-flip.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5862-untracked.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5863-nogit.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5864-flip.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5866-other-mode.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-9001-tracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-999-untracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/x.md | NOT FOUND |
@@ -1083,12 +1089,16 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5801-slug-link.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5811-by-path.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5850-inflight-tdd-only.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5860-linked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5860-mixed-hash.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5861-committed.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5861-mixed-pr.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5862-mixed-prose.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5863-mixed-badhash.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5864-linked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5864-replica.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5865-armb-fileid.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5865-spec-5865.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5866-armb-guard.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5867-armc-fileid-ref.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5868-armc-slugid-ref.md | NOT FOUND |
@@ -1110,6 +1120,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-delta-merge.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-my-widget.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-reg-scan-fixture.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-spec-5865.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-spec-gate-probe.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-PROC-10-import-triggering.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/blocked/SPEC-9004-unreachable.md | NOT FOUND |
