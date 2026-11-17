@@ -4139,3 +4139,4 @@
 {"v":1,"ts":"2026-11-17T11:56:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"hook-gate-staged-content","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-17T11:56:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-hook-gate-staged-content","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-17T11:56:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-hook-gate-staged-content","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-17T12:18:13Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"hook-gate-staged-content","payload":{"pr":569,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"9537166111c8e3af4491c783323b272fae3c4edf"}}
