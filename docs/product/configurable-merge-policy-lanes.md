@@ -105,9 +105,12 @@ bot credential:
    review as the bot at that `headRefOid`. The review body carries one
    relay line (below).
 3. The owner lists the bot in the lane's `requester_logins` and also in
-   `delegated_approvers`, spelled as `gh pr view --json reviews` reports
-   `author.login` (for a GitHub App, its slug without the `[bot]` suffix
-   the REST comment API shows).
+   `delegated_approvers`. Copy the login exactly as
+   `gh pr view <n> --json reviews` prints `author.login` for one of the
+   bot's own reviews, because the evaluator compares it byte for byte. Do
+   not derive it from another API: on this repository a GitHub App reviewer
+   appears there without the `[bot]` suffix that the REST comment API adds.
+   Quote the entry if it has characters outside the bare-string set.
 
 ```yaml
     requester_logins: [alice, content-gateway]
