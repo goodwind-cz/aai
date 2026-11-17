@@ -539,7 +539,13 @@ test_307_clone_seam() {
 # name and two comments changed) -- an intentional, in-scope change, not
 # drift. New hash measured by the full sweep's own run of this test at
 # a4678ac7 (the "got" value of TEST-308).
-PRECOMMIT_SHA256_BASELINE="491da116539944bd4c0e14356bbc0d2498c6299c4400bb7af01722e10307ae07"
+#
+# Re-pinned by hook-gate-staged-content (D3): the AAI:INDEX-AUTOGEN
+# close-gate call passes --staged so linked specs are read from the index
+# (one flag on the call plus a three-line comment) -- an intentional,
+# in-scope change, not drift. New hash measured by the full sweep's own run
+# of this test at 3aad8989 (the "got" value of TEST-308).
+PRECOMMIT_SHA256_BASELINE="5c5b0bd0315471885ed5c7ef1f140673e554aa1b1cb6bd79c69cc031258da595"
 
 test_308_installer_contract() {
   local ok=1

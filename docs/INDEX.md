@@ -33,7 +33,7 @@ _None._
 | consumer-config | consumer-config | 1 | docs/product/consumer-config.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
-| docs-close-gate | docs-close-gate | 1 | docs/product/docs-close-gate.md |
+| docs-close-gate | docs-close-gate | 2 | docs/product/docs-close-gate.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -64,7 +64,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (671)
+## Done (673)
 
 | ID | Type | Path |
 |---|---|---|
@@ -422,6 +422,7 @@ _None._
 | ISSUE-0119 | issues | docs/issues/ISSUE-0119-allocator-research-hotfix-types.md |
 | ISSUE-0120 | issues | docs/issues/ISSUE-0120-issue-gate-via-spec.md |
 | ISSUE-0121 | issues | docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md |
+| ISSUE-0122 | issues | docs/issues/ISSUE-0122-hook-gate-staged-content.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -737,6 +738,7 @@ _None._
 | SPEC-0297 | specs | docs/specs/SPEC-0297-spec-issue-gate-via-spec.md |
 | SPEC-0298 | specs | docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md |
 | SPEC-0299 | specs | docs/specs/SPEC-0299-spec-delegated-requester-approval.md |
+| SPEC-0300 | specs | docs/specs/SPEC-0300-spec-hook-gate-staged-content.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -773,7 +775,7 @@ _None._
 
 _None._
 
-## Broken references (574)
+## Broken references (584)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1036,6 +1038,10 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5812-flip.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5813-flip.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5814-flip.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5862-untracked.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5863-nogit.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5864-flip.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5866-other-mode.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-9001-tracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-999-untracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/x.md | NOT FOUND |
@@ -1083,15 +1089,20 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5801-slug-link.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5811-by-path.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5850-inflight-tdd-only.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5860-linked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5860-mixed-hash.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5861-committed.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5861-mixed-pr.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5862-mixed-prose.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5863-mixed-badhash.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5864-linked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5864-replica.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5865-armb-fileid.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5865-spec-5865.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5866-armb-guard.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5867-armc-fileid-ref.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5868-armc-slugid-ref.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5870-failing.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-6009-both.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-acflip-hash.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-lean.md | NOT FOUND |
@@ -1110,6 +1121,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-delta-merge.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-my-widget.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-reg-scan-fixture.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-spec-5865.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-DRAFT-spec-gate-probe.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-PROC-10-import-triggering.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/blocked/SPEC-9004-unreachable.md | NOT FOUND |

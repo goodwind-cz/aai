@@ -9639,6 +9639,172 @@ test_3808_changelog_and_product_doc() {  # TEST-3808 / Spec-AC-08
   log_pass "CHANGELOG heading and product doc present (TEST-3808)"
 }
 
+# --- hook-gate-staged-content (spec-hook-gate-staged-content): --gate-file
+# --staged reads the gated doc's linked specs from the index, HEAD as the
+# fallback; the hook passes it. Reuses the igs_* helpers above. -----------------
+
+test_3860_staged_gate_reads_index_spec() {  # TEST-3860 / Spec-AC-01
+  log_info "Test: --gate-file --staged decides on the index copy of the linked spec, not the working tree (TEST-3860)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo hgs-3860)"
+  mkdir -p "$d/docs/issues" "$d/staged"
+  igs_intake "$d/docs/issues/ISSUE-5860-staged.md" issue-5860 issue
+  igs_spec "$d/docs/specs/SPEC-5860-linked.md" spec-5860 implementing requirement issue-5860
+  (cd "$d" && git add docs) || log_fail "TEST-3860: git add failed"
+  igs_spec "$d/docs/specs/SPEC-5860-linked.md" spec-5860 done requirement issue-5860   # working tree only
+  cp "$d/docs/issues/ISSUE-5860-staged.md" "$d/staged/blob.tmp"
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate-file staged/blob.tmp --staged)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3860: a non-terminal staged spec must fail the staged gate (got $ec): $(cat "$d/g1.log")"
+  grep -qF -- "- SPEC-5860: Spec-AC-01 is non-terminal" "$d/g1.log" || log_fail "TEST-3860: the reason must name SPEC-5860's row: $(cat "$d/g1.log")"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate-file staged/blob.tmp)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3860: without --staged the working-tree spec still decides (got $ec): $(cat "$d/g2.log")"
+  (cd "$d" && git add docs/specs/SPEC-5860-linked.md) || log_fail "TEST-3860: git add failed"
+  igs_spec "$d/docs/specs/SPEC-5860-linked.md" spec-5860 implementing requirement issue-5860   # unstaged regression
+  ec="$(igs_gate "$d" "$d/g3.log" --gate-file staged/blob.tmp --staged)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3860: a reconciled staged spec must pass the staged gate (got $ec): $(cat "$d/g3.log")"
+  grep -F "GATE PASS via linked spec(s)" "$d/g3.log" | qgrep -qF "SPEC-5860" || log_fail "TEST-3860: the PASS line must name SPEC-5860: $(cat "$d/g3.log")"
+  ec="$(igs_gate "$d" "$d/g4.log" --gate-file staged/blob.tmp)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3860: without --staged the working-tree spec still decides (got $ec): $(cat "$d/g4.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "--gate-file --staged reads the linked spec from the index; without it the working tree decides (TEST-3860)"
+}
+
+test_3861_staged_gate_head_fallback() {  # TEST-3861 / Spec-AC-02
+  log_info "Test: a linked spec absent from the index is read from HEAD; an untracked one is not read (TEST-3861)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo hgs-3861)"
+  mkdir -p "$d/docs/issues" "$d/staged"
+  igs_intake "$d/docs/issues/ISSUE-5861-head.md" issue-5861 issue
+  igs_spec "$d/docs/specs/SPEC-5861-committed.md" spec-5861 done requirement issue-5861
+  (cd "$d" && git add docs && git commit -qm "docs: baseline") || log_fail "TEST-3861: baseline commit failed"
+  (cd "$d" && git rm -q --cached docs/specs/SPEC-5861-committed.md) || log_fail "TEST-3861: git rm --cached failed"
+  igs_spec "$d/docs/specs/SPEC-5861-committed.md" spec-5861 implementing requirement issue-5861
+  cp "$d/docs/issues/ISSUE-5861-head.md" "$d/staged/blob1.tmp"
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate-file staged/blob1.tmp --staged)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3861: a spec absent from the index must be read from HEAD (got $ec): $(cat "$d/g1.log")"
+  grep -F "GATE PASS via linked spec(s)" "$d/g1.log" | qgrep -qF "SPEC-5861" || log_fail "TEST-3861: the PASS line must name SPEC-5861: $(cat "$d/g1.log")"
+  igs_intake "$d/docs/issues/ISSUE-5862-untracked.md" issue-5862 issue
+  (cd "$d" && git add docs/issues/ISSUE-5862-untracked.md) || log_fail "TEST-3861: git add failed"
+  igs_spec "$d/docs/specs/SPEC-5862-untracked.md" spec-5862 done requirement issue-5862
+  cp "$d/docs/issues/ISSUE-5862-untracked.md" "$d/staged/blob2.tmp"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate-file staged/blob2.tmp --staged)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3861: an untracked linked spec is not part of the commit and must not pass it (got $ec): $(cat "$d/g2.log")"
+  grep -qF -- "- no linked spec" "$d/g2.log" || log_fail "TEST-3861: must give the no linked spec reason: $(cat "$d/g2.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "A spec absent from the index is read from HEAD; an untracked one is not read (TEST-3861)"
+}
+
+test_3862_staged_usage_and_non_git() {  # TEST-3862 / Spec-AC-04
+  log_info "Test: --staged needs --gate-file and a git work tree (TEST-3862)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo hgs-3862)"
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --staged)"
+  [[ "$ec" == 2 ]] || log_fail "TEST-3862: --staged without --gate-file must exit 2 (got $ec): $(cat "$d/g1.log")"
+  grep -qF "USAGE ERROR" "$d/g1.log" || log_fail "TEST-3862: must print a USAGE ERROR: $(cat "$d/g1.log")"
+  mkdir -p "$d/docs/issues"
+  igs_intake "$d/docs/issues/ISSUE-5866-other-mode.md" issue-5866 issue
+  igs_spec "$d/docs/specs/SPEC-5866-linked.md" spec-5866 done requirement issue-5866
+  ec="$(igs_gate "$d" "$d/g1b.log" --gate ISSUE-5866 --staged)"
+  [[ "$ec" == 2 ]] || log_fail "TEST-3862: --gate with --staged must exit 2, not drop the flag (got $ec): $(cat "$d/g1b.log")"
+  grep -qF "USAGE ERROR" "$d/g1b.log" || log_fail "TEST-3862: --gate --staged must print a USAGE ERROR: $(cat "$d/g1b.log")"
+  ec="$(igs_gate "$d" "$d/g1c.log" --intake-file docs/issues/ISSUE-5866-other-mode.md --staged)"
+  [[ "$ec" == 2 ]] || log_fail "TEST-3862: --intake-file with --staged must exit 2 (got $ec): $(cat "$d/g1c.log")"
+  cp "$d/docs/issues/ISSUE-5866-other-mode.md" "$d/blob5866.tmp"
+  ec="$(igs_gate "$d" "$d/g1d.log" --gate-file blob5866.tmp --gate ISSUE-5866 --staged)"
+  [[ "$ec" == 2 ]] || log_fail "TEST-3862: --gate-file with --gate and --staged must exit 2, not run --gate unstaged (got $ec): $(cat "$d/g1d.log")"
+  local n="$TEST_DIR/hgs-3862-nogit"
+  rm -rf "$n"; mkdir -p "$n/docs/issues"
+  cp -R "$d/.aai" "$n/.aai"
+  igs_intake "$n/docs/issues/ISSUE-5863-nogit.md" issue-5863 issue
+  ec=0
+  (cd "$n" && GIT_CEILING_DIRECTORIES="$TEST_DIR" node .aai/scripts/docs-audit.mjs --gate-file docs/issues/ISSUE-5863-nogit.md --staged > "$n/g2.log" 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "TEST-3862: --gate-file --staged outside a git work tree must exit 2 (got $ec): $(cat "$n/g2.log")"
+  rm -rf "$d" "$n"
+  igs_release_root
+  log_pass "--staged is refused without --gate-file and outside a git work tree (TEST-3862)"
+}
+
+test_3863_hook_gates_staged_linked_spec() {  # TEST-3863 / Spec-AC-03
+  log_info "Test: the installed hook gates an intake done-flip on the staged linked spec (TEST-3863)..."
+  igs_own_root
+  local d; d="$(setup_spec0011_hook_repo hgs-3863)"
+  mkdir -p "$d/docs/issues"
+  igs_intake "$d/docs/issues/ISSUE-5864-flip.md" issue-5864 issue
+  sed -i.bak 's/^status: done/status: draft/' "$d/docs/issues/ISSUE-5864-flip.md" && rm -f "$d/docs/issues/ISSUE-5864-flip.md.bak"
+  igs_spec "$d/docs/specs/SPEC-5864-linked.md" spec-5864 implementing requirement issue-5864
+  (cd "$d" && git add docs && git commit -qm "docs: baseline draft intake" >/dev/null 2>&1) || log_fail "TEST-3863: baseline commit failed"
+  printf 'close_gate: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  (cd "$d" && git add docs/ai/docs-audit.yaml)
+  local ec=0 head_before
+  sed -i.bak 's/^status: draft/status: done/' "$d/docs/issues/ISSUE-5864-flip.md" && rm -f "$d/docs/issues/ISSUE-5864-flip.md.bak"
+  printf '\nStaged note.\n' >> "$d/docs/specs/SPEC-5864-linked.md"
+  (cd "$d" && git add docs/issues/ISSUE-5864-flip.md docs/specs/SPEC-5864-linked.md)
+  igs_spec "$d/docs/specs/SPEC-5864-linked.md" spec-5864 done requirement issue-5864   # working tree only
+  (cd "$d" && git commit -qm "docs: flip ISSUE-5864 (staged spec open)" > a.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "TEST-3863: a staged non-terminal linked spec must abort the commit under enforce: $(cat "$d/a.out")"
+  grep -qF "close-gate: issue-5864 fails the close gate" "$d/a.out" || log_fail "TEST-3863: the abort must name issue-5864: $(cat "$d/a.out")"
+  (cd "$d" && git add docs/specs/SPEC-5864-linked.md)
+  igs_spec "$d/docs/specs/SPEC-5864-linked.md" spec-5864 implementing requirement issue-5864   # unstaged regression
+  head_before="$(git -C "$d" rev-parse HEAD)"
+  ec=0
+  (cd "$d" && git commit -qm "docs: flip ISSUE-5864 (staged spec reconciled)" > b.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3863: a reconciled staged linked spec must let the commit through (got $ec): $(cat "$d/b.out")"
+  [[ "$(git -C "$d" rev-parse HEAD)" != "$head_before" ]] || log_fail "TEST-3863: HEAD did not move"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "The hook gates an intake done-flip on the staged linked spec, not the working tree (TEST-3863)"
+}
+
+test_3869_staged_rename_drops_head_copy() {  # TEST-3869 / Spec-AC-10
+  log_info "Test: a linked spec renamed in the commit is read once, from the index; its HEAD copy is not read (TEST-3869)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo hgs-3869)"
+  mkdir -p "$d/docs/issues" "$d/staged"
+  igs_intake "$d/docs/issues/ISSUE-5865-renamed.md" issue-5865 issue
+  igs_spec "$d/docs/specs/SPEC-DRAFT-spec-5865.md" spec-5865 implementing requirement issue-5865
+  (cd "$d" && git add docs && git commit -qm "docs: baseline") || log_fail "TEST-3869: baseline commit failed"
+  (cd "$d" && git mv docs/specs/SPEC-DRAFT-spec-5865.md docs/specs/SPEC-5865-spec-5865.md) || log_fail "TEST-3869: git mv failed"
+  igs_spec "$d/docs/specs/SPEC-5865-spec-5865.md" spec-5865 done requirement issue-5865
+  (cd "$d" && git add docs/specs/SPEC-5865-spec-5865.md) || log_fail "TEST-3869: git add failed"
+  cp "$d/docs/issues/ISSUE-5865-renamed.md" "$d/staged/blob.tmp"
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate-file staged/blob.tmp --staged)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3869: a spec renamed and reconciled in the commit must pass (got $ec): $(cat "$d/g1.log")"
+  if grep -qF "SPEC-DRAFT-spec-5865.md" "$d/g1.log"; then log_fail "TEST-3869: the renamed-away HEAD copy must not be read: $(cat "$d/g1.log")"; fi
+  rm -rf "$d"
+  igs_release_root
+  log_pass "A linked spec renamed in the commit is read from the index only (TEST-3869)"
+}
+
+test_3870_staged_config_from_index() {  # TEST-3870 / Spec-AC-11
+  log_info "Test: --staged reads scan_exclude from the staged docs-audit.yaml, not an unstaged edit (TEST-3870)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo hgs-3870)"
+  mkdir -p "$d/docs/issues" "$d/staged"
+  printf 'scan_exclude: []\n' > "$d/docs/ai/docs-audit.yaml"
+  igs_intake "$d/docs/issues/ISSUE-5870-config.md" issue-5870 issue
+  igs_spec "$d/docs/specs/SPEC-5870-failing.md" spec-5870 implementing requirement issue-5870
+  igs_spec "$d/docs/specs/SPEC-5871-passing.md" spec-5871 done requirement issue-5870
+  (cd "$d" && git add docs) || log_fail "TEST-3870: git add failed"
+  printf 'scan_exclude:\n  - docs/specs/SPEC-5870-failing.md\n' > "$d/docs/ai/docs-audit.yaml"   # unstaged edit
+  cp "$d/docs/issues/ISSUE-5870-config.md" "$d/staged/blob.tmp"
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate-file staged/blob.tmp --staged)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3870: an unstaged scan_exclude edit must not hide the staged failing spec (got $ec): $(cat "$d/g1.log")"
+  grep -qF -- "- SPEC-5870: Spec-AC-01 is non-terminal" "$d/g1.log" || log_fail "TEST-3870: the reason must name SPEC-5870's row: $(cat "$d/g1.log")"
+  (cd "$d" && git add docs/ai/docs-audit.yaml) || log_fail "TEST-3870: git add failed"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate-file staged/blob.tmp --staged)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3870: a STAGED scan_exclude is part of the commit and applies (got $ec): $(cat "$d/g2.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "--staged reads scan_exclude from the staged config (TEST-3870)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -9733,6 +9899,12 @@ main() {
   test_3810_path_link_lean_and_own_reasons  # issue-gate-via-spec
   test_3811_unparseable_own_table_never_delegates  # issue-gate-via-spec
   test_3812_unrecognised_own_table_never_delegates  # issue-gate-via-spec
+  test_3860_staged_gate_reads_index_spec  # hook-gate-staged-content
+  test_3861_staged_gate_head_fallback  # hook-gate-staged-content
+  test_3862_staged_usage_and_non_git  # hook-gate-staged-content
+  test_3863_hook_gates_staged_linked_spec  # hook-gate-staged-content
+  test_3869_staged_rename_drops_head_copy  # hook-gate-staged-content
+  test_3870_staged_config_from_index  # hook-gate-staged-content
   test_536_unparseable_ac_table_shape
   test_582_status_vocabulary_scoped_to_spec_ac_col
   test_538_duplicate_ac_id_multiplicity

@@ -93,7 +93,10 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
         rm -f "$STAGED_TMP"
         continue
       fi
-      if GATE_OUT="$(node .aai/scripts/docs-audit.mjs --gate-file "$STAGED_TMP" 2>&1)"; then
+      # --staged (hook-gate-staged-content D3): the linked specs this doc gates
+      # through are read from the index too (HEAD when absent there), never
+      # from the worktree. An older docs-audit.mjs ignores the flag.
+      if GATE_OUT="$(node .aai/scripts/docs-audit.mjs --gate-file "$STAGED_TMP" --staged 2>&1)"; then
         :
       elif [[ "$CLOSE_GATE_MODE" == "enforce" ]]; then
         echo "AAI:INDEX-AUTOGEN close-gate: $gid fails the close gate (close_gate: enforce) -- commit aborted." >&2

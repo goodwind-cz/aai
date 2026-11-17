@@ -1409,6 +1409,9 @@ suites:
       - tests/skills/lib/vendor-hook-installer.sh
       - .aai/templates/git-hooks/**
       - .aai/system/PROFILES.yaml
+      # hook-gate-staged-content TEST-3868 reads this product doc; CHANGELOG.md
+      # is deliberately not listed (it would select this suite on every PR).
+      - docs/product/docs-close-gate.md
 
   aai-spec-amend:
     globs:

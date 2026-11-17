@@ -95,6 +95,7 @@ function parseArgs(argv) {
     else if (tok === '--path') args.path = requireValue(tok, argv[++i]);
     else if (tok === '--gate') args.gate = requireValue(tok, argv[++i]);
     else if (tok === '--gate-file') args.gateFile = requireValue(tok, argv[++i]);
+    else if (tok === '--staged') args.staged = true;
     else if (tok === '--ac-flip-check') args.acFlipCheck = requireValue(tok, argv[++i]);
     else if (tok === '--lint-body') args.lintBody = true;
     else if (tok === '--lint-body-file') args.lintBodyFile = requireValue(tok, argv[++i]);
@@ -366,8 +367,11 @@ function runGate(docId) {
 // SPEC-0011 G5 — `--gate-file <file>` gates the content of an explicit file path
 // (e.g. a materialized STAGED blob) rather than resolving the doc by id from the
 // worktree. Same exit contract as `--gate` (1 fail / 0 pass / 2 unreadable).
-function runGateFile(filePath) {
-  emitGate(`## Close Gate — ${filePath}`, gateFile(ROOT, filePath));
+// hook-gate-staged-content D2 — with `--staged` the linked specs the gate
+// resolves are read from the index (HEAD when absent there), the content the
+// commit records; the file argument is still the gated doc's own content.
+function runGateFile(filePath, staged = false) {
+  emitGate(`## Close Gate — ${filePath}`, gateFile(ROOT, filePath, { staged }));
 }
 
 // spec-ac-table-premature-flip-recurs D2 — `--ac-flip-check <DOC-ID>`: the
@@ -460,9 +464,19 @@ function emitEvent(result, scope) {
 
 function main() {
   const args = parseArgs(process.argv);
+  // hook-gate-staged-content D2: --staged modifies --gate-file only. Checked
+  // before any mode dispatches, so no other mode can drop it silently.
+  if (args.staged && !args.gateFile) {
+    console.error('USAGE ERROR: --staged modifies --gate-file <file> and is not valid without it');
+    exit(2);
+  }
+  if (args.staged && (args.intakeFile || args.gate)) {
+    console.error('USAGE ERROR: --staged modifies --gate-file <file> only; it is not valid with --intake-file or --gate');
+    exit(2);
+  }
   if (args.intakeFile) runIntakeFile(args.intakeFile);   // exits 1/0/2; never returns
   if (args.gate) runGate(args.gate);   // exits 1/0/2; never returns
-  if (args.gateFile) runGateFile(args.gateFile);   // exits 1/0/2; never returns
+  if (args.gateFile) runGateFile(args.gateFile, Boolean(args.staged));   // exits 1/0/2; never returns
   if (args.acFlipCheck) runAcFlipCheck(args.acFlipCheck);   // exits 1/0/2; never returns
   if (args.lintBodyFile) runLintBodyFile(args.lintBodyFile);   // exits 1/0/2; never returns
   if (args.lintBody) runLintBody(args);   // exits 0 (or 1 with --strict); never returns
