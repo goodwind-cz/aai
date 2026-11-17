@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-16T21:50:33.454Z",
+  "generatedAt": "2026-11-17T01:44:16.749Z",
   "project": "aai",
   "counts": {
-    "delivered": 366,
-    "in_progress": 16,
+    "delivered": 368,
+    "in_progress": 15,
     "releases": 1,
-    "tokens_total": 190853353
+    "tokens_total": 191501091
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -129,19 +129,6 @@
       "review": null
     },
     {
-      "ref": "intake-doc-identity-table-and-its-pins",
-      "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "tripwire-ratchet-arms-without-coverage",
       "title": "The drained offender table left an arm with no legal repair, a spec that contradicts its own code, and a green that proves nothing",
       "type": "issue",
@@ -235,6 +222,19 @@
       "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
     },
     {
+      "ref": "allocator-research-hotfix-types",
+      "title": "The doc-number allocator refuses two intake types and goes silent through a symlinked checkout",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0119-allocator-research-hotfix-types.md",
+      "closed_on": "2026-11-16",
+      "agent_minutes": 41,
+      "token_total": 647738,
+      "spec": "docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-allocator-research-hotfix-types-r1-20261116T090424Z.md"
+    },
+    {
       "ref": "issue-gate-via-spec",
       "title": "The docs close gate fails every intake doc whose acceptance table lives in its spec",
       "type": "issue",
@@ -258,7 +258,7 @@
       "token_total": 254969,
       "spec": "docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-pr-ceremony-friction-fixes-r1.md"
     },
     {
       "ref": "recover-archived-state-runs",
@@ -1774,6 +1774,19 @@
       "type": "issue",
       "status": "done",
       "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
+      "closed_on": "2026-09-18",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "intake-doc-identity-table-and-its-pins",
+      "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
       "closed_on": "2026-09-18",
       "agent_minutes": null,
       "token_total": null,
@@ -5020,6 +5033,19 @@
           "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
         },
         {
+          "ref": "allocator-research-hotfix-types",
+          "title": "The doc-number allocator refuses two intake types and goes silent through a symlinked checkout",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0119-allocator-research-hotfix-types.md",
+          "closed_on": "2026-11-16",
+          "agent_minutes": 41,
+          "token_total": 647738,
+          "spec": "docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-allocator-research-hotfix-types-r1-20261116T090424Z.md"
+        },
+        {
           "ref": "issue-gate-via-spec",
           "title": "The docs close gate fails every intake doc whose acceptance table lives in its spec",
           "type": "issue",
@@ -5043,7 +5069,7 @@
           "token_total": 254969,
           "spec": "docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-pr-ceremony-friction-fixes-r1.md"
         },
         {
           "ref": "recover-archived-state-runs",
@@ -6573,6 +6599,19 @@
           "type": "issue",
           "status": "done",
           "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
+          "closed_on": "2026-09-18",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "intake-doc-identity-table-and-its-pins",
+          "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
           "closed_on": "2026-09-18",
           "agent_minutes": null,
           "token_total": null,
