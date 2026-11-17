@@ -66,7 +66,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from './lib/docs-model.mjs';
 import { readCoupledFamilies, coupledGroupFor } from './lib/guard-config.mjs';
 
@@ -85,6 +85,8 @@ export const TYPE_MAP = {
   prd: { dir: 'requirements', prefix: 'PRD' },
   requirement: { dir: 'requirements', prefix: 'PRD' },
   release: { dir: 'releases', prefix: 'REL' },
+  research: { dir: 'specs', prefix: 'RES' },
+  hotfix: { dir: 'issues', prefix: 'ISSUE' },
 };
 
 // Directories that hold governed, numberable docs (index/guard scope).
@@ -1252,6 +1254,7 @@ function main() {
   return runAllocate(root, opts);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+const realOrResolve = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
   main();
 }

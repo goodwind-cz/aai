@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-16T19:40:16.536Z",
+  "generatedAt": "2026-11-16T20:53:57.230Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 258,
-    "delivered": 670,
+    "rides": 259,
+    "delivered": 672,
     "active_weeks": 21,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (670 closes vs 258 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 670,
-    "delivered_per_week_avg": 31.9,
+    "note": "\"delivered\" counts every work_item_closed event (672 closes vs 259 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 672,
+    "delivered_per_week_avg": 32,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -35,7 +35,7 @@
       "2026-W44": 23,
       "2026-W45": 28,
       "2026-W46": 26,
-      "2026-W47": 4
+      "2026-W47": 6
     },
     "delivered_groups": [
       {
@@ -682,7 +682,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 62,
+        "count": 64,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -745,7 +745,9 @@
           "metrics-integrity-fixes",
           "spec-metrics-integrity-fixes",
           "issue-gate-via-spec",
-          "spec-issue-gate-via-spec"
+          "spec-issue-gate-via-spec",
+          "allocator-research-hotfix-types",
+          "spec-allocator-research-hotfix-types"
         ]
       }
     ],
@@ -3430,25 +3432,33 @@
         {
           "ref": "spec-issue-gate-via-spec",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "allocator-research-hotfix-types",
+          "lead_time_seconds": 3807
+        },
+        {
+          "ref": "spec-allocator-research-hotfix-types",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 8202,
-      "mean_seconds": 77510.5,
-      "measured": 251,
-      "unmeasurable": 419
+      "median_seconds": 8092,
+      "mean_seconds": 77218,
+      "measured": 252,
+      "unmeasurable": 420
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 4361,
-      "mean": 10658.8,
-      "measured": 256
+      "median": 4286,
+      "mean": 10626.9,
+      "measured": 257
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 483310,
-        "tokens": 53265448
+        "duration_seconds": 483724,
+        "tokens": 53387856
       },
       {
         "role": "Implementation",
@@ -3457,22 +3467,22 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 271170,
-        "tokens": 24280868
+        "duration_seconds": 271511,
+        "tokens": 24420078
       },
       {
         "role": "Remediation",
-        "duration_seconds": 534379,
-        "tokens": 19966072
+        "duration_seconds": 534643,
+        "tokens": 20022279
       },
       {
         "role": "Validation",
-        "duration_seconds": 965836,
-        "tokens": 72637674
+        "duration_seconds": 967109,
+        "tokens": 72967587
       },
       {
         "role": "Planning",
-        "duration_seconds": 197240,
+        "duration_seconds": 197425,
         "tokens": 15677320
       },
       {
@@ -4771,6 +4781,11 @@
         "ref": "issue-gate-via-spec",
         "busy_seconds": 13523,
         "remediation_runs": 3
+      },
+      {
+        "ref": "allocator-research-hotfix-types",
+        "busy_seconds": 2477,
+        "remediation_runs": 1
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -4780,15 +4795,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 590967,
-      "mean": 1442795.9,
-      "measured": 134
+      "median": 612859,
+      "mean": 1436906.6,
+      "measured": 135
     },
-    "tokens_total": 193334648,
+    "tokens_total": 193982386,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 53265448
+        "tokens": 53387856
       },
       {
         "role": "Implementation",
@@ -4796,15 +4811,15 @@
       },
       {
         "role": "Code Review",
-        "tokens": 24280868
+        "tokens": 24420078
       },
       {
         "role": "Remediation",
-        "tokens": 19966072
+        "tokens": 20022279
       },
       {
         "role": "Validation",
-        "tokens": 72637674
+        "tokens": 72967587
       },
       {
         "role": "Planning",
@@ -4816,9 +4831,9 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 749,
-      "total_runs": 1805,
-      "pct": 41,
+      "runs_with_marker": 754,
+      "total_runs": 1812,
+      "pct": 42,
       "by_week": [
         {
           "week": "2026-W27",
@@ -4942,9 +4957,9 @@
         },
         {
           "week": "2026-W47",
-          "runs_with_marker": 22,
-          "total_runs": 28,
-          "pct": 79
+          "runs_with_marker": 27,
+          "total_runs": 35,
+          "pct": 77
         }
       ]
     },
@@ -4952,12 +4967,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 257,
-          "runs_marked": 124,
+          "runs_total": 258,
+          "runs_marked": 125,
           "runs_sentinel": 6,
           "runs_unmarked": 127,
-          "tokens_total": 53265448,
-          "median_tokens_per_run": 208060,
+          "tokens_total": 53387856,
+          "median_tokens_per_run": 207366,
           "share_pct": 28
         },
         {
@@ -4972,50 +4987,50 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 362,
-          "runs_marked": 166,
+          "runs_total": 363,
+          "runs_marked": 167,
           "runs_sentinel": 25,
           "runs_unmarked": 171,
-          "tokens_total": 24280868,
-          "median_tokens_per_run": 122822,
+          "tokens_total": 24420078,
+          "median_tokens_per_run": 123477,
           "share_pct": 13
         },
         {
           "role": "Remediation",
-          "runs_total": 335,
-          "runs_marked": 120,
+          "runs_total": 336,
+          "runs_marked": 121,
           "runs_sentinel": 40,
           "runs_unmarked": 175,
-          "tokens_total": 19966072,
-          "median_tokens_per_run": 155206,
+          "tokens_total": 20022279,
+          "median_tokens_per_run": 154263,
           "share_pct": 10
         },
         {
           "role": "Validation",
-          "runs_total": 512,
-          "runs_marked": 215,
+          "runs_total": 514,
+          "runs_marked": 217,
           "runs_sentinel": 47,
           "runs_unmarked": 250,
-          "tokens_total": 72637674,
-          "median_tokens_per_run": 145818,
+          "tokens_total": 72967587,
+          "median_tokens_per_run": 145887,
           "share_pct": 38
         },
         {
           "role": "Planning",
-          "runs_total": 201,
+          "runs_total": 202,
           "runs_marked": 94,
           "runs_sentinel": 11,
-          "runs_unmarked": 96,
+          "runs_unmarked": 97,
           "tokens_total": 15677320,
           "median_tokens_per_run": 159586,
           "share_pct": 8
         },
         {
           "role": "Other",
-          "runs_total": 26,
+          "runs_total": 27,
           "runs_marked": 0,
           "runs_sentinel": 7,
-          "runs_unmarked": 19,
+          "runs_unmarked": 20,
           "tokens_total": null,
           "median_tokens_per_run": null,
           "share_pct": null
@@ -5827,8 +5842,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 3,
-              "median_tokens": 113403
+              "runs_marked": 4,
+              "median_tokens": 117906
             },
             {
               "role": "Implementation",
@@ -5837,18 +5852,18 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 6,
-              "median_tokens": 133247
+              "runs_marked": 7,
+              "median_tokens": 133833
             },
             {
               "role": "Remediation",
-              "runs_marked": 3,
-              "median_tokens": 61360
+              "runs_marked": 4,
+              "median_tokens": 60916
             },
             {
               "role": "Validation",
-              "runs_marked": 9,
-              "median_tokens": 156513
+              "runs_marked": 11,
+              "median_tokens": 163550
             },
             {
               "role": "Planning",
@@ -5868,13 +5883,13 @@
   "quality": {
     "first_pass_clean": {
       "clean": 118,
-      "flagged": 232,
+      "flagged": 233,
       "rate_pct": 51
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 120,
-      "1": 33,
+      "1": 34,
       "2": 28,
       "3": 23,
       "4": 12,
@@ -5889,7 +5904,7 @@
     "avg_validation_fails": 0.5,
     "avg_review_fails": 0.2,
     "verdict_mix": {
-      "PASS": 201,
+      "PASS": 202,
       "null": 57
     },
     "review_events": 27,
@@ -5904,7 +5919,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 79,
+    "field_derived": 80,
     "marker_derived": 36,
     "mixed": 2,
     "no_basis": 141,
@@ -7198,6 +7213,11 @@
         "ref": "issue-gate-via-spec",
         "verdict_source": "field",
         "cost_basis": "mixed"
+      },
+      {
+        "ref": "allocator-research-hotfix-types",
+        "verdict_source": "field",
+        "cost_basis": "mixed"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -7365,26 +7385,18 @@
     },
     {
       "week": "2026-W47",
-      "delivered": 4,
-      "median_lead_time_seconds": 14895,
-      "busy_seconds": 27402,
-      "tokens": 3027448,
+      "delivered": 6,
+      "median_lead_time_seconds": 11945,
+      "busy_seconds": 29879,
+      "tokens": 3675186,
       "first_pass_rate": 0
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 346,
-    "oldest_age_days": 87,
+    "open_count": 344,
+    "oldest_age_days": 65,
     "items": [
-      {
-        "id": "fu-typemap-missing-research-hotfix",
-        "ref": "spec-intake-numbers-some-doc-types-immediately",
-        "severity": "P2",
-        "age_days": 87,
-        "what": "allocate-doc-number.mjs TYPE_MAP has no research and no hotfix row, so --type research and --type hotfix exit 2 as unknown types",
-        "status": "open"
-      },
       {
         "id": "fu-azure-live-proof-on-adoption",
         "ref": "platform-portable-pr",
@@ -7407,14 +7419,6 @@
         "severity": "P3",
         "age_days": 64,
         "what": "SPEC-0085 (spec-token-capture-canary, status done/FROZEN) Spec-AC-01 pins the undecomposed-note INFO line's literal text as always 'cost unattributable by design'; this ride's remediation (review NON-BLOCKING-5) made that line state the TRUE basis instead, so it now reads 'cost estimated from the total (cost_basis total-blended)' whenever D5 blending succeeds for that run's model",
-        "status": "open"
-      },
-      {
-        "id": "fu-realpath-allocate-doc-number-l3",
-        "ref": "test-framework-sweep",
-        "severity": "P3",
-        "age_days": 64,
-        "what": "allocate-doc-number.mjs's main() guard (path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) is the one of 24 .aai/scripts/*.mjs main guards this ride did NOT resolve through realpath — it still exits 0 silently through a symlinked checkout",
         "status": "open"
       },
       {
@@ -7767,14 +7771,6 @@
         "severity": "P2",
         "age_days": 58,
         "what": "close-reconcile's id-mention-unpaired arm fires on an id a delivered doc names to disclose that it is owned ELSEWHERE, not claimed; six such items on this ride's own merge",
-        "status": "open"
-      },
-      {
-        "id": "fu-issue-0042-half-delivered",
-        "ref": "close-ceremony-sweep",
-        "severity": "P2",
-        "age_days": 58,
-        "what": "ISSUE-0042 is half delivered: SPEC-0182 Spec-AC-21 shipped the template number: null half, but its Verification also requires allocate-doc-number.mjs to accept --type research and --type hotfix, which TYPE_MAP still lacks",
         "status": "open"
       },
       {
@@ -8317,7 +8313,7 @@
         "id": "fu-gitforwindows-shell-drive-rel",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 45,
+        "age_days": 46,
         "what": "gitForWindowsShell treats a drive-relative MSYS exec-path as absolute, so the derived sh.exe path resolves against the current working drive",
         "status": "open"
       },
@@ -8325,7 +8321,7 @@
         "id": "fu-frozen-mutation-cells-unusable",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P2",
-        "age_days": 45,
+        "age_days": 46,
         "what": "frozen Mutation cells are written at spec-freeze without ever being executed, and 8 of the 10 exercised in this ride were unusable as frozen",
         "status": "open"
       },
@@ -8333,7 +8329,7 @@
         "id": "fu-nearmiss-vocab-column-name-only",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 45,
+        "age_days": 46,
         "what": "the Spec-AC-10 status-vocabulary widening gates on column-NAME reuse (AC plus Status plus Review-By or Evidence), not on the table actually being a spec-AC table",
         "status": "open"
       },
@@ -8389,7 +8385,7 @@
         "id": "fu-release-unlogged-pr-three-classes",
         "ref": "release-prep-v2026-10-02",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "aai-release's unlogged-PR warning collapses three different situations into one line, so the operator cannot tell a genuine omission from a formatting artefact",
         "status": "open"
       },
@@ -8581,7 +8577,7 @@
         "id": "fu-test013-mutation-bite-load-dependent",
         "ref": "slowest-suite-hot-spots",
         "severity": "P3",
-        "age_days": 37,
+        "age_days": 38,
         "what": "TEST-013 (test_018) mutation stays green under host load; red 4/4 standalone",
         "status": "open"
       },
@@ -8709,7 +8705,7 @@
         "id": "fu-4b-item-absent-with-runs-wedge",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P2",
-        "age_days": 35,
+        "age_days": 36,
         "what": "a closed focus with no active_work_items entry but recorded agent_runs still dispatches Metrics Flush and no remedy acts",
         "status": "open"
       },
@@ -8717,7 +8713,7 @@
         "id": "fu-retire-hint-release-item-absent",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 35,
+        "age_days": 36,
         "what": "--retire hint suggests --release for an item-absent ref, which --release refuses",
         "status": "open"
       },
@@ -8725,7 +8721,7 @@
         "id": "fu-sweep-ignores-reopen",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 35,
+        "age_days": 36,
         "what": "metrics-flush --sweep treats a close superseded by a later reopen as closed",
         "status": "open"
       },
@@ -8909,7 +8905,7 @@
         "id": "fu-verify-closures-none-blank-line",
         "ref": "release-changelog-eol",
         "severity": "P3",
-        "age_days": 29,
+        "age_days": 30,
         "what": "follow-ups verify-closures ignores an explicit 'Registry items closed by this scope: none.' when a blank line follows the label and reads the next paragraph's fu- ids as closure claims",
         "status": "open"
       },
@@ -8997,7 +8993,7 @@
         "id": "fu-handoff-inline-work-items-comment",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 24,
+        "age_days": 25,
         "what": "ride-handoff putEntry leaves 'work_items: [] # comment' unconverted",
         "status": "open"
       },
@@ -9005,7 +9001,7 @@
         "id": "fu-origin-append-run-after-handoff",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 24,
+        "age_days": 25,
         "what": "a run appended to the origin STATE after ride-handoff out is not carried to the worktree",
         "status": "open"
       },
@@ -9013,7 +9009,7 @@
         "id": "fu-prompt-diet-live-size-time-bomb",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 24,
+        "age_days": 25,
         "what": "prompt-diet per-scope checks compare against the live size of SKILL_WORKTREE/SKILL_SHIP",
         "status": "open"
       },
@@ -9021,7 +9017,7 @@
         "id": "fu-reconcile-runs-indentless-flow",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 24,
+        "age_days": 25,
         "what": "ride-handoff reconcile does not see agent_runs at 6-space indent or inline flow form",
         "status": "open"
       },
@@ -9581,7 +9577,7 @@
         "id": "fu-migrate-state-verify-ls-files",
         "ref": "retire-legacy-migrations",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "migrate-state-to-local: unchecked verify ls-files (false success record, NB-r5-1); untested plan ls-files guard (NB-r5-2); restore hint fails on truncated index (NB-r5-3)",
         "status": "open"
       },
@@ -9613,7 +9609,7 @@
         "id": "fu-cfshare-url-regex-osc8",
         "ref": "cloudflare-share-on-node",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "URL_RE [^\\s]+ is greedy over non-space bytes; an OSC-8 hyperlink makes extractUrl return a broken URL that is printed and recorded (cloudflare-share.mjs:13)",
         "status": "open"
       },
@@ -9621,7 +9617,7 @@
         "id": "fu-cfshare-ps1-help-args",
         "ref": "cloudflare-share-on-node",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "ps1 launcher rejects -h/--help and extra args as PowerShell binding errors, so DR-01 help and DR-19 usage line are sh-only (cloudflare-share.ps1:3)",
         "status": "open"
       },
@@ -9669,7 +9665,7 @@
         "id": "fu-delete-retired-pre-commit-checks-ps1",
         "ref": "pre-commit-checks-ps1-retire",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "Delete the retired .aai/scripts/pre-commit-checks.ps1 deprecation launcher in the next release, and remove its entries from PROFILES.yaml (core), WORKFLOW.md (L3 protected-surface line), docs-audit.yaml and docs-audit.template.yaml (protected_paths_l3), and the RFC-0017 pre-commit-checks inventory row",
         "status": "open"
       },
@@ -10106,11 +10102,19 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-spec-issue-gate-via-spec",
-        "ref": "issue-gate-via-spec",
+        "id": "fu-test-3796-tmpdir-leak-on-failure",
+        "ref": "allocator-research-hotfix-types",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-3796 (test-aai-doc-numbering.sh) creates its symlink dir under TMPDIR outside TEST_DIR, so a failing run leaves it behind",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-allocator-research-hotfix-types",
+        "ref": "allocator-research-hotfix-types",
         "severity": "P2",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-issue-gate-via-spec: review round 1: D5 unfinished Rollout Status keeps a reason; D2 links.spec may be a repo path; D4 docs/releases/ dropped from the hook filter; Spec-AC-09, Spec-AC-10, TEST-3809, TEST-3810 added",
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-allocator-research-hotfix-types: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
         "status": "open"
       },
       {
@@ -15790,6 +15794,44 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "allocator-research-hotfix-types",
+        "date_utc": "2026-11-16",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 2643,
+        "agent_seconds": 2477,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          },
+          {
+            "role": "Other",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 647738,
+        "remediation_runs": 1,
+        "remediation_tokens": 56207,
+        "remediation_share_pct": 9
+      },
+      {
         "ref": "product-docs-enforced",
         "date_utc": "2026-07-27",
         "runs_total": 4,
@@ -17879,7 +17921,7 @@
   },
   "notes": [
     "NOTE 10 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
-    "NOTE 26 agent_run(s) had a role that matched no canonical role — bucketed as Other",
+    "NOTE 27 agent_run(s) had a role that matched no canonical role — bucketed as Other",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
     "NOTE 124 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 8 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",

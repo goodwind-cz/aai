@@ -2378,15 +2378,9 @@ test_439_argv1_guard_resolves_symlinks() {
   # Part A: no main-guard call site compares process.argv[1] without going
   # through a real*Resolve helper. Comments (heartbeat.mjs, this file's own
   # history) are excluded by requiring an actual comparison operator.
-  # allocate-doc-number.mjs is EXCLUDED on purpose: it is one of the eight
-  # docs/ai/docs-audit.yaml protected_paths_l3 surfaces, touching it requires
-  # a FROZEN ceremony_level:3 spec (test-aai-hitl-propagation.sh TEST-014
-  # enforces this repo-wide), and this ride is ceremony 2 (established fact
-  # 9 / the spec's own D-decisions never claim an L3 escalation). Its guard
-  # keeps the pre-existing unresolved shape as a named residual, not a fix.
+  # No file is excluded: allocate-doc-number.mjs carries the same guard.
   unresolved="$(grep -rn 'process\.argv\[1\]' "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' \
     | grep -v -E '^[^:]+:[0-9]+:[[:space:]]*//' \
-    | grep -v 'allocate-doc-number\.mjs' \
     | grep -E '===|\.endsWith\(' \
     | grep -v -iE 'realorresolve|realpathorresolve')"
   if [[ -n "$unresolved" ]]; then
@@ -2411,7 +2405,7 @@ test_439_argv1_guard_resolves_symlinks() {
   rm -rf "$symdir"
 
   [[ $ok -eq 1 ]] && log_pass "TEST-439 every main() guard resolves via realpath; symlinked-checkout invocation matches direct invocation" \
-    || log_fail "TEST-439 argv[1] main-guard symlink resolution"
+    || log_fail "TEST-439 (TEST-3797, no file excluded) argv[1] main-guard symlink resolution"
 }
 
 # --- TEST-812 (shipped-guards-have-no-downstream-trigger, Spec-AC-09) ------

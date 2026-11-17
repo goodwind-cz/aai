@@ -649,7 +649,7 @@ test_013_one_prefix_per_type_matches_the_allocator() {
       *" $it "*) : ;;
       *) log_info "TEST-013: table row '$it' is not one of the eight intake types"; ok=0 ;;
     esac
-    # TYPE_MAP is imported READ-ONLY; allocate-doc-number.mjs is protected_paths_l3.
+    # TYPE_MAP is imported READ-ONLY; a table type with no entry fails this arm.
     mapped=$( (cd "$PROJECT_ROOT" && node -e '
       import("./.aai/scripts/allocate-doc-number.mjs").then((m) => {
         const e = m.TYPE_MAP[process.argv[1]];
@@ -657,7 +657,8 @@ test_013_one_prefix_per_type_matches_the_allocator() {
       });
     ' "$it") )
     if [[ "$mapped" == "ABSENT" ]]; then
-      log_info "  $it -> $dir/$pfx (TYPE_MAP has no entry — see spec D4, filed not fixed)"
+      log_info "TEST-013: intake type '$it' has no TYPE_MAP entry in allocate-doc-number.mjs"
+      ok=0
     elif [[ "$mapped" != "$dir|$pfx" ]]; then
       log_info "TEST-013: $it -> $dir/$pfx disagrees with TYPE_MAP ($mapped)"
       ok=0
@@ -816,7 +817,7 @@ EOF
     log_info "  bite proven (direction b): a fenced cross-reference to a different docs/ path leaves the opening-section reading as 'docs/issues', unaffected"
   fi
   [[ $ok -eq 1 ]] && log_pass "TEST-013 $n rows (awk and the shipped parser agree, divergence proven detectable), one prefix per type, research=RES, no prefix restated in any prompt, every prompt's OPENING section directory matches its table row (both pin directions proven to bite)" \
-    || log_fail "TEST-013 type/prefix table contract"
+    || log_fail "FAIL TEST-013 type/prefix table contract (TEST-3795: a table type without a TYPE_MAP entry fails here)"
 }
 
 # TEST-014 (Spec-AC-03) — a numbered intake artifact FAILS; its DRAFT twin passes.
@@ -1962,6 +1963,16 @@ main() {
 
   check_deps
   setup_test_env
+
+  # Single-test mode (mirrors test-aai-doctor.sh): `bash <suite> test_013_...`
+  # runs ONLY the named arm, the shape mutation-run.mjs and the TDD lane use.
+  if [[ $# -gt 0 ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"
+    echo ""
+    echo "Selected test passed."
+    exit 0
+  fi
 
   # Run tests
   test_detect_prd
