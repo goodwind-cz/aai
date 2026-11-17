@@ -2,8 +2,8 @@
 id: hook-gate-staged-content
 type: issue
 capability: docs-close-gate
-number: null
-status: draft
+number: 122
+status: done
 links:
   pr: []
   commits: []

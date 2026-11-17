@@ -2,8 +2,8 @@
 
 ```yaml
 review:
-  scope: "git diff origin/main (65113785) over .aai/scripts/lib/docs-audit-core.mjs, .aai/scripts/docs-audit.mjs, .aai/templates/git-hooks/pre-commit-index.sh, .aai/scripts/pre-commit-checks.sh, tests/skills/test-aai-docs-audit.sh, tests/skills/test-aai-pre-commit-checks.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/product/docs-close-gate.md, docs/issues/ISSUE-DRAFT-hook-gate-staged-content.md, docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md (EVENTS.jsonl / decisions.jsonl: appended lines only, 0 removed)"
-  spec: docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md
+  scope: "git diff origin/main (65113785) over .aai/scripts/lib/docs-audit-core.mjs, .aai/scripts/docs-audit.mjs, .aai/templates/git-hooks/pre-commit-index.sh, .aai/scripts/pre-commit-checks.sh, tests/skills/test-aai-docs-audit.sh, tests/skills/test-aai-pre-commit-checks.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/product/docs-close-gate.md, docs/issues/ISSUE-0122-hook-gate-staged-content.md, docs/specs/SPEC-0300-spec-hook-gate-staged-content.md (EVENTS.jsonl / decisions.jsonl: appended lines only, 0 removed)"
+  spec: docs/specs/SPEC-0300-spec-hook-gate-staged-content.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -39,8 +39,8 @@ security_relevant: true
 
 - Diff: `git diff origin/main` in /Users/ales/Projects/aai-worktrees/hook-gate-staged-content (branch
   fix/hook-gate-staged-content, base 65113785, uncommitted tree). Whole diff reviewed, not only the delta since r1.
-- Spec: docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md (sha256 c13ffcd4..., ceremony 3, Spec-AC-01..10,
-  one disclosed post-freeze amendment D1/Spec-AC-10). Intake: docs/issues/ISSUE-DRAFT-hook-gate-staged-content.md.
+- Spec: docs/specs/SPEC-0300-spec-hook-gate-staged-content.md (sha256 c13ffcd4..., ceremony 3, Spec-AC-01..10,
+  one disclosed post-freeze amendment D1/Spec-AC-10). Intake: docs/issues/ISSUE-0122-hook-gate-staged-content.md.
 - Read: round-1 report and its B1 repro, VALIDATION r4 (PASS), decisions.jsonl lines 3064-3068.
 - Coaching check: the dispatch summarised the remediation since r1 and named the dispositions already
   filed; it did not pre-rate new findings or exclude any area. The full scope was reviewed.

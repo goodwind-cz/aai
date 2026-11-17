@@ -2,8 +2,8 @@
 
 ```yaml
 review:
-  scope: "git diff origin/main (65113785) over .aai/scripts/lib/docs-audit-core.mjs, .aai/scripts/docs-audit.mjs, .aai/templates/git-hooks/pre-commit-index.sh, .aai/scripts/pre-commit-checks.sh, tests/skills/test-aai-docs-audit.sh, tests/skills/test-aai-pre-commit-checks.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/product/docs-close-gate.md, docs/issues/ISSUE-DRAFT-hook-gate-staged-content.md, docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md"
-  spec: docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md
+  scope: "git diff origin/main (65113785) over .aai/scripts/lib/docs-audit-core.mjs, .aai/scripts/docs-audit.mjs, .aai/templates/git-hooks/pre-commit-index.sh, .aai/scripts/pre-commit-checks.sh, tests/skills/test-aai-docs-audit.sh, tests/skills/test-aai-pre-commit-checks.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/product/docs-close-gate.md, docs/issues/ISSUE-0122-hook-gate-staged-content.md, docs/specs/SPEC-0300-spec-hook-gate-staged-content.md"
+  spec: docs/specs/SPEC-0300-spec-hook-gate-staged-content.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -42,8 +42,8 @@ security_relevant: true
 
 - Diff: `git diff origin/main` in /Users/ales/Projects/aai-worktrees/hook-gate-staged-content (uncommitted
   tree on branch fix/hook-gate-staged-content, base 65113785), STATE `worktree.user_decision: worktree`.
-- Spec: docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md (ceremony 3, one post-freeze amendment
-  adding Spec-AC-10). Intake: docs/issues/ISSUE-DRAFT-hook-gate-staged-content.md.
+- Spec: docs/specs/SPEC-0300-spec-hook-gate-staged-content.md (ceremony 3, one post-freeze amendment
+  adding Spec-AC-10). Intake: docs/issues/ISSUE-0122-hook-gate-staged-content.md.
 - Read: validation r1/r2 (PASS), TDD/mutation evidence listing.
 - Coaching check: the dispatch named focus areas to scrutinize but did not pre-rate severity or
   exclude any area; the full scope was reviewed.

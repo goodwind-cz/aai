@@ -1,9 +1,9 @@
 ---
 id: spec-hook-gate-staged-content
 type: spec
-number: null
-status: implementing
-frozen_sha256: d21c700d8bdaae34285131a6131693c015449baeba2ce7da84be1e21409a9782
+number: 300
+status: done
+frozen_sha256: fa97fcde47e6380a402c88ec1fc2070170428069d8bbed8ea924ba1d3ddfb115
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-hook-gate-staged-content.md
+- Requirement: docs/issues/ISSUE-0122-hook-gate-staged-content.md
   (follow-ups `fu-hook-gate-reads-worktree-spec`,
   `fu-precommit-deleted-staged-skip`, `fu-precommit-suffix-env-evidence`,
   `fu-precommit-quoted-path-skip`; owner choice 2026-11-17).
@@ -58,8 +58,8 @@ SPEC-FROZEN: true
   .aai/scripts/pre-commit-checks.sh; tests/skills/test-aai-docs-audit.sh;
   tests/skills/test-aai-pre-commit-checks.sh; CHANGELOG.md;
   docs/product/docs-close-gate.md;
-  docs/issues/ISSUE-DRAFT-hook-gate-staged-content.md;
-  docs/specs/SPEC-DRAFT-spec-hook-gate-staged-content.md.
+  docs/issues/ISSUE-0122-hook-gate-staged-content.md;
+  docs/specs/SPEC-0300-spec-hook-gate-staged-content.md.
 
 ## Decisions
 
@@ -131,16 +131,16 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN an intake doc with no AC table is gated with docs-audit.mjs --gate-file on a copy of it plus --staged in a git fixture whose linked spec has a non-terminal row in the index and a reconciled copy in the working tree, the command SHALL exit 1 and name that spec; WHEN the index copy is reconciled and the working-tree copy has a non-terminal row it SHALL exit 0; the same two cases without --staged SHALL keep today's working-tree verdicts (exit 0 then exit 1) | implementing | — | — | D1, D2 |
-| Spec-AC-02 | WHEN the linked spec is committed reconciled in HEAD, removed from the index with git rm --cached and left non-terminal in the working tree, --gate-file --staged SHALL exit 0 through the HEAD blob; WHEN a reconciled linked spec exists only as an untracked working-tree file, --gate-file --staged SHALL exit 1 with the no linked spec reason | implementing | — | — | D1 |
-| Spec-AC-03 | WHEN close_gate is enforce and a commit stages an intake done-flip and its linked spec with a non-terminal row while the working-tree spec is reconciled, git commit through the installed hook SHALL exit non-zero naming the intake id; WHEN the staged spec is reconciled and the working-tree spec has an unstaged non-terminal row, git commit SHALL exit 0 and HEAD SHALL move | implementing | — | — | D3 |
-| Spec-AC-04 | docs-audit.mjs --staged without --gate-file SHALL exit 2 with a usage error; --gate-file --staged run in a directory that is not a git work tree SHALL exit 2 | implementing | — | — | D2 |
-| Spec-AC-05 | WHEN app/config.txt holding an api_key assignment with a quoted 12-character value is staged and then deleted from the working tree, bash .aai/scripts/pre-commit-checks.sh SHALL exit 1 and print Potential secret detected in app/config.txt once; WHEN app.js holding console.log is staged and then deleted from the working tree, the script SHALL print Debug statements in app.js | implementing | — | — | D5 |
-| Spec-AC-06 | WHEN docs/ai/tdd/prod.env, docs/ai/reports/x.env, docs/ai/validation/stage.env or docs/ai/reviews/a.env is staged with harmless content, the script SHALL exit 1 and print Sensitive file staged followed by that path; a docs/ai/tdd/environment-notes.txt holding only variable names SHALL still exit 0 | implementing | — | — | D6 |
-| Spec-AC-07 | WHEN app/café.txt holding an api_key assignment is staged, the script SHALL exit 1 and print Potential secret detected in app/café.txt with the unquoted name; WHEN secrets/clé.txt is staged with harmless content it SHALL exit 1 and print Sensitive file staged: secrets/clé.txt; both hold with core.quotePath at its default | implementing | — | — | D4 |
-| Spec-AC-08 | The seven TEST-3454 baseline fixtures SHALL give the baseline's stdout, stderr and exit code, the TEST-3454 numstat pin and the TEST-3461 line-count pin SHALL name the new measured values, and the pre-commit and docs-audit suites SHALL exit 0 | implementing | — | — | preservation |
-| Spec-AC-09 | CHANGELOG.md SHALL hold exactly one per-entry unreleased heading for this fix, and docs/product/docs-close-gate.md SHALL say the hook reads the intake doc and its linked specs from the index with HEAD as the fallback | implementing | — | — | consumer record |
-| Spec-AC-10 | WHEN a linked spec committed in HEAD as docs/specs/SPEC-DRAFT-spec-5865.md with a non-terminal row is renamed with git mv in the index and reconciled there, --gate-file --staged on the intake SHALL exit 0 and SHALL NOT name the old DRAFT path | implementing | — | — | D1 (amended) |
+| Spec-AC-01 | WHEN an intake doc with no AC table is gated with docs-audit.mjs --gate-file on a copy of it plus --staged in a git fixture whose linked spec has a non-terminal row in the index and a reconciled copy in the working tree, the command SHALL exit 1 and name that spec; WHEN the index copy is reconciled and the working-tree copy has a non-terminal row it SHALL exit 0; the same two cases without --staged SHALL keep today's working-tree verdicts (exit 0 then exit 1) | done | TEST-3860 green docs/ai/tdd/hook-gate-staged-content/green-test_3860_staged_gate_reads_index_spec.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3860_staged_gate_reads_index_spec.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3860.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D1, D2 |
+| Spec-AC-02 | WHEN the linked spec is committed reconciled in HEAD, removed from the index with git rm --cached and left non-terminal in the working tree, --gate-file --staged SHALL exit 0 through the HEAD blob; WHEN a reconciled linked spec exists only as an untracked working-tree file, --gate-file --staged SHALL exit 1 with the no linked spec reason | done | TEST-3861 green docs/ai/tdd/hook-gate-staged-content/green-test_3861_staged_gate_head_fallback.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3861_staged_gate_head_fallback.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3861.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D1 |
+| Spec-AC-03 | WHEN close_gate is enforce and a commit stages an intake done-flip and its linked spec with a non-terminal row while the working-tree spec is reconciled, git commit through the installed hook SHALL exit non-zero naming the intake id; WHEN the staged spec is reconciled and the working-tree spec has an unstaged non-terminal row, git commit SHALL exit 0 and HEAD SHALL move | done | TEST-3863 green docs/ai/tdd/hook-gate-staged-content/green-test_3863_hook_gates_staged_linked_spec.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3863_hook_gates_staged_linked_spec.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3863.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D3 |
+| Spec-AC-04 | docs-audit.mjs --staged without --gate-file SHALL exit 2 with a usage error; --gate-file --staged run in a directory that is not a git work tree SHALL exit 2 | done | TEST-3862 green docs/ai/tdd/hook-gate-staged-content/green-test_3862_staged_usage_and_non_git.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3862_staged_usage_and_non_git.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3862.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D2 |
+| Spec-AC-05 | WHEN app/config.txt holding an api_key assignment with a quoted 12-character value is staged and then deleted from the working tree, bash .aai/scripts/pre-commit-checks.sh SHALL exit 1 and print Potential secret detected in app/config.txt once; WHEN app.js holding console.log is staged and then deleted from the working tree, the script SHALL print Debug statements in app.js | done | TEST-3864 green docs/ai/tdd/hook-gate-staged-content/green-test_3864_deleted_worktree_copy_still_scanned.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3864_deleted_worktree_copy_still_scanned.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3864.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D5 |
+| Spec-AC-06 | WHEN docs/ai/tdd/prod.env, docs/ai/reports/x.env, docs/ai/validation/stage.env or docs/ai/reviews/a.env is staged with harmless content, the script SHALL exit 1 and print Sensitive file staged followed by that path; a docs/ai/tdd/environment-notes.txt holding only variable names SHALL still exit 0 | done | TEST-3865 green docs/ai/tdd/hook-gate-staged-content/green-test_3865_suffix_dotenv_blocked_in_evidence.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3865_suffix_dotenv_blocked_in_evidence.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3865.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D6 |
+| Spec-AC-07 | WHEN app/café.txt holding an api_key assignment is staged, the script SHALL exit 1 and print Potential secret detected in app/café.txt with the unquoted name; WHEN secrets/clé.txt is staged with harmless content it SHALL exit 1 and print Sensitive file staged: secrets/clé.txt; both hold with core.quotePath at its default | done | TEST-3866 green docs/ai/tdd/hook-gate-staged-content/green-test_3866_non_ascii_names_checked.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3866_non_ascii_names_checked.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3866.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D4 |
+| Spec-AC-08 | The seven TEST-3454 baseline fixtures SHALL give the baseline's stdout, stderr and exit code, the TEST-3454 numstat pin and the TEST-3461 line-count pin SHALL name the new measured values, and the pre-commit and docs-audit suites SHALL exit 0 | done | TEST-3867 green docs/ai/tdd/hook-gate-staged-content/green-test_3454_small_input_parity.log and docs/ai/tdd/hook-gate-staged-content/green-test_3461_line_budget_and_follow_up.log, RED docs/ai/tdd/hook-gate-staged-content/red-TEST-3867-test_3454_small_input_parity.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3867.txt; suites green in docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | preservation |
+| Spec-AC-09 | CHANGELOG.md SHALL hold exactly one per-entry unreleased heading for this fix, and docs/product/docs-close-gate.md SHALL say the hook reads the intake doc and its linked specs from the index with HEAD as the fallback | done | TEST-3868 green docs/ai/tdd/hook-gate-staged-content/green-test_3868_changelog_and_product_doc.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3868_changelog_and_product_doc.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3868.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | consumer record |
+| Spec-AC-10 | WHEN a linked spec committed in HEAD as docs/specs/SPEC-DRAFT-spec-5865.md with a non-terminal row is renamed with git mv in the index and reconciled there, --gate-file --staged on the intake SHALL exit 0 and SHALL NOT name the old DRAFT path | done | TEST-3869 green docs/ai/tdd/hook-gate-staged-content/green-test_3869_staged_rename_drops_head_copy.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3869_staged_rename_drops_head_copy.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3869.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D1 (amended) |
 
 ## Implementation plan
 
