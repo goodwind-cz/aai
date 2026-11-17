@@ -83,9 +83,10 @@ fields; these are the links intake and planning already write.
   `links.spec`.
 - The hook reads the staged linked specs out of the index, not the working
   tree; a spec missing in the index is read from HEAD, and a spec that
-  exists only as an untracked file is not read. The gate's configuration
-  keys (`scan_exclude`, `review_by_methods`) are still read from the
-  working-tree `docs/ai/docs-audit.yaml`.
+  exists only as an untracked file is not read. With `--staged` the gate's
+  configuration keys (`scan_exclude`, `review_by_methods`) come from the
+  staged `docs/ai/docs-audit.yaml` too (HEAD's when it is not staged), so an
+  unstaged edit of the config cannot hide a linked spec.
 - `close-work-item.mjs` does not run the close gate itself.
 
 ## Links

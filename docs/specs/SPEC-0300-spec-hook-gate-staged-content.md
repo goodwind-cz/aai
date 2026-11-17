@@ -3,7 +3,7 @@ id: spec-hook-gate-staged-content
 type: spec
 number: 300
 status: done
-frozen_sha256: fa97fcde47e6380a402c88ec1fc2070170428069d8bbed8ea924ba1d3ddfb115
+frozen_sha256: 6b176e2c787a41cbcf8ccccd6c9ed332ce71c922d7ca598910ab948ab2d57685
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -74,7 +74,11 @@ SPEC-FROZEN: true
   part of the commit and is not read. A HEAD-only doc whose frontmatter id
   is also carried by a doc in the index (a rename in the commit, such as a
   DRAFT numbered at close) is not read: the index copy is that doc
-  (post-freeze amendment after validation r1, NON-BLOCKING 1). The blobs are read in one batched
+  (post-freeze amendment after validation r1, NON-BLOCKING 1). In staged
+  mode the gate's configuration (`scan_exclude`, `review_by_methods`) is
+  read the same way, from the staged `docs/ai/docs-audit.yaml`, else HEAD's,
+  else none, never from an unstaged working-tree edit (post-PR bot-finding
+  remediation, Codex P1 on PR #569, same amendment). The blobs are read in one batched
   `git cat-file --batch` call. The resolver, the two-pass id match, the
   reverse-link search and the spec gate are the existing functions; only the
   entry source changes. Without the option the working-tree scan is
@@ -122,6 +126,8 @@ SPEC-FROZEN: true
 - Spec-AC-09 maps to the consumer-visible record (CHANGELOG, product doc).
 - Spec-AC-10 maps to validation r1 NON-BLOCKING 1 (a rename in the close
   commit must not be gated on its stale HEAD copy) and D1 as amended.
+- Spec-AC-11 maps to Codex P1 on PR #569 (an unstaged scan_exclude edit
+  must not hide a staged linked spec) and D1 as amended.
 
 ## Constitution deviations
 
@@ -141,6 +147,7 @@ None.
 | Spec-AC-08 | The seven TEST-3454 baseline fixtures SHALL give the baseline's stdout, stderr and exit code, the TEST-3454 numstat pin and the TEST-3461 line-count pin SHALL name the new measured values, and the pre-commit and docs-audit suites SHALL exit 0 | done | TEST-3867 green docs/ai/tdd/hook-gate-staged-content/green-test_3454_small_input_parity.log and docs/ai/tdd/hook-gate-staged-content/green-test_3461_line_budget_and_follow_up.log, RED docs/ai/tdd/hook-gate-staged-content/red-TEST-3867-test_3454_small_input_parity.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3867.txt; suites green in docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | preservation |
 | Spec-AC-09 | CHANGELOG.md SHALL hold exactly one per-entry unreleased heading for this fix, and docs/product/docs-close-gate.md SHALL say the hook reads the intake doc and its linked specs from the index with HEAD as the fallback | done | TEST-3868 green docs/ai/tdd/hook-gate-staged-content/green-test_3868_changelog_and_product_doc.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3868_changelog_and_product_doc.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3868.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | consumer record |
 | Spec-AC-10 | WHEN a linked spec committed in HEAD as docs/specs/SPEC-DRAFT-spec-5865.md with a non-terminal row is renamed with git mv in the index and reconciled there, --gate-file --staged on the intake SHALL exit 0 and SHALL NOT name the old DRAFT path | done | TEST-3869 green docs/ai/tdd/hook-gate-staged-content/green-test_3869_staged_rename_drops_head_copy.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3869_staged_rename_drops_head_copy.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3869.txt; validation docs/ai/validation/VALIDATION-hook-gate-staged-content-r4.md | — | D1 (amended) |
+| Spec-AC-11 | WHEN the staged docs/ai/docs-audit.yaml holds scan_exclude: [] and an unstaged working-tree edit adds a failing linked spec to scan_exclude while a second linked spec passes, --gate-file --staged on the intake SHALL exit 1 naming the failing spec; once that edit is staged it SHALL exit 0 | done | TEST-3870 green docs/ai/tdd/hook-gate-staged-content/green-test_3870_staged_config_from_index.log, RED docs/ai/tdd/hook-gate-staged-content/red-test_3870_staged_config_from_index.log, mutation docs/ai/tdd/spec-hook-gate-staged-content/mutation-TEST-3870.txt | — | D1 (amended, Codex P1 on PR #569) |
 
 ## Implementation plan
 
@@ -187,6 +194,7 @@ None.
 | TEST-3867 | Spec-AC-08 | integration | tests/skills/test-aai-pre-commit-checks.sh | TEST-3454 parity over the seven baseline fixtures and its numstat pin, TEST-3461 line-count pin, both suites exit 0 | target `tests/skills/test-aai-pre-commit-checks.sh`; `sed:s/\[\[ "\$numstat" == "/[[ "$numstat" == "9/` breaks the moved numstat pin and the case must fail | green |
 | TEST-3868 | Spec-AC-09 | unit | tests/skills/test-aai-pre-commit-checks.sh | grep -c of the CHANGELOG heading equals 1; the product doc names the index and HEAD as the hook's read | target `docs/product/docs-close-gate.md`; `sed:s/from the index/from the working tree/` reverts the product statement and the case must fail | green |
 | TEST-3869 | Spec-AC-10 | integration | tests/skills/test-aai-docs-audit.sh | git fixture: intake plus SPEC-DRAFT spec committed implementing; git mv to SPEC-5865 and stage a reconciled copy; --gate-file --staged exits 0 and the log never names the DRAFT path | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/!\(d\.fromHead && indexIds\.has\(d\.fmId\)\)/true/` reads the renamed-away HEAD copy again and the case must fail | green |
+| TEST-3870 | Spec-AC-11 | integration | tests/skills/test-aai-docs-audit.sh | git fixture: staged config scan_exclude empty, failing and passing linked specs staged, unstaged config edit excludes the failing one; --gate-file --staged exits 1 naming it; staging the edit gives exit 0 | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/const config = staged \? loadStagedConfig\(root\) : loadConfig\(root\);/const config = loadConfig(root);/` reads the working-tree config again and the case must fail | green |
 
 ## Verification
 
@@ -207,10 +215,9 @@ Registry items closed by this scope: fu-hook-gate-reads-worktree-spec, fu-precom
 
 ## Residual risks
 
-- The gate's configuration (`scan_exclude`, `review_by_methods`) is still
-  read from the working-tree `docs/ai/docs-audit.yaml`; the hook's MODE
-  already reads the staged config. An unstaged edit of those two keys can
-  still move a verdict.
+- Without `--staged` the gate's configuration is still read from the
+  working-tree `docs/ai/docs-audit.yaml`; with it (the hook), the staged
+  copy, else HEAD's, decides (amended after Codex P1 on PR #569).
 - CHECK 7 (PowerShell parse gate) keeps its own newline list and working-tree
   read; a non-ASCII `.ps1` name skips the parse check there. It is a warning
   path on hosts with pwsh, not the secrets check.

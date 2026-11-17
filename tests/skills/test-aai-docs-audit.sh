@@ -9781,6 +9781,30 @@ test_3869_staged_rename_drops_head_copy() {  # TEST-3869 / Spec-AC-10
   log_pass "A linked spec renamed in the commit is read from the index only (TEST-3869)"
 }
 
+test_3870_staged_config_from_index() {  # TEST-3870 / Spec-AC-11
+  log_info "Test: --staged reads scan_exclude from the staged docs-audit.yaml, not an unstaged edit (TEST-3870)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo hgs-3870)"
+  mkdir -p "$d/docs/issues" "$d/staged"
+  printf 'scan_exclude: []\n' > "$d/docs/ai/docs-audit.yaml"
+  igs_intake "$d/docs/issues/ISSUE-5870-config.md" issue-5870 issue
+  igs_spec "$d/docs/specs/SPEC-5870-failing.md" spec-5870 implementing requirement issue-5870
+  igs_spec "$d/docs/specs/SPEC-5871-passing.md" spec-5871 done requirement issue-5870
+  (cd "$d" && git add docs) || log_fail "TEST-3870: git add failed"
+  printf 'scan_exclude:\n  - docs/specs/SPEC-5870-failing.md\n' > "$d/docs/ai/docs-audit.yaml"   # unstaged edit
+  cp "$d/docs/issues/ISSUE-5870-config.md" "$d/staged/blob.tmp"
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate-file staged/blob.tmp --staged)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3870: an unstaged scan_exclude edit must not hide the staged failing spec (got $ec): $(cat "$d/g1.log")"
+  grep -qF -- "- SPEC-5870: Spec-AC-01 is non-terminal" "$d/g1.log" || log_fail "TEST-3870: the reason must name SPEC-5870's row: $(cat "$d/g1.log")"
+  (cd "$d" && git add docs/ai/docs-audit.yaml) || log_fail "TEST-3870: git add failed"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate-file staged/blob.tmp --staged)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3870: a STAGED scan_exclude is part of the commit and applies (got $ec): $(cat "$d/g2.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "--staged reads scan_exclude from the staged config (TEST-3870)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -9880,6 +9904,7 @@ main() {
   test_3862_staged_usage_and_non_git  # hook-gate-staged-content
   test_3863_hook_gates_staged_linked_spec  # hook-gate-staged-content
   test_3869_staged_rename_drops_head_copy  # hook-gate-staged-content
+  test_3870_staged_config_from_index  # hook-gate-staged-content
   test_536_unparseable_ac_table_shape
   test_582_status_vocabulary_scoped_to_spec_ac_col
   test_538_duplicate_ac_id_multiplicity

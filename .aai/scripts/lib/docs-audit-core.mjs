@@ -127,9 +127,12 @@ const OPEN_DECISION_COMMENT_RE = /<!--\s*OPEN-DECISION\s*-->/i;
 
 // --- config -----------------------------------------------------------------
 
-export function loadConfig(root) {
+// `text` (hook-gate-staged-content D1, Codex P1 on PR #569): parse this
+// content instead of the working-tree file; `null` means no config at all.
+export function loadConfig(root, { text } = {}) {
   const p = path.join(root, CONFIG_PATH);
-  if (!guardConfigPresent(path.dirname(p))) return null;
+  if (text === null) return null;
+  if (text === undefined && !guardConfigPresent(path.dirname(p))) return null;
   const cfg = {
     legacy_until_date: null,
     stale_after_days: DEFAULT_STALE_DAYS,
@@ -164,7 +167,7 @@ export function loadConfig(root) {
   };
   const LIST_KEYS = new Set(['scan_exclude', 'backlog_globs', 'review_by_methods', 'category_prefixes', 'protected_paths_l3', 'docs_ai_canon_extra']);
   let listKey = null;
-  for (const raw of fs.readFileSync(p, 'utf8').split('\n')) {
+  for (const raw of (text ?? fs.readFileSync(p, 'utf8')).split('\n')) {
     const line = raw.replace(/#.*$/, '').trimEnd();
     if (!line.trim()) continue;
     const item = line.match(/^\s+-\s+(.*)$/);
@@ -1991,7 +1994,7 @@ function gateContent(content, extraMethods) {
 // hook-gate-staged-content D1: `{ staged: true }` builds the same entries from
 // the commit being made (readStagedDocSet) instead of the working tree.
 function scanGateEntries(root, { staged = false } = {}) {
-  const config = loadConfig(root);
+  const config = staged ? loadStagedConfig(root) : loadConfig(root);
   const scanExclude = config?.scan_exclude ?? [];
   const files = staged
     ? readStagedDocSet(root, scanExclude)
@@ -2050,6 +2053,18 @@ function readStagedDocSet(root, scanExclude) {
     .filter((d) => !(d.fromHead && indexIds.has(d.fmId)))
     .map(({ rel, fileId, content }) => ({ rel, fileId, content }))
     .sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+// hook-gate-staged-content D1 (Codex P1 on PR #569): in staged mode the
+// gate's config (scan_exclude, review_by_methods) is the one the commit
+// records: the staged docs-audit.yaml, else HEAD's, else none — never an
+// unstaged working-tree edit. Throws when root is not inside a git work tree.
+function loadStagedConfig(root) {
+  const prefix = execFileSync('git', ['-C', root, 'rev-parse', '--show-prefix'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).toString('utf8').trim();
+  const [indexText, headText] = readBlobs(root, [':0:' + prefix + CONFIG_PATH, 'HEAD:' + prefix + CONFIG_PATH]);
+  return loadConfig(root, { text: indexText ?? headText ?? null });
 }
 
 // Read blobs by revision name through ONE `git cat-file --batch` process; a
@@ -2250,7 +2265,13 @@ export function acFlipCheckDoc(root, docId) {
 // merely because the worktree has unstaged Evidence. Config (review_by_methods) is
 // still loaded from `root` so a project's configured methods are honored.
 export function gateFile(root, filePath, { staged = false } = {}) {
-  const config = loadConfig(root);
+  let config;
+  try {
+    config = staged ? loadStagedConfig(root) : loadConfig(root);
+  } catch (err) {
+    const why = String(err?.stderr ?? err?.message ?? err).trim().split('\n')[0];
+    return { found: false, ok: false, reasons: [`staged mode could not read the index: ${why}`] };
+  }
   const extraMethods = config?.review_by_methods ?? [];
   const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
   if (!fs.existsSync(abs)) return { found: false, ok: false, reasons: [`file not found: "${filePath}"`] };

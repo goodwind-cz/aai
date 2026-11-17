@@ -775,7 +775,7 @@ _None._
 
 _None._
 
-## Broken references (583)
+## Broken references (584)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1102,6 +1102,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5866-armb-guard.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5867-armc-fileid-ref.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5868-armc-slugid-ref.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5870-failing.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-6009-both.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-acflip-hash.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-lean.md | NOT FOUND |
