@@ -4166,3 +4166,4 @@
 {"v":1,"ts":"2026-11-17T19:07:19Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-precommit-blob-read-cost","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-17T19:07:19Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-precommit-blob-read-cost","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-17T19:37:34Z","actor":"ales_holubec.net","event":"full_sweep","ref":"precommit-blob-read-cost","payload":{"head":"899bb2292bb9ebc828e5e704695d5a6fb8499274","rc":1,"run_id":"test-20261117-191137"}}
+{"v":1,"ts":"2026-11-17T19:37:50Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"precommit-blob-read-cost","payload":{"pr":570,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"f278f87c1c8e394d1e8316977abe9421b0a7917e"}}
