@@ -66,14 +66,22 @@ if [ -n "$STAGED_FILES" ]; then
     filepath="$PROJECT_ROOT/$file"
     [ -f "$filepath" ] || continue
 
-    # Check for common secret patterns
-    if grep -qEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" "$filepath" 2>/dev/null; then
+    # Check for common secret patterns in the staged blob (what the commit records)
+    hits=$(git -C "$PROJECT_ROOT" show ":$file" 2>/dev/null | grep -cEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" || true)
+    if [ "${hits:-0}" -gt 0 ]; then
       error "Potential secret detected in $file"
       SECRETS_FOUND=1
     fi
 
-    # Check for .env files
-    if [[ "$file" == *.env* ]] || [[ "$file" == *credentials* ]] || [[ "$file" == *secret* ]]; then
+    # Name check. AAI evidence folders are judged by content alone, except a dotenv file.
+    name_check=1
+    case "$file" in
+      docs/ai/reports/*|docs/ai/tdd/*|docs/ai/validation/*|docs/ai/reviews/*) name_check=0 ;;
+    esac
+    case "${file##*/}" in
+      .env|.env.*) name_check=1 ;;
+    esac
+    if [ "$name_check" -eq 1 ] && { [[ "$file" == *.env* ]] || [[ "$file" == *credentials* ]] || [[ "$file" == *secret* ]]; }; then
       error "Sensitive file staged: $file"
       SECRETS_FOUND=1
     fi

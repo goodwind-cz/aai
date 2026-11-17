@@ -4091,3 +4091,17 @@
 {"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-doc-identity-table-and-its-pins","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"intake-doc-identity-table-and-its-pins","payload":{"commit":"01f6d32c"}}
 {"v":1,"ts":"2026-11-16T09:50:58Z","actor":"ales_holubec.net","event":"full_sweep","ref":"allocator-research-hotfix-types","payload":{"head":"2517a849c4b6230bb03712cd15ecf3728f146103","rc":0,"run_id":"test-20261116-093253"}}
+{"v":1,"ts":"2026-11-16T20:19:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-ceremony-friction-fixes","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-16T20:59:49Z","actor":"ales_holubec.net","event":"full_sweep","ref":"pr-ceremony-friction-fixes","payload":{"head":"2ca48983bca6683aa9f0c629de51f123ea6d0875","rc":1,"run_id":"test-20261116-203806"}}
+{"v":1,"ts":"2026-11-16T21:36:30Z","actor":"ales_holubec.net","event":"full_sweep","ref":"pr-ceremony-friction-fixes","payload":{"head":"acc37e75753bf301196aa1e6641294daab88b8ef","rc":0,"run_id":"test-20261116-211411"}}
+{"v":1,"ts":"2026-11-16T21:48:30Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"pr-ceremony-friction-fixes","payload":{"role":"code_review","head":"acc37e75753bf301196aa1e6641294daab88b8ef","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-16T21:48:30Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"pr-ceremony-friction-fixes","payload":{"status":"pass","hash":"7a6fd43db26029647dc47c566651b7fc5875d4e439e608433f8aad20b3fcd257"}}
+{"v":1,"ts":"2026-11-16T21:48:39Z","actor":"ales_holubec.net","event":"check_verdict","ref":"pr-ceremony-friction-fixes","payload":{"role":"code_review","head":"acc37e75753bf301196aa1e6641294daab88b8ef","status":"pass","security_relevant":true}}
+{"v":1,"ts":"2026-11-16T21:48:39Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"pr-ceremony-friction-fixes","payload":{"status":"pass","hash":"7a6fd43db26029647dc47c566651b7fc5875d4e439e608433f8aad20b3fcd257"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"pr-ceremony-friction-fixes","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"pr-ceremony-friction-fixes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-ceremony-friction-fixes","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pr-ceremony-friction-fixes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-16T21:51:41Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":750,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-17T01:44:46Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":752,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-17T01:44:51Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":752,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

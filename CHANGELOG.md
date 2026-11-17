@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: evidence files are judged by content in the pre-commit secrets check, and the PR ceremony refuses to sync with base on an uncommitted tree
+
+`pre-commit-checks.sh` CHECK 2 no longer blocks a file under `docs/ai/reports/`, `docs/ai/tdd/`, `docs/ai/validation/` or `docs/ai/reviews/` only because its name contains `secret` or `credentials` (a Validation log named `worker-env-and-secrets` stopped a close commit, GitHub #565); those files are judged by the content scan alone. A dotenv file (`.env`, `.env.*`) is still blocked in every folder, and every other path keeps the name check unchanged. The content scan now reads the staged blob, so a secret that is staged and then rewritten in the working tree is still caught. `branch-guard.mjs --sync-ready [--pre-commit-head <sha>]` is a new read-only check: exit 9 while `git diff --cached` names a path, exit 10 while HEAD still equals the head noted before the commit step, exit 4 on a usage error; `SKILL_PR` step 5b runs it before any merge of base and stops on non-zero, and step 4 notes the pre-commit head (GitHub #566). `VALIDATION` step 6 asks for evidence file names without `secret`, `credential` or `.env`. Touches `.aai/scripts/pre-commit-checks.sh` (an L3 protected surface), `.aai/scripts/branch-guard.mjs`, `.aai/SKILL_PR.prompt.md` and `.aai/VALIDATION.prompt.md`, all of which ship downstream.
+
 ## [unreleased] — fix: the doc-number allocator accepts research and hotfix, and runs through a symlinked checkout
 
 `allocate-doc-number.mjs --type research` and `--type hotfix` no longer exit 2 as unknown types: research drafts number as `RES-NNNN` under `docs/specs/` and hotfix drafts as `ISSUE-NNNN` under `docs/issues/`, matching the type table in `.aai/INTAKE_COMMON.md`.

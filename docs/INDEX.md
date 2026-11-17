@@ -64,7 +64,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (667)
+## Done (669)
 
 | ID | Type | Path |
 |---|---|---|
@@ -420,6 +420,7 @@ _None._
 | ISSUE-0118 | issues | docs/issues/ISSUE-0118-metrics-integrity-fixes.md |
 | ISSUE-0119 | issues | docs/issues/ISSUE-0119-allocator-research-hotfix-types.md |
 | ISSUE-0120 | issues | docs/issues/ISSUE-0120-issue-gate-via-spec.md |
+| ISSUE-0121 | issues | docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -733,6 +734,7 @@ _None._
 | SPEC-0295 | specs | docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md |
 | SPEC-0296 | specs | docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md |
 | SPEC-0297 | specs | docs/specs/SPEC-0297-spec-issue-gate-via-spec.md |
+| SPEC-0298 | specs | docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -1384,4 +1386,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-16 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-17 — counts above use this date for overdue checks.

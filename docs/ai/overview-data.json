@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-16T20:53:54.057Z",
+  "generatedAt": "2026-11-17T01:44:16.749Z",
   "project": "aai",
   "counts": {
-    "delivered": 367,
+    "delivered": 368,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 191246122
+    "tokens_total": 191501091
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
       "validation": null,
       "review": "docs/ai/reviews/review-issue-gate-via-spec-r4-20261116T194000Z.md"
+    },
+    {
+      "ref": "pr-ceremony-friction-fixes",
+      "title": "PR ceremony friction: evidence names trip the secrets check, and the base sync runs on an uncommitted tree",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md",
+      "closed_on": "2026-11-16",
+      "agent_minutes": 103,
+      "token_total": 254969,
+      "spec": "docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-pr-ceremony-friction-fixes-r1.md"
     },
     {
       "ref": "recover-archived-state-runs",
@@ -5044,6 +5057,19 @@
           "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
           "validation": null,
           "review": "docs/ai/reviews/review-issue-gate-via-spec-r4-20261116T194000Z.md"
+        },
+        {
+          "ref": "pr-ceremony-friction-fixes",
+          "title": "PR ceremony friction: evidence names trip the secrets check, and the base sync runs on an uncommitted tree",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md",
+          "closed_on": "2026-11-16",
+          "agent_minutes": 103,
+          "token_total": 254969,
+          "spec": "docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-pr-ceremony-friction-fixes-r1.md"
         },
         {
           "ref": "recover-archived-state-runs",

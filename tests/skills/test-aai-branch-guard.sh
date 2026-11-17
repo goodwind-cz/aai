@@ -1247,7 +1247,77 @@ EOF
   log_pass "an explicit empty --expect-branch value is a named usage refusal in close-work-item.mjs, never a silent fail-open — proven against a ref that would otherwise genuinely succeed"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454 455 459 460 461"
+# --- pr-ceremony-friction-fixes (GitHub #566): --sync-ready refuses a base sync on an uncommitted tree ---
+VALIDATION_DOC="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+
+# commit_all <repo> <message>: commits everything staged with a throwaway identity.
+commit_all() {
+  run_out "$1" git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q -m "$2" >/dev/null 2>&1
+}
+
+test_3834() {
+  log_info "TEST-3834: --sync-ready refuses (exit 9) while the index holds a staged change, and writes nothing..."
+  local repo head_before idx_before
+  repo="$(make_repo t3834)"
+  printf 'a\n' > "$repo/a.txt"
+  run_out "$repo" git add a.txt
+  head_before="$(run_out "$repo" git rev-parse HEAD)"
+  idx_before="$(run_out "$repo" git diff --cached --name-only)"
+  run_guard "$repo" --sync-ready
+  [[ "$RC" -eq 9 ]] || log_fail "TEST-3834: --sync-ready with a staged a.txt exited $RC, expected 9; stderr: $ERR"
+  assert_payload_contains "$ERR" "a.txt" "TEST-3834: stderr must name the staged path (got: $ERR)"
+  [[ "$(run_out "$repo" git rev-parse HEAD)" == "$head_before" ]] || log_fail "TEST-3834: HEAD moved"
+  [[ "$(run_out "$repo" git diff --cached --name-only)" == "$idx_before" ]] || log_fail "TEST-3834: the index changed"
+  log_pass "TEST-3834: a staged change refuses the sync with exit 9 naming the path; HEAD and index untouched"
+}
+
+test_3835() {
+  log_info "TEST-3835: --pre-commit-head equal to HEAD refuses (exit 10); an advanced HEAD, no flag, and a bad sha behave as specified..."
+  local repo pre
+  repo="$(make_repo t3835)"
+  pre="$(run_out "$repo" git rev-parse HEAD)"
+  run_guard "$repo" --sync-ready --pre-commit-head "$pre"
+  [[ "$RC" -eq 10 ]] || log_fail "TEST-3835: HEAD == --pre-commit-head exited $RC, expected 10; stderr: $ERR"
+  run_guard "$repo" --sync-ready
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-3835: a clean index without the flag exited $RC, expected 0; stderr: $ERR"
+  printf 'b\n' > "$repo/b.txt"
+  run_out "$repo" git add b.txt
+  commit_all "$repo" advance
+  run_guard "$repo" --sync-ready --pre-commit-head "$pre"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-3835: an advanced HEAD exited $RC, expected 0; stderr: $ERR"
+  run_guard "$repo" --sync-ready --pre-commit-head deadbeef
+  [[ "$RC" -eq 4 ]] || log_fail "TEST-3835: an unresolvable --pre-commit-head exited $RC, expected 4; stderr: $ERR"
+  run_guard "$repo" --verify-pin --pre-commit-head "$pre"
+  [[ "$RC" -eq 4 ]] || log_fail "TEST-3835: --pre-commit-head without --sync-ready (here with --verify-pin) exited $RC, expected 4; stderr: $ERR"
+  printf 'c\n' > "$repo/c.txt"
+  run_out "$repo" git add c.txt
+  local mode
+  for mode in --pin --verify-pin --suggest; do
+    run_guard "$repo" --sync-ready "$mode"
+    [[ "$RC" -eq 4 ]] || log_fail "TEST-3835: --sync-ready $mode with a staged c.txt exited $RC, expected 4 (the readiness check must never be bypassed); stderr: $ERR"
+  done
+  run_out "$repo" git reset -q c.txt
+  log_pass "TEST-3835: unadvanced HEAD exit 10, advanced HEAD exit 0, no flag exit 0, unresolvable sha exit 4, --pre-commit-head outside --sync-ready exit 4, --sync-ready with --pin/--verify-pin/--suggest exit 4"
+}
+
+test_3836() {
+  log_info "TEST-3836: SKILL_PR step 4 notes the pre-commit head, step 5b runs --sync-ready before its first git merge; VALIDATION names the evidence-name rule..."
+  local step4 step5b i_guard i_merge
+  step4="$(awk '/^4\. COMMIT/{f=1} /^4a\. /{f=0} f' "$SKILL_PR_DOC")"
+  assert_payload_contains "$step4" 'git rev-parse HEAD' "TEST-3836: SKILL_PR step 4 does not note git rev-parse HEAD"
+  assert_payload_contains "$step4" '<pre-commit-head>' "TEST-3836: SKILL_PR step 4 does not name <pre-commit-head>"
+  step5b="$(awk '/^5b\. /{f=1} /^5d\. /{f=0} f' "$SKILL_PR_DOC")"
+  i_guard="$(awk '/branch-guard\.mjs --sync-ready --pre-commit-head <pre-commit-head>/{print NR; exit}' <<<"$step5b")"
+  i_merge="$(awk '/git merge/{print NR; exit}' <<<"$step5b")"
+  [[ -n "$i_guard" ]] || log_fail "TEST-3836: SKILL_PR step 5b does not run branch-guard.mjs --sync-ready --pre-commit-head <pre-commit-head>"
+  [[ -n "$i_merge" && "$i_guard" -le "$i_merge" ]] || log_fail "TEST-3836: --sync-ready (line $i_guard) does not come before the first git merge mention (line $i_merge) in step 5b"
+  assert_payload_contains "$step5b" 'non-zero: STOP' "TEST-3836: SKILL_PR step 5b does not stop on a non-zero --sync-ready"
+  grep -qF 'Evidence file names never carry `secret`, `credential` or `.env`' "$VALIDATION_DOC" \
+    || log_fail "TEST-3836: VALIDATION.prompt.md lacks the evidence-name sentence"
+  log_pass "TEST-3836: SKILL_PR steps 4 and 5b wire --sync-ready before any merge; VALIDATION carries the evidence-name rule"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454 455 459 460 461 3834 3835 3836"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"
@@ -1256,7 +1326,7 @@ main() {
   [[ -n "$selected" ]] || selected="$ALL_TESTS"
   local t
   for t in $selected; do
-    t="${t#TEST-}"
+    t="${t#TEST-}"; t="${t#test_}"   # test_NNN is the mutation-run selector form
     declare -F "test_${t}" >/dev/null || { echo "Unknown test: $t" >&2; exit 2; }
     "test_${t}"
   done
