@@ -29,7 +29,7 @@ _None._
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 4 | docs/product/ci-test-impact-selection.md |
-| configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
+| configurable-merge-policy-lanes | configurable-merge-policy-lanes | 2 | docs/product/configurable-merge-policy-lanes.md |
 | consumer-config | consumer-config | 1 | docs/product/consumer-config.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
@@ -64,7 +64,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (669)
+## Done (671)
 
 | ID | Type | Path |
 |---|---|---|
@@ -320,6 +320,7 @@ _None._
 | CHANGE-0255 | issues | docs/issues/CHANGE-0255-factory-round-cap.md |
 | CHANGE-0256 | issues | docs/issues/CHANGE-0256-model-effort-routing.md |
 | CHANGE-0257 | issues | docs/issues/CHANGE-0257-consumer-config-routing-override.md |
+| CHANGE-0258 | issues | docs/issues/CHANGE-0258-delegated-requester-approval.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -735,6 +736,7 @@ _None._
 | SPEC-0296 | specs | docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md |
 | SPEC-0297 | specs | docs/specs/SPEC-0297-spec-issue-gate-via-spec.md |
 | SPEC-0298 | specs | docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md |
+| SPEC-0299 | specs | docs/specs/SPEC-0299-spec-delegated-requester-approval.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

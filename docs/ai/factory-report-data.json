@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-17T01:44:19.485Z",
+  "generatedAt": "2026-11-17T02:09:59.407Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 260,
-    "delivered": 674,
+    "rides": 261,
+    "delivered": 676,
     "active_weeks": 21,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (674 closes vs 260 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 674,
-    "delivered_per_week_avg": 32.1,
+    "note": "\"delivered\" counts every work_item_closed event (676 closes vs 261 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 676,
+    "delivered_per_week_avg": 32.2,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -35,7 +35,7 @@
       "2026-W44": 23,
       "2026-W45": 28,
       "2026-W46": 26,
-      "2026-W47": 8
+      "2026-W47": 10
     },
     "delivered_groups": [
       {
@@ -682,7 +682,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 66,
+        "count": 68,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -749,7 +749,9 @@
           "allocator-research-hotfix-types",
           "spec-allocator-research-hotfix-types",
           "pr-ceremony-friction-fixes",
-          "spec-pr-ceremony-friction-fixes"
+          "spec-pr-ceremony-friction-fixes",
+          "delegated-requester-approval",
+          "spec-delegated-requester-approval"
         ]
       }
     ],
@@ -3450,24 +3452,32 @@
         {
           "ref": "spec-pr-ceremony-friction-fixes",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "delegated-requester-approval",
+          "lead_time_seconds": 7142
+        },
+        {
+          "ref": "spec-delegated-requester-approval",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 7982,
-      "mean_seconds": 76935,
-      "measured": 253,
-      "unmeasurable": 421
+      "median_seconds": 7926,
+      "mean_seconds": 76660.3,
+      "measured": 254,
+      "unmeasurable": 422
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 4361,
-      "mean": 10609.7,
-      "measured": 258
+      "median": 4435,
+      "mean": 10589.5,
+      "measured": 259
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 484788,
+        "duration_seconds": 485492,
         "tokens": 53387856
       },
       {
@@ -3477,7 +3487,7 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 275739,
+        "duration_seconds": 276092,
         "tokens": 24515322
       },
       {
@@ -3487,12 +3497,12 @@
       },
       {
         "role": "Validation",
-        "duration_seconds": 967801,
+        "duration_seconds": 971866,
         "tokens": 73127312
       },
       {
         "role": "Planning",
-        "duration_seconds": 197618,
+        "duration_seconds": 197882,
         "tokens": 15677320
       },
       {
@@ -4801,6 +4811,11 @@
         "ref": "pr-ceremony-friction-fixes",
         "busy_seconds": 6177,
         "remediation_runs": 0
+      },
+      {
+        "ref": "delegated-requester-approval",
+        "busy_seconds": 5386,
+        "remediation_runs": 0
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -4847,7 +4862,7 @@
     ],
     "capture_coverage": {
       "runs_with_marker": 756,
-      "total_runs": 1816,
+      "total_runs": 1821,
       "pct": 42,
       "by_week": [
         {
@@ -4973,8 +4988,8 @@
         {
           "week": "2026-W47",
           "runs_with_marker": 29,
-          "total_runs": 39,
-          "pct": 74
+          "total_runs": 44,
+          "pct": 66
         }
       ]
     },
@@ -4982,10 +4997,10 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 259,
+          "runs_total": 260,
           "runs_marked": 125,
           "runs_sentinel": 6,
-          "runs_unmarked": 128,
+          "runs_unmarked": 129,
           "tokens_total": 53387856,
           "median_tokens_per_run": 207366,
           "share_pct": 27
@@ -5002,10 +5017,10 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 364,
+          "runs_total": 365,
           "runs_marked": 168,
           "runs_sentinel": 25,
-          "runs_unmarked": 171,
+          "runs_unmarked": 172,
           "tokens_total": 24515322,
           "median_tokens_per_run": 122822,
           "share_pct": 13
@@ -5022,20 +5037,20 @@
         },
         {
           "role": "Validation",
-          "runs_total": 515,
+          "runs_total": 517,
           "runs_marked": 218,
           "runs_sentinel": 47,
-          "runs_unmarked": 250,
+          "runs_unmarked": 252,
           "tokens_total": 73127312,
           "median_tokens_per_run": 146159,
           "share_pct": 38
         },
         {
           "role": "Planning",
-          "runs_total": 203,
+          "runs_total": 204,
           "runs_marked": 94,
           "runs_sentinel": 11,
-          "runs_unmarked": 98,
+          "runs_unmarked": 99,
           "tokens_total": 15677320,
           "median_tokens_per_run": 159586,
           "share_pct": 8
@@ -5897,13 +5912,13 @@
   },
   "quality": {
     "first_pass_clean": {
-      "clean": 119,
-      "flagged": 234,
+      "clean": 120,
+      "flagged": 235,
       "rate_pct": 51
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 121,
+      "0": 122,
       "1": 34,
       "2": 28,
       "3": 23,
@@ -5919,7 +5934,7 @@
     "avg_validation_fails": 0.5,
     "avg_review_fails": 0.2,
     "verdict_mix": {
-      "PASS": 203,
+      "PASS": 204,
       "null": 57
     },
     "review_events": 27,
@@ -5934,7 +5949,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 81,
+    "field_derived": 82,
     "marker_derived": 36,
     "mixed": 2,
     "no_basis": 141,
@@ -7238,6 +7253,11 @@
         "ref": "pr-ceremony-friction-fixes",
         "verdict_source": "field",
         "cost_basis": "mixed"
+      },
+      {
+        "ref": "delegated-requester-approval",
+        "verdict_source": "field",
+        "cost_basis": "mixed"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -7405,11 +7425,11 @@
     },
     {
       "week": "2026-W47",
-      "delivered": 8,
-      "median_lead_time_seconds": 8782,
-      "busy_seconds": 36056,
+      "delivered": 10,
+      "median_lead_time_seconds": 7142,
+      "busy_seconds": 41442,
       "tokens": 3930155,
-      "first_pass_rate": 25
+      "first_pass_rate": 40
     }
   ],
   "follow_ups": {
@@ -7661,7 +7681,7 @@
         "id": "fu-mutation-sed-drops-multiline-flag",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 59,
+        "age_days": 60,
         "what": "mutation-run.mjs applySedExpr honours only the g flag, so a per-line anchored expression (^number: null$) anchors to the whole file and can never redden",
         "status": "open"
       },
@@ -7669,7 +7689,7 @@
         "id": "fu-suite-fail-text-blocks-attribution",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 59,
+        "age_days": 60,
         "what": "a suite whose log_fail wrapper prints no literal FAIL text (test-aai-intake.sh) cannot have a redden attributed by mutation-run, however correct the mutation",
         "status": "open"
       },
@@ -8661,7 +8681,7 @@
         "id": "fu-merge-cleanup-large-ignored-archive",
         "ref": "merge-cleanup-submodule-worktree",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "merge-cleanup archiveFile reads each ignored submodule file whole: a file over 2 GiB crashes apply with exit 1 on every re-run; a submodule path with a newline breaks the one-line REFUSE/cleanup blocked output",
         "status": "open"
       },
@@ -8669,7 +8689,7 @@
         "id": "fu-merge-submodule-fetched-tag-unpushed",
         "ref": "merge-cleanup-submodule-worktree",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "the submodule unpushed proof (--branches --tags --not --remotes) counts a tag fetched from the remote that points at a commit on no remote branch as unpushed, so cleanup refuses a safe worktree",
         "status": "open"
       },
@@ -9565,7 +9585,7 @@
         "id": "fu-tdd-red-accepts-rc127",
         "ref": "reuse-split-corpus-cases",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "tdd-evidence-check accepts an rc-127 No such file log labelled product_red",
         "status": "open"
       },
@@ -9997,7 +10017,7 @@
         "id": "fu-pc-tests-synthetic-override-ids",
         "ref": "consumer-config-routing-override",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "test-aai-project-config uses real model ids as override inputs; TEST-3683 fails if Validation@lightweight is pinned to claude-haiku-5-5 and TEST-3682's mutation goes vacuous if shipped claude Code Review becomes claude-sonnet-5-5",
         "status": "open"
       },
@@ -10005,7 +10025,7 @@
         "id": "fu-project-config-dangling-symlink",
         "ref": "consumer-config-routing-override",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "a dangling symlink at docs/ai/project-config.yaml reads as ENOENT and is treated as absent with no NOTE",
         "status": "open"
       },
@@ -10162,11 +10182,11 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-spec-pr-ceremony-friction-fixes",
-        "ref": "pr-ceremony-friction-fixes",
+        "id": "fu-amend-delegated-requester-approval",
+        "ref": "delegated-requester-approval",
         "severity": "P2",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-pr-ceremony-friction-fixes: Test Plan Mutation cells of TEST-3834, TEST-3835 and TEST-3837 rewritten from sed BRE notation to the JavaScript RegExp notation mutation-run.mjs executes (escaped parens, \\d+ group, $1 backreference); same mutated lines, same intent",
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-delegated-requester-approval: TEST-3853 mutation replacement no longer escapes parentheses",
         "status": "open"
       },
       {
@@ -14004,6 +14024,36 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "delegated-requester-approval",
+        "date_utc": "2026-11-16",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 5727,
+        "agent_seconds": 5386,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -18005,7 +18055,7 @@
     "NOTE 10 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 27 agent_run(s) had a role that matched no canonical role — bucketed as Other",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 124 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 125 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 8 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
     "NOTE 53 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"

@@ -2808,6 +2808,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Owner-defined merge lanes
+
+By default an AAI agent never merges a pull request; merging is the operator's job. A repository owner can now write down, in one project-owned file, which kinds of pull requests the agent may merge on its own, for example "a change that only touches content or design files, with green CI, a recorded bot sweep and the requester's GitHub approval". Each such rule is a lane, and each lane must point at a decision the owner signed. Anything outside every lane, and anything touching architecture (containers, dependencies, migrations, CI, credentials) as the owner defines it, still goes to the operator. With no policy file, nothing changes. A requester without a GitHub account can approve in chat: a gateway holding its own bot credential submits the approval, the lane lists that bot in `delegated_approvers`, and the approval counts only when its review body carries one `AAI-RELAY chat=<platform>:<message-id> requester=<platform>:<user-id>` line. The bot credential must stay out of reach of agent tools: an agent that can read it can write that review itself. On a single host this is a guardrail, not a security boundary; branch protection remains the real one.
+
+[Product doc](product/configurable-merge-policy-lanes.md) · [Spec](specs/SPEC-0207-spec-configurable-merge-policy-lanes.md)
+
 ### Docs close gate
 
 Before a governed doc (an issue, change, debt, requirement, RFC, release or spec) is flipped to `status: done`, the close gate checks that its acceptance criteria are reconciled: every row terminal, every done row evidenced, every Review-By valid. A spec is checked against its own `## Acceptance Criteria Status` table. An intake doc (an issue, change or other non-spec doc) that has no AC table of its own is checked through its linked spec instead, because that is where its acceptance table lives: every linked spec must pass, and the output names the spec that decided. An intake doc with neither its own table nor a linked spec fails and says what is missing.
@@ -2891,12 +2897,6 @@ CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on 
 Bootstrap records which git host the project lives on (GitHub, Azure DevOps, unknown or none) once, and `/aai-merge` follows that record: a directed merge and the post-merge cleanup now work on Azure DevOps as well as on GitHub, without ever calling `gh` there.
 
 [Product doc](product/platform-portable-pr.md) · [Spec](specs/SPEC-0103-spec-platform-portable-pr.md)
-
-### Owner-defined merge lanes
-
-By default an AAI agent never merges a pull request; merging is the operator's job. A repository owner can now write down, in one project-owned file, which kinds of pull requests the agent may merge on its own, for example "a change that only touches content or design files, with green CI, a recorded bot sweep and the requester's GitHub approval". Each such rule is a lane, and each lane must point at a decision the owner signed. Anything outside every lane, and anything touching architecture (containers, dependencies, migrations, CI, credentials) as the owner defines it, still goes to the operator. With no policy file, nothing changes.
-
-[Product doc](product/configurable-merge-policy-lanes.md) · [Spec](specs/SPEC-0207-spec-configurable-merge-policy-lanes.md)
 
 ### Downstream autopilot: rides ask nothing until the merge
 

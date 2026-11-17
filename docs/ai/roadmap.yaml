@@ -170,6 +170,8 @@ pairs:
     status: done
   - capability: consumer-config-routing-override
     status: done
+  - capability: delegated-requester-approval
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
