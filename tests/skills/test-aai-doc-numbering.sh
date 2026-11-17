@@ -1813,6 +1813,150 @@ test_808_check8_enforce_is_merge_point_aware() {
   log_pass "TEST-808 CHECK 8 enforce is merge-point-aware: feature branch reports with one downgrade line (exit 0), default branch blocks (exit 1), report-only exits 0 on both"
 }
 
+# --- TEST-3794: research + hotfix are known allocator types ------------------
+# allocator-research-hotfix-types Spec-AC-01. TYPE_MAP must carry the two rows
+# the DURABLE DOC IDENTITY table in .aai/INTAKE_COMMON.md declares; the paths
+# draftFilename builds must pass the real intake gate; a real allocation with
+# each --type must number next to a seeded RES-0004 / ISSUE-0001.
+test_3794_research_hotfix_types() {
+  log_info "TEST-3794: --type research / hotfix build, pass the intake gate, and allocate..."
+  local d; d="$(setup_iso_repo t3794)"
+  cp "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" "$d/.aai/INTAKE_COMMON.md"
+  [[ -f "$PROJECT_ROOT/.aai/templates/RESEARCH_TEMPLATE.md" ]] || log_fail "TEST-3794: research template missing"
+
+  # 1. draftFilename builds the two exact paths.
+  local built
+  built="$(ALLOC_MOD="$d/.aai/scripts/allocate-doc-number.mjs" node --input-type=module -e '
+    import { pathToFileURL } from "node:url";
+    const { draftFilename } = await import(pathToFileURL(process.env.ALLOC_MOD).href);
+    console.log(draftFilename("research", "probe"));
+    console.log(draftFilename("hotfix", "probe"));
+  ' 2>&1)" || log_fail "TEST-3794: draftFilename must build research and hotfix paths: $built"
+  local want_res="docs/specs/RES-DRAFT-probe.md" want_fix="docs/issues/ISSUE-DRAFT-probe.md"
+  [[ "$built" == "$want_res"$'\n'"$want_fix" ]] \
+    || log_fail "TEST-3794: draftFilename built unexpected paths: $built"
+
+  # 2. each built path, holding template frontmatter, passes the REAL gate.
+  cp "$PROJECT_ROOT/.aai/templates/RESEARCH_TEMPLATE.md" "$d/$want_res"
+  cp "$PROJECT_ROOT/.aai/templates/ISSUE_TEMPLATE.md" "$d/$want_fix"
+  local rel rc=0
+  for rel in "$want_res" "$want_fix"; do
+    rc=0
+    (cd "$d" && node .aai/scripts/docs-audit.mjs --intake-file "$rel" > "gate.log" 2>&1) || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-3794: --intake-file must accept $rel (rc=$rc): $(cat "$d/gate.log")"
+  done
+  rm -f "$d/$want_res" "$d/$want_fix"
+
+  # 3. a real allocation next to seeded RES-0004 and ISSUE-0001.
+  cat > "$d/docs/specs/RES-0004-seed.md" <<'MD'
+---
+id: res-seed
+type: research
+number: 4
+status: done
+links:
+  pr: []
+---
+# Seed research
+MD
+  cat > "$d/docs/issues/ISSUE-0001-seed.md" <<'MD'
+---
+id: issue-seed
+type: issue
+number: 1
+status: done
+links:
+  pr: []
+---
+# Seed issue
+MD
+  (cd "$d" && git add docs && git commit -qm "docs: seed RES-0004 and ISSUE-0001")
+  (cd "$d" && git checkout -q -b feature/t3794)
+  cat > "$d/docs/specs/RES-DRAFT-spike.md" <<'MD'
+---
+id: spike
+type: research
+number: null
+status: draft
+links:
+  pr: []
+---
+# Draft research
+MD
+  cat > "$d/docs/issues/ISSUE-DRAFT-patch.md" <<'MD'
+---
+id: patch
+type: issue
+number: null
+status: draft
+links:
+  pr: []
+---
+# Draft hotfix
+MD
+  (cd "$d" && git add docs && git commit -qm "docs: add research and hotfix drafts")
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --type research \
+      --path docs/specs/RES-DRAFT-spike.md --base-ref main > alloc-res.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3794: --type research must exit 0 (rc=$rc): $(cat "$d/alloc-res.log")"
+  assert_file "$d/docs/specs/RES-0005-spike.md"
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --type hotfix \
+      --path docs/issues/ISSUE-DRAFT-patch.md --base-ref main > alloc-fix.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3794: --type hotfix must exit 0 (rc=$rc): $(cat "$d/alloc-fix.log")"
+  assert_file "$d/docs/issues/ISSUE-0002-patch.md"
+  [[ ! -f "$d/docs/specs/RES-DRAFT-spike.md" && ! -f "$d/docs/issues/ISSUE-DRAFT-patch.md" ]] \
+    || log_fail "TEST-3794: the DRAFT files must be renamed away"
+  grep -qE '^number:[[:space:]]*5[[:space:]]*$' "$d/docs/specs/RES-0005-spike.md" || log_fail "TEST-3794: RES stamp must be 5"
+  grep -qE '^number:[[:space:]]*2[[:space:]]*$' "$d/docs/issues/ISSUE-0002-patch.md" || log_fail "TEST-3794: ISSUE stamp must be 2"
+
+  # 4. negative control: an unknown type is still refused, by name.
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --type bogus > bogus.log 2>&1) || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-3794: --type bogus must exit 2 (rc=$rc)"
+  grep -qF "bogus" "$d/bogus.log" || log_fail "TEST-3794: --type bogus must name the unknown type: $(cat "$d/bogus.log")"
+  rm -rf "$d"
+  log_pass "TEST-3794 research and hotfix build, pass the intake gate, allocate RES-0005 / ISSUE-0002; bogus still exits 2"
+}
+
+# --- TEST-3796: symlinked-checkout invocation runs main() --------------------
+# allocator-research-hotfix-types Spec-AC-03 (D4): the guard resolves both sides
+# through realpath. Unresolved, a run through a symlink exits 0 printing nothing.
+test_3796_symlinked_invocation() {
+  log_info "TEST-3796: the allocator behaves the same through a symlinked checkout..."
+  local symdir; symdir="$(mktemp -d "${TMPDIR:-/tmp}/aai-alloc-symlink.XXXXXX")"
+  ln -s "$PROJECT_ROOT" "$symdir/repo"
+  local direct="$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs"
+  local viasym="$symdir/repo/.aai/scripts/allocate-doc-number.mjs"
+  local d_out d_err s_out s_err d_rc s_rc
+  d_rc=0; s_rc=0
+  d_out="$(node "$direct" --type bogus 2>"$symdir/d.err")" || d_rc=$?
+  s_out="$(node "$viasym" --type bogus 2>"$symdir/s.err")" || s_rc=$?
+  d_err="$(cat "$symdir/d.err")"; s_err="$(cat "$symdir/s.err")"
+  [[ "$d_rc" -eq 2 ]] || log_fail "TEST-3796: direct --type bogus must exit 2 (rc=$d_rc)"
+  [[ "$s_rc" -eq 2 ]] || log_fail "TEST-3796: symlinked --type bogus must exit 2 (rc=$s_rc, stderr: $s_err)"
+  grep -qF "bogus" <<<"$s_err" || log_fail "TEST-3796: symlinked --type bogus must name bogus on stderr: $s_err"
+  [[ "$d_out" == "$s_out" && "$d_err" == "$s_err" ]] || log_fail "TEST-3796: --type bogus differs through the symlink"
+  d_rc=0; s_rc=0
+  d_out="$(node "$direct" --help 2>&1)" || d_rc=$?
+  s_out="$(node "$viasym" --help 2>&1)" || s_rc=$?
+  [[ "$d_rc" -eq 0 && "$s_rc" -eq 0 ]] || log_fail "TEST-3796: --help must exit 0 (direct $d_rc, symlink $s_rc)"
+  grep -qF "Usage" <<<"$s_out" || log_fail "TEST-3796: symlinked --help must print the usage: $s_out"
+  [[ "$d_out" == "$s_out" ]] || log_fail "TEST-3796: --help differs through the symlink"
+  rm -rf "$symdir"
+  log_pass "TEST-3796 symlinked and direct runs agree on stdout, stderr and exit code"
+}
+
+# --- TEST-3798: the consumer-visible CHANGELOG entry -------------------------
+# allocator-research-hotfix-types Spec-AC-04.
+test_3798_changelog_entry() {
+  log_info "TEST-3798: CHANGELOG.md holds exactly one heading for the allocator fix..."
+  local n=0
+  n="$(/usr/bin/grep -cE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — fix: the doc-number allocator accepts research and hotfix' "$PROJECT_ROOT/CHANGELOG.md")" || n=0
+  [[ "$n" -eq 1 ]] || log_fail "TEST-3798: CHANGELOG.md must hold exactly one such heading (found $n)"
+  log_pass "TEST-3798 CHANGELOG.md names research and hotfix in exactly one entry heading"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -1857,6 +2001,9 @@ main() {
     test_552_skill_pr_runs_the_restamp
     test_589_allocator_pages_agree_with_shared_set
     test_808_check8_enforce_is_merge_point_aware
+    test_3794_research_hotfix_types
+    test_3796_symlinked_invocation
+    test_3798_changelog_entry
   )
 
   # Selector mode (shipped-guards-have-no-downstream-trigger): `bash <suite>

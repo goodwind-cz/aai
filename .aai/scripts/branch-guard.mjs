@@ -16,6 +16,7 @@
 //
 // CLI: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>]
 //                             [--pin] [--verify-pin]
+//                             [--sync-ready [--pre-commit-head <sha>]]
 //   --base <branch>  base branch to compare against; default `main`.
 //   --state <path>   override the STATE.yaml path; default
 //                    <git-toplevel>/docs/ai/STATE.yaml (works from any subdir).
@@ -93,6 +94,15 @@
 //   3 — current branch name does not contain the ref_id slug.
 //   4 — config/usage error (not a git repo, STATE unreadable, ref_id empty/null
 //       on a non-allowlisted branch, bad flag).
+//
+// --sync-ready (GitHub #566): read-only check SKILL_PR step 5b runs before it
+// merges base into the branch. Refuses while the commit step left work behind:
+//   9  — `git diff --cached` names a path (stderr lists them); checked first.
+//   10 — HEAD equals the resolved --pre-commit-head (the commit step did not
+//        advance HEAD).
+//   4  — not a work tree, or --pre-commit-head does not resolve to a commit.
+//   0  — otherwise. Unstaged edits are not refused (git merge already refuses
+//        when they would be overwritten).
 //
 // --verify-pin's own exit codes (guard-mode 0-4 above do not apply to it):
 //   0 — no pin file (nothing to verify), or the pin still matches.
@@ -256,7 +266,7 @@ function readFocus(statePath) {
 }
 
 function parseArgs(argv) {
-  const opts = { base: 'main', suggest: false, state: null, pin: false, verifyPin: false };
+  const opts = { base: 'main', suggest: false, state: null, pin: false, verifyPin: false, syncReady: false, preCommitHead: null };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--base' || tok === '--state') {
@@ -273,8 +283,18 @@ function parseArgs(argv) {
       opts.pin = true;
     } else if (tok === '--verify-pin') {
       opts.verifyPin = true;
+    } else if (tok === '--sync-ready') {
+      opts.syncReady = true;
+    } else if (tok === '--pre-commit-head') {
+      const v = argv[i + 1];
+      if (!v || v.startsWith('--')) {
+        console.error('branch-guard: --pre-commit-head requires a value');
+        exit(4);
+      }
+      opts.preCommitHead = v;
+      i += 1;
     } else if (tok === '-h' || tok === '--help') {
-      console.error('Usage: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>] [--pin] [--verify-pin]');
+      console.error('Usage: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>] [--pin] [--verify-pin] [--sync-ready [--pre-commit-head <sha>]]');
       exit(4);
     } else {
       console.error(`branch-guard: unknown flag "${tok}"`);
@@ -597,6 +617,37 @@ function doVerifyPin(cwd) {
   exit(result.code);
 }
 
+// checkSyncReady(cwd, preCommitHead) — the --sync-ready verdict as
+// { code, message }. Staged paths first, then the HEAD comparison.
+export function checkSyncReady(cwd, preCommitHead) {
+  const staged = git(['diff', '--cached', '--name-only'], cwd).split('\n').filter(Boolean);
+  if (staged.length > 0) {
+    return {
+      code: 9,
+      message: `branch-guard: refusing to sync with base: ${staged.length} staged path(s) the commit step did not record:\n`
+        + staged.map((p) => `  ${p}`).join('\n')
+        + '\n  Commit them (or unstage them) before merging base.',
+    };
+  }
+  if (preCommitHead !== null) {
+    let pre;
+    try {
+      pre = git(['rev-parse', '--verify', '--quiet', `${preCommitHead}^{commit}`], cwd);
+    } catch {
+      return { code: 4, message: `branch-guard: --pre-commit-head ${preCommitHead} does not resolve to a commit` };
+    }
+    const head = git(['rev-parse', 'HEAD'], cwd);
+    if (head === pre) {
+      return {
+        code: 10,
+        message: `branch-guard: refusing to sync with base: HEAD is still ${head.slice(0, 12)}, the commit step did not advance it.`
+          + '\n  Re-run the commit step and check its output before merging base.',
+      };
+    }
+  }
+  return { code: 0, message: 'branch-guard: sync-ready (index clean, HEAD advanced or not checked)' };
+}
+
 // reportNotInWorkTree(probe) — the two-shaped message workTreeProbe's result
 // maps to (git declined to read vs. genuinely no repository here). Shared by
 // every dispatch point that needs it so the wording stays in one place.
@@ -624,6 +675,14 @@ function main() {
   // (doPin/doVerifyPin/checkBranchPin all eventually shell out to git), so
   // this checks that FIRST and exits with the same named exit-4 refusal
   // guard mode uses below, instead of letting an uncaught exception through.
+  if (opts.preCommitHead !== null && !opts.syncReady) {
+    console.error('branch-guard: --pre-commit-head is only valid with --sync-ready');
+    exit(4);
+  }
+  if (opts.syncReady && (opts.pin || opts.verifyPin || opts.suggest)) {
+    console.error('branch-guard: --sync-ready cannot be combined with --pin, --verify-pin or --suggest');
+    exit(4);
+  }
   if (opts.pin || opts.verifyPin) {
     const pinProbe = workTreeProbe(cwd);
     if (!pinProbe.inside) {
@@ -633,6 +692,18 @@ function main() {
   }
   if (opts.pin) doPin(cwd);
   if (opts.verifyPin) doVerifyPin(cwd);
+
+  if (opts.syncReady) {
+    const syncProbe = workTreeProbe(cwd);
+    if (!syncProbe.inside) {
+      reportNotInWorkTree(syncProbe);
+      exit(4);
+    }
+    const verdict = checkSyncReady(cwd, opts.preCommitHead);
+    if (verdict.code === 0) console.log(verdict.message);
+    else console.error(verdict.message);
+    exit(verdict.code);
+  }
 
   // --suggest — no git-branch check; still reads STATE (fail-closed on ref_id).
   if (opts.suggest) {

@@ -64,7 +64,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (666)
+## Done (671)
 
 | ID | Type | Path |
 |---|---|---|
@@ -369,6 +369,7 @@ _None._
 | ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
 | ISSUE-0040 | issues | docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md |
+| ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 | ISSUE-0046 | issues | docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md |
 | ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
@@ -418,7 +419,9 @@ _None._
 | ISSUE-0116 | issues | docs/issues/ISSUE-0116-archive-ledger-check.md |
 | ISSUE-0117 | issues | docs/issues/ISSUE-0117-effort-direct-append.md |
 | ISSUE-0118 | issues | docs/issues/ISSUE-0118-metrics-integrity-fixes.md |
+| ISSUE-0119 | issues | docs/issues/ISSUE-0119-allocator-research-hotfix-types.md |
 | ISSUE-0120 | issues | docs/issues/ISSUE-0120-issue-gate-via-spec.md |
+| ISSUE-0121 | issues | docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -730,12 +733,14 @@ _None._
 | SPEC-0293 | specs | docs/specs/SPEC-0293-spec-archive-ledger-check.md |
 | SPEC-0294 | specs | docs/specs/SPEC-0294-spec-effort-direct-append.md |
 | SPEC-0295 | specs | docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md |
+| SPEC-0296 | specs | docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md |
 | SPEC-0297 | specs | docs/specs/SPEC-0297-spec-issue-gate-via-spec.md |
+| SPEC-0298 | specs | docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md |
 | SPEC-0299 | specs | docs/specs/SPEC-0299-spec-delegated-requester-approval.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (13)
 
 | ID | Type | Path |
 |---|---|---|
@@ -748,7 +753,6 @@ _None._
 | DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
 | ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
 | ISSUE-0041 | issues | docs/issues/ISSUE-0041-hardcoded-path-defeats-suite-isolation.md |
-| ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
@@ -769,7 +773,7 @@ _None._
 
 _None._
 
-## Broken references (570)
+## Broken references (574)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -940,6 +944,8 @@ _None._
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-widen-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/issues/CHANGE-0099-readonly-projection.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/issues/CHANGE-DRAFT-my-topic.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/issues/ISSUE-DRAFT-patch.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/issues/ISSUE-DRAFT-probe.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/requirements/PRD-0001-imposter.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/requirements/PRD-DRAFT-first-ever.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/requirements/PRD-DRAFT-next-feature.md | NOT FOUND |
@@ -965,6 +971,8 @@ _None._
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-topic-b.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-unreachable-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-untracked-draft.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/specs/RES-DRAFT-probe.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/specs/RES-DRAFT-spike.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-degrade-absent.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-exit-contract.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-my-topic.md | NOT FOUND |
@@ -1380,4 +1388,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-16 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-17 — counts above use this date for overdue checks.
