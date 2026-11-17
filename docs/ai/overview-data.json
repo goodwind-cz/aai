@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-17T11:56:50.961Z",
+  "generatedAt": "2026-11-17T12:05:47.453Z",
   "project": "aai",
   "counts": {
     "delivered": 370,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 191501091
+    "tokens_total": 192423234
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -215,8 +215,8 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0122-hook-gate-staged-content.md",
       "closed_on": "2026-11-17",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 72,
+      "token_total": 922143,
       "spec": "docs/specs/SPEC-0300-spec-hook-gate-staged-content.md",
       "validation": null,
       "review": "docs/ai/reviews/review-hook-gate-staged-content-r2-20261117T112846Z.md"
@@ -5052,8 +5052,8 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0122-hook-gate-staged-content.md",
           "closed_on": "2026-11-17",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 72,
+          "token_total": 922143,
           "spec": "docs/specs/SPEC-0300-spec-hook-gate-staged-content.md",
           "validation": null,
           "review": "docs/ai/reviews/review-hook-gate-staged-content-r2-20261117T112846Z.md"
