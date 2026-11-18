@@ -4182,3 +4182,4 @@
 {"v":1,"ts":"2026-11-18T17:31:21Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"precommit-sentinel-trap","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-18T17:31:21Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-precommit-sentinel-trap","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-18T17:31:21Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-precommit-sentinel-trap","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-18T17:56:17Z","actor":"ales_holubec.net","event":"full_sweep","ref":"precommit-sentinel-trap","payload":{"head":"0848afd855351e0168d03ad6ee824bce4c40ef74","rc":0,"run_id":"test-20261118-173308"}}
