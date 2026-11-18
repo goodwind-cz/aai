@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-17T12:05:47.453Z",
+  "generatedAt": "2026-11-17T19:07:28.891Z",
   "project": "aai",
   "counts": {
-    "delivered": 370,
+    "delivered": 371,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 192423234
+    "tokens_total": 194822447
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -208,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "precommit-blob-read-cost",
+      "title": "Tech Debt: pre-commit checks read the staged blobs in one batched index read",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0016-precommit-blob-read-cost.md",
+      "closed_on": "2026-11-17",
+      "agent_minutes": 202,
+      "token_total": 2399213,
+      "spec": "docs/specs/SPEC-0301-spec-precommit-blob-read-cost.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "hook-gate-staged-content",
       "title": "Commit-time guards read the working tree and skip some staged files",
@@ -5045,6 +5058,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "precommit-blob-read-cost",
+          "title": "Tech Debt: pre-commit checks read the staged blobs in one batched index read",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0016-precommit-blob-read-cost.md",
+          "closed_on": "2026-11-17",
+          "agent_minutes": 202,
+          "token_total": 2399213,
+          "spec": "docs/specs/SPEC-0301-spec-precommit-blob-read-cost.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "hook-gate-staged-content",
           "title": "Commit-time guards read the working tree and skip some staged files",

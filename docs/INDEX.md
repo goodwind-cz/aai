@@ -64,7 +64,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (673)
+## Done (675)
 
 | ID | Type | Path |
 |---|---|---|
@@ -331,6 +331,7 @@ _None._
 | DEBT-0013 | issues | docs/issues/DEBT-0013-amendment-signoff-implied-by-merge.md |
 | DEBT-0014 | issues | docs/issues/DEBT-0014-pr-ceremony-fewer-commits.md |
 | DEBT-0015 | issues | docs/issues/DEBT-0015-release-tagged-by-ci-after-merge.md |
+| DEBT-0016 | issues | docs/issues/DEBT-0016-precommit-blob-read-cost.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 | ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
@@ -739,6 +740,7 @@ _None._
 | SPEC-0298 | specs | docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md |
 | SPEC-0299 | specs | docs/specs/SPEC-0299-spec-delegated-requester-approval.md |
 | SPEC-0300 | specs | docs/specs/SPEC-0300-spec-hook-gate-staged-content.md |
+| SPEC-0301 | specs | docs/specs/SPEC-0301-spec-precommit-blob-read-cost.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

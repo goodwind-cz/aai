@@ -1,0 +1,4 @@
+## Mutation Gate — spec-precommit-blob-read-cost
+
+GATE FAIL: 1 offending row(s) degraded=0 unstamped=0 uncomparable=0
+OFFENDING TEST-3880: declared mutation (patch:docs/ai/tdd/spec-precommit-blob-read-cost/mut-3880-fdsave.patch) does not match the record's mutation "patch:docs/ai/tdd/spec-precommit-blob-read-cost/mutation-TEST-3880.patch" (canonical "patch:docs/ai/tdd/spec-precommit-blob-read-cost/mutation-TEST-3880.patch")

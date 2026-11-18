@@ -13,7 +13,11 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# IN_REPO: is there a git directory (so an index) to judge? `--git-dir` succeeds in a work tree, inside
+# `.git` and with GIT_DIR set, and fails only where there is no repository at all.
+IN_REPO=0
+git rev-parse --git-dir >/dev/null 2>&1 && IN_REPO=1
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || PROJECT_ROOT="$(pwd)"
 STRICT="${1:-}"
 ERRORS=0
 WARNINGS=0
@@ -57,22 +61,158 @@ else
   warn "STATE.yaml not found — skipping TDD check"
 fi
 
-# --- CHECK 2: Secrets Detection ---
-# The staged list is read NUL-separated, so a name git would quote (non-ASCII,
-# tab, quote) is checked under its real path. A path is checked when the index
-# holds a stage-0 blob for it, whatever the working tree holds; a staged
-# deletion has none and is skipped. CHECKs 2-4 read that blob.
+# --- Staged content: one batched index read ---
+# CHECKs 2-4 judge what the commit records, not the working tree. The staged
+# list comes from ONE `git diff --cached --raw -z` (NUL-separated, so a name git
+# would quote is checked under its real path), and the blobs of every record
+# that has a stage-0 object come from ONE `git cat-file --batch`, asked by
+# object id. Each response is parsed by its declared size and copied to a
+# scratch file; any shortfall (truncated, dropped, extra or misaligned output,
+# a missing object, a failed write) blocks the commit instead of letting the
+# checks scan less than was staged. A deletion, an unmerged path and a gitlink
+# have no stage-0 blob and are skipped. Where no git directory exists at all
+# (IN_REPO=0, a plain directory) there is nothing to judge: no scratch directory
+# is made and the checks report no staged files, as before. Wherever one exists
+# (a work tree, a cwd inside `.git`, GIT_DIR set) every failure blocks.
+# Descriptor safety: when the descriptor table is nearly full, bash 3.2 cannot
+# save a descriptor for a builtin's redirection (`read <<<`, `read <&3`,
+# `: >`), prints "cannot duplicate fd", applies the redirection anyway and
+# never restores stdin, which ended a read loop after its first record. So the
+# parse uses no builtin redirection: the list and the batch file are opened
+# once with `exec` on descriptors 4 and 3 and read with `read -u`, the record
+# is split by parameter expansion, and a copy is created by `dd` (an external
+# command redirects in its own process). As defence in depth the counts are
+# checked by tools that are not this loop: the NUL terminators of the list file
+# (`tr`, `wc -c`) must be twice the parsed records, one more
+# `git diff --cached --name-only -z` must name as many paths as were parsed,
+# and the number of copies must equal the number of requests. The two
+# descriptors stay open until the process ends; the EXIT trap runs `rm -rf` with 3 and 4 closed in the
+# child (an external command's redirection is made there, so it needs no save), which leaves it the free
+# descriptor it needs to walk the scratch directory when the table is nearly full.
+# A size is a decimal without a leading zero (bash reads `028` as a bad octal) and at most 15 digits;
+# a `PCC_PARSED` sentinel, checked by a separate command, blocks any abort of the parse block.
+staged_read_fail() {
+  error "Staged content could not be read completely: $1 — commit blocked"
+  exit 1
+}
 STAGED=()
-while IFS= read -r -d '' f; do STAGED+=("$f"); done < <(git -C "$PROJECT_ROOT" diff --cached --name-only -z 2>/dev/null || true)
+STAGED_SHA=()
+STAGED_BLOB=()
+STAGED_REQ=()
+PCC_TMP=""
+PCC_LIST=0
+if [ "$IN_REPO" -eq 1 ]; then
+  PCC_TMP="$(mktemp -d "${TMPDIR:-/tmp}/aai-pre-commit.XXXXXX" 2>/dev/null)" || staged_read_fail "cannot create a scratch directory"
+  trap 'rm -rf "$PCC_TMP" 3<&- 4<&-' EXIT
+  git -C "$PROJECT_ROOT" diff --cached --raw -z --no-renames --no-abbrev --no-color > "$PCC_TMP/list" 2>/dev/null || staged_read_fail "git diff --cached failed"
+  git -C "$PROJECT_ROOT" diff --cached --name-only -z --no-renames --no-color > "$PCC_TMP/names" 2>/dev/null || staged_read_fail "git diff --cached failed"
+  PCC_LIST=1
+fi
+if [ "$PCC_LIST" -eq 1 ]; then
+  meta=""
+  nrec=0
+  exec 4< "$PCC_TMP/list" || staged_read_fail "git diff --cached failed"
+  while IFS= read -r -d '' -u 4 meta; do
+    IFS= read -r -d '' -u 4 f || staged_read_fail "malformed staged list"
+    case "$meta" in :*) ;; *) staged_read_fail "malformed staged list" ;; esac
+    rest="${meta#:}"
+    spaces="${rest//[!\ ]/}"
+    [ "${#spaces}" -eq 4 ] || staged_read_fail "malformed staged list"
+    rest="${rest#* }"
+    mode="${rest%% *}"
+    rest="${rest#* }"
+    rest="${rest#* }"
+    sha="${rest%% *}"
+    st="${rest#* }"
+    nrec=$((nrec + 1))
+    STAGED+=("$f")
+    case "$st" in
+      D|U) STAGED_SHA+=("") ;;
+      *)
+        if [ "$mode" = 160000 ]; then
+          STAGED_SHA+=("")
+        else
+          case "$sha" in ''|*[!0-9a-f]*) staged_read_fail "malformed staged list" ;; esac
+          case "$sha" in *[!0]*) ;; *) staged_read_fail "malformed staged list" ;; esac
+          [ "${#sha}" -eq 40 ] || [ "${#sha}" -eq 64 ] || staged_read_fail "malformed staged list"
+          STAGED_SHA+=("$sha")
+          STAGED_REQ+=("$sha")
+        fi
+        ;;
+    esac
+    meta=""
+  done
+  [ -z "$meta" ] || staged_read_fail "malformed staged list"
+  tr -cd '\000' < "$PCC_TMP/list" > "$PCC_TMP/list.nul" || staged_read_fail "malformed staged list"
+  nul="$(wc -c < "$PCC_TMP/list.nul")" || staged_read_fail "malformed staged list"
+  [ "$nul" -eq $((nrec * 2)) ] || staged_read_fail "malformed staged list"
+  tr -cd '\000' < "$PCC_TMP/names" > "$PCC_TMP/names.nul" || staged_read_fail "staged list count mismatch"
+  nnames="$(wc -c < "$PCC_TMP/names.nul")" || staged_read_fail "staged list count mismatch"
+  [ "$nnames" -eq "$nrec" ] || staged_read_fail "staged list count mismatch"
+  if [ "${#STAGED_REQ[@]}" -gt 0 ]; then
+    printf '%s\n' "${STAGED_REQ[@]}" | git -C "$PROJECT_ROOT" cat-file --batch > "$PCC_TMP/batch" 2>/dev/null || staged_read_fail "git cat-file --batch failed"
+    exec 3< "$PCC_TMP/batch" || staged_read_fail "git cat-file --batch failed"
+    for idx in "${!STAGED_SHA[@]}"; do
+      sha="${STAGED_SHA[$idx]}"
+      STAGED_BLOB[$idx]=""
+      [ -n "$sha" ] || continue
+      file="${STAGED[$idx]}"
+      IFS= read -r -u 3 hdr || staged_read_fail "response missing for $file"
+      size=""
+      case "$hdr" in "$sha blob "*) size="${hdr#"$sha blob "}" ;; esac
+      case "$size" in ''|*[!0-9]*|0?*) staged_read_fail "unexpected response for $file" ;; esac
+      [ "${#size}" -le 15 ] || staged_read_fail "unexpected response for $file"
+      obj="$PCC_TMP/$idx"
+      big=$((size / 1048576))
+      rem=$((size % 1048576))
+      if [ "$size" -eq 0 ]; then
+        dd if=/dev/null of="$obj" 2>/dev/null || staged_read_fail "copy failed for $file"
+      elif [ "$big" -gt 0 ]; then
+        dd bs=1048576 count="$big" <&3 > "$obj" 2>/dev/null || staged_read_fail "copy failed for $file"
+        if [ "$rem" -gt 0 ]; then
+          dd bs="$rem" count=1 <&3 >> "$obj" 2>/dev/null || staged_read_fail "copy failed for $file"
+        fi
+      else
+        dd bs="$rem" count=1 <&3 > "$obj" 2>/dev/null || staged_read_fail "copy failed for $file"
+      fi
+      got="$(wc -c < "$obj")" || staged_read_fail "size mismatch for $file"
+      [ "$got" -eq "$size" ] || staged_read_fail "size mismatch for $file"
+      sep="x"
+      IFS= read -r -u 3 sep || staged_read_fail "separator missing after $file"
+      [ -z "$sep" ] || staged_read_fail "separator missing after $file"
+      STAGED_BLOB[$idx]="$obj"
+    done
+    extra=""
+    if IFS= read -r -u 3 extra || [ -n "$extra" ]; then staged_read_fail "unrequested trailing output"; fi
+  fi
+  ncopy=0
+  if [ "${#STAGED_BLOB[@]}" -gt 0 ]; then
+    for obj in "${STAGED_BLOB[@]}"; do
+      [ -z "$obj" ] || ncopy=$((ncopy + 1))
+    done
+  fi
+  [ "$ncopy" -eq "${#STAGED_REQ[@]}" ] || staged_read_fail "copy count mismatch"
+  PCC_PARSED=1
+fi
+# A shell that aborts an arithmetic or expansion error drops the whole `if` block above and goes on with rc 0, count
+# cross-checks included; this separate command makes any such abort block the commit.
+[ "$PCC_LIST" -eq 0 ] || [ "${PCC_PARSED:-0}" -eq 1 ] || staged_read_fail "parse did not complete"
+
+# --- CHECK 2: Secrets Detection ---
 SECRETS_FOUND=0
 
 if [ "${#STAGED[@]}" -gt 0 ]; then
-  for file in "${STAGED[@]}"; do
-    git -C "$PROJECT_ROOT" cat-file -e ":0:$file" 2>/dev/null || continue
+  for idx in "${!STAGED[@]}"; do
+    file="${STAGED[$idx]}"
+    blob="${STAGED_BLOB[$idx]:-}"
+    [ -n "$blob" ] || continue
 
-    # Check for common secret patterns in the staged blob (what the commit records)
-    hits=$(git -C "$PROJECT_ROOT" show ":0:$file" 2>/dev/null | grep -cEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" || true)
-    if [ "${hits:-0}" -gt 0 ]; then
+    # Check for common secret patterns in the staged blob (what the commit records). A copy that cannot be
+    # opened must not read as zero hits: grep -c always prints a number, so anything else is a failed scan.
+    [ -f "$blob" ] && [ -r "$blob" ] || staged_read_fail "copy failed for $file"
+    hits=$(grep -cEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" < "$blob" || true)
+    case "$hits" in ''|*[!0-9]*) staged_read_fail "copy failed for $file" ;; esac
+    if [ "$hits" -gt 0 ]; then
       error "Potential secret detected in $file"
       SECRETS_FOUND=1
     fi
@@ -101,8 +241,10 @@ fi
 # --- CHECK 3: Debug Statements ---
 DEBUG_FOUND=0
 if [ "${#STAGED[@]}" -gt 0 ]; then
-  for file in "${STAGED[@]}"; do
-    git -C "$PROJECT_ROOT" cat-file -e ":0:$file" 2>/dev/null || continue
+  for idx in "${!STAGED[@]}"; do
+    file="${STAGED[$idx]}"
+    blob="${STAGED_BLOB[$idx]:-}"
+    [ -n "$blob" ] || continue
 
     # Skip non-source files
     case "$file" in
@@ -110,7 +252,8 @@ if [ "${#STAGED[@]}" -gt 0 ]; then
     esac
 
     # Check for debug statements
-    matches=$(git -C "$PROJECT_ROOT" show ":0:$file" 2>/dev/null | grep -n 'console\.log\|debugger\|pdb\.set_trace\|binding\.pry\|var_dump' || true)
+    [ -f "$blob" ] && [ -r "$blob" ] || staged_read_fail "copy failed for $file"
+    matches=$(grep -n 'console\.log\|debugger\|pdb\.set_trace\|binding\.pry\|var_dump' < "$blob" || true)
     if [ -n "$matches" ]; then
       warn "Debug statements in $file:"
       head -3 <<< "$matches" | sed 's/^/    /'
@@ -126,13 +269,17 @@ fi
 # --- CHECK 4: TODO/FIXME markers ---
 TODO_COUNT=0
 if [ "${#STAGED[@]}" -gt 0 ]; then
-  for file in "${STAGED[@]}"; do
-    git -C "$PROJECT_ROOT" cat-file -e ":0:$file" 2>/dev/null || continue
+  for idx in "${!STAGED[@]}"; do
+    file="${STAGED[$idx]}"
+    blob="${STAGED_BLOB[$idx]:-}"
+    [ -n "$blob" ] || continue
     case "$file" in
       *.md|*.yaml|*.yml|*.txt|*.sh|*.ps1) continue ;;
     esac
 
-    count=$(git -C "$PROJECT_ROOT" show ":0:$file" 2>/dev/null | grep -c 'TODO\|FIXME\|HACK\|XXX' || true)
+    [ -f "$blob" ] && [ -r "$blob" ] || staged_read_fail "copy failed for $file"
+    count=$(grep -c 'TODO\|FIXME\|HACK\|XXX' < "$blob" || true)
+    case "$count" in ''|*[!0-9]*) staged_read_fail "copy failed for $file" ;; esac
     if [ "$count" -gt 0 ]; then
       TODO_COUNT=$((TODO_COUNT + count))
     fi

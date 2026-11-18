@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Test: aai-pre-commit-checks
-# (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461)
+# (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461; the later cases TEST-3831..3868
+# and TEST-3871..3882 belong to the staged-content and batched-read specs)
 #
 # Two things: the PowerShell pre-commit checks are a deprecation launcher (one retired line
 # naming pre-commit-checks.sh, exit 1), and the bash checks no longer pipe into an
@@ -220,10 +221,15 @@ test_3454_small_input_parity() {
   numstat="$(git -C "$PROJECT_ROOT" diff --numstat "$BASE_SHA" -- .aai/scripts/pre-commit-checks.sh | awk '{print $1" "$2}')"
   # 7 7 from the pipe-safe slice, then +12 -4 from pr-ceremony-friction-fixes (CHECK 2: staged-blob
   # content scan, evidence-folder name check), then +20 -18 from hook-gate-staged-content (NUL-separated
-  # staged list, index-existence test, staged-blob reads in CHECKs 2-4, *.env override); the seven
-  # fixtures above stay byte-identical.
-  [[ "$numstat" == "39 29" ]] || log_fail "TEST-3454 (TEST-3867 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '39 29'"
-  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 39 added and 29 removed lines"
+  # staged list, index-existence test, staged-blob reads in CHECKs 2-4, *.env override), then +82 -1 from
+  # precommit-blob-read-cost (one batched index read with its fail-closed parser), then +17 -0 from its
+  # VALIDATION r1 B1 fix (the list read is still attempted outside a work tree), then -6 -0 from its
+  # VALIDATION r2 B2 fix (one `git rev-parse --git-dir` predicate), then +47 -0 from its
+  # VALIDATION r3 B3 fix, then +8 -0 from its VALIDATION r4 remediation (leading-zero and length checks on the
+  # size, the parse-completed sentinel, the trap closing descriptors 3 and 4 for rm); the seven fixtures above
+  # stay byte-identical.
+  [[ "$numstat" == "187 30" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '187 30'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 187 added and 30 removed lines"
 }
 
 # shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
@@ -495,8 +501,13 @@ test_3461_line_budget_and_follow_up() {
   echo "LINES after:  pre-commit-checks.sh $sh_t/$sh_c, pre-commit-checks.ps1 $ps_t/$ps_c (total/code)"
   [[ "$ps_t" -le 5 && "$ps_c" -le 2 ]] || log_fail "TEST-3461: the launcher is $ps_t lines and $ps_c code lines, budget 5 and 2"
   # 323/239 after the pipe-safe slice, then 331/247 after pr-ceremony-friction-fixes (CHECK 2, +8/+8),
-  # then 333/245 after hook-gate-staged-content (staged list into an array, +2/-2).
-  [[ "$sh_t" == 333 && "$sh_c" == 245 ]] || log_fail "TEST-3461 (TEST-3867 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 333 and 245"
+  # then 333/245 after hook-gate-staged-content (staged list into an array, +2/-2), then 414/319 after
+  # precommit-blob-read-cost (the batched index read and its fail-closed parser, +81/+74), then 431/334
+  # after its VALIDATION r1 B1 fix (the list read outside a work tree, +17/+15), then 425/325 after its
+  # VALIDATION r2 B2 fix (one `git rev-parse --git-dir` predicate for every scratch and list failure, -6/-9),
+  # then 472/357 after its VALIDATION r3 B3 fix (descriptor-safe reads, independent count cross-checks, scan-open
+  # checks, +47/+32), then 480/360 after its VALIDATION r4 remediation (+8/+3).
+  [[ "$sh_t" == 480 && "$sh_c" == 360 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 480 and 360"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -512,7 +523,7 @@ test_3461_line_budget_and_follow_up() {
     process.stdout.write(bad.join("; "));
   ' "$TEST_DIR/fu.json")"
   [[ -z "$out" ]] || log_fail "TEST-3461: the delete follow-up: $out"
-  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh is 333/245, and the delete follow-up is filed (P3)"
+  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh is 480/360, and the delete follow-up is filed (P3)"
 }
 
 # --- pr-ceremony-friction-fixes (GitHub #565): CHECK 2 in the AAI evidence folders -------------
@@ -644,8 +655,488 @@ test_3868_changelog_and_product_doc() {
   log_pass "TEST-3868: CHANGELOG heading and product doc statement present"
 }
 
+# --- precommit-blob-read-cost: CHECKs 2-4 read the staged content in one batched index read -------
+PRE_BATCH_SHA="03f3e6df"
+FAIL_CLOSED="Staged content could not be read completely"
+REAL_GIT="$(command -v git || true)"
+
+# pre_batch_script: writes the 03f3e6df pre-commit-checks.sh (git show) and prints its path; prints
+# nothing when that commit is not in this clone (named SKIP-CASE locally, FAIL on CI).
+pre_batch_script() {
+  local out="$TEST_DIR/pre-batch-pre-commit-checks.sh"
+  if [[ ! -s "$out" ]]; then
+    git -C "$PROJECT_ROOT" show "$PRE_BATCH_SHA:.aai/scripts/pre-commit-checks.sh" > "$out" 2>/dev/null || rm -f "$out"
+  fi
+  [[ -s "$out" ]] && printf '%s\n' "$out"
+  return 0
+}
+
+# make_git_wrapper <dir> <mode> [logfile]: a `git` shim for the run under test (put first on PATH only
+# for that run) with the real git's absolute path baked in. Modes: log (one line per invocation), cut20 (the
+# cat-file --batch output loses its last 20 bytes, exit 0), dropid (the last requested id is dropped),
+# extra (one extra response line is appended), sizeplus (the first header's size is raised by 1), exit3
+# (full batch output, exit 3), list128 (diff --cached --raw exits 128), listcut3 (its output loses 3 bytes),
+# listdrop (its output loses its last whole record, exit 0), listempty (no output at all, exit 0), sizehuge (the
+# first header's size becomes 20 nines, past 64-bit arithmetic), sizepad (the
+# first header's size gets a leading 08: "6" reads "086", a bad octal for bash arithmetic), listspace (every
+# record's status gets one extra leading space, so a record holds five spaces).
+make_git_wrapper() {
+  local d="$1" mode="$2" log="${3:-/dev/null}"
+  mkdir -p "$d"
+  {
+    printf '#!/bin/bash\nREAL=%q\nMODE=%q\nLOG=%q\nTMP=%q\n' "$REAL_GIT" "$mode" "$log" "$d/wrap.tmp.$$"
+    cat <<'WRAP'
+if [ "$MODE" = log ]; then printf '%s\n' "$*" >> "$LOG"; fi
+is_batch=0; is_list=0
+case " $* " in *" cat-file --batch "*) is_batch=1 ;; esac
+case " $* " in *" diff --cached --raw "*) is_list=1 ;; esac
+if [ "$is_batch" = 1 ]; then
+  case "$MODE" in
+    cut20) "$REAL" "$@" > "$TMP"; n=$(wc -c < "$TMP"); head -c $((n - 20)) "$TMP"; rm -f "$TMP"; exit 0 ;;
+    dropid) sed '$d' | "$REAL" "$@"; exit "${PIPESTATUS[1]}" ;;
+    extra) "$REAL" "$@"; rc=$?; printf 'extra response line\n'; exit "$rc" ;;
+    sizeplus)
+      "$REAL" "$@" > "$TMP"; hdr=$(head -n 1 "$TMP"); size=${hdr##* }
+      printf '%s %s\n' "${hdr% *}" $((size + 1)); tail -n +2 "$TMP"; rm -f "$TMP"; exit 0 ;;
+    exit3) "$REAL" "$@"; exit 3 ;;
+    sizehuge)
+      "$REAL" "$@" > "$TMP"; hdr=$(head -n 1 "$TMP")
+      printf '%s 99999999999999999999\n' "${hdr% *}"; tail -n +2 "$TMP"; rm -f "$TMP"; exit 0 ;;
+    sizepad)
+      "$REAL" "$@" > "$TMP"; hdr=$(head -n 1 "$TMP")
+      printf '%s 08%s\n' "${hdr% *}" "${hdr##* }"; tail -n +2 "$TMP"; rm -f "$TMP"; exit 0 ;;
+  esac
+fi
+if [ "$is_list" = 1 ]; then
+  case "$MODE" in
+    list128) echo "fatal: simulated failure" >&2; exit 128 ;;
+    listcut3) "$REAL" "$@" > "$TMP"; n=$(wc -c < "$TMP"); head -c $((n - 3)) "$TMP"; rm -f "$TMP"; exit 0 ;;
+    listdrop) "$REAL" "$@" > "$TMP"; tr '\0' '\n' < "$TMP" | sed '$d' | sed '$d' | tr '\n' '\0'; rm -f "$TMP"; exit 0 ;;
+    listempty) exit 0 ;;
+    listspace) "$REAL" "$@" | tr '\0' '\n' | sed 's/^\(:.* \)\([A-Z]\)$/\1 \2/' | tr '\n' '\0'; exit 0 ;;
+  esac
+fi
+exec "$REAL" "$@"
+WRAP
+  } > "$d/git"
+  chmod +x "$d/git"
+}
+
+# run_with <fixture> <wrapper dir or ""> [VAR=value ...]: runs the fixture's script with the wrapper dir
+# first on PATH; RUN_ULIMIT_F, when set, applies `ulimit -f` to the run, RUN_ULIMIT_N `ulimit -n`, and RUN_HOLD_FDS
+# (any value) keeps the default soft limit of 256 with descriptors 10..254 inherited open (the descriptor table
+# the script's builtin redirections would need to save into). Sets OUT, ERR, RC.
+run_with() {
+  local fx="$1" wd="$2" p="$PATH" hold_i
+  shift 2
+  [[ -z "$wd" ]] || p="$wd:$PATH"
+  RC=0
+  ( [[ -z "${RUN_ULIMIT_F:-}" ]] || ulimit -f "$RUN_ULIMIT_F"
+    [[ -z "${RUN_ULIMIT_N:-}" ]] || ulimit -n "$RUN_ULIMIT_N" || exit 99
+    if [[ -n "${RUN_HOLD_FDS:-}" ]]; then
+      ulimit -n 256 || exit 99
+      for hold_i in $(seq 10 254); do eval "exec $hold_i</dev/null"; done
+    fi
+    cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null PATH="$p" "$@" bash .aai/scripts/pre-commit-checks.sh ) >"$TEST_DIR/run.out" 2>"$TEST_DIR/run.err" || RC=$?
+  OUT="$TEST_DIR/run.out"; ERR="$TEST_DIR/run.err"
+}
+
+# SECRET_LINE: assembled so this suite does not trip CHECK 2 itself.
+secret_line() { printf '%s = "%s"' api_key abcdefgh1234; }
+
+# big_fixture <dir>: a.txt plus z-big.txt (about 300 KB, its last line an api_key assignment).
+big_fixture() {
+  make_fx "$1"
+  printf 'alpha\n' > "$1/a.txt"
+  { awk 'BEGIN { for (i = 1; i <= 5000; i++) printf "filler_%05d: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n", i }'; secret_line; echo; } > "$1/z-big.txt"
+  git -C "$1" add a.txt z-big.txt
+}
+
+# assert_closed <TEST id> <reason fragment>: the last run failed closed with the single message.
+assert_closed() {
+  local id="$1" reason="$2" last
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "$id: exit $RC, expected 1 ($reason)"; }
+  [[ "$(count_in "$OUT" "$FAIL_CLOSED")" == 1 ]] || { cat "$OUT" >&2; log_fail "$id: the '$FAIL_CLOSED' line was printed $(count_in "$OUT" "$FAIL_CLOSED") times, expected 1 ($reason)"; }
+  last="$(tail -n 1 "$OUT")"
+  [[ "$last" == *"$FAIL_CLOSED"*"$reason"* ]] || { cat "$OUT" >&2; log_fail "$id: the last stdout line does not name '$reason': $last"; }
+  if "$GREP" -qE 'ALL CHECKS PASS|PASS WITH WARNINGS' "$OUT"; then cat "$OUT" >&2; log_fail "$id: a summary line was printed ($reason)"; fi
+}
+
+# js_fixture <dir> <n>: n clean staged .js files.
+js_fixture() {
+  local i
+  make_fx "$1"
+  for i in $(seq 1 "$2"); do printf 'var x_%d = %d;\n' "$i" "$i" > "$1/f$i.js"; done
+  git -C "$1" add -A
+}
+
+test_3871_one_batched_read_whatever_the_count() {
+  local n log lines5 lines40 fx wd="$TEST_DIR/w3871"
+  make_git_wrapper "$wd" log "$TEST_DIR/t3871.log"
+  for n in 5 40; do
+    fx="$TEST_DIR/t3871-$n"
+    js_fixture "$fx" "$n"
+    : > "$TEST_DIR/t3871.log"
+    run_with "$fx" "$wd"
+    [[ "$RC" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3871: $n clean staged .js files exited $RC, expected 0"; }
+    log="$TEST_DIR/t3871-$n.lines"
+    cp "$TEST_DIR/t3871.log" "$log"
+    [[ "$(count_in "$log" "cat-file")" == 1 ]] || { cat "$log" >&2; log_fail "TEST-3871: $n files: expected exactly one cat-file invocation, saw $(count_in "$log" cat-file)"; }
+    [[ "$(count_in "$log" "cat-file --batch")" == 1 ]] || { cat "$log" >&2; log_fail "TEST-3871: $n files: the one cat-file invocation is not cat-file --batch"; }
+    [[ "$(count_in "$log" "cat-file -e")" == 0 ]] || log_fail "TEST-3871: $n files: a cat-file -e invocation was logged"
+    if "$GREP" -qE '(^| )show( |$)' "$log"; then cat "$log" >&2; log_fail "TEST-3871: $n files: a git show invocation was logged"; fi
+  done
+  lines5="$(wc -l < "$TEST_DIR/t3871-5.lines" | tr -d ' ')"
+  lines40="$(wc -l < "$TEST_DIR/t3871-40.lines" | tr -d ' ')"
+  [[ "$lines5" == "$lines40" ]] || log_fail "TEST-3871: git invocations grow with the staged count: $lines5 for 5 files, $lines40 for 40"
+  log_pass "TEST-3871: 5 and 40 staged files start the same number of git processes ($lines5), exactly one of them cat-file --batch, no show and no cat-file -e"
+}
+
+test_3872_truncation_and_write_failure_fail_closed() {
+  local fx="$TEST_DIR/t3872"
+  big_fixture "$fx"
+  make_git_wrapper "$TEST_DIR/w3872" cut20
+  run_with "$fx" "$TEST_DIR/w3872"
+  assert_closed TEST-3872 "size mismatch for z-big.txt"
+  RUN_ULIMIT_F=200 run_with "$fx" ""
+  assert_closed TEST-3872 "git cat-file --batch failed"
+  log_pass "TEST-3872: a batch output cut by 20 bytes names size mismatch for z-big.txt, a write refused by ulimit -f 200 names git cat-file --batch failed, both single messages with no summary"
+}
+
+test_3873_response_count_mismatch_fails_closed() {
+  local fx="$TEST_DIR/t3873"
+  big_fixture "$fx"
+  make_git_wrapper "$TEST_DIR/w3873a" dropid
+  run_with "$fx" "$TEST_DIR/w3873a"
+  assert_closed TEST-3873 "response missing for z-big.txt"
+  make_git_wrapper "$TEST_DIR/w3873b" extra
+  run_with "$fx" "$TEST_DIR/w3873b"
+  assert_closed TEST-3873 "unrequested trailing output"
+  make_git_wrapper "$TEST_DIR/w3873c" sizeplus
+  run_with "$fx" "$TEST_DIR/w3873c"
+  assert_closed TEST-3873 "separator missing after a.txt"
+  # a size with a leading zero (a bad octal for bash arithmetic) is not a decimal size: it fails closed
+  make_git_wrapper "$TEST_DIR/w3873d" sizepad
+  run_with "$fx" "$TEST_DIR/w3873d"
+  assert_closed TEST-3873 "unexpected response for a.txt"
+  # and so is a size too long for the arithmetic to hold
+  make_git_wrapper "$TEST_DIR/w3873e" sizehuge
+  run_with "$fx" "$TEST_DIR/w3873e"
+  assert_closed TEST-3873 "unexpected response for a.txt"
+  # with that check removed the same input aborts the arithmetic, and bash 3.2 then drops the whole parse block
+  # (the count cross-checks with it); the parse-completed sentinel, a separate command, must still block
+  local mfx="$TEST_DIR/t3873m" msh="$TEST_DIR/t3873m.sh"
+  sed 's/|0?\*)/)/' "$SH_CHECKS" > "$msh"
+  ! cmp -s "$msh" "$SH_CHECKS" || log_fail "TEST-3873: the leading-zero mutant did not apply"
+  make_fx "$mfx" "$msh"
+  printf 'alpha\n' > "$mfx/a.txt"
+  printf '%s\n' "$(secret_line)" > "$mfx/b.txt"
+  git -C "$mfx" add a.txt b.txt
+  run_with "$mfx" "$TEST_DIR/w3873d"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; cat "$ERR" >&2; log_fail "TEST-3873: leading-zero check removed, padded size: exit $RC, expected 1 (the parse block was discarded)"; }
+  if "$GREP" -qE 'ALL CHECKS PASS|PASS WITH WARNINGS' "$OUT"; then cat "$OUT" >&2; log_fail "TEST-3873: leading-zero check removed: a passing summary was printed"; fi
+  if [[ "$(count_in "$OUT" "$FAIL_CLOSED")" == 1 ]]; then
+    [[ "$(tail -n 1 "$OUT")" == *"parse did not complete"* ]] || { cat "$OUT" >&2; log_fail "TEST-3873: leading-zero check removed: the fail-closed line does not name the sentinel"; }
+  fi
+  log_pass "TEST-3873: a dropped response, an extra response, a size that does not match the bytes, a zero-padded size and a 20-digit size each fail closed with their own single message, and the parse-completed sentinel blocks when the leading-zero check is removed"
+}
+
+test_3874_unreadable_object_and_failed_reads_fail_closed() {
+  local fx="$TEST_DIR/t3874" sha obj
+  make_fx "$fx"
+  printf 'clean content of c, unique 3874\n' > "$fx/c.txt"
+  git -C "$fx" add c.txt
+  sha="$(git -C "$fx" rev-parse :c.txt)"
+  obj="$fx/.git/objects/${sha:0:2}/${sha:2}"
+  [[ -f "$obj" ]] || log_fail "TEST-3874: the staged blob is not a loose object at $obj"
+  rm -f "$obj"
+  run_with "$fx" ""
+  assert_closed TEST-3874 "unexpected response for c.txt"
+  big_fixture "$TEST_DIR/t3874b"
+  make_git_wrapper "$TEST_DIR/w3874a" exit3
+  run_with "$TEST_DIR/t3874b" "$TEST_DIR/w3874a"
+  assert_closed TEST-3874 "git cat-file --batch failed"
+  make_git_wrapper "$TEST_DIR/w3874b" list128
+  run_with "$TEST_DIR/t3874b" "$TEST_DIR/w3874b"
+  assert_closed TEST-3874 "git diff --cached failed"
+  make_git_wrapper "$TEST_DIR/w3874c" listcut3
+  run_with "$TEST_DIR/t3874b" "$TEST_DIR/w3874c"
+  assert_closed TEST-3874 "malformed staged list"
+  log_pass "TEST-3874: a staged blob with a deleted object, a reader exiting 3, a failing list read and a list cut by 3 bytes each fail closed with their own single message"
+}
+
+test_3875_scratch_failures_and_cleanup() {
+  local fx="$TEST_DIR/t3875" t="$TEST_DIR/t3875-tmp" stub="$TEST_DIR/w3875dd"
+  big_fixture "$fx"
+  run_with "$fx" "" TMPDIR="$TEST_DIR/no-such-dir"
+  assert_closed TEST-3875 "cannot create a scratch directory"
+  mkdir -p "$stub"
+  printf '#!/bin/sh\nexit 1\n' > "$stub/dd"
+  chmod +x "$stub/dd"
+  run_with "$fx" "$stub"
+  assert_closed TEST-3875 "copy failed for a.txt"
+  mkdir -p "$t"
+  git -C "$fx" rm -q --cached z-big.txt
+  run_with "$fx" "" TMPDIR="$t"
+  [[ "$RC" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3875: the passing run exited $RC"; }
+  [[ -z "$(ls -A "$t")" ]] || log_fail "TEST-3875: the scratch directory was left behind after a passing run: $(ls -A "$t")"
+  git -C "$fx" add z-big.txt
+  make_git_wrapper "$TEST_DIR/w3875cut" cut20
+  run_with "$fx" "$TEST_DIR/w3875cut" TMPDIR="$t"
+  assert_closed TEST-3875 "size mismatch for z-big.txt"
+  [[ -z "$(ls -A "$t")" ]] || log_fail "TEST-3875: the scratch directory was left behind after a fail-closed run: $(ls -A "$t")"
+  # cwd inside .git: no work tree, but the index is readable, so every scratch failure must still block
+  # (VALIDATION r2 B2: a refused list write read as "no staged files" and a staged secret passed).
+  # The run is captured through a pipe so that `ulimit -f 0` cannot refuse the script's own output.
+  local gd="$TEST_DIR/t3875-gd" how rcg ng="$TEST_DIR/t3875-nongit"
+  make_fx "$gd"
+  printf '%s\n' "$(secret_line)" > "$gd/b.txt"
+  git -C "$gd" add b.txt
+  for how in ulimit-f-0 missing-tmpdir; do
+    rcg=0
+    case "$how" in
+      ulimit-f-0) ( cd "$gd/.git" && ulimit -f 0 && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$gd/.aai/scripts/pre-commit-checks.sh" 2>&1 ) | cat > "$TEST_DIR/t3875-gd.out" || rcg=$? ;;
+      missing-tmpdir) ( cd "$gd/.git" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null TMPDIR="$TEST_DIR/no-such-dir" bash "$gd/.aai/scripts/pre-commit-checks.sh" 2>&1 ) | cat > "$TEST_DIR/t3875-gd.out" || rcg=$? ;;
+    esac
+    [[ "$rcg" == 1 ]] || { cat "$TEST_DIR/t3875-gd.out" >&2; log_fail "TEST-3875: cwd inside .git, $how, staged secret: exit $rcg, expected 1"; }
+    [[ "$(count_in "$TEST_DIR/t3875-gd.out" "$FAIL_CLOSED")" == 1 ]] || { cat "$TEST_DIR/t3875-gd.out" >&2; log_fail "TEST-3875: cwd inside .git, $how: the '$FAIL_CLOSED' line was not printed exactly once"; }
+    if "$GREP" -qE 'ALL CHECKS PASS|PASS WITH WARNINGS|No staged files to check' "$TEST_DIR/t3875-gd.out"; then cat "$TEST_DIR/t3875-gd.out" >&2; log_fail "TEST-3875: cwd inside .git, $how: read as no staged files or passed"; fi
+  done
+  # a directory that is no repository needs no scratch directory, so a missing TMPDIR does not block it
+  mkdir -p "$ng/.aai/scripts"
+  cp "$SH_CHECKS" "$ng/.aai/scripts/pre-commit-checks.sh"
+  rcg=0
+  ( cd "$ng" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CEILING_DIRECTORIES="$TEST_DIR" TMPDIR="$TEST_DIR/no-such-dir" bash .aai/scripts/pre-commit-checks.sh ) >"$TEST_DIR/t3875-ng.out" 2>&1 || rcg=$?
+  [[ "$rcg" == 0 ]] || { cat "$TEST_DIR/t3875-ng.out" >&2; log_fail "TEST-3875: a non-repository directory with a missing TMPDIR exited $rcg, expected 0"; }
+  [[ "$(count_in "$TEST_DIR/t3875-ng.out" "No staged files to check")" == 1 ]] || { cat "$TEST_DIR/t3875-ng.out" >&2; log_fail "TEST-3875: a non-repository directory did not report no staged files"; }
+  log_pass "TEST-3875: a missing TMPDIR and a failing dd fail closed, cwd inside .git fails closed on a refused list write and on a missing TMPDIR (staged secret), a non-repository directory needs no scratch directory, and the scratch directory is gone after a passing run and after a fail-closed run"
+}
+
+# staged_fx <dir>: a clean a.txt, b.txt holding the api_key line, and three more clean files, all staged. The
+# secret is the SECOND record of the staged list, so a loop that stops after one record loses it.
+staged_fx() {
+  local i
+  make_fx "$1"
+  printf 'clean a\n' > "$1/a.txt"
+  printf '%s\n' "$(secret_line)" > "$1/b.txt"
+  for i in c d e; do printf 'clean %s\n' "$i" > "$1/$i.txt"; done
+  git -C "$1" add -A
+}
+
+# assert_blocked <TEST id> <what>: exit 1, no passing summary, and the staged secret or the fail-closed line named.
+assert_blocked() {
+  local id="$1" what="$2"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; cat "$ERR" >&2; log_fail "$id: $what: exit $RC, expected 1"; }
+  if "$GREP" -qE 'ALL CHECKS PASS|PASS WITH WARNINGS' "$OUT"; then cat "$OUT" >&2; log_fail "$id: $what: a passing summary was printed"; fi
+  [[ "$(count_in "$OUT" "$SECRET_HIT b.txt")" == 1 || "$(count_in "$OUT" "$FAIL_CLOSED")" == 1 ]] || { cat "$OUT" >&2; log_fail "$id: $what: neither the secret hit nor the fail-closed line was printed"; }
+}
+
+test_3880_descriptor_exhaustion_fails_closed() {
+  local fx="$TEST_DIR/t3880" n
+  staged_fx "$fx"
+  for n in 8 10; do
+    RUN_ULIMIT_N="$n" run_with "$fx" ""
+    [[ "$RC" != 99 ]] || log_fail "TEST-3880: ulimit -n $n could not be set"
+    assert_blocked TEST-3880 "ulimit -n $n, staged secret in the second record"
+    [[ "$(count_in "$OUT" "cannot duplicate fd")" == 0 && "$("$GREP" -c 'cannot duplicate fd' "$ERR" || true)" == 0 ]] || { cat "$ERR" >&2; log_fail "TEST-3880: ulimit -n $n: a builtin redirection could not save its descriptor"; }
+  done
+  RUN_HOLD_FDS=1 run_with "$fx" ""
+  [[ "$RC" != 99 ]] || log_fail "TEST-3880: the descriptor limit could not be set to 256"
+  assert_blocked TEST-3880 "descriptors 10..254 inherited open at the 256 limit"
+  [[ "$("$GREP" -c 'cannot duplicate fd' "$ERR" || true)" == 0 ]] || { cat "$ERR" >&2; log_fail "TEST-3880: inherited descriptors: a builtin redirection could not save its descriptor"; }
+  log_pass "TEST-3880: with ulimit -n 8 and 10, and with descriptors 10..254 inherited at the 256 limit, a staged secret in the second record still blocks (exit 1, no summary) and no builtin redirection fails to save its descriptor"
+}
+
+test_3881_list_count_crosscheck_fails_closed() {
+  local fx="$TEST_DIR/t3881" mode
+  staged_fx "$fx"
+  printf '%s\n' "$(secret_line)" > "$fx/zz.txt"
+  git -C "$fx" add zz.txt
+  for mode in listdrop listempty; do
+    make_git_wrapper "$TEST_DIR/w3881$mode" "$mode"
+    run_with "$fx" "$TEST_DIR/w3881$mode"
+    assert_closed TEST-3881 "staged list count mismatch"
+  done
+  run_with "$fx" ""
+  [[ "$RC" == 1 && "$(count_in "$OUT" "$SECRET_HIT zz.txt")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3881: positive control: the unwrapped run did not report the last file's secret once with exit 1"; }
+  # the NUL-terminator count, by a tr stub that adds one NUL to its first output (the list's): every record still
+  # parses, so only the NUL count (twice the records) can notice
+  local td="$TEST_DIR/w3881tr" real_tr
+  real_tr="$(command -v tr)"
+  mkdir -p "$td"
+  printf '#!/bin/bash\nif [ ! -e %q ]; then : > %q; %q "$@"; rc=$?; printf "\\0"; exit $rc; fi\nexec %q "$@"\n' "$td/done" "$td/done" "$real_tr" "$real_tr" > "$td/tr"
+  chmod +x "$td/tr"
+  run_with "$fx" "$td"
+  [[ -e "$td/done" ]] || log_fail "TEST-3881: the tr stub never ran, the NUL-count case is not exercising the check"
+  assert_closed TEST-3881 "malformed staged list"
+  # the four-space record shape, by a record whose status carries one extra space: it still splits into usable
+  # fields, so only the space count can notice
+  make_git_wrapper "$TEST_DIR/w3881sp" listspace
+  run_with "$fx" "$TEST_DIR/w3881sp"
+  assert_closed TEST-3881 "malformed staged list"
+  # the copy count cannot be reached from outside by any input that passes the size and separator checks
+  # (it only sees a copy lost inside the loop), so its line is pinned by its text
+  "$GREP" -qF '[ "$ncopy" -eq "${#STAGED_REQ[@]}" ] || staged_read_fail "copy count mismatch"' "$SH_CHECKS" || log_fail "TEST-3881: the copy-count cross-check is not in the script"
+  log_pass "TEST-3881: a staged list that loses its last whole record, or all of them, with git exiting 0, is caught by the independent name count, an extra NUL by the NUL count and a five-space record by the shape check (each fails closed with a single message; the unwrapped run reports the secret), and the copy-count line is pinned by its text"
+}
+
+test_3882_scan_open_failure_fails_closed() {
+  local fx="$TEST_DIR/t3882" sd="$TEST_DIR/w3882" t="$TEST_DIR/t3882-tmp"
+  staged_fx "$fx"
+  mkdir -p "$sd" "$t"
+  # the first grep call removes every scratch copy: standing in for something deleting the hook's private files
+  # between the parse and the scan, so the scan of the next copy cannot open it
+  printf '#!/bin/bash\nif [ ! -e %q ]; then : > %q; rm -f "$TMPDIR"/aai-pre-commit.*/[0-9]*; fi\nexec %q "$@"\n' "$sd/done" "$sd/done" "$GREP" > "$sd/grep"
+  chmod +x "$sd/grep"
+  run_with "$fx" "$sd" TMPDIR="$t"
+  [[ -e "$sd/done" ]] || log_fail "TEST-3882: the grep shim never ran, the case is not exercising the scan"
+  assert_closed TEST-3882 "copy failed for b.txt"
+  [[ -z "$(ls -A "$t")" ]] || log_fail "TEST-3882: the scratch directory was left behind: $(ls -A "$t")"
+  log_pass "TEST-3882: a scratch copy that cannot be opened at scan time blocks with copy failed for the file instead of reading as no hits"
+}
+
+# build_ac06 <dir> <script>: the Spec-AC-06 fixture, staged and unstaged shapes in one repository.
+build_ac06() {
+  local d="$1" line n sub
+  line="$(secret_line)"
+  make_fx "$d" "$2"
+  printf 'conflict base\n' > "$d/conflict.txt"
+  printf 'to delete\n' > "$d/gone.txt"
+  printf 'moved: line one\nline two\nline three\n' > "$d/oldname.txt"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m base
+  git -C "$d" checkout -q -b side
+  printf 'conflict side\n' > "$d/conflict.txt"
+  git -C "$d" commit -q -am side
+  git -C "$d" checkout -q -
+  printf 'conflict main\n' > "$d/conflict.txt"
+  git -C "$d" commit -q -am mainside
+  git -C "$d" merge side >/dev/null 2>&1 || true
+  for n in "with space.txt" "-dash.txt" "$(printf 'new\nline.txt')" "$(printf 'car\rret.txt')" "café.txt"; do
+    stage_file "$d" "$n" "$line"
+  done
+  git -C "$d" mv oldname.txt moved-dest.txt
+  printf '%s\n' "$line" >> "$d/moved-dest.txt"
+  git -C "$d" add moved-dest.txt
+  stage_file "$d" removed-later.txt "$line"
+  rm -f "$d/removed-later.txt"
+  git -C "$d" rm -q gone.txt
+  git -C "$d" update-index --add --cacheinfo 160000,1111111111111111111111111111111111111111,sub
+  printf 'console.log(1)\0\nbinary\n' > "$d/bin.dat"
+  : > "$d/empty.txt"
+  ln -s target "$d/link"
+  { awk 'BEGIN { for (i = 1; i <= 50000; i++) printf "filler_%06d: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n", i }'; echo "$line"; } > "$d/big32.txt"
+  printf 'console.log(1);\n// FIXME later\n' > "$d/app.js"
+  git -C "$d" add -f bin.dat empty.txt link big32.txt app.js
+  sub="$(wc -c < "$d/big32.txt" | tr -d ' ')"
+  [[ "$sub" -ge 3200000 ]] || log_fail "TEST-3876: the big fixture is $sub bytes, expected at least 3200000"
+}
+
+test_3876_semantics_match_the_baseline_script() {
+  local base a b rca rcb nongit="$TEST_DIR/t3876-nongit" k
+  base="$(pre_batch_script)"
+  if [[ -z "$base" ]]; then
+    [[ -z "${CI:-}" ]] || log_fail "TEST-3876: baseline commit $PRE_BATCH_SHA is not in this clone on CI"
+    echo "SKIP-CASE: TEST-3876 needs commit $PRE_BATCH_SHA in this clone"
+    return 0
+  fi
+  a="$TEST_DIR/t3876-new"; b="$TEST_DIR/t3876-old"
+  build_ac06 "$a" "$SH_CHECKS"
+  build_ac06 "$b" "$base"
+  run_with "$a" ""; rca="$RC"; cp "$OUT" "$TEST_DIR/t3876-new.out"; cp "$ERR" "$TEST_DIR/t3876-new.err"
+  run_with "$b" ""; rcb="$RC"; cp "$OUT" "$TEST_DIR/t3876-old.out"; cp "$ERR" "$TEST_DIR/t3876-old.err"
+  [[ "$rca" == "$rcb" ]] || log_fail "TEST-3876: exit code $rca differs from the 03f3e6df script's $rcb"
+  cmp -s "$TEST_DIR/t3876-new.out" "$TEST_DIR/t3876-old.out" || { diff "$TEST_DIR/t3876-old.out" "$TEST_DIR/t3876-new.out" >&2 || true; log_fail "TEST-3876: stdout differs from the 03f3e6df script"; }
+  cmp -s "$TEST_DIR/t3876-new.err" "$TEST_DIR/t3876-old.err" || log_fail "TEST-3876: stderr differs from the 03f3e6df script"
+  [[ "$(count_in "$TEST_DIR/t3876-new.out" "$FAIL_CLOSED")" == 0 ]] || log_fail "TEST-3876: a fail-closed line was printed on the fixture"
+  [[ "$(count_in "$TEST_DIR/t3876-new.out" "$SECRET_HIT")" -ge 5 ]] || { cat "$TEST_DIR/t3876-new.out" >&2; log_fail "TEST-3876: positive control: fewer than 5 secret hits, the fixture is not exercising the scan"; }
+  mkdir -p "$nongit/.aai/scripts"
+  for k in new old; do
+    if [[ "$k" == new ]]; then cp "$SH_CHECKS" "$nongit/.aai/scripts/pre-commit-checks.sh"; else cp "$base" "$nongit/.aai/scripts/pre-commit-checks.sh"; fi
+    ( cd "$nongit" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CEILING_DIRECTORIES="$TEST_DIR" bash .aai/scripts/pre-commit-checks.sh ) >"$TEST_DIR/t3876-ng-$k.out" 2>"$TEST_DIR/t3876-ng-$k.err" && RC=0 || RC=$?
+    [[ "$RC" == 0 ]] || { cat "$TEST_DIR/t3876-ng-$k.out" >&2; log_fail "TEST-3876: the $k script outside a work tree exited $RC, expected 0"; }
+  done
+  cmp -s "$TEST_DIR/t3876-ng-new.out" "$TEST_DIR/t3876-ng-old.out" || { diff "$TEST_DIR/t3876-ng-old.out" "$TEST_DIR/t3876-ng-new.out" >&2 || true; log_fail "TEST-3876: stdout outside a work tree differs"; }
+  cmp -s "$TEST_DIR/t3876-ng-new.err" "$TEST_DIR/t3876-ng-old.err" || log_fail "TEST-3876: stderr outside a work tree differs"
+  # cwd inside the git directory: outside a work tree, but the index is readable from there (03f3e6df
+  # read it from $(pwd) and blocked a staged secret; D7 keeps that). Clean and secret shapes, both scripts.
+  local shape gd rcn rco
+  for shape in clean secret; do
+    gd="$TEST_DIR/t3876-gd-$shape"
+    make_fx "$gd"
+    if [[ "$shape" == clean ]]; then printf 'var a = 1;\n' > "$gd/a.js"; git -C "$gd" add a.js
+    else printf '%s\n' "$(secret_line)" > "$gd/b.txt"; git -C "$gd" add b.txt; fi
+    rcn=0; rco=0
+    ( cd "$gd/.git" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$SH_CHECKS" ) >"$TEST_DIR/t3876-gd-new.out" 2>"$TEST_DIR/t3876-gd-new.err" || rcn=$?
+    ( cd "$gd/.git" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$base" ) >"$TEST_DIR/t3876-gd-old.out" 2>"$TEST_DIR/t3876-gd-old.err" || rco=$?
+    [[ "$rcn" == "$rco" ]] || { cat "$TEST_DIR/t3876-gd-new.out" >&2; log_fail "TEST-3876: cwd inside .git, $shape shape: exit code $rcn differs from the 03f3e6df script's $rco"; }
+    cmp -s "$TEST_DIR/t3876-gd-new.out" "$TEST_DIR/t3876-gd-old.out" || { diff "$TEST_DIR/t3876-gd-old.out" "$TEST_DIR/t3876-gd-new.out" >&2 || true; log_fail "TEST-3876: cwd inside .git, $shape shape: stdout differs from the 03f3e6df script"; }
+    cmp -s "$TEST_DIR/t3876-gd-new.err" "$TEST_DIR/t3876-gd-old.err" || log_fail "TEST-3876: cwd inside .git, $shape shape: stderr differs from the 03f3e6df script"
+    if [[ "$shape" == secret ]]; then
+      [[ "$rcn" == 1 ]] || log_fail "TEST-3876: cwd inside .git, secret shape: exit $rcn, expected 1 (the staged secret must block)"
+      [[ "$(count_in "$TEST_DIR/t3876-gd-new.out" "$SECRET_HIT")" == 1 ]] || log_fail "TEST-3876: cwd inside .git, secret shape: the secret hit was not reported once"
+    fi
+  done
+  log_pass "TEST-3876: the fixture of odd names, deletions, an unmerged path, a gitlink, binary, empty, symlink and 3.2 MB content gives the 03f3e6df script's stdout, stderr and exit code, as does a directory outside a work tree and a cwd inside .git (clean and secret shapes)"
+}
+
+test_3877_preservation_and_moved_pins() {
+  local f sel
+  for sel in test_3454_small_input_parity test_3455_ratchet_counts_the_file test_3461_line_budget_and_follow_up \
+    test_3864_deleted_worktree_copy_still_scanned test_3866_non_ascii_names_checked; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-pre-commit-checks.sh" "$sel" >"$TEST_DIR/self.out" 2>&1 || { tail -10 "$TEST_DIR/self.out" >&2; log_fail "TEST-3877: $sel failed"; }
+  done
+  for f in test_3860 test_3861 test_3862 test_3863 test_3869 test_3870; do
+    "$GREP" -oE "^${f}[a-z0-9_]*\(\)" "$SCRIPT_DIR/test-aai-docs-audit.sh" > "$TEST_DIR/da.names" || true
+    sel="$(sed -n 1p "$TEST_DIR/da.names" | tr -d '()')"
+    [[ -n "$sel" ]] || log_fail "TEST-3877: no $f case in test-aai-docs-audit.sh"
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-docs-audit.sh" "$sel" >"$TEST_DIR/da.out" 2>&1 || { tail -10 "$TEST_DIR/da.out" >&2; log_fail "TEST-3877: test-aai-docs-audit.sh $sel failed"; }
+  done
+  node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >"$TEST_DIR/cd.out" 2>&1 || { cat "$TEST_DIR/cd.out" >&2; log_fail "TEST-3877: check-cd-subshell-leak.mjs failed"; }
+  log_pass "TEST-3877: the seven-fixture parity and its numstat pin, the 0-site ratchet, the line-count pin, the moved SPEC-0300 cases, the docs-audit cases and the cd-subshell-leak check hold"
+}
+
+test_3878_changelog_entry() {
+  local cl="$PROJECT_ROOT/CHANGELOG.md" n body
+  n="$("$GREP" -cE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — perf: pre-commit checks read the staged content in one batched index read' "$cl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3878: CHANGELOG.md holds $n headings for this change, want exactly 1"
+  body="$(awk '/^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — perf: pre-commit checks read the staged content in one batched index read/{f=1; next} f && /^## /{exit} f' "$cl")"
+  [[ "$body" == *"$FAIL_CLOSED"* ]] || log_fail "TEST-3878: the CHANGELOG entry does not name the '$FAIL_CLOSED' message"
+  log_pass "TEST-3878: the CHANGELOG holds one heading for the batched read and its entry names the fail-closed message"
+}
+
+test_3879_installed_hook_reads_the_commits_index() {
+  local fx="$TEST_DIR/t3879" head_before i n
+  make_fx "$fx"
+  vendor_hook_installer "$fx" sh
+  ( cd "$fx" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst3879.out" 2>&1 || { cat "$TEST_DIR/inst3879.out" >&2; log_fail "TEST-3879: the hook installer failed"; }
+  git -C "$fx" checkout -q -b work
+  mkdir -p "$fx/app"
+  printf 'clean\n' > "$fx/app/config.txt"
+  git -C "$fx" add app/config.txt
+  ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m clean ) >"$TEST_DIR/c3879.out" 2>&1 || { cat "$TEST_DIR/c3879.out" >&2; log_fail "TEST-3879: the clean seed commit failed"; }
+  secret_line > "$fx/app/config.txt"
+  echo >> "$fx/app/config.txt"
+  head_before="$(git -C "$fx" rev-parse HEAD)"
+  RC=0
+  ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m x -- app/config.txt ) >"$TEST_DIR/c3879.out" 2>&1 || RC=$?
+  [[ "$RC" != 0 ]] || { cat "$TEST_DIR/c3879.out" >&2; log_fail "TEST-3879: the partial commit of a secret exited 0"; }
+  [[ "$(git -C "$fx" rev-parse HEAD)" == "$head_before" ]] || log_fail "TEST-3879: HEAD moved on the blocked partial commit"
+  n="$(count_in "$TEST_DIR/c3879.out" "$SECRET_HIT app/config.txt")"
+  [[ "$n" == 1 ]] || { cat "$TEST_DIR/c3879.out" >&2; log_fail "TEST-3879: '$SECRET_HIT app/config.txt' printed $n time(s), expected 1"; }
+  printf 'clean\n' > "$fx/app/config.txt"
+  for i in $(seq 1 40); do printf 'clean %d\n' "$i" > "$fx/n$i.txt"; done
+  git -C "$fx" add -A
+  head_before="$(git -C "$fx" rev-parse HEAD)"
+  RC=0
+  ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m forty ) >"$TEST_DIR/c3879b.out" 2>&1 || RC=$?
+  [[ "$RC" == 0 ]] || { cat "$TEST_DIR/c3879b.out" >&2; log_fail "TEST-3879: committing 40 clean files through the hook exited $RC"; }
+  [[ "$(git -C "$fx" rev-parse HEAD)" != "$head_before" ]] || log_fail "TEST-3879: HEAD did not move for the 40-file commit"
+  log_pass "TEST-3879: through the installed hook a partial commit is judged on the commit's own index (blocked, HEAD unmoved) and 40 clean staged files commit"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3882)"
   check_deps
   setup_fixture
   test_3448_ps1_retired_run
@@ -669,6 +1160,18 @@ main() {
   test_3865_suffix_dotenv_blocked_in_evidence
   test_3866_non_ascii_names_checked
   test_3868_changelog_and_product_doc
+  test_3871_one_batched_read_whatever_the_count
+  test_3872_truncation_and_write_failure_fail_closed
+  test_3873_response_count_mismatch_fails_closed
+  test_3874_unreadable_object_and_failed_reads_fail_closed
+  test_3875_scratch_failures_and_cleanup
+  test_3880_descriptor_exhaustion_fails_closed
+  test_3881_list_count_crosscheck_fails_closed
+  test_3882_scan_open_failure_fails_closed
+  test_3876_semantics_match_the_baseline_script
+  test_3877_preservation_and_moved_pins
+  test_3878_changelog_entry
+  test_3879_installed_hook_reads_the_commits_index
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -1,0 +1,5 @@
+== header size rewritten (pad): exit 0
+out:PASS WITH WARNINGS: 2 warning(s)
+err:.aai/scripts/pre-commit-checks.sh: line 162: 028: value too great for base (error token is "028")
+== header size rewritten (huge): exit 1
+out:✗ Staged content could not be read completely: size mismatch for b.txt — commit blocked
