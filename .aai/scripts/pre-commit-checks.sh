@@ -90,7 +90,8 @@ fi
 # child (an external command's redirection is made there, so it needs no save), which leaves it the free
 # descriptor it needs to walk the scratch directory when the table is nearly full.
 # A size is a decimal without a leading zero (bash reads `028` as a bad octal) and at most 15 digits;
-# a `PCC_PARSED` sentinel, checked by a separate command, blocks any abort of the parse block.
+# a `PCC_PARSED` sentinel, set to 0 here and checked by a separate command wherever a git directory exists,
+# blocks any abort of either block below.
 staged_read_fail() {
   error "Staged content could not be read completely: $1 — commit blocked"
   exit 1
@@ -101,6 +102,7 @@ STAGED_BLOB=()
 STAGED_REQ=()
 PCC_TMP=""
 PCC_LIST=0
+PCC_PARSED=0
 if [ "$IN_REPO" -eq 1 ]; then
   PCC_TMP="$(mktemp -d "${TMPDIR:-/tmp}/aai-pre-commit.XXXXXX" 2>/dev/null)" || staged_read_fail "cannot create a scratch directory"
   trap 'rm -rf "$PCC_TMP" 3<&- 4<&-' EXIT
@@ -194,9 +196,10 @@ if [ "$PCC_LIST" -eq 1 ]; then
   [ "$ncopy" -eq "${#STAGED_REQ[@]}" ] || staged_read_fail "copy count mismatch"
   PCC_PARSED=1
 fi
-# A shell that aborts an arithmetic or expansion error drops the whole `if` block above and goes on with rc 0, count
-# cross-checks included; this separate command makes any such abort block the commit.
-[ "$PCC_LIST" -eq 0 ] || [ "${PCC_PARSED:-0}" -eq 1 ] || staged_read_fail "parse did not complete"
+# A shell that aborts an arithmetic or expansion error drops the whole `if` block it is in and goes on with rc 0, count
+# cross-checks included; this separate command makes any such abort block the commit. It is keyed on IN_REPO, not
+# PCC_LIST, so an abort before the list flag is set blocks too, and PCC_PARSED is set above, never inherited.
+[ "$IN_REPO" -eq 0 ] || [ "$PCC_PARSED" -eq 1 ] || staged_read_fail "parse did not complete"
 
 # --- CHECK 2: Secrets Detection ---
 SECRETS_FOUND=0
@@ -273,6 +276,8 @@ if [ "${#STAGED[@]}" -gt 0 ]; then
     file="${STAGED[$idx]}"
     blob="${STAGED_BLOB[$idx]:-}"
     [ -n "$blob" ] || continue
+    # Keep this skip list a subset of CHECK 3's: CHECK 4 re-tests every copy CHECK 3 reads, so a copy that vanishes
+    # while CHECK 3 reads it (and reads as no matches there) blocks here.
     case "$file" in
       *.md|*.yaml|*.yml|*.txt|*.sh|*.ps1) continue ;;
     esac

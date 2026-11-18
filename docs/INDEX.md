@@ -2,9 +2,11 @@
 
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
-## Overdue reviews (0)
+## Overdue reviews (1)
 
-_None._
+| Doc | AC | Status | Was Due | Notes |
+|---|---|---|---|---|
+| SPEC-0046 | Spec-AC-10 | deferred | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Active (implementing) (2)
 
@@ -64,7 +66,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (675)
+## Done (677)
 
 | ID | Type | Path |
 |---|---|---|
@@ -424,6 +426,7 @@ _None._
 | ISSUE-0120 | issues | docs/issues/ISSUE-0120-issue-gate-via-spec.md |
 | ISSUE-0121 | issues | docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md |
 | ISSUE-0122 | issues | docs/issues/ISSUE-0122-hook-gate-staged-content.md |
+| ISSUE-0123 | issues | docs/issues/ISSUE-0123-precommit-sentinel-trap.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -741,6 +744,7 @@ _None._
 | SPEC-0299 | specs | docs/specs/SPEC-0299-spec-delegated-requester-approval.md |
 | SPEC-0300 | specs | docs/specs/SPEC-0300-spec-hook-gate-staged-content.md |
 | SPEC-0301 | specs | docs/specs/SPEC-0301-spec-precommit-blob-read-cost.md |
+| SPEC-0302 | specs | docs/specs/SPEC-0302-spec-precommit-sentinel-trap.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -1402,4 +1406,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-17 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-18 — counts above use this date for overdue checks.
