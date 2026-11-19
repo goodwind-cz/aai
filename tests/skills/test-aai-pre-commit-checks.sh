@@ -2,7 +2,8 @@
 #
 # Test: aai-pre-commit-checks
 # (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461; the later cases TEST-3831..3868
-# and TEST-3871..3882 belong to the staged-content and batched-read specs)
+# and TEST-3871..3882 belong to the staged-content and batched-read specs, TEST-3883..3887 to
+# spec-precommit-sentinel-trap)
 #
 # Two things: the PowerShell pre-commit checks are a deprecation launcher (one retired line
 # naming pre-commit-checks.sh, exit 1), and the bash checks no longer pipe into an
@@ -226,10 +227,11 @@ test_3454_small_input_parity() {
   # VALIDATION r1 B1 fix (the list read is still attempted outside a work tree), then -6 -0 from its
   # VALIDATION r2 B2 fix (one `git rev-parse --git-dir` predicate), then +47 -0 from its
   # VALIDATION r3 B3 fix, then +8 -0 from its VALIDATION r4 remediation (leading-zero and length checks on the
-  # size, the parse-completed sentinel, the trap closing descriptors 3 and 4 for rm); the seven fixtures above
-  # stay byte-identical.
-  [[ "$numstat" == "187 30" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '187 30'"
-  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 187 added and 30 removed lines"
+  # size, the parse-completed sentinel, the trap closing descriptors 3 and 4 for rm), then +5 -0 from
+  # precommit-sentinel-trap (PCC_PARSED set to 0, the sentinel keyed on IN_REPO, the CHECK 4 skip-list comment);
+  # the seven fixtures above stay byte-identical.
+  [[ "$numstat" == "192 30" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '192 30'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 192 added and 30 removed lines"
 }
 
 # shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
@@ -506,8 +508,9 @@ test_3461_line_budget_and_follow_up() {
   # after its VALIDATION r1 B1 fix (the list read outside a work tree, +17/+15), then 425/325 after its
   # VALIDATION r2 B2 fix (one `git rev-parse --git-dir` predicate for every scratch and list failure, -6/-9),
   # then 472/357 after its VALIDATION r3 B3 fix (descriptor-safe reads, independent count cross-checks, scan-open
-  # checks, +47/+32), then 480/360 after its VALIDATION r4 remediation (+8/+3).
-  [[ "$sh_t" == 480 && "$sh_c" == 360 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 480 and 360"
+  # checks, +47/+32), then 480/360 after its VALIDATION r4 remediation (+8/+3), then 485/361 after
+  # precommit-sentinel-trap (PCC_PARSED initialised, +5/+1).
+  [[ "$sh_t" == 485 && "$sh_c" == 361 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 485 and 361"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -995,6 +998,94 @@ test_3882_scan_open_failure_fails_closed() {
   log_pass "TEST-3882: a scratch copy that cannot be opened at scan time blocks with copy failed for the file instead of reading as no hits"
 }
 
+# sentinel_fx <dir> <script>: a.txt clean and b.txt holding the api_key line, staged, with <script> as the checks.
+sentinel_fx() {
+  make_fx "$1" "$2"
+  printf 'alpha\n' > "$1/a.txt"
+  printf '%s\n' "$(secret_line)" > "$1/b.txt"
+  git -C "$1" add a.txt b.txt
+}
+
+# assert_sentinel <TEST id> <what>: the last run was blocked by the parse-completed sentinel.
+assert_sentinel() {
+  local id="$1" what="$2"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; cat "$ERR" >&2; log_fail "$id: $what: exit $RC, expected 1"; }
+  assert_closed "$id" "parse did not complete"
+}
+
+test_3883_sentinel_ignores_the_environment() {
+  local fx="$TEST_DIR/t3883" msh="$TEST_DIR/t3883m.sh" wd="$TEST_DIR/w3883"
+  # TEST-3873's mutant (no leading-zero check) and padded size abort the parse block; the flags a caller could
+  # export must not stand in for a parse that never completed
+  sed 's/|0?\*)/)/' "$SH_CHECKS" > "$msh"
+  ! cmp -s "$msh" "$SH_CHECKS" || log_fail "TEST-3883: the leading-zero mutant did not apply"
+  sentinel_fx "$fx" "$msh"
+  make_git_wrapper "$wd" sizepad
+  run_with "$fx" "$wd" PCC_PARSED=1 PCC_LIST=0 IN_REPO=0
+  assert_sentinel TEST-3883 "PCC_PARSED=1 PCC_LIST=0 IN_REPO=0 exported, parse block aborted"
+  # negative control: the same flags exported to the delivered script change nothing when the parse completes
+  sentinel_fx "$TEST_DIR/t3883c" "$SH_CHECKS"
+  run_with "$TEST_DIR/t3883c" "" PCC_PARSED=1 PCC_LIST=0 IN_REPO=0
+  [[ "$RC" == 1 && "$(count_in "$OUT" "$SECRET_HIT b.txt")" == 1 && "$(count_in "$OUT" "$FAIL_CLOSED")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3883: negative control: the delivered script with the flags exported did not report the b.txt secret alone (exit $RC)"; }
+  log_pass "TEST-3883: with PCC_PARSED=1, PCC_LIST=0 and IN_REPO=0 in the environment an aborted parse still blocks with parse did not complete"
+}
+
+test_3884_sentinel_covers_an_abort_before_the_list() {
+  local fx="$TEST_DIR/t3884" msh="$TEST_DIR/t3884m.sh"
+  # an abort in the first block (scratch directory and list read), before PCC_LIST=1, must block too
+  sed 's/^  PCC_LIST=1$/  : $((08)); PCC_LIST=1/' "$SH_CHECKS" > "$msh"
+  ! cmp -s "$msh" "$SH_CHECKS" || log_fail "TEST-3884: the abort-before-the-list mutant did not apply"
+  sentinel_fx "$fx" "$msh"
+  run_with "$fx" ""
+  assert_sentinel TEST-3884 "abort before PCC_LIST=1"
+  run_with "$fx" "" PCC_PARSED=1
+  assert_sentinel TEST-3884 "abort before PCC_LIST=1, PCC_PARSED=1 exported"
+  log_pass "TEST-3884: an abort before the list flag is set blocks with parse did not complete, with and without PCC_PARSED=1 exported"
+}
+
+test_3885_trap_closes_descriptors_before_cleanup() {
+  local fx="$TEST_DIR/t3885" t="$TEST_DIR/t3885-tmp" n
+  staged_fx "$fx"
+  mkdir -p "$t"
+  # on bash 3.2 an rm -rf child that inherits descriptors 3 and 4 at ulimit -n 5 cannot walk the scratch
+  # directory, which holds the staged blobs, so the trap closes them in the child
+  for n in 4 5 6; do
+    RUN_ULIMIT_N="$n" run_with "$fx" "" TMPDIR="$t"
+    [[ "$RC" != 99 ]] || log_fail "TEST-3885: ulimit -n $n could not be set"
+    assert_blocked TEST-3885 "ulimit -n $n, staged secret"
+    [[ -z "$(ls -A "$t")" ]] || { ls -A "$t" >&2; rm -rf "${t:?}"/*; log_fail "TEST-3885: ulimit -n $n: the scratch directory was left behind after a blocked run"; }
+  done
+  # bash 5 removes the directory either way, so the line itself is pinned as well
+  "$GREP" -qF "trap 'rm -rf \"\$PCC_TMP\" 3<&- 4<&-' EXIT" "$SH_CHECKS" || log_fail "TEST-3885: the EXIT trap no longer closes descriptors 3 and 4 for rm"
+  log_pass "TEST-3885: blocked runs at ulimit -n 4, 5 and 6 leave no scratch directory, and the trap closes descriptors 3 and 4 for rm"
+}
+
+test_3886_check3_copy_removed_still_blocks() {
+  local fx="$TEST_DIR/t3886" sd="$TEST_DIR/w3886" t="$TEST_DIR/t3886-tmp"
+  make_fx "$fx"
+  printf 'console.log("x");\n' > "$fx/app.js"
+  git -C "$fx" add app.js
+  mkdir -p "$sd" "$t"
+  # CHECK 3's grep (the only one whose pattern names console.log) removes every scratch copy: standing in for a
+  # copy that vanishes while CHECK 3 reads it. CHECK 4 scans every file CHECK 3 scans and re-tests the copy.
+  printf '#!/bin/bash\ncase "$*" in *console*) if [ ! -e %q ]; then : > %q; rm -f "$TMPDIR"/aai-pre-commit.*/[0-9]*; fi ;; esac\nexec %q "$@"\n' "$sd/done" "$sd/done" "$GREP" > "$sd/grep"
+  chmod +x "$sd/grep"
+  run_with "$fx" "$sd" TMPDIR="$t"
+  [[ -e "$sd/done" ]] || log_fail "TEST-3886: the grep shim never ran for CHECK 3, the case is not exercising the window"
+  assert_closed TEST-3886 "copy failed for app.js"
+  [[ -z "$(ls -A "$t")" ]] || log_fail "TEST-3886: the scratch directory was left behind: $(ls -A "$t")"
+  log_pass "TEST-3886: a scratch copy removed while CHECK 3 scans it blocks with copy failed for app.js (CHECK 4 re-tests it)"
+}
+
+test_3887_preservation_and_moved_pins() {
+  local sel
+  for sel in test_3454_small_input_parity test_3461_line_budget_and_follow_up test_3873_response_count_mismatch_fails_closed \
+    test_3875_scratch_failures_and_cleanup test_3880_descriptor_exhaustion_fails_closed test_3882_scan_open_failure_fails_closed; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-pre-commit-checks.sh" "$sel" >"$TEST_DIR/self3887.out" 2>&1 || { tail -10 "$TEST_DIR/self3887.out" >&2; log_fail "TEST-3887: $sel failed"; }
+  done
+  log_pass "TEST-3887: the seven-fixture parity and its numstat pin, the line-count pin, and TEST-3873, TEST-3875, TEST-3880 and TEST-3882 hold"
+}
+
 # build_ac06 <dir> <script>: the Spec-AC-06 fixture, staged and unstaged shapes in one repository.
 build_ac06() {
   local d="$1" line n sub
@@ -1172,6 +1263,11 @@ main() {
   test_3877_preservation_and_moved_pins
   test_3878_changelog_entry
   test_3879_installed_hook_reads_the_commits_index
+  test_3883_sentinel_ignores_the_environment
+  test_3884_sentinel_covers_an_abort_before_the_list
+  test_3885_trap_closes_descriptors_before_cleanup
+  test_3886_check3_copy_removed_still_blocks
+  test_3887_preservation_and_moved_pins
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

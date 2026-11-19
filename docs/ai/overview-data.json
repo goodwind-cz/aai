@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-17T19:07:28.891Z",
+  "generatedAt": "2026-11-18T17:31:30.955Z",
   "project": "aai",
   "counts": {
-    "delivered": 371,
+    "delivered": 372,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 194822447
+    "tokens_total": 195094746
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -209,6 +209,19 @@
   ],
   "delivered": [
     {
+      "ref": "precommit-sentinel-trap",
+      "title": "Pre-commit parse sentinel trusts the environment, and the trap fd close is untested",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0123-precommit-sentinel-trap.md",
+      "closed_on": "2026-11-18",
+      "agent_minutes": 24,
+      "token_total": 272299,
+      "spec": "docs/specs/SPEC-0302-spec-precommit-sentinel-trap.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "precommit-blob-read-cost",
       "title": "Tech Debt: pre-commit checks read the staged blobs in one batched index read",
       "type": "techdebt",
@@ -219,7 +232,7 @@
       "token_total": 2399213,
       "spec": "docs/specs/SPEC-0301-spec-precommit-blob-read-cost.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-precommit-blob-read-cost-r1-mutation-gate.out"
     },
     {
       "ref": "hook-gate-staged-content",
@@ -5059,6 +5072,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "precommit-sentinel-trap",
+          "title": "Pre-commit parse sentinel trusts the environment, and the trap fd close is untested",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0123-precommit-sentinel-trap.md",
+          "closed_on": "2026-11-18",
+          "agent_minutes": 24,
+          "token_total": 272299,
+          "spec": "docs/specs/SPEC-0302-spec-precommit-sentinel-trap.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "precommit-blob-read-cost",
           "title": "Tech Debt: pre-commit checks read the staged blobs in one batched index read",
           "type": "techdebt",
@@ -5069,7 +5095,7 @@
           "token_total": 2399213,
           "spec": "docs/specs/SPEC-0301-spec-precommit-blob-read-cost.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-precommit-blob-read-cost-r1-mutation-gate.out"
         },
         {
           "ref": "hook-gate-staged-content",
