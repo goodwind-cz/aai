@@ -1,0 +1,707 @@
+#!/usr/bin/env bash
+#
+# Test: test runs remove only the container residue they provably created,
+# and cannot reach a daemon unless they opt in
+# (docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md, TEST-3900 to
+# TEST-3914).
+#
+# SAFETY RULE OF THIS FILE. No case here ever invokes a real container CLI.
+# Every cleanup runs against STUB_CLI, a shell script written into this
+# suite's own scratch directory that keeps its "objects" as files, records
+# every call, and carries the sentinel line the library requires inside a
+# test. The recorder CLI used by the refusal cases has no sentinel and only
+# logs. On top of that, every wrapper invocation below exports DOCKER_HOST,
+# CONTAINER_HOST and CONTAINERD_ADDRESS pointing at sockets that do not
+# exist, so a regression that slipped past the stub still could not reach a
+# daemon. Background: on 2026-11-19 an earlier draft of this cleanup was
+# mutation-tested against the owner's real daemon and deleted every
+# container, volume and network on it.
+#
+# Exit codes:
+#   0  - All tests passed
+#   1  - Tests failed
+#   42 - Tests skipped (missing dependencies)
+
+set -uo pipefail
+
+TEST_NAME="aai-test-residue"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib/pipe-safe.sh"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT"
+
+LIB="$PROJECT_ROOT/.aai/scripts/lib/test-residue.sh"
+WRAP="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
+FRAMEWORK="$PROJECT_ROOT/tests/skills/test-framework.sh"
+MUTATION_RUN="$PROJECT_ROOT/.aai/scripts/mutation-run.mjs"
+
+NO_DOCKER='unix:///nonexistent/aai-test-no-docker.sock'
+NO_CONTAINERD='/nonexistent/aai-test-no-containerd.sock'
+export DOCKER_HOST="$NO_DOCKER" CONTAINER_HOST="$NO_DOCKER" CONTAINERD_ADDRESS="$NO_CONTAINERD" DOCKER_CONTEXT=default
+export AAI_FRICTION_CAPTURE=0
+
+# A fixed run id and start for the library-level cases. START is
+# 2026-11-19T12:00:00Z; AFTER and BEFORE sit on either side of it.
+RID='aai-1795089600-4242-0123abcd'
+OTHER_RID='aai-1795089600-4242-ffffffff'
+START=1795089600
+AT_START='2026-11-19T12:00:00Z'
+AFTER='2026-11-19T12:30:00.5Z'
+BEFORE='2026-11-01T00:00:00Z'
+
+FAILED=0
+log_pass() { echo "PASS $*"; }
+log_fail() { echo "FAIL $*" >&2; FAILED=1; }
+log_skip() { echo "SKIP $*"; exit 42; }
+log_info() { echo "  $*"; }
+
+TR_TMP="$(mktemp -d "${TMPDIR:-/tmp}/aai-test-residue.XXXXXX")" || { echo "FAIL $TEST_NAME: no scratch directory" >&2; exit 1; }
+case "$TR_TMP" in
+  /*/aai-test-residue.*) : ;;
+  *) echo "FAIL $TEST_NAME: unsafe scratch directory '$TR_TMP'" >&2; exit 1 ;;
+esac
+cleanup() { rm -rf "$TR_TMP"; }
+trap cleanup EXIT
+
+check_deps() {
+  command -v awk >/dev/null 2>&1 || log_skip "awk not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+}
+
+# --- the stub CLI -------------------------------------------------------------
+# Objects live at $AAI_STUB_DIR/obj/<kind>/<id>, one file each, with lines
+#   label=<value>   (absent: the object carries no aai.test.run label)
+#   created=<RFC 3339 time>
+#   inspect=fail    (inspection by id fails)
+#   rm=fail         (removal fails)
+# Flags in $AAI_STUB_DIR: `lie` (listings ignore their filter), `down` (every
+# call fails as if the daemon did not answer). Every call is appended to
+# $AAI_STUB_DIR/calls.log, one line, arguments joined by spaces.
+STUB_CLI="$TR_TMP/bin/stub-docker"
+REC_CLI="$TR_TMP/bin/recorder-docker"
+mkdir -p "$TR_TMP/bin"
+cat > "$STUB_CLI" <<'STUB'
+#!/bin/sh
+# AAI-RESIDUE-STUB-SENTINEL-v1
+# Stub container CLI of tests/skills/test-aai-test-residue.sh. It never talks
+# to a daemon: objects are files under $AAI_STUB_DIR/obj.
+S="${AAI_STUB_DIR:?AAI_STUB_DIR unset}"
+printf '%s\n' "$*" >> "$S/calls.log"
+if [ -f "$S/down2" ]; then
+  echo "Error response from daemon: unavailable" >&2
+  exit 2
+fi
+if [ -f "$S/down" ]; then
+  echo "Cannot connect to the Docker daemon at unix:///stub.sock. Is the docker daemon running?" >&2
+  exit 1
+fi
+mkdir -p "$S/obj/container" "$S/obj/volume" "$S/obj/network"
+newid() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
+now() { date -u +%Y-%m-%dT%H:%M:%S.123456789Z; }
+filter=''
+label=''
+prev=''
+last=''
+for a in "$@"; do
+  case "$prev" in
+    --filter) filter="$a" ;;
+    --label) label="$a" ;;
+  esac
+  prev="$a"
+  last="$a"
+done
+list() {
+  for f in "$S/obj/$1"/* "$S/obj/$1"/.[!.]*; do
+    [ -f "$f" ] || continue
+    if [ -n "$filter" ] && [ ! -f "$S/lie" ]; then
+      want="${filter#label=}"
+      [ "${want%%=*}" = "aai.test.run" ] || continue
+      grep -qxF -- "label=${want#*=}" "$f" || continue
+    fi
+    printf '%s\n' "${f##*/}"
+  done
+}
+inspect() {
+  f="$S/obj/$1/$2"
+  [ -f "$f" ] || { echo "Error: No such object: $2" >&2; exit 1; }
+  grep -qxF 'inspect=fail' "$f" && { echo "Error response from daemon: inspect failed" >&2; exit 1; }
+  l=$(sed -n 's/^label=//p' "$f")
+  c=$(sed -n 's/^created=//p' "$f")
+  # A missing label inspects as an empty string, as on real docker and podman.
+  printf '%s "%s"\n' "$l" "$c"
+}
+remove() {
+  f="$S/obj/$1/$2"
+  [ -f "$f" ] || { echo "Error: No such object: $2" >&2; exit 1; }
+  grep -qxF 'rm=fail' "$f" && { echo "Error response from daemon: removal failed" >&2; exit 1; }
+  rm -f -- "$f"
+}
+create() {
+  f="$S/obj/$1/$2"
+  { [ -n "$label" ] && printf 'label=%s\n' "${label#aai.test.run=}"; printf 'created=%s\n' "$(now)"; } > "$f"
+  printf '%s\n' "$2"
+}
+case "$1 ${2:-}" in
+  "ps "*) list container ;;
+  "volume ls") list volume ;;
+  "network ls") list network ;;
+  "container inspect") inspect container "$last" ;;
+  "volume inspect") inspect volume "$last" ;;
+  "network inspect") inspect network "$last" ;;
+  "rm -f") remove container "$last" ;;
+  "volume rm") remove volume "$last" ;;
+  "network rm") remove network "$last" ;;
+  "run "*) create container "$(newid)" ;;
+  "volume create") create volume "$last" ;;
+  "network create") create network "$(newid)" ;;
+  *) echo "stub-docker: unsupported call: $*" >&2; exit 64 ;;
+esac
+STUB
+cat > "$REC_CLI" <<'REC'
+#!/bin/sh
+# A recording CLI that is NOT the AAI test stub: no sentinel line.
+printf '%s\n' "$*" >> "${REC_LOG:?REC_LOG unset}"
+exit 0
+REC
+chmod +x "$STUB_CLI" "$REC_CLI"
+# Belt and braces: inside this suite a bare `docker`, `podman` or `nerdctl`
+# resolves to a script that only logs and fails, and the cleanup's default
+# CLI is the recorder. Each case that needs the stub names it explicitly.
+cat > "$TR_TMP/bin/docker" <<'NOCLI'
+#!/bin/sh
+printf '%s %s\n' "${0##*/}" "$*" >> "${AAI_NO_CLI_LOG:-/dev/null}"
+echo "test-aai-test-residue: a real container CLI must never run here" >&2
+exit 97
+NOCLI
+chmod +x "$TR_TMP/bin/docker"
+cp "$TR_TMP/bin/docker" "$TR_TMP/bin/podman"
+cp "$TR_TMP/bin/docker" "$TR_TMP/bin/nerdctl"
+export PATH="$TR_TMP/bin:$PATH"
+export AAI_NO_CLI_LOG="$TR_TMP/no-cli.log"
+export AAI_RESIDUE_DOCKER="$REC_CLI" REC_LOG="$TR_TMP/rec-default.log"
+
+STUB_SEQ=0
+# new_stub -> prints a fresh, empty stub state directory.
+new_stub() {
+  STUB_SEQ=$((STUB_SEQ + 1))
+  local d="$TR_TMP/stub-$STUB_SEQ-$RANDOM"
+  mkdir -p "$d/obj/container" "$d/obj/volume" "$d/obj/network"
+  : > "$d/calls.log"
+  printf '%s\n' "$d"
+}
+hexid() { printf '%064x' "$1"; }
+# stub_add <stub> <kind> <id> <label or -> <created> [extra line...]
+stub_add() {
+  local s="$1" kind="$2" id="$3" label="$4" created="$5"
+  shift 5
+  {
+    [[ "$label" == "-" ]] || printf 'label=%s\n' "$label"
+    printf 'created=%s\n' "$created"
+    local x
+    for x in "$@"; do printf '%s\n' "$x"; done
+  } > "$s/obj/$kind/$id"
+}
+has_obj() { [[ -f "$1/obj/$2/$3" ]]; }
+count_obj() { local n=0 f; for f in "$1/obj/$2"/* "$1/obj/$2"/.[!.]*; do [[ -f "$f" ]] && n=$((n + 1)); done; echo "$n"; }
+
+# lib_run <stub> <run id> <start> [lib path] — source the library in a
+# subshell and run one cleanup against the stub; sets LIB_OUT and LIB_RC.
+lib_run() {
+  local s="$1" id="$2" st="$3" lib="${4:-$LIB}"
+  LIB_RC=0
+  LIB_OUT="$(
+    AAI_STUB_DIR="$s" AAI_RESIDUE_DOCKER="$STUB_CLI" AAI_RESIDUE_IN_TEST=1 \
+      AAI_RESIDUE_DRY_RUN="${AAI_RESIDUE_DRY_RUN:-0}" sh -c '. "$1" || exit 99; aai_residue_cleanup "$2" "$3"' residue-case "$lib" "$id" "$st" 2>&1
+  )" || LIB_RC=$?
+}
+
+# filter_check <stub> <run id> — 0 when every listing call in the stub's log
+# carried exactly the run's label filter, and there were three of them.
+filter_check() {
+  local s="$1" id="$2" n=0 line
+  while IFS= read -r line; do
+    case "$line" in
+      "ps "* | "volume ls"* | "network ls"*)
+        n=$((n + 1))
+        [[ " $line " == *" --filter label=aai.test.run=$id "* ]] || return 1
+        ;;
+    esac
+  done < "$s/calls.log"
+  [[ "$n" -eq 3 ]]
+}
+
+# mutating_calls <stub> — the stub log's removal calls, one per line.
+mutating_calls() {
+  command grep -E '^(rm|volume rm|network rm)( |$)' "$1/calls.log" || true
+}
+
+# wrap_optin <stub> <cmd...> — the REAL wrapper, opted in, against the stub;
+# sets W_OUT and W_RC.
+wrap_optin() {
+  local s="$1"
+  shift
+  W_RC=0
+  W_OUT="$(
+    env -u AAI_TEST_RUN_ID -u AAI_TEST_RUN_START AAI_TEST_DOCKER=1 \
+      AAI_TEST_TIMEOUT="${AAI_TEST_TIMEOUT:-3000}" AAI_RESIDUE_DOCKER="${WRAP_CLI:-$STUB_CLI}" AAI_STUB_DIR="$s" \
+      bash "$WRAP" "$@" 2>&1
+  )" || W_RC=$?
+}
+
+# --- TEST-3900 (Spec-AC-01, A) -----------------------------------------------
+test_3900_per_object_ownership_survives_a_lying_listing() {
+  local s ok=1
+  s="$(new_stub)"
+  : > "$s/lie"
+  stub_add "$s" container "$(hexid 1)" "$RID" "$AFTER"
+  stub_add "$s" volume own-vol "$RID" "$AFTER"
+  stub_add "$s" network "$(hexid 2)" "$RID" "$AFTER"
+  stub_add "$s" volume unlabelled-vol - "$AFTER"
+  stub_add "$s" container "$(hexid 3)" "$OTHER_RID" "$AFTER"
+  stub_add "$s" volume old-vol "$RID" "$BEFORE"
+  stub_add "$s" network "$(hexid 4)" "$RID" "$AFTER" 'inspect=fail'
+  stub_add "$s" volume -rf "$RID" "$AFTER"
+  lib_run "$s" "$RID" "$START"
+
+  [[ "$LIB_RC" -eq 0 ]] || { log_fail "TEST-3900 cleanup exit $LIB_RC (want 0): $LIB_OUT"; ok=0; }
+  has_obj "$s" container "$(hexid 1)" && { log_fail "TEST-3900 owned container still present"; ok=0; }
+  has_obj "$s" volume own-vol && { log_fail "TEST-3900 owned volume still present"; ok=0; }
+  has_obj "$s" network "$(hexid 2)" && { log_fail "TEST-3900 owned network still present"; ok=0; }
+  local k i
+  for k in "volume unlabelled-vol" "container $(hexid 3)" "volume old-vol" "network $(hexid 4)" "volume -rf"; do
+    has_obj "$s" ${k% *} "${k#* }" || { log_fail "TEST-3900 $k was removed but this run does not own it"; ok=0; }
+  done
+  command grep -qF "skipped volume unlabelled-vol - label aai.test.run is '', not this run's id" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3900 no skipped line with the label reason for the unlabelled volume: $LIB_OUT"; ok=0; }
+  command grep -qF "skipped container $(hexid 3) - label aai.test.run is '$OTHER_RID', not this run's id" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3900 no skipped line naming the foreign label: $LIB_OUT"; ok=0; }
+  command grep -qF "skipped volume old-vol - created $BEFORE, before this run started" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3900 no skipped line naming the creation time: $LIB_OUT"; ok=0; }
+  command grep -qF "skipped network $(hexid 4) - inspect by id failed" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3900 no skipped line for the failed inspection: $LIB_OUT"; ok=0; }
+  command grep -qF "skipped volume '-rf' - the listing returned something that is not an id" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3900 no skipped line for the option-shaped token: $LIB_OUT"; ok=0; }
+  i="$(command grep -cE '^(container|volume|network) inspect ' "$s/calls.log")"
+  [[ "$i" -eq 7 ]] || { log_fail "TEST-3900 want 7 inspections by id (one per id-shaped candidate), got $i"; ok=0; }
+  # The per-object check validates its own inputs: with an empty run id an
+  # unlabelled object (empty label) must still be refused (validation NB-1).
+  local vout vrc
+  for k in "" "not-a-run-id"; do
+    vrc=0
+    vout="$(AAI_STUB_DIR="$s" AAI_RESIDUE_DOCKER="$STUB_CLI" sh -c '. "$1" || exit 99; aai_residue_verify volume unlabelled-vol "$2" "$3"' residue-case "$LIB" "$k" "$START" 2>&1)" || vrc=$?
+    [[ "$vrc" -ne 0 ]] || { log_fail "TEST-3900 aai_residue_verify accepted the unlabelled volume with run id [$k]: $vout"; ok=0; }
+  done
+  vrc=0
+  vout="$(AAI_STUB_DIR="$s" AAI_RESIDUE_DOCKER="$STUB_CLI" sh -c '. "$1" || exit 99; aai_residue_verify volume unlabelled-vol "$2" ""' residue-case "$LIB" "$RID" 2>&1)" || vrc=$?
+  [[ "$vrc" -ne 0 ]] || { log_fail "TEST-3900 aai_residue_verify accepted an empty run start: $vout"; ok=0; }
+  filter_check "$s" "$RID" || { log_fail "TEST-3900 a listing call did not carry --filter label=aai.test.run=$RID: $(cat "$s/calls.log")"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3900 only the three owned objects removed; unlabelled, foreign, old, uninspectable and option-shaped candidates left in place with reasons; every listing filtered by the run id"
+}
+
+# --- TEST-3901 (Spec-AC-01, A: time) -----------------------------------------
+test_3901_creation_time_boundaries_and_formats() {
+  local s ok=1
+  s="$(new_stub)"
+  stub_add "$s" volume at-start "$RID" "$AT_START"
+  stub_add "$s" container "$(hexid 5)" "$RID" '2026-11-19T12:59:59+01:00'
+  stub_add "$s" network "$(hexid 6)" "$RID" '2026-11-19T14:00:00.123456789+02:00'
+  stub_add "$s" volume bad-time "$RID" 'yesterday'
+  lib_run "$s" "$RID" "$START"
+  has_obj "$s" volume at-start && { log_fail "TEST-3901 a volume created exactly at the run start was kept: $LIB_OUT"; ok=0; }
+  has_obj "$s" container "$(hexid 5)" || { log_fail "TEST-3901 a container created one second before the start (offset form) was removed"; ok=0; }
+  has_obj "$s" network "$(hexid 6)" && { log_fail "TEST-3901 a network created at the start (fraction, +02:00) was kept: $LIB_OUT"; ok=0; }
+  has_obj "$s" volume bad-time || { log_fail "TEST-3901 a volume with an unreadable creation time was removed"; ok=0; }
+  command grep -qF "skipped volume bad-time - creation time 'yesterday' is unreadable" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3901 no skipped line for the unreadable time: $LIB_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3901 created at the start removed (Z and offset forms), a second before and an unreadable time left in place"
+}
+
+# --- TEST-3902 (Spec-AC-02, B) -----------------------------------------------
+test_3902_no_run_id_never_means_all() {
+  local s ok=1 bad case_id case_st
+  s="$(new_stub)"
+  stub_add "$s" volume v1 "$RID" "$AFTER"
+  stub_add "$s" volume v2 - "$AFTER"
+  for bad in '' 'aai-123' "$RID"$'\n'x 'AAI-1795089600-4242-0123ABCD' 'aai-1795089600-4242-0123abc' "label=aai.test.run=$RID" '*'; do
+    lib_run "$s" "$bad" "$START"
+    [[ "$LIB_RC" -eq 2 ]] || { log_fail "TEST-3902 run id [$bad]: exit $LIB_RC (want 2): $LIB_OUT"; ok=0; }
+    command grep -qF 'REFUSED - run id' <<<"$LIB_OUT" || { log_fail "TEST-3902 run id [$bad]: no REFUSED line: $LIB_OUT"; ok=0; }
+  done
+  for case_st in '' '12a' '-1'; do
+    lib_run "$s" "$RID" "$case_st"
+    [[ "$LIB_RC" -eq 2 ]] || { log_fail "TEST-3902 run start [$case_st]: exit $LIB_RC (want 2): $LIB_OUT"; ok=0; }
+    command grep -qF 'REFUSED - run start' <<<"$LIB_OUT" || { log_fail "TEST-3902 run start [$case_st]: no REFUSED line: $LIB_OUT"; ok=0; }
+  done
+  for case_id in '' 'not-a-run-id'; do
+    LIB_RC=0
+    LIB_OUT="$(AAI_STUB_DIR="$s" AAI_RESIDUE_DOCKER="$STUB_CLI" sh -c '. "$1" || exit 99; aai_residue_list volume "$2"' residue-case "$LIB" "$case_id" 2>&1)" || LIB_RC=$?
+    [[ "$LIB_RC" -eq 2 ]] || { log_fail "TEST-3902 aai_residue_list with [$case_id]: exit $LIB_RC (want 2): $LIB_OUT"; ok=0; }
+    command grep -qF 'REFUSED - listing volume objects needs this run' <<<"$LIB_OUT" || { log_fail "TEST-3902 aai_residue_list with [$case_id]: no REFUSED line: $LIB_OUT"; ok=0; }
+  done
+  [[ -s "$s/calls.log" ]] && { log_fail "TEST-3902 the stub was called although every input was refused: $(cat "$s/calls.log")"; ok=0; }
+  [[ "$(count_obj "$s" volume)" -eq 2 ]] || { log_fail "TEST-3902 an object disappeared"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3902 empty, malformed and newline-carrying run ids and bad starts refused with exit 2 before any CLI call; the listing refuses without a valid id"
+}
+
+# --- TEST-3903 (Spec-AC-03, C) -----------------------------------------------
+test_3903_single_object_verbs_only() {
+  local s ok=1 calls want code n
+  s="$(new_stub)"
+  stub_add "$s" container "$(hexid 7)" "$RID" "$AFTER"
+  stub_add "$s" volume own-vol "$RID" "$AFTER"
+  stub_add "$s" network "$(hexid 8)" "$RID" "$AFTER"
+  lib_run "$s" "$RID" "$START"
+  calls="$(mutating_calls "$s")"
+  want="rm -f $(hexid 7)
+volume rm own-vol
+network rm $(hexid 8)"
+  [[ "$calls" == "$want" ]] || { log_fail "TEST-3903 mutating calls were [$calls], want exactly [$want]"; ok=0; }
+  if [[ -f "$LIB" ]]; then
+    code="$(command grep -vE '^[[:space:]]*#' "$LIB")"
+    command grep -nE 'prune|compose|--all|[[:space:]]system[[:space:]]' <<<"$code" \
+      && { log_fail "TEST-3903 the library carries a bulk verb (lines above)"; ok=0; }
+    n="$(command grep -cE '"\$AAI_RESIDUE_DOCKER" (rm|volume rm|network rm) ' <<<"$code")"
+    [[ "$n" -eq 3 ]] || { log_fail "TEST-3903 want exactly 3 mutating call lines in the library, got $n"; ok=0; }
+    # Every line that runs the CLI (a `command -v` lookup runs nothing).
+    n="$(command grep -E '"\$AAI_RESIDUE_DOCKER" ' <<<"$code" | command grep -cvF 'command -v')"
+    [[ "$n" -eq 9 ]] || { log_fail "TEST-3903 want exactly 9 CLI call lines (3 listings, 3 inspections, 3 removals), got $n"; ok=0; }
+  else
+    log_fail "TEST-3903 library not found: $LIB"; ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-3903 removals are exactly rm -f <id>, volume rm <name>, network rm <id>; no prune, compose, --all or system in the library"
+}
+
+# --- TEST-3904 (Spec-AC-04, D) -----------------------------------------------
+test_3904_cap_refuses_everything_above_25() {
+  local s ok=1 i
+  s="$(new_stub)"
+  for i in $(seq 1 26); do stub_add "$s" volume "cap-$i" "$RID" "$AFTER"; done
+  lib_run "$s" "$RID" "$START"
+  [[ "$LIB_RC" -eq 4 ]] || { log_fail "TEST-3904 26 candidates: exit $LIB_RC (want 4): $LIB_OUT"; ok=0; }
+  command grep -qF 'REFUSED - 26 objects carry this run' <<<"$LIB_OUT" && command grep -qF 'cap of 25' <<<"$LIB_OUT" \
+    || { log_fail "TEST-3904 the refusal does not name 26 and the cap 25: $LIB_OUT"; ok=0; }
+  [[ -z "$(mutating_calls "$s")" ]] || { log_fail "TEST-3904 removals happened above the cap: $(mutating_calls "$s")"; ok=0; }
+  [[ "$(count_obj "$s" volume)" -eq 26 ]] || { log_fail "TEST-3904 objects disappeared above the cap"; ok=0; }
+  rm -f "$s/obj/volume/cap-26"
+  lib_run "$s" "$RID" "$START"
+  [[ "$LIB_RC" -eq 0 && "$(count_obj "$s" volume)" -eq 0 ]] \
+    || { log_fail "TEST-3904 25 candidates: exit $LIB_RC, $(count_obj "$s" volume) left (want 0 and 0): $LIB_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3904 26 labelled objects: nothing removed, refusal names 26 and 25; 25: all removed"
+}
+
+# --- TEST-3905 (Spec-AC-05, E: guard) ----------------------------------------
+test_3905_test_context_requires_the_stub() {
+  local s ok=1 rec="$TR_TMP/rec-3905.log" marker out rc
+  s="$(new_stub)"
+  stub_add "$s" volume own-vol "$RID" "$AFTER"
+  for marker in 1 yes; do
+    rm -f "$rec"
+    rc=0
+    out="$(REC_LOG="$rec" AAI_RESIDUE_DOCKER="$REC_CLI" AAI_RESIDUE_IN_TEST="$marker" \
+      sh -c '. "$1" || exit 99; aai_residue_cleanup "$2" "$3"' residue-case "$LIB" "$RID" "$START" 2>&1)" || rc=$?
+    [[ "$rc" -eq 3 ]] || { log_fail "TEST-3905 marker [$marker], recorder CLI: exit $rc (want 3): $out"; ok=0; }
+    command grep -qF 'REFUSED - this cleanup runs inside a test' <<<"$out" || { log_fail "TEST-3905 marker [$marker]: no REFUSED line: $out"; ok=0; }
+    [[ -e "$rec" ]] && { log_fail "TEST-3905 marker [$marker]: the non-stub CLI was called: $(cat "$rec")"; ok=0; }
+  done
+  lib_run "$s" "$RID" "$START"
+  [[ "$LIB_RC" -eq 0 ]] && ! has_obj "$s" volume own-vol || { log_fail "TEST-3905 the stub (sentinel present) did not proceed: exit $LIB_RC: $LIB_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3905 inside a test a CLI without the stub sentinel is refused with exit 3 before any call; the stub proceeds"
+}
+
+# --- TEST-3906 (Spec-AC-05, E: through the outer wrapper) ---------------------
+test_3906_outer_wrapper_marks_inner_runs_as_tests() {
+  local ok=1 rec="$TR_TMP/rec-3906.log" out rc=0
+  rm -f "$rec"
+  out="$(env -u AAI_RESIDUE_IN_TEST -u AAI_TEST_DOCKER -u AAI_TEST_RUN_ID -u AAI_TEST_RUN_START \
+    REC_LOG="$rec" INNER_CLI="$REC_CLI" WRAP_PATH="$WRAP" bash "$WRAP" sh -c '
+      echo "MARK=${AAI_RESIDUE_IN_TEST:-unset}"
+      AAI_TEST_DOCKER=1 AAI_RESIDUE_DOCKER="$INNER_CLI" bash "$WRAP_PATH" sh -c "exit 0"
+      echo "INNER_RC=$?"' 2>&1)" || rc=$?
+  command grep -qx 'MARK=1' <<<"$out" || { log_fail "TEST-3906 the wrapped command did not see AAI_RESIDUE_IN_TEST=1: $out"; ok=0; }
+  command grep -qx 'INNER_RC=13' <<<"$out" || { log_fail "TEST-3906 the inner opted-in wrapper did not exit 13: $out"; ok=0; }
+  command grep -qF 'REFUSED - this cleanup runs inside a test' <<<"$out" || { log_fail "TEST-3906 no REFUSED line from the inner wrapper: $out"; ok=0; }
+  [[ -e "$rec" ]] && { log_fail "TEST-3906 the non-stub CLI was called through the outer wrapper: $(cat "$rec")"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3906 the outer wrapper marks its command as a test; an inner opted-in wrapper with a non-stub CLI exits 13 without a single CLI call"
+}
+
+# --- TEST-3907 (Spec-AC-05, E: wrapper isolation) -----------------------------
+test_3907_wrapper_isolates_unless_opted_in() {
+  local ok=1 out rc=0 s probe
+  probe='echo "DH=$DOCKER_HOST"; echo "CH=$CONTAINER_HOST"; echo "CA=$CONTAINERD_ADDRESS"; echo "DC=$DOCKER_CONTEXT"'
+  out="$(env -u AAI_TEST_DOCKER DOCKER_HOST="unix://$TR_TMP/caller.sock" CONTAINER_HOST="unix://$TR_TMP/caller.sock" \
+    CONTAINERD_ADDRESS="$TR_TMP/caller-containerd.sock" DOCKER_CONTEXT=caller-context bash "$WRAP" sh -c "$probe" 2>&1)" || rc=$?
+  command grep -qxF "DH=$NO_DOCKER" <<<"$out" || { log_fail "TEST-3907 DOCKER_HOST not isolated: $out"; ok=0; }
+  command grep -qxF "CH=$NO_DOCKER" <<<"$out" || { log_fail "TEST-3907 CONTAINER_HOST not isolated: $out"; ok=0; }
+  command grep -qxF "CA=$NO_CONTAINERD" <<<"$out" || { log_fail "TEST-3907 CONTAINERD_ADDRESS not isolated: $out"; ok=0; }
+  command grep -qxF "DC=default" <<<"$out" || { log_fail "TEST-3907 DOCKER_CONTEXT not reset: $out"; ok=0; }
+  s="$(new_stub)"
+  W_RC=0
+  W_OUT="$(env -u AAI_TEST_RUN_ID AAI_TEST_DOCKER=1 AAI_RESIDUE_DOCKER="$STUB_CLI" AAI_STUB_DIR="$s" \
+    DOCKER_HOST="unix://$TR_TMP/caller.sock" bash "$WRAP" sh -c "$probe" 2>&1)" || W_RC=$?
+  command grep -qxF "DH=unix://$TR_TMP/caller.sock" <<<"$W_OUT" || { log_fail "TEST-3907 the opt-in did not pass the caller's DOCKER_HOST through: $W_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3907 without the opt-in the command sees four unreachable daemon variables; with it, the caller's DOCKER_HOST"
+}
+
+# --- TEST-3908 (Spec-AC-05, E: framework isolation) ---------------------------
+test_3908_framework_isolates_every_suite() {
+  local ok=1 d out rc=0 probe="$TR_TMP/probe-3908.txt"
+  d="$TR_TMP/fw-3908"
+  mkdir -p "$d/tests/skills/lib" "$d/.aai/scripts/lib" "$d/docs/ai/tests"
+  cp "$FRAMEWORK" "$d/tests/skills/test-framework.sh"
+  cp "$PROJECT_ROOT/tests/skills/lib/pipe-safe.sh" "$d/tests/skills/lib/pipe-safe.sh"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/repo-tripwire.sh" "$d/.aai/scripts/lib/repo-tripwire.sh"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/append-lock.sh" "$d/.aai/scripts/lib/append-lock.sh"
+  printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\n' > "$d/.gitignore"
+  cat > "$d/tests/skills/test-aai-envprobe.sh" <<'EOS'
+#!/usr/bin/env bash
+{
+  echo "DH=${DOCKER_HOST-unset}"
+  echo "CH=${CONTAINER_HOST-unset}"
+  echo "CA=${CONTAINERD_ADDRESS-unset}"
+  echo "DC=${DOCKER_CONTEXT-unset}"
+  echo "IT=${AAI_RESIDUE_IN_TEST-unset}"
+  echo "OPT=${AAI_TEST_DOCKER-unset}"
+  echo "RUNID=${AAI_TEST_RUN_ID-unset}"
+} > "$PROBE_OUT"
+exit 0
+EOS
+  ( cd "$d" && git init -q -b main && git config user.email t@example.com && git config user.name fixture \
+      && git add -A && git commit -q -m fixture ) || { log_fail "TEST-3908 fixture repo init failed"; return; }
+  out="$(cd "$d" && env -u AAI_RESIDUE_IN_TEST AAI_TEST_ISOLATION=0 AAI_TEST_DOCKER=1 AAI_TEST_RUN_ID="$RID" \
+    DOCKER_HOST="unix://$TR_TMP/caller.sock" CONTAINER_HOST="unix://$TR_TMP/caller.sock" \
+    CONTAINERD_ADDRESS="$TR_TMP/caller-containerd.sock" DOCKER_CONTEXT=caller-context PROBE_OUT="$probe" \
+    bash tests/skills/test-framework.sh 2>&1)" || rc=$?
+  [[ -f "$probe" ]] || { log_fail "TEST-3908 the fixture suite never ran (framework exit $rc): $out"; return; }
+  local want
+  for want in "DH=$NO_DOCKER" "CH=$NO_DOCKER" "CA=$NO_CONTAINERD" "DC=default" "IT=1" "OPT=unset" "RUNID=unset"; do
+    command grep -qxF "$want" "$probe" || { log_fail "TEST-3908 the suite's environment lacks $want: $(tr '\n' ' ' < "$probe")"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-3908 a framework suite sees the unreachable daemon variables, the test marker, and no opt-in or run id from its caller"
+}
+
+# --- TEST-3909 (Spec-AC-06, F: two independent layers) -------------------------
+test_3909_two_layers_under_the_incident_mutation() {
+  local ok=1 s m1="$TR_TMP/lib-m1.sh" m2="$TR_TMP/lib-m2.sh"
+  [[ -f "$LIB" ]] || { log_fail "TEST-3909 library not found: $LIB"; return; }
+  sed 's/ --filter "\$rl_filter"//g' "$LIB" > "$m1"
+  sed 's/aai_residue_list "\$rc_kind" "\$rc_id"/aai_residue_list "$rc_kind" '"''"'/' "$LIB" > "$m2"
+  cmp -s "$LIB" "$m1" && { log_fail "TEST-3909 the filter-dropping mutation did not apply"; ok=0; }
+  cmp -s "$LIB" "$m2" && { log_fail "TEST-3909 the empty-id mutation did not apply"; ok=0; }
+
+  # Control: the unmutated library passes the filter check.
+  s="$(new_stub)"
+  stub_add "$s" volume own-vol "$RID" "$AFTER"
+  lib_run "$s" "$RID" "$START"
+  filter_check "$s" "$RID" || { log_fail "TEST-3909 control: the unmutated library failed the filter check"; ok=0; }
+
+  # Layer 1 catches the dropped filter; layer 2 still protects every
+  # object this run does not own (the stub lists everything without a filter).
+  s="$(new_stub)"
+  stub_add "$s" container "$(hexid 11)" "$RID" "$AFTER"
+  stub_add "$s" volume own-vol "$RID" "$AFTER"
+  stub_add "$s" volume unlabelled-vol - "$AFTER"
+  stub_add "$s" volume foreign-vol "$OTHER_RID" "$AFTER"
+  stub_add "$s" network "$(hexid 12)" - "$AFTER"
+  stub_add "$s" container "$(hexid 13)" "$OTHER_RID" "$AFTER"
+  lib_run "$s" "$RID" "$START" "$m1"
+  filter_check "$s" "$RID" && { log_fail "TEST-3909 the filter check did not catch the dropped filter"; ok=0; }
+  has_obj "$s" volume unlabelled-vol || { log_fail "TEST-3909 filter dropped: the unlabelled volume was removed: $LIB_OUT"; ok=0; }
+  has_obj "$s" volume foreign-vol || { log_fail "TEST-3909 filter dropped: the foreign volume was removed: $LIB_OUT"; ok=0; }
+  has_obj "$s" network "$(hexid 12)" || { log_fail "TEST-3909 filter dropped: the unlabelled network was removed: $LIB_OUT"; ok=0; }
+  has_obj "$s" container "$(hexid 13)" || { log_fail "TEST-3909 filter dropped: the foreign container was removed: $LIB_OUT"; ok=0; }
+  has_obj "$s" volume own-vol && { log_fail "TEST-3909 filter dropped: the owned volume was not removed: $LIB_OUT"; ok=0; }
+
+  # The incident's literal shape: an empty id handed to the listing.
+  s="$(new_stub)"
+  stub_add "$s" volume own-vol "$RID" "$AFTER"
+  stub_add "$s" volume unlabelled-vol - "$AFTER"
+  lib_run "$s" "$RID" "$START" "$m2"
+  [[ "$LIB_RC" -eq 2 ]] || { log_fail "TEST-3909 empty id to the listing: exit $LIB_RC (want 2): $LIB_OUT"; ok=0; }
+  [[ "$(count_obj "$s" volume)" -eq 2 && -z "$(mutating_calls "$s")" ]] \
+    || { log_fail "TEST-3909 empty id to the listing: something was removed"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3909 a dropped filter is caught by the filter check and the per-object check still removes only owned objects; an empty id to the listing refuses with exit 2"
+}
+
+# --- TEST-3910 (Spec-AC-06, F: the mutation runner isolates) --------------------
+test_3910_mutation_runner_isolates_the_suite() {
+  local ok=1 fx="$TR_TMP/mr-3910" out rc=0 rec
+  mkdir -p "$fx/.aai/scripts" "$fx/tests/skills" "$fx/lib" "$fx/docs/specs"
+  # The fixture's wrapper passes its environment through untouched, so the
+  # suite sees exactly what mutation-run.mjs gave the wrapper.
+  printf '#!/bin/sh\nexec "$@"\n' > "$fx/.aai/scripts/aai-run-tests.sh"
+  printf 'docs/ai/tdd/\n' > "$fx/.gitignore"
+  printf 'a\n' > "$fx/lib/x.txt"
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+test_9100_env() {
+  echo "FAIL TEST-9100 env DH=[${DOCKER_HOST-unset}] IT=[${AAI_RESIDUE_IN_TEST-unset}] OPT=[${AAI_TEST_DOCKER-unset}] RUNID=[${AAI_TEST_RUN_ID-unset}]" >&2
+  exit 1
+}
+"$1"
+EOS
+  printf -- '---\nid: fixture-spec-3910\ntype: spec\nstatus: implementing\n---\n\n# Fixture\n' > "$fx/docs/specs/fixture-spec.md"
+  ( cd "$fx" && git init -q -b main && git config user.email t@example.com && git config user.name fixture \
+      && git add -A && git commit -q -m base ) || { log_fail "TEST-3910 fixture repo init failed"; return; }
+  out="$(cd "$fx" && env -u AAI_RESIDUE_IN_TEST AAI_TEST_DOCKER=1 AAI_TEST_RUN_ID="$RID" \
+    DOCKER_HOST="unix://$TR_TMP/caller.sock" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md \
+    --test-id TEST-9100 --suite tests/skills/fixture-suite.sh --selector test_9100_env \
+    --target lib/x.txt --sed 's/a/b/' 2>&1)" || rc=$?
+  rec="$fx/docs/ai/tdd/fixture-spec-3910/mutation-TEST-9100.txt"
+  [[ -f "$rec" ]] || { log_fail "TEST-3910 no mutation record (exit $rc): $out"; return; }
+  command grep -qF "DH=[$NO_DOCKER]" "$rec" || { log_fail "TEST-3910 the suite saw a reachable DOCKER_HOST: $(command grep -F 'TEST-9100 env' "$rec")"; ok=0; }
+  command grep -qF "IT=[1]" "$rec" || { log_fail "TEST-3910 the suite was not marked as a test: $(command grep -F 'TEST-9100 env' "$rec")"; ok=0; }
+  command grep -qF "OPT=[unset]" "$rec" || { log_fail "TEST-3910 the caller's AAI_TEST_DOCKER reached the suite: $(command grep -F 'TEST-9100 env' "$rec")"; ok=0; }
+  command grep -qF "RUNID=[unset]" "$rec" || { log_fail "TEST-3910 the caller's AAI_TEST_RUN_ID reached the suite: $(command grep -F 'TEST-9100 env' "$rec")"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3910 mutation-run.mjs hands its suite an unreachable DOCKER_HOST, AAI_RESIDUE_IN_TEST=1 and no opt-in or run id"
+}
+
+# --- TEST-3911 (Spec-AC-07, G) -------------------------------------------------
+test_3911_report_and_dry_run() {
+  local s ok=1
+  s="$(new_stub)"
+  stub_add "$s" container "$(hexid 21)" "$RID" "$AFTER"
+  stub_add "$s" volume own-vol "$RID" "$AFTER"
+  stub_add "$s" volume old-vol "$RID" "$BEFORE"
+  stub_add "$s" network "$(hexid 22)" "$RID" "$AFTER" 'rm=fail'
+  AAI_RESIDUE_DRY_RUN=1 lib_run "$s" "$RID" "$START"
+  command grep -qF "AAI-RESIDUE: would delete container $(hexid 21)" <<<"$LIB_OUT" \
+    && command grep -qF "AAI-RESIDUE: would delete volume own-vol" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3911 dry run: no would-delete lines: $LIB_OUT"; ok=0; }
+  command grep -qF "AAI-RESIDUE: run $RID (dry run): would delete 3, skipped 1" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3911 dry run: no dry-run summary: $LIB_OUT"; ok=0; }
+  [[ -z "$(mutating_calls "$s")" ]] || { log_fail "TEST-3911 dry run removed something: $(mutating_calls "$s")"; ok=0; }
+  [[ "$(count_obj "$s" volume)" -eq 2 && "$(count_obj "$s" container)" -eq 1 ]] || { log_fail "TEST-3911 dry run: objects disappeared"; ok=0; }
+
+  lib_run "$s" "$RID" "$START"
+  command grep -qF "AAI-RESIDUE: deleted container $(hexid 21) (label and creation time match this run)" <<<"$LIB_OUT" \
+    && command grep -qF "AAI-RESIDUE: deleted volume own-vol (label and creation time match this run)" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3911 no deleted lines: $LIB_OUT"; ok=0; }
+  command grep -qF "AAI-RESIDUE: skipped volume old-vol - created $BEFORE, before this run started" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3911 no skipped line with its reason: $LIB_OUT"; ok=0; }
+  command grep -qF "AAI-RESIDUE: FAILED to delete network $(hexid 22)" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3911 no line for the failed removal: $LIB_OUT"; ok=0; }
+  command grep -qF "AAI-RESIDUE: run $RID: deleted 2, skipped 1, failed 1" <<<"$LIB_OUT" \
+    || { log_fail "TEST-3911 no summary with the three counts: $LIB_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3911 one line per deleted, kept and failed object and a summary; the dry run reports and removes nothing"
+}
+
+# --- TEST-3912 (Spec-AC-08, H) -------------------------------------------------
+test_3912_no_daemon_is_a_noted_no_op() {
+  local ok=1 s code n
+  for code in 0 3; do
+    s="$(new_stub)"
+    WRAP_CLI="$TR_TMP/bin/no-such-docker" wrap_optin "$s" sh -c "exit $code"
+    [[ "$W_RC" -eq "$code" ]] || { log_fail "TEST-3912 absent CLI, command exit $code: wrapper exit $W_RC: $W_OUT"; ok=0; }
+    n="$(command grep -c '^AAI-RESIDUE:' <<<"$W_OUT")"
+    [[ "$n" -eq 1 ]] && command grep -qF 'AAI-RESIDUE: NOTE - no container CLI' <<<"$W_OUT" \
+      || { log_fail "TEST-3912 absent CLI: want exactly one AAI-RESIDUE NOTE line, got $n: $W_OUT"; ok=0; }
+
+    s="$(new_stub)"
+    stub_add "$s" volume own-vol "$RID" "$AFTER"
+    : > "$s/down"
+    wrap_optin "$s" sh -c "exit $code"
+    [[ "$W_RC" -eq "$code" ]] || { log_fail "TEST-3912 daemon down, command exit $code: wrapper exit $W_RC: $W_OUT"; ok=0; }
+    n="$(command grep -c '^AAI-RESIDUE:' <<<"$W_OUT")"
+    [[ "$n" -eq 1 ]] && command grep -qF 'AAI-RESIDUE: NOTE - the container daemon did not answer' <<<"$W_OUT" \
+      || { log_fail "TEST-3912 daemon down: want exactly one AAI-RESIDUE NOTE line, got $n: $W_OUT"; ok=0; }
+    [[ -z "$(mutating_calls "$s")" ]] || { log_fail "TEST-3912 daemon down: a removal was attempted"; ok=0; }
+
+    # A CLI that itself exits 2 is a daemon error, not a refusal (review NB-1).
+    s="$(new_stub)"
+    : > "$s/down2"
+    wrap_optin "$s" sh -c "exit $code"
+    [[ "$W_RC" -eq "$code" ]] || { log_fail "TEST-3912 CLI exiting 2, command exit $code: wrapper exit $W_RC: $W_OUT"; ok=0; }
+    n="$(command grep -c '^AAI-RESIDUE:' <<<"$W_OUT")"
+    [[ "$n" -eq 1 ]] && command grep -qF 'AAI-RESIDUE: NOTE - the container daemon did not answer' <<<"$W_OUT" \
+      || { log_fail "TEST-3912 CLI exiting 2: want exactly one AAI-RESIDUE NOTE line, got $n: $W_OUT"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-3912 an absent CLI or a daemon that does not answer: one NOTE line, no removal, the command's exit code kept (0 and 3)"
+}
+
+# --- TEST-3913 (Spec-AC-09, the wrapper seam) -----------------------------------
+test_3913_wrapper_end_to_end_on_the_stub() {
+  local ok=1 s
+  s="$(new_stub)"
+  stub_add "$s" volume pre-unlabelled - "$BEFORE"
+  stub_add "$s" volume pre-other-run "$OTHER_RID" "$BEFORE"
+  wrap_optin "$s" sh -c '
+    "$AAI_RESIDUE_DOCKER" run -d --label "aai.test.run=$AAI_TEST_RUN_ID" busybox >/dev/null
+    "$AAI_RESIDUE_DOCKER" volume create --label "aai.test.run=$AAI_TEST_RUN_ID" leak-vol >/dev/null
+    "$AAI_RESIDUE_DOCKER" network create --label "aai.test.run=$AAI_TEST_RUN_ID" leak-net >/dev/null
+    echo "SEEN RID=$AAI_TEST_RUN_ID START=$AAI_TEST_RUN_START"
+    exit 1'
+  [[ "$W_RC" -eq 1 ]] || { log_fail "TEST-3913 wrapper exit $W_RC (want the command's 1): $W_OUT"; ok=0; }
+  command grep -qE '^SEEN RID=aai-[0-9]{10}-[0-9]+-[0-9a-f]{8} START=[0-9]{10}$' <<<"$W_OUT" \
+    || { log_fail "TEST-3913 the command did not receive a run id and start: $W_OUT"; ok=0; }
+  [[ "$(count_obj "$s" container)" -eq 0 && "$(count_obj "$s" network)" -eq 0 ]] \
+    || { log_fail "TEST-3913 the labelled container or network survived: $W_OUT"; ok=0; }
+  has_obj "$s" volume leak-vol && { log_fail "TEST-3913 the labelled volume survived: $W_OUT"; ok=0; }
+  has_obj "$s" volume pre-unlabelled && has_obj "$s" volume pre-other-run \
+    || { log_fail "TEST-3913 a pre-existing object was removed: $W_OUT"; ok=0; }
+
+  s="$(new_stub)"
+  AAI_TEST_TIMEOUT=2 wrap_optin "$s" sh -c '
+    "$AAI_RESIDUE_DOCKER" volume create --label "aai.test.run=$AAI_TEST_RUN_ID" hung-vol >/dev/null
+    sleep 30'
+  [[ "$W_RC" -eq 124 ]] || { log_fail "TEST-3913 watchdog: wrapper exit $W_RC (want 124): $W_OUT"; ok=0; }
+  has_obj "$s" volume hung-vol && { log_fail "TEST-3913 watchdog: the labelled volume survived: $W_OUT"; ok=0; }
+
+  s="$(new_stub)"
+  W_RC=0
+  W_OUT="$(AAI_TEST_DOCKER=1 AAI_TEST_RUN_ID="$RID" AAI_TEST_RUN_START="$START" AAI_RESIDUE_DOCKER="$STUB_CLI" \
+    AAI_STUB_DIR="$s" bash "$WRAP" sh -c 'exit 0' 2>&1)" || W_RC=$?
+  [[ "$W_RC" -eq 0 && ! -s "$s/calls.log" ]] || { log_fail "TEST-3913 an inherited run id: exit $W_RC, calls [$(cat "$s/calls.log")] (want 0 and none)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3913 the wrapper's run id is the label the command writes and the cleanup removes (exit 1 and watchdog 124 kept); pre-existing objects stay; a nested wrapper makes no call"
+}
+
+# --- TEST-3914 (Spec-AC-10) ------------------------------------------------------
+test_3914_classification_and_consumer_record() {
+  local ok=1 n
+  n="$(awk '/^[a-z_]+:/ { sect = $1 } $0 == "  - .aai/scripts/lib/test-residue.sh" { print sect }' .aai/system/PROFILES.yaml)"
+  [[ "$n" == "core:" ]] || { log_fail "TEST-3914 PROFILES.yaml lists the library under [$n] (want exactly once, under core)"; ok=0; }
+  command grep -qF 'AAI_TEST_DOCKER' docs/TECHNOLOGY.md && command grep -qE 'exit(s)? 13|13 ' docs/TECHNOLOGY.md \
+    || { log_fail "TEST-3914 docs/TECHNOLOGY.md does not name AAI_TEST_DOCKER and exit 13"; ok=0; }
+  command grep -qE '^## \[unreleased\] — .*container residue' CHANGELOG.md \
+    || { log_fail "TEST-3914 CHANGELOG.md has no unreleased per-entry heading for the container residue change"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3914 the library is classified core once; TECHNOLOGY and CHANGELOG carry the consumer record"
+}
+
+main() {
+  echo "=== Test: $TEST_NAME (spec-test-residue-safe-cleanup) ==="
+  check_deps
+  if [[ $# -ge 1 ]]; then
+    declare -F "$1" >/dev/null 2>&1 || { echo "unknown test function: $1" >&2; exit 2; }
+    "$1"
+    if [[ $FAILED -ne 0 ]]; then echo "=== $TEST_NAME: SELECTED TEST FAILED ($1) ===" >&2; exit 1; fi
+    echo "=== $TEST_NAME: SELECTED TEST PASSED ($1) ==="
+    exit 0
+  fi
+  test_3900_per_object_ownership_survives_a_lying_listing
+  test_3901_creation_time_boundaries_and_formats
+  test_3902_no_run_id_never_means_all
+  test_3903_single_object_verbs_only
+  test_3904_cap_refuses_everything_above_25
+  test_3905_test_context_requires_the_stub
+  test_3906_outer_wrapper_marks_inner_runs_as_tests
+  test_3907_wrapper_isolates_unless_opted_in
+  test_3908_framework_isolates_every_suite
+  test_3909_two_layers_under_the_incident_mutation
+  test_3910_mutation_runner_isolates_the_suite
+  test_3911_report_and_dry_run
+  test_3912_no_daemon_is_a_noted_no_op
+  test_3913_wrapper_end_to_end_on_the_stub
+  test_3914_classification_and_consumer_record
+  if [[ -s "$AAI_NO_CLI_LOG" ]]; then
+    log_fail "$TEST_NAME a bare container CLI was invoked during the run: $(cat "$AAI_NO_CLI_LOG")"
+  fi
+  echo ""
+  if [[ $FAILED -eq 0 ]]; then
+    echo "All tests passed!"
+    exit 0
+  fi
+  echo "Some tests failed."
+  exit 1
+}
+
+main "$@"

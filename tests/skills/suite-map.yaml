@@ -1213,6 +1213,14 @@ suites:
       - tests/skills/suite-map.yaml
       - tests/skills/suite-weights.tsv
 
+  aai-test-residue:
+    globs:
+      - .aai/scripts/lib/test-residue.sh
+      - .aai/scripts/aai-run-tests.sh
+      - tests/skills/test-framework.sh
+      - .aai/scripts/mutation-run.mjs
+      - .aai/system/PROFILES.yaml
+
   aai-repo-tripwire:
     globs:
       - .aai/scripts/lib/repo-tripwire.sh

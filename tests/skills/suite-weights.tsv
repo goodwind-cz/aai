@@ -296,3 +296,5 @@ aai-round-budget	196
 aai-model-effort	196
 # sample aai-project-config fallback unsampled (new suite of consumer-config-routing-override; no successful observation)
 aai-project-config	196
+# sample aai-test-residue fallback unsampled (new suite of test-residue-safe-cleanup; no successful observation)
+aai-test-residue	196

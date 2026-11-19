@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-18T17:31:30.955Z",
+  "generatedAt": "2026-11-19T21:10:47.093Z",
   "project": "aai",
   "counts": {
-    "delivered": 372,
+    "delivered": 373,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 195094746
+    "tokens_total": 195488540
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -209,6 +209,19 @@
   ],
   "delivered": [
     {
+      "ref": "test-residue-safe-cleanup",
+      "title": "Change: test runs remove their own container residue, behind hard safeguards",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0259-test-residue-safe-cleanup.md",
+      "closed_on": "2026-11-19",
+      "agent_minutes": 78,
+      "token_total": 393794,
+      "spec": "docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "precommit-sentinel-trap",
       "title": "Pre-commit parse sentinel trusts the environment, and the trap fd close is untested",
       "type": "issue",
@@ -219,7 +232,7 @@
       "token_total": 272299,
       "spec": "docs/specs/SPEC-0302-spec-precommit-sentinel-trap.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-precommit-sentinel-trap-r1-20261118T172655Z.md"
     },
     {
       "ref": "precommit-blob-read-cost",
@@ -5072,6 +5085,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "test-residue-safe-cleanup",
+          "title": "Change: test runs remove their own container residue, behind hard safeguards",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0259-test-residue-safe-cleanup.md",
+          "closed_on": "2026-11-19",
+          "agent_minutes": 78,
+          "token_total": 393794,
+          "spec": "docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "precommit-sentinel-trap",
           "title": "Pre-commit parse sentinel trusts the environment, and the trap fd close is untested",
           "type": "issue",
@@ -5082,7 +5108,7 @@
           "token_total": 272299,
           "spec": "docs/specs/SPEC-0302-spec-precommit-sentinel-trap.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-precommit-sentinel-trap-r1-20261118T172655Z.md"
         },
         {
           "ref": "precommit-blob-read-cost",

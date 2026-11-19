@@ -172,6 +172,8 @@ pairs:
     status: done
   - capability: delegated-requester-approval
     status: done
+  - capability: test-residue-safe-cleanup
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

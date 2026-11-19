@@ -786,6 +786,20 @@ function runSuite(cloneDir, suiteRel, selector) {
   const wrapper = path.join(cloneDir, '.aai/scripts/aai-run-tests.sh');
   const env = { ...process.env };
   delete env.AAI_ROLE; // a marker exported into this CLI's own env must not leak into the suite run
+  // A mutated suite run must never reach a real container daemon
+  // (test-residue-safe-cleanup): the 2026-11-19 incident was a mutation run
+  // of a cleanup library that deleted the caller's real containers. The
+  // daemon addresses point nowhere, the run is marked as a test (a cleanup
+  // then refuses any CLI but the test stub), and the caller's opt-in and run
+  // id are dropped.
+  delete env.AAI_TEST_DOCKER;
+  delete env.AAI_TEST_RUN_ID;
+  delete env.AAI_TEST_RUN_START;
+  env.DOCKER_HOST = 'unix:///nonexistent/aai-test-no-docker.sock';
+  env.CONTAINER_HOST = 'unix:///nonexistent/aai-test-no-docker.sock';
+  env.CONTAINERD_ADDRESS = '/nonexistent/aai-test-no-containerd.sock';
+  env.DOCKER_CONTEXT = 'default';
+  env.AAI_RESIDUE_IN_TEST = '1';
   const res = spawnSync('bash', [wrapper, 'bash', suiteRel, selector], {
     cwd: cloneDir,
     encoding: 'utf8',

@@ -36,6 +36,23 @@ else
 fi
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Container daemon isolation (CHANGE test-residue-safe-cleanup). Every suite
+# this framework runs, and everything those suites start, sees daemon
+# addresses that do not exist, so no test can reach a real container daemon
+# whatever it does. There is no opt-in here: no AAI suite needs a daemon.
+# AAI_RESIDUE_IN_TEST marks the run as a test, so a nested aai-run-tests.sh
+# cleanup refuses any CLI but the test stub; the wrapper's opt-in and run id
+# are dropped so no suite inherits them from the caller.
+aai_isolate_container_daemon() {
+  export DOCKER_HOST='unix:///nonexistent/aai-test-no-docker.sock'
+  export CONTAINER_HOST='unix:///nonexistent/aai-test-no-docker.sock'
+  export CONTAINERD_ADDRESS='/nonexistent/aai-test-no-containerd.sock'
+  export DOCKER_CONTEXT='default'
+  export AAI_RESIDUE_IN_TEST=1
+  unset AAI_TEST_DOCKER AAI_TEST_RUN_ID AAI_TEST_RUN_START
+}
+aai_isolate_container_daemon
+
 # Shipping-repository write tripwire (spec-suites-must-not-touch-the-shipping-repo).
 # This is the funnel CI runs, so it is the load-bearing placement: a tripwire
 # only in .aai/scripts/aai-run-tests.sh would miss CI entirely.

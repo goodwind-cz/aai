@@ -54,6 +54,22 @@
 #                      instead; a wrapped command that already failed keeps
 #                      its own non-zero status. Never affects a suite run or
 #                      test-framework.sh.
+#   AAI_TEST_DOCKER=1  opt-in container daemon access (CHANGE
+#                      test-residue-safe-cleanup). Unset (the default), the
+#                      command sees DOCKER_HOST and CONTAINER_HOST pointing at
+#                      unix:///nonexistent/aai-test-no-docker.sock,
+#                      CONTAINERD_ADDRESS at /nonexistent/aai-test-no-containerd.sock
+#                      and DOCKER_CONTEXT=default, so the docker, podman and
+#                      nerdctl CLIs cannot reach a daemon, and no cleanup runs.
+#                      Set, the outermost wrapper (AAI_TEST_RUN_ID unset) mints
+#                      a run id, exports AAI_TEST_RUN_ID and AAI_TEST_RUN_START
+#                      to the command, and afterwards removes the containers,
+#                      volumes and networks labelled aai.test.run=<run id>,
+#                      each re-inspected by id first (lib/test-residue.sh).
+#                      Every command also gets AAI_RESIDUE_IN_TEST=1, so a
+#                      nested wrapper's cleanup refuses any CLI but the test
+#                      stub. A refusal of the cleanup itself (malformed run id,
+#                      non-stub CLI in a test) turns the command's 0 into 13.
 #
 # Platform matrix (Spec-AC-07 / SPEC-0046-spec-test-wrapper-windows-fallback;
 # kept identical across this header, aai-reap-tests.sh, aai-run-tests.ps1,
@@ -774,9 +790,52 @@ aai_reap_group() {
 # checkout out from under a command that is still alive. No EXIT trap: dash
 # runs one inside a subshell, and this script forks the watchdog as a
 # subshell.
-trap 'aai_reap_group; aai_iso_cleanup; exit 130' INT
-trap 'aai_reap_group; aai_iso_cleanup; exit 143' TERM
-trap 'aai_reap_group; aai_iso_cleanup; exit 129' HUP
+# --- CONTAINER DAEMON ISOLATION AND TEST RESIDUE (test-residue-safe-cleanup) --
+# Without the opt-in the command cannot reach a container daemon and nothing
+# is cleaned. With it, the wrapper that owns the run (no inherited run id)
+# removes afterwards only what lib/test-residue.sh proves this run created.
+# AAI_RES_CALLER_IN_TEST is this wrapper's OWN test context, read before the
+# marker below is exported to the command: a wrapper nested inside another
+# one (or inside the framework or the mutation runner) is in a test, and its
+# cleanup then refuses any CLI but the test stub.
+AAI_RES_CALLER_IN_TEST="${AAI_RESIDUE_IN_TEST:-}"
+AAI_RES_OWN=0
+AAI_RES_RC=0
+if [ "${AAI_TEST_DOCKER:-0}" != "1" ]; then
+  DOCKER_HOST='unix:///nonexistent/aai-test-no-docker.sock'
+  CONTAINER_HOST='unix:///nonexistent/aai-test-no-docker.sock'
+  CONTAINERD_ADDRESS='/nonexistent/aai-test-no-containerd.sock'
+  DOCKER_CONTEXT='default'
+  export DOCKER_HOST CONTAINER_HOST CONTAINERD_ADDRESS DOCKER_CONTEXT
+elif [ -z "${AAI_TEST_RUN_ID:-}" ]; then
+  if [ -n "$AAI_SELF_DIR" ] && [ -f "$AAI_SELF_DIR/lib/test-residue.sh" ]; then
+    # shellcheck source=lib/test-residue.sh
+    . "$AAI_SELF_DIR/lib/test-residue.sh"
+    AAI_TEST_RUN_START=$(date +%s)
+    AAI_TEST_RUN_ID=$(aai_residue_runid_new)
+    export AAI_TEST_RUN_ID AAI_TEST_RUN_START
+    AAI_RES_OWN=1
+  else
+    echo "AAI-RESIDUE: NOTE - library not found next to this wrapper; container residue will not be cleaned." >&2
+  fi
+fi
+AAI_RESIDUE_IN_TEST=1
+export AAI_RESIDUE_IN_TEST
+
+# aai_residue_finish — run the owned cleanup once (normal exit, watchdog or a
+# signal), judged in this wrapper's own test context.
+aai_residue_finish() {
+  [ "$AAI_RES_OWN" -eq 1 ] || return 0
+  AAI_RES_OWN=0
+  AAI_RESIDUE_IN_TEST="$AAI_RES_CALLER_IN_TEST"
+  aai_residue_cleanup "$AAI_TEST_RUN_ID" "$AAI_TEST_RUN_START"
+  AAI_RES_RC=$?
+  return 0
+}
+
+trap 'aai_reap_group; aai_iso_cleanup; aai_residue_finish; exit 130' INT
+trap 'aai_reap_group; aai_iso_cleanup; aai_residue_finish; exit 143' TERM
+trap 'aai_reap_group; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
 
 # Launch the command as the leader of a NEW session / process group so that even
 # descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
@@ -890,6 +949,17 @@ aai_reap_group
 # covers a pass, a failure and a watchdog kill alike; the signal traps above
 # cover the paths that never reach here.
 aai_iso_cleanup
+
+# Container residue of an opted-in run (after the reap, so nothing the command
+# started is still creating objects). Before the watchdog exit below, so a
+# killed run is cleaned too.
+aai_residue_finish
+case "$AAI_RES_RC" in
+  2 | 3)
+    echo "AAI-RESIDUE: the cleanup refused to run (exit $AAI_RES_RC, reason above); container residue of this run was not removed." >&2
+    [ "$STATUS" -eq 0 ] && STATUS=13
+    ;;
+esac
 
 # Tripwire, second half — fires on EVERY exit path (success, failure, timeout),
 # because a command killed at the watchdog is exactly the case most likely to
