@@ -159,6 +159,23 @@
   nested virtualization), remain field/manual-only — see SPEC-0046's Manual
   verification protocol (MV-1..MV-3) and residual risk RR-1.
 
+  Container daemon isolation and test residue (CHANGE
+  test-residue-safe-cleanup): `aai-run-tests.sh` gives every command
+  `DOCKER_HOST`/`CONTAINER_HOST` = `unix:///nonexistent/aai-test-no-docker.sock`,
+  `CONTAINERD_ADDRESS` = `/nonexistent/aai-test-no-containerd.sock` and
+  `DOCKER_CONTEXT=default`, so tests cannot reach a container daemon, unless
+  the caller sets `AAI_TEST_DOCKER=1`. With that opt-in the outermost wrapper
+  exports `AAI_TEST_RUN_ID` and `AAI_TEST_RUN_START`; tests label what they
+  create `aai.test.run=$AAI_TEST_RUN_ID`, and after the command the wrapper
+  removes those containers, volumes and networks one by one, each re-inspected
+  by id first (label equal to the run id, created at or after the run start),
+  never more than 25, never with a prune or bulk verb
+  (`.aai/scripts/lib/test-residue.sh`). Every command gets
+  `AAI_RESIDUE_IN_TEST=1`; inside a test the cleanup refuses any CLI but the
+  AAI test stub. A refusal of the cleanup itself turns the command's 0 into
+  exit 13. `tests/skills/test-framework.sh` and `mutation-run.mjs` isolate
+  every suite the same way, with no opt-in.
+
 ## Tooling
 
 - Package manager(s): none — no `package.json` or lockfile exists; zero npm

@@ -2808,6 +2808,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Tests cannot touch a container daemon unless they opt in, and clean up only what they provably created
+
+Tests run through the AAI test wrapper can no longer reach a Docker, podman (remote) or nerdctl daemon by default: the wrapper points every command at daemon addresses that do not exist. A project whose tests genuinely need a daemon sets `AAI_TEST_DOCKER=1`. Its tests then label the containers, volumes and networks they create with the run id the wrapper hands them, and when the command ends (normally, on a failure, a timeout or Ctrl-C) the wrapper removes exactly those objects. Every object is re-checked one by one before it is removed, so nothing the run did not create, and nothing that existed before the run, is ever deleted. This replaces an earlier, never-merged draft whose own mutation test wiped a real daemon.
+
+[Product doc](product/test-residue-safe-cleanup.md) · [Spec](specs/SPEC-0303-spec-test-residue-safe-cleanup.md)
+
 ### Owner-defined merge lanes
 
 By default an AAI agent never merges a pull request; merging is the operator's job. A repository owner can now write down, in one project-owned file, which kinds of pull requests the agent may merge on its own, for example "a change that only touches content or design files, with green CI, a recorded bot sweep and the requester's GitHub approval". Each such rule is a lane, and each lane must point at a decision the owner signed. Anything outside every lane, and anything touching architecture (containers, dependencies, migrations, CI, credentials) as the owner defines it, still goes to the operator. With no policy file, nothing changes. A requester without a GitHub account can approve in chat: a gateway holding its own bot credential submits the approval, the lane lists that bot in `delegated_approvers`, and the approval counts only when its review body carries one `AAI-RELAY chat=<platform>:<message-id> requester=<platform>:<user-id>` line. The bot credential must stay out of reach of agent tools: an agent that can read it can write that review itself. On a single host this is a guardrail, not a security boundary; branch protection remains the real one.

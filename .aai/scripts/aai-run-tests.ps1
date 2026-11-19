@@ -541,7 +541,14 @@ function Get-WslDelegationArgs {
   } else {
     $wslScript = ConvertTo-WslPath -WindowsPath $ShScriptPath
   }
-  return @('-e', 'env', "AAI_TEST_TIMEOUT=$Timeout", $wslScript) + $Command
+  $envArgs = @("AAI_TEST_TIMEOUT=$Timeout")
+  # The container-daemon opt-in and the residue dry run (CHANGE-0259 /
+  # SPEC-0303) do not cross into WSL on their own (only WSLENV-listed
+  # variables do), so forward them explicitly; unset, the delegated .sh keeps
+  # its default of no daemon access.
+  if ($env:AAI_TEST_DOCKER -eq '1') { $envArgs += 'AAI_TEST_DOCKER=1' }
+  if ($env:AAI_RESIDUE_DRY_RUN -eq '1') { $envArgs += 'AAI_RESIDUE_DRY_RUN=1' }
+  return @('-e', 'env') + $envArgs + @($wslScript) + $Command
 }
 
 function Invoke-WslProcess {

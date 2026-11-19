@@ -219,6 +219,10 @@ core:
   - .aai/scripts/lib/spec-contract-hash.mjs
   - .aai/scripts/lib/state-core.mjs
   - .aai/scripts/lib/state-engine.mjs
+  # core: sourced by aai-run-tests.sh (core) for the opted-in container
+  # residue cleanup (CHANGE test-residue-safe-cleanup); it ships wherever the
+  # wrapper does.
+  - .aai/scripts/lib/test-residue.sh
   - .aai/scripts/lib/usage-note.mjs
   - .aai/scripts/loop-digest.mjs
   - .aai/scripts/metrics-flush.mjs
