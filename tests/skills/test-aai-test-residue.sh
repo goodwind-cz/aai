@@ -662,7 +662,8 @@ test_3914_classification_and_consumer_record() {
   [[ "$n" == "core:" ]] || { log_fail "TEST-3914 PROFILES.yaml lists the library under [$n] (want exactly once, under core)"; ok=0; }
   command grep -qF 'AAI_TEST_DOCKER' docs/TECHNOLOGY.md && command grep -qE 'exit(s)? 13|13 ' docs/TECHNOLOGY.md \
     || { log_fail "TEST-3914 docs/TECHNOLOGY.md does not name AAI_TEST_DOCKER and exit 13"; ok=0; }
-  command grep -qE '^## \[unreleased\] — .*container residue' CHANGELOG.md \
+  # A release cut rolls the heading to its version; both forms count.
+  command grep -qE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — .*container residue' CHANGELOG.md \
     || { log_fail "TEST-3914 CHANGELOG.md has no unreleased per-entry heading for the container residue change"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-3914 the library is classified core once; TECHNOLOGY and CHANGELOG carry the consumer record"
 }
