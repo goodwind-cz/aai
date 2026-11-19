@@ -93,6 +93,28 @@ Describe 'aai-run-tests.ps1' {
             $argv | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=300', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
         }
 
+        It 'forwards the container-daemon opt-in and the residue dry run into WSL (CHANGE-0259 / SPEC-0303, PR #572 Codex P1)' {
+            $hermeticDocker = $env:AAI_TEST_DOCKER
+            $hermeticDry = $env:AAI_RESIDUE_DRY_RUN
+            try {
+                Remove-Item Env:AAI_TEST_DOCKER -ErrorAction SilentlyContinue  # AAI-HERMETIC-CLEAR
+                Remove-Item Env:AAI_RESIDUE_DRY_RUN -ErrorAction SilentlyContinue  # AAI-HERMETIC-CLEAR
+                $plain = Get-WslDelegationArgs -Command @('sh', '-c', 'exit 0') `
+                    -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300 `
+                    -WslPathResolver { param($p) '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+                $plain | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=300', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
+                $env:AAI_TEST_DOCKER = '1'
+                $env:AAI_RESIDUE_DRY_RUN = '1'
+                $optin = Get-WslDelegationArgs -Command @('sh', '-c', 'exit 0') `
+                    -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300 `
+                    -WslPathResolver { param($p) '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+                $optin | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=300', 'AAI_TEST_DOCKER=1', 'AAI_RESIDUE_DRY_RUN=1', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
+            } finally {
+                if ($null -eq $hermeticDocker) { Remove-Item Env:AAI_TEST_DOCKER -ErrorAction SilentlyContinue } else { $env:AAI_TEST_DOCKER = $hermeticDocker }  # AAI-HERMETIC-RESTORE
+                if ($null -eq $hermeticDry) { Remove-Item Env:AAI_RESIDUE_DRY_RUN -ErrorAction SilentlyContinue } else { $env:AAI_RESIDUE_DRY_RUN = $hermeticDry }  # AAI-HERMETIC-RESTORE
+            }
+        }
+
         It 'Invoke-Dispatch calls the WSL launch path with the resolved argv when WSL is usable' {
             Mock Test-WslUsable { $true }
             Mock ConvertTo-WslPath { '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
