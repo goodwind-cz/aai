@@ -4270,3 +4270,4 @@
 {"v":1,"ts":"2026-11-20T18:56:06Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-20","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-11-20T19:31:02Z","actor":"ales_holubec.net","event":"full_sweep","ref":"bootstrap-on-node","payload":{"head":"70f516bbb2586aaf1b55d8fe09742ed4b3bc24d8","rc":0,"run_id":"test-20261120-185746"}}
 {"v":1,"ts":"2026-11-20T19:31:02Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"bootstrap-on-node","payload":{"head":"70f516bbb2586aaf1b55d8fe09742ed4b3bc24d8","clean":true,"flags":0}}
+{"v":1,"ts":"2026-11-20T20:00:54Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-10","payload":{"from":"deferred","to":"rejected","notes":"owner decision 2026-11-20: reject (answer 3); MV-1..MV-3 dropped, RR-1 stays recorded"}}
