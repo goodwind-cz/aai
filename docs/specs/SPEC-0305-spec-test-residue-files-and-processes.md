@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: a0432286a7d08e7203b5f7829401263eb65fc3e50cc93333b241dc43d44fad6e
+frozen_sha256: 46bb5d953d995428194c6293cdc5e2275493658dc44fa08b93f51a95fc6b50b3
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -72,7 +72,9 @@ SPEC-FROZEN: true
     that is not a symlink;
   - `off` inside a test without one.
   In `off` the wrapper mints nothing, creates nothing, scans nothing and
-  prints nothing about it. The Git Bash (MSYS) path is `off` too. A nested
+  prints nothing about it. The Git Bash (MSYS) path is `off` too. An owning
+  wrapper outside a test whose library is missing prints one NOTE that the
+  temp and process cleanup is unavailable (Codex P2 on PR #574). A nested
   wrapper inherits the owner and does nothing.
 - D2 (temp root). The owner creates `<base>/aai-tr-<8 hex>`, where `<base>`
   is the physical `${TMPDIR:-/tmp}` and the 8 hex are the owner id's random

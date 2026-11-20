@@ -843,6 +843,13 @@ export AAI_RESIDUE_IN_TEST
 AAI_TREE_OWN=0
 AAI_TREE_ROOT=''
 AAI_TREE_BASE=''
+if [ -z "${AAI_TEST_OWNER:-}" ] && [ "$DEGRADED_MSYS" -eq 0 ] && { [ -z "$AAI_SELF_DIR" ] || [ ! -f "$AAI_SELF_DIR/lib/test-residue.sh" ]; }; then
+  # An owning run outside a test without the library cannot clean its temp
+  # files or leftover processes: say so (inside a test this is off anyway).
+  case "${AAI_RES_CALLER_IN_TEST:-0}" in
+    '' | 0) echo "AAI-RESIDUE: NOTE - lib/test-residue.sh not found next to this wrapper; temp files and leftover processes of this run will not be cleaned." >&2 ;;
+  esac
+fi
 if [ -z "${AAI_TEST_OWNER:-}" ] && [ "$DEGRADED_MSYS" -eq 0 ] && [ -n "$AAI_SELF_DIR" ] && [ -f "$AAI_SELF_DIR/lib/test-residue.sh" ]; then
   # shellcheck source=lib/test-residue.sh
   command -v aai_residue_tree_mode >/dev/null 2>&1 || . "$AAI_SELF_DIR/lib/test-residue.sh"

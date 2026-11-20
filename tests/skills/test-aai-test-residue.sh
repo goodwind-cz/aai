@@ -822,6 +822,14 @@ test_3923_owner_temp_root_lifecycle() {
   command grep -qxF "TMP=$sb2" <<<"$W_OUT" || { log_fail "TEST-3923 a test-context wrapper without a sandbox changed TMPDIR: $W_OUT"; ok=0; }
   command grep -qF 'AAI-RESIDUE' <<<"$W_OUT" && { log_fail "TEST-3923 a test-context wrapper without a sandbox printed an AAI-RESIDUE line: $W_OUT"; ok=0; }
   ls -d "$sb2"/aai-tr-* >/dev/null 2>&1 && { log_fail "TEST-3923 a test-context wrapper without a sandbox made a root"; ok=0; }
+  # an owning wrapper outside a test whose library is missing says the cleanup is unavailable (nothing can be removed)
+  sb2="$(sandbox_new 3923-nolib)"
+  mkdir -p "$sb2/w/.aai/scripts"
+  cp "$WRAP" "$sb2/w/.aai/scripts/aai-run-tests.sh"
+  W_RC=0
+  W_OUT="$(cd "$sb2/w" && env -u AAI_TEST_OWNER -u AAI_TEST_OWNER_START -u AAI_RESIDUE_IN_TEST -u AAI_RESIDUE_SANDBOX TMPDIR="$sb2" \
+    bash .aai/scripts/aai-run-tests.sh sh -c 'exit 0' 2>&1)" || W_RC=$?
+  command grep -qF 'AAI-RESIDUE: NOTE - lib/test-residue.sh not found' <<<"$W_OUT" || { log_fail "TEST-3923 a missing residue library was silent on an owning run: rc $W_RC $W_OUT"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-3923 the owning wrapper hands its command a private aai-tr-<hex> root with a marker naming the owner, removes it after a pass, a failure and a watchdog kill; nested and off-mode wrappers make none"
 }
 
