@@ -480,7 +480,7 @@ aai_residue_tmp_cleanup() {
     # the probes: find -xdev pins the device of "." and never descends into
     # another one (a mount point is visited, not entered, and cannot be
     # removed while mounted); find never follows a symlink.
-    find . -xdev -mindepth 1 -delete 2>/dev/null
+    find . -xdev -mindepth 1 -delete 2>/dev/null || { echo "its pinned removal did not complete (find -delete failed; a mount point or an unremovable entry is left)"; exit 1; }
     echo ok
   )
   if [ "$tc_out" != ok ]; then

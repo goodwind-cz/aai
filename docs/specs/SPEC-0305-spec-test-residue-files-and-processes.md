@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: d493687d508068f3eeca6199fb3cd681be0bd994a4b2b37472d77b9065f533d0
+frozen_sha256: e84d7dffae171f13b3885350d9b571b6e0b9e418a8cb457bd74d39a4770dfb08
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -105,8 +105,9 @@ SPEC-FROZEN: true
   changes into it, re-reads the identity of `.` and the marker, and removes
   the entries with `find . -xdev -mindepth 1 -delete`, which pins the device
   of `.` and never enters a filesystem mounted after the probes (Codex P1 on
-  PR #574, twelfth review); only the then-empty directory is removed by
-  name, with `rmdir` (eleventh review). A directory
+  PR #574, twelfth review); a `find` that fails is reported (thirteenth
+  review); only the then-empty directory is removed by name, with `rmdir`
+  (eleventh review). A directory
   swapped into either name while the checks ran is never emptied. Residual:
   a same-uid process can still move entries around inside the run's own
   root while it is removed. Post-freeze amendment (code review r1 BLOCKING-1):

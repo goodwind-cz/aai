@@ -1091,6 +1091,7 @@ mount-fails|real|fail|kept|could not be read
 mount-empty|real|empty|kept|could not be read
 mount-at-root|real|atroot|kept|at or inside
 mount-below|real|below|kept|at or inside
+delete-fails|deletefail|real|kept|did not complete
 control|real|real|removed|'
 test_3931_mounted_filesystem_inside_root_is_kept() {
   local ok=1 sb st root fsd realfind img row name fm mm want why
@@ -1101,13 +1102,14 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
   realfind="$(command -v find)"
   while IFS='|' read -r name fm mm want why; do
     [[ -n "$name" ]] || continue
-    rm -rf "$root" "$fsd"; mkdir -p "$root/mnt/deep" "$fsd"
+    rm -rf "$root" "$root".removing.* "$fsd"; mkdir -p "$root/mnt/deep" "$fsd"
     echo keep > "$root/mnt/deep/keep.txt"; printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
     case "$fm" in
       xdevdrop) printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@" | sed "/\\/mnt\\//d" ;; *) exec %q "$@" ;; esac\n' "$realfind" "$realfind" > "$fsd/find" ;;
       fail) printf '#!/bin/sh\n%q "$@"\nexit 1\n' "$realfind" > "$fsd/find" ;;
       xdevfail) printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@"; exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" "$realfind" > "$fsd/find" ;;
       empty) printf '#!/bin/sh\nexit 0\n' > "$fsd/find" ;;
+      deletefail) printf '#!/bin/sh\ncase " $* " in *" -delete "*) exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" > "$fsd/find" ;;
     esac
     case "$mm" in
       fail) printf '#!/bin/sh\nexit 1\n' > "$fsd/mount" ;;
@@ -1120,10 +1122,10 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
     T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
       sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
     if [[ "$want" == kept ]]; then
-      [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 ($name) the root was removed: $T_OUT"; ok=0; }
+      compgen -G "$root*/mnt/deep/keep.txt" >/dev/null || { log_fail "TEST-3931 ($name) the root was removed: $T_OUT"; ok=0; }
       command grep -qF -- "$why" <<<"$T_OUT" || { log_fail "TEST-3931 ($name) the output does not name [$why]: $T_OUT"; ok=0; }
     else
-      [[ ! -e "$root" ]] || { log_fail "TEST-3931 ($name) a root with no mount sign was kept: $T_OUT"; ok=0; }
+      ! compgen -G "$root*" >/dev/null || { log_fail "TEST-3931 ($name) a root with no mount sign was kept: $T_OUT"; ok=0; }
     fi
   done <<<"$TREE_MOUNT_TABLE"
   rm -rf "$fsd"
