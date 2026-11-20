@@ -145,7 +145,7 @@ export function resolveRoot(target = '', env = process.env, cwd = process.cwd())
   if (typeof pwd === 'string' && path.isAbsolute(pwd)) {
     const a = statOrNull(pwd);
     const b = statOrNull(cwd);
-    if (a && b && samePlace(a, b)) base = pwd;
+    if (a && b && samePlace(a, b)) base = path.resolve(pwd);
   }
   return target === '' ? base : path.resolve(base, target);
 }

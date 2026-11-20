@@ -87,6 +87,14 @@ new_own_scratch() {
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then echo "INFO: keeping fixture at $TEST_DIR"; return 0; fi
   if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then safe_rm_own "$TEST_DIR"; fi
+  # A failed test leaves its own scratch behind: sweep, through safe_rm_own, exactly the directories of the own
+  # prefix whose marker holds this process id. Leftovers of other runs carry another id and are not touched.
+  local d mine=()
+  for d in "${TMPDIR:-/tmp}/${OWN_PREFIX}"*; do
+    [[ -d "$d" && ! -L "$d" && "$(cat "$d/$OWN_MARKER" 2>/dev/null)" == "$$" ]] && mine+=("$d")
+  done
+  if [[ "${#mine[@]}" -gt 0 ]]; then safe_rm_own "${mine[@]}"; fi
+  return 0
 }
 trap cleanup EXIT
 

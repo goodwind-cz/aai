@@ -831,8 +831,9 @@ describe('TEST-3566b step bound from the environment and timeouts as infrastruct
       put(d, `${name}.mjs`, `export default { argv(step, ctx) { return { file: process.execPath, args: ['-e', 'setTimeout(function () {}, 60000)'], cwd: ctx.target }; } };\n`);
     };
     hang('hang');
+    hang('hang2'); // two twins: a scenario run by fewer than two is refused before it runs
     put(d, 'none.tsv', '# none\n');
-    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', '', '--twin-module', `hang=${path.join(d, 'hang.mjs')}`, '--allowlist', path.join(d, 'none.tsv')], { env: { ...process.env, AAI_PARITY_STEP_TIMEOUT: '1' } });
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', '', '--twin-module', `hang=${path.join(d, 'hang.mjs')}`, '--twin-module', `hang2=${path.join(d, 'hang2.mjs')}`, '--allowlist', path.join(d, 'none.tsv')], { env: { ...process.env, AAI_PARITY_STEP_TIMEOUT: '1' } });
     assert.equal(r.status, 4, r.stdout + r.stderr);
     assert.match(r.stdout, /^INFRA timeout SY-01 hang 1$/m);
     assert.doesNotMatch(r.stdout, /UNCOVERED|STALE|verdict/);
@@ -900,5 +901,20 @@ describe('TEST-3934 an unreadable odd root name does not crash the snapshot', ()
     try {
       assert.throws(() => M.snapshot(d), /ENOENT/);
     } finally { fs.lstatSync = real; }
+  });
+});
+
+describe('driver refuses a scenario with fewer than two twins', () => {
+  test('--twins node on SY-01 exits 2 naming the scenario, never a crash or a pass', () => {
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', 'node']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /scenario SY-01 .*0 of the selected twins/);
+    assert.doesNotMatch(r.stderr + r.stdout, /TypeError/);
+    assert.doesNotMatch(r.stdout, /verdict PASS/);
+  });
+  test('a single selected twin on a scenario it runs is refused too', () => {
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', 'sh']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /scenario SY-01 .*1 of the selected twins \(sh\)/);
   });
 });

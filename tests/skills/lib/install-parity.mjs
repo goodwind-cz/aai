@@ -869,6 +869,11 @@ async function dispatch(cmd, rest, err) {
     if (eq < 1) throw new UsageError(`--twin-module wants <name>=<path>, got ${spec}`);
     try { twins.push(await loadTwinModule(spec.slice(0, eq), spec.slice(eq + 1), [...Object.keys(TWINS), ...twins.map((t) => t.name)])); } catch (e) { throw new UsageError(e.message); }
   }
+  // A scenario that fewer than two of the selected twins run has nothing to compare; refuse it by name rather than pass or crash.
+  for (const sc of scenarios) {
+    const running = twinsFor(twins, sc);
+    if (running.length < 2) throw new UsageError(`scenario ${sc.id} (${sc.op}) is run by ${running.length} of the selected twins (${running.map((t) => t.name).join(',') || 'none'}); at least two are needed to compare, so nothing would be proven`);
+  }
   const registered = [...new Set([...Object.keys(TWINS), ...twins.map((t) => t.name)])];
   let rows;
   try { rows = parseAllowlist(fs.readFileSync(o.allowlist, 'utf8'), { twins: registered }); } catch (e) {

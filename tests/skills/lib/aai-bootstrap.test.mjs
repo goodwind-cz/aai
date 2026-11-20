@@ -29,6 +29,7 @@ const MODULE = path.join(ROOT, '.aai', 'scripts', 'aai-bootstrap.mjs');
 const REFERENCE = path.join(ROOT, REFERENCE_PATH);
 const NEW_TEST_FILES = [
   path.join(ROOT, 'tests', 'skills', 'test-aai-bootstrap-node.sh'),
+  path.join(ROOT, 'tests', 'skills', 'aai-bootstrap.Tests.ps1'),
   path.join(HERE, 'aai-bootstrap.test.mjs'),
   path.join(HERE, 'bootstrap-reference.mjs'),
   path.join(HERE, 'aai-bootstrap-fixtures.mjs'),
@@ -49,16 +50,20 @@ const listTree = (dir) => readdirSync(dir, { recursive: true }).map(String).sort
 // --- TEST-3940 ---------------------------------------------------------------------------------
 
 // The forbidden words are assembled from parts so that this file itself holds none of them.
+const STOP = 'Stop-' + 'Process';
+const TASKK = 'task' + 'kill';
 const FORBIDDEN = ['dock' + 'er', 'pk' + 'ill', 'kill' + 'all'];
 
-// forbiddenCalls(source): lines that call a forbidden tool: the word first on a statement, or the
-// first string argument of a process-starting call.
+// forbiddenCalls(source): lines that call a forbidden tool: the word first on a statement (a Windows
+// executable suffix or a PowerShell call operator or Start-Process in front included), the first string
+// argument of a process-starting call, or a PowerShell kill by name (Stop-Process -Name, taskkill /IM).
 export function forbiddenCalls(source) {
   const words = FORBIDDEN.join('|');
-  const start = new RegExp(`(^|[;&|(\`]|\\$\\(|\\bexec\\s|\\bsudo\\s)\\s*(${words})(\\s|$)`);
+  const start = new RegExp(`(^|[;&|(\`]|\\$\\(|\\bexec\\s|\\bsudo\\s|\\bStart-Process\\s+(-FilePath\\s+)?['"]?)\\s*(${words})(\\.exe)?(\\s|$|['"])`, 'i');
   const spawned = new RegExp(`\\b(spawn|spawnSync|exec|execSync|execFile|execFileSync)\\(\\s*['"\`](${words})\\b`);
+  const psKill = new RegExp(`\\b${STOP}\\b[^\\n#]*-Name\\b|\\b${TASKK}(\\.exe)?\\s+[^\\n#]*\\/IM\\b|\\bGet-Process\\b[^\\n#]*\\|\\s*${STOP}\\b`, 'i');
   return source.split('\n').map((line, i) => ({ line, n: i + 1 }))
-    .filter(({ line }) => !/^\s*(#|\/\/)/.test(line) && (start.test(line) || spawned.test(line)))
+    .filter(({ line }) => !/^\s*(#|\/\/)/.test(line) && (start.test(line) || spawned.test(line) || psKill.test(line)))
     .map(({ line, n }) => `${n}: ${line.trim()}`);
 }
 
@@ -155,6 +160,29 @@ describe('TEST-3940 scratch safety', () => {
     assert.equal(forbiddenCalls(`spawnSync('${d}', ['ps'])\n`).length, 1);
     assert.equal(forbiddenCalls(`# the stub log holds no ${d} line\n`).length, 0);
     assert.equal(forbiddenCalls('echo hello\n').length, 0);
+    // PowerShell positive control: the scan bites on .ps1 content
+    assert.equal(forbiddenCalls(`${d} ps -aq\n`).length, 1);
+    assert.equal(forbiddenCalls(`& ${d} ps\n`).length, 1);
+    assert.equal(forbiddenCalls(`${d}.exe ps\n`).length, 1);
+    assert.equal(forbiddenCalls(`Start-Process ${d} -ArgumentList ps\n`).length, 1);
+    assert.equal(forbiddenCalls(`${STOP} -Name node -Force\n`).length, 1);
+    assert.equal(forbiddenCalls(`Get-Process node | ${STOP}\n`).length, 1);
+    assert.equal(forbiddenCalls(`${TASKK} /F /IM node.exe\n`).length, 1);
+    assert.equal(forbiddenCalls(`${STOP} -Id $pid\n`).length, 0);
+    assert.equal(forbiddenCalls(`# never ${d} or ${STOP} -Name here\n`).length, 0);
+    assert.equal(forbiddenCalls(`$x = 'no ${d} here'\n`).length, 0);
+  });
+
+  test('TEST-3940 the scanned list holds every bootstrap test file of tests/skills', () => {
+    // Files named for the bootstrap under tests/skills and its lib, minus the pre-existing suite and the golden data.
+    const exempt = new Set(['test-aai-bootstrap.sh', 'aai-bootstrap-golden.json']);
+    const found = [];
+    for (const dir of [path.join(ROOT, 'tests', 'skills'), HERE]) {
+      for (const name of readdirSync(dir)) {
+        if (/bootstrap/i.test(name) && !exempt.has(name) && statSync(path.join(dir, name)).isFile()) found.push(path.join(dir, name));
+      }
+    }
+    assert.deepEqual(found.sort(), [...NEW_TEST_FILES].sort(), 'a new bootstrap test file must be added to NEW_TEST_FILES');
   });
 });
 
@@ -435,6 +463,29 @@ describe('TEST-3942 arguments and root', () => {
     assert.equal(resolveRoot('..', { PWD: link }, real), base);
     // an absolute target ignores the base
     assert.equal(resolveRoot(base, { PWD: link }, real), base);
+  });
+
+  test('TEST-3942 a non-canonical PWD records the same target as the reference (D-ROOT)', () => {
+    const base = scratch('pwdnc-');
+    const refTree = path.join(base, 'ref');
+    const refScript = materializeBootstrapReference(ROOT, refTree);
+    const dir = path.join(base, 'd');
+    mkdirSync(path.join(dir, 'sub'), { recursive: true });
+    const real = path.join(base, 'real');
+    mkdirSync(real);
+    const link = path.join(base, 'link');
+    symlinkSync(real, link);
+    const targetLine = (out) => out.split('\n').find((l) => l.startsWith('Target: '));
+    const cases = [[dir, `${dir}/`], [dir, `${dir}/sub/..`], [dir, `${dir}/./`], [dir, `${dir}//`], [real, link], [real, `${link}/`]];
+    for (const [cwd, pwd] of cases) {
+      const env = { ...process.env, PWD: pwd };
+      const ref = spawnSync('bash', [refScript, '--dry-run'], { encoding: 'utf8', cwd, env });
+      const mod = spawnSync(process.execPath, [MODULE, '--dry-run'], { encoding: 'utf8', cwd, env });
+      assert.equal(ref.status, 0, ref.stderr);
+      assert.equal(mod.status, 0, mod.stderr);
+      assert.ok(targetLine(ref.stdout), `reference prints a Target line for PWD ${pwd}`);
+      assert.equal(targetLine(mod.stdout), targetLine(ref.stdout), `Target line for PWD ${pwd}`);
+    }
   });
 
   test('TEST-3942 resolveRoot uses the working directory for a stale, relative or absent PWD', async () => {
