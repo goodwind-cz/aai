@@ -1,5 +1,5 @@
 // aai-bootstrap.test.mjs - node:test cases of the bootstrap-on-node ride
-// (docs/specs/SPEC-DRAFT-bootstrap-on-node.md). Every case name starts with its TEST id; the suite
+// (docs/specs/SPEC-0306-spec-bootstrap-on-node.md). Every case name starts with its TEST id; the suite
 // tests/skills/test-aai-bootstrap-node.sh selects them with --test-name-pattern.
 //
 // Scratch safety (D-SAFETY): directories are created and removed only through bootstrap-reference.mjs

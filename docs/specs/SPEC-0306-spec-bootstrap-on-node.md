@@ -1,10 +1,10 @@
 ---
 id: spec-bootstrap-on-node
 type: spec
-number: null
-status: implementing
+number: 306
+status: done
 mutation_gate: v1
-frozen_sha256: e9bb541e5f9acb52f6a32684876c726c5fe12b53ded84a7df06e9af92b624790
+frozen_sha256: 17fef3e71ed4a9e7ec39985807a873e8e341e8d15528a1713bd58736d87df192
 ceremony_level: 2
 links:
   requirement: bootstrap-on-node
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Run the project bootstrap as one Node module behind thin launchers](../issues/CHANGE-DRAFT-bootstrap-on-node.md).
+- Requirement: [Run the project bootstrap as one Node module behind thin launchers](../issues/CHANGE-0261-bootstrap-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 9 (owner sign-off: yes; merge by the owner). Plan section 4 decision 1
@@ -83,8 +83,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-hygiene-pack.sh tests/skills/lib/cd-subshell-leak-baseline.tsv
   .github/workflows/ps1-quality.yml CHANGELOG.md
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
-  docs/ai/decisions.jsonl docs/issues/CHANGE-DRAFT-bootstrap-on-node.md
-  docs/specs/SPEC-DRAFT-bootstrap-on-node.md docs/INDEX.md
+  docs/ai/decisions.jsonl docs/issues/CHANGE-0261-bootstrap-on-node.md
+  docs/specs/SPEC-0306-spec-bootstrap-on-node.md docs/INDEX.md
   tests/skills/lib/aai-bootstrap-fixtures.mjs tests/skills/lib/aai-bootstrap-golden.json
   tests/skills/test-aai-pr-preflight.sh tests/skills/test-aai-suite-reuse.sh
   (decisions.jsonl only for the amendment and follow-up records; the
@@ -782,7 +782,7 @@ scenarios) and TEST-3569 (its 150 s and 75 s bounds unchanged).
   via the shared library; no data line changes.
 - RFC-0017 phase 5 row: one sentence after the thirteenth-slice sentence and
   before the remaining-scripts-plan sentence:
-  `The fourteenth slice [moved the project bootstrap to Node](../issues/CHANGE-DRAFT-bootstrap-on-node.md): one module holds the detection, rendering and write policy behind thin aai-bootstrap.sh and aai-bootstrap.ps1 launchers, byte-equivalent to the frozen bash reference in the parity harness, so Windows gets a native bootstrap.`
+  `The fourteenth slice [moved the project bootstrap to Node](../issues/CHANGE-0261-bootstrap-on-node.md): one module holds the detection, rendering and write policy behind thin aai-bootstrap.sh and aai-bootstrap.ps1 launchers, byte-equivalent to the frozen bash reference in the parity harness, so Windows gets a native bootstrap.`
   Status stays `in progress`; frontmatter untouched; the allocator rewrites
   the link at merge (checks match only the suffix `bootstrap-on-node.md`).
   The inventory table is unchanged: a stem with a `.mjs` is not a pair

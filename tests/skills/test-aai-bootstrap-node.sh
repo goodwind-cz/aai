@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-bootstrap-node
-# (docs/specs/SPEC-DRAFT-bootstrap-on-node.md, TEST-3940..3959; this file grows run by run)
+# (docs/specs/SPEC-0306-spec-bootstrap-on-node.md, TEST-3940..3959; this file grows run by run)
 #
 # The project bootstrap is one Node module (.aai/scripts/aai-bootstrap.mjs) behind thin sh/ps1 launchers,
 # compared against a frozen bash reference (tests/fixtures/aai-bootstrap-reference/). Every case works in
@@ -638,7 +638,7 @@ test_3959_docs() {
     else {
       const r = row[0];
       if (!r.includes("| in progress |")) bad.push("the RFC phase 5 row is not in progress");
-      const sentence = "The fourteenth slice [moved the project bootstrap to Node](../issues/CHANGE-DRAFT-bootstrap-on-node.md): one module holds the detection, rendering and write policy behind thin aai-bootstrap.sh and aai-bootstrap.ps1 launchers, byte-equivalent to the frozen bash reference in the parity harness, so Windows gets a native bootstrap.";
+      const sentence = "The fourteenth slice [moved the project bootstrap to Node](../issues/CHANGE-0261-bootstrap-on-node.md): one module holds the detection, rendering and write policy behind thin aai-bootstrap.sh and aai-bootstrap.ps1 launchers, byte-equivalent to the frozen bash reference in the parity harness, so Windows gets a native bootstrap.";
       if (r.split(sentence).length !== 2) bad.push("the RFC row does not hold the D-DOCS sentence once");
       const a = r.indexOf("The thirteenth slice"); const b = r.indexOf("The fourteenth slice"); const c = r.indexOf("The [remaining-scripts plan]");
       if (!(a >= 0 && a < b && b < c)) bad.push("the RFC sentence is not between the thirteenth slice and the remaining-scripts plan");

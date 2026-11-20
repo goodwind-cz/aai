@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // aai-bootstrap.mjs - project bootstrap as one Node module behind thin launchers
-// (docs/specs/SPEC-DRAFT-bootstrap-on-node.md; RFC-0017 phase 5).
+// (docs/specs/SPEC-0306-spec-bootstrap-on-node.md; RFC-0017 phase 5).
 //
 // Usage: node .aai/scripts/aai-bootstrap.mjs [target-root] [--dry-run] [--force] [--with-claude-hooks]
 //

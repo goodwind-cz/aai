@@ -1,9 +1,10 @@
 ---
 id: bootstrap-on-node
 type: change
-number: null
-status: draft
+number: 261
+status: done
 capability: bootstrap-on-node
+user_visible: true
 parent: smaller-node-core-and-faster-feedback
 links:
   pr: []

@@ -1,5 +1,5 @@
 // bootstrap-reference.mjs - the frozen bash bootstrap reference and the scratch-safety helpers
-// (docs/specs/SPEC-DRAFT-bootstrap-on-node.md, D-REF and D-SAFETY).
+// (docs/specs/SPEC-0306-spec-bootstrap-on-node.md, D-REF and D-SAFETY).
 //
 // The reference is a byte copy of blob b41a0c02 of .aai/scripts/aai-bootstrap.sh, kept outside .aai/
 // so it is never vendored. materializeBootstrapReference puts it into a scratch tree beside a copy of

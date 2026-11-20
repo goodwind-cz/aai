@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff 34fad51b..fdd3a37e (branch feat/bootstrap-node) over the STATE code_review.scope path list"
-  spec: docs/specs/SPEC-DRAFT-bootstrap-on-node.md
+  spec: docs/specs/SPEC-0306-spec-bootstrap-on-node.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -59,7 +59,7 @@ review:
 security_relevant: true
 
 - Scope: `git diff 34fad51b..HEAD` on branch `feat/bootstrap-node` at `fdd3a37e`, worktree `/Users/ales/Projects/aai-worktrees/bootstrap-on-node`, over the `code_review.scope` path list in STATE (worktree mode, `git diff <base>..HEAD`). `git status --porcelain` shows only ` M docs/ai/EVENTS.jsonl` and ` M docs/ai/tests/test-runs.jsonl` (validation run records), outside the committed diff under review.
-- Spec: docs/specs/SPEC-DRAFT-bootstrap-on-node.md (frozen, ceremony 2), with its amendment records (DR-10, DR-11, TEST-3953 mutation cell) read through `spec-amend list --strict` (rc 0).
+- Spec: docs/specs/SPEC-0306-spec-bootstrap-on-node.md (frozen, ceremony 2), with its amendment records (DR-10, DR-11, TEST-3953 mutation cell) read through `spec-amend list --strict` (rc 0).
 - Prompt: `.aai/SKILL_CODE_REVIEW.prompt.md` (sha256 prefix 20eb1d6b1a1b on disk; the dispatch named hash 8e6aae0d5197, probably computed another way; noted, not acted on).
 
 ## Dispatch note (anti-gaming)

@@ -4281,3 +4281,11 @@
 {"v":1,"ts":"2026-11-20T21:37:02Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"bootstrap-on-node","payload":{"role":"validation","head":"8566186bb42c4f9719d6b5e9b9bd646f7518c8e7","seen":"run_at:2026-11-20T21:37:01Z"}}
 {"v":1,"ts":"2026-11-20T21:37:02Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"bootstrap-on-node","payload":{"status":"pass","hash":"82d8f07cfe2caa503b5a161ca65befebe473c8700699107c747aebe1dc3fd53a"}}
 {"v":1,"ts":"2026-11-20T21:37:20Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"bootstrap-on-node","payload":{"role":"validation","head":"631510a8cf1d899f07cd46d325dd250f57645948","seen":"run_at:2026-11-20T21:37:01Z"}}
+{"v":1,"ts":"2026-11-20T21:37:47Z","actor":"ales_holubec.net","event":"check_verdict","ref":"bootstrap-on-node","payload":{"role":"validation","head":"8566186bb42c4f9719d6b5e9b9bd646f7518c8e7","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-11-20T21:37:47Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"bootstrap-on-node","payload":{"role":"validation","head":"1a3288c54d6ceaf7fc14cc006ffa931b70289f0a","seen":"run_at:2026-11-20T21:37:40Z"}}
+{"v":1,"ts":"2026-11-20T21:37:48Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"bootstrap-on-node","payload":{"status":"pass","hash":"91a19aa6a67a215c618c70b71e477050717f839a2f1adb741c79e1c693dd67f6"}}
+{"v":1,"ts":"2026-11-20T21:41:10Z","actor":"ales_holubec.net","event":"check_verdict","ref":"bootstrap-on-node","payload":{"role":"code_review","head":"fdd3a37efb5008086b28af471f1c2a70c5375d9d","status":"pass","security_relevant":true}}
+{"v":1,"ts":"2026-11-20T21:44:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"bootstrap-on-node","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-20T21:44:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"bootstrap-on-node","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-20T21:44:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-bootstrap-on-node","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-20T21:44:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-bootstrap-on-node","payload":{"validation":"pass","code_review":"pass"}}
