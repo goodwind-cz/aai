@@ -833,6 +833,14 @@ test_3923_owner_temp_root_lifecycle() {
   W_OUT="$(cd "$sb2/w" && env -u AAI_TEST_OWNER -u AAI_TEST_OWNER_START -u AAI_RESIDUE_IN_TEST -u AAI_RESIDUE_SANDBOX TMPDIR="$sb2" \
     bash .aai/scripts/aai-run-tests.sh sh -c 'exit 0' 2>&1)" || W_RC=$?
   command grep -qF 'AAI-RESIDUE: NOTE - lib/test-residue.sh not found' <<<"$W_OUT" || { log_fail "TEST-3923 a missing residue library was silent on an owning run: rc $W_RC $W_OUT"; ok=0; }
+  # the command swaps its root: renames its TMPDIR away, puts a decoy directory at that path and moves the real
+  # marker into it; the cleanup must recognise that the directory is not the one created for the run
+  sb2="$(sandbox_new 3923-swap)"
+  tree_wrap "$sb2" sh -c 'mv "$TMPDIR" "$TMPDIR.away" && mkdir "$TMPDIR" && echo keep > "$TMPDIR/keep.txt" && mv "$TMPDIR.away/.aai-test-run" "$TMPDIR/" && echo "SWAPPED=$TMPDIR"'
+  command grep -q '^SWAPPED=' <<<"$W_OUT" || { log_fail "TEST-3923 (swap) the command did not swap its root: $W_OUT"; ok=0; }
+  compgen -G "$sb2/aai-tr-*/keep.txt" >/dev/null || compgen -G "$sb2/aai-tr-*.removing.*/keep.txt" >/dev/null \
+    || { log_fail "TEST-3923 (swap) a decoy put at the root's path by the command was deleted: $W_OUT"; ok=0; }
+  command grep -qF 'not the root created for this run' <<<"$W_OUT" || { log_fail "TEST-3923 (swap) no NOTE says the root was replaced: $W_OUT"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-3923 the owning wrapper hands its command a private aai-tr-<hex> root with a marker naming the owner, removes it after a pass, a failure and a watchdog kill; nested and off-mode wrappers make none"
 }
 

@@ -862,6 +862,13 @@ if [ -z "${AAI_TEST_OWNER:-}" ] && [ "$DEGRADED_MSYS" -eq 0 ] && [ -n "$AAI_SELF
     if [ -n "$AAI_TREE_BASE" ]; then
       AAI_TREE_ROOT=$(aai_residue_tmp_create "$AAI_TEST_OWNER" "$AAI_TEST_OWNER_START" "$AAI_TREE_BASE") || AAI_TREE_ROOT=''
     fi
+    # Pin the created root (and its marker) now, before the command can touch
+    # them: the cleanup removes only a root that is still this very directory.
+    if [ -n "$AAI_TREE_ROOT" ]; then
+      AAI_TREE_PIN=$(aai_residue_dir_identity "$AAI_TREE_ROOT") || AAI_TREE_PIN=''
+      AAI_TREE_MARK_PIN=$(aai_residue_file_identity "$AAI_TREE_ROOT/.aai-test-run") || AAI_TREE_MARK_PIN=''
+      [ -n "$AAI_TREE_PIN" ] && [ -n "$AAI_TREE_MARK_PIN" ] || AAI_TREE_ROOT=''
+    fi
     if [ -n "$AAI_TREE_ROOT" ]; then
       AAI_TREE_OWN=1
     else
@@ -878,7 +885,7 @@ aai_tree_finish() {
   AAI_TREE_OWN=0
   AAI_RESIDUE_IN_TEST="$AAI_RES_CALLER_IN_TEST"
   aai_residue_proc_cleanup "$AAI_TEST_OWNER" "$AAI_TEST_OWNER_START" "$AAI_TREE_ROOT/.aai-test-run"
-  aai_residue_tmp_cleanup "$AAI_TEST_OWNER" "$AAI_TEST_OWNER_START" "$AAI_TREE_BASE" "$AAI_TREE_ROOT"
+  aai_residue_tmp_cleanup "$AAI_TEST_OWNER" "$AAI_TEST_OWNER_START" "$AAI_TREE_BASE" "$AAI_TREE_ROOT" "$AAI_TREE_PIN" "$AAI_TREE_MARK_PIN"
   return 0
 }
 

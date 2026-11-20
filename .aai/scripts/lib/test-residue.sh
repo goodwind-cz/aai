@@ -390,6 +390,17 @@ aai_residue_dir_identity() {
   esac
 }
 
+# aai_residue_file_identity <file> — print "<device> <inode>" of a regular
+# file that is not a symlink; fail otherwise.
+aai_residue_file_identity() {
+  [ -f "${1:-}" ] && [ ! -L "$1" ] || return 1
+  fi_out=$(stat -c '%d %i' -- "$1" 2>/dev/null) || fi_out=$(stat -f '%d %i' -- "$1" 2>/dev/null) || return 1
+  case "$fi_out" in
+    [0-9]*' '[0-9]*) printf '%s\n' "$fi_out" ;;
+    *) return 1 ;;
+  esac
+}
+
 # aai_residue_tmp_mount_free <root> — 0 only when every probe below ran to
 # completion AND none shows a mount at or below <root>; otherwise print the
 # reason and return 1 (the caller keeps the root). rm -rf would descend into a
@@ -436,6 +447,17 @@ aai_residue_tmp_cleanup() {
   # Pin the directory's identity (device and inode) before any check, so the
   # removal can prove it acts on the very directory the checks inspected.
   tc_pin=$(aai_residue_dir_identity "$tc_root") || tc_pin=''
+  # The wrapper pins the root and its marker when it creates them, before the
+  # command runs (arguments 5 and 6): a root that is no longer that directory,
+  # or whose marker is no longer that file, is not this run's root at all.
+  if [ -n "${5:-}" ] && [ "$tc_pin" != "$5" ]; then
+    aai_residue_say "kept $tc_root - the directory at the root's path is not the root created for this run (identity differs); left as is"
+    return 0
+  fi
+  if [ -n "${6:-}" ] && [ "$(aai_residue_file_identity "$tc_root/.aai-test-run")" != "$6" ]; then
+    aai_residue_say "kept $tc_root - its marker is not the marker created for this run (identity differs); left as is"
+    return 0
+  fi
   if ! tc_why=$(aai_residue_tmp_verify "$1" "$2" "$tc_base" "$tc_root"); then
     aai_residue_say "kept temp root $tc_root - $tc_why"
     return 0

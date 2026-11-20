@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: bb03ffedca45e0adfd6cd96eb4386ad77f572eae2f2daaede38313b3c55870b1
+frozen_sha256: 93f91a4a6461e985d5359b63ad484b12f7190ac6593ec60e2eed7f77f3cddea9
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -98,8 +98,13 @@ SPEC-FROZEN: true
     `<id> <start>` (the marker layer);
   - the marker's modification time is at or after the start.
   Only then is the root removed, with `rm -rf`, which never follows a
-  symlink inside it. The removal is pinned (Codex P1 on PR #574, tenth
-  review): the directory's device and inode are read before any check, the
+  symlink inside it. The wrapper pins the root's device and inode and the
+  marker's, right after it creates them and before it launches the command;
+  the cleanup keeps (with a NOTE) a root whose directory or marker is no
+  longer that pinned object, so a command that swaps its own root cannot
+  hand the cleanup another directory (Codex P1 on PR #574, fifteenth
+  review). The removal is pinned too (tenth review): the directory's device
+  and inode are read again before any check, the
   root is renamed to a fresh `<root>.removing.<pid>` name and probed again,
   and the deletion then goes through the pinned directory itself: a subshell
   changes into it, re-reads the identity of `.` and the marker, and removes
