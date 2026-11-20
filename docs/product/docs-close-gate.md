@@ -6,8 +6,9 @@ status: current
 delivered_by:
   - issue-gate-via-spec
   - hook-gate-staged-content
+  - precommit-residual-defects
 spec: docs/specs/SPEC-0297-spec-issue-gate-via-spec.md
-updated: 2026-11-16
+updated: 2026-11-20
 ---
 
 # Docs close gate
@@ -32,15 +33,16 @@ missing.
   `GATE PASS via linked spec(s) SPEC-0295 (docs/specs/...)`.
 - Check a file by path (for example a staged copy):
   `node .aai/scripts/docs-audit.mjs --gate-file <path>`. Add `--staged` to
-  resolve the linked specs as staged in the index (HEAD when a spec is
-  not in the index) instead of the working tree.
+  resolve the linked specs as staged in the index instead of the working
+  tree; a linked spec deleted by the commit is skipped.
 - The opt-in pre-commit hook (`.aai/scripts/install-pre-commit-hook.sh`)
   runs the same gate on every staged done-flip under `docs/issues/`,
   `docs/rfc/`, `docs/specs/` and `docs/requirements/`. It
   warns by default; set `close_gate: enforce` in `docs/ai/docs-audit.yaml` to
   block the commit instead. The hook reads the intake doc and its linked
-  specs from the index, with HEAD as the fallback for a spec that is not in
-  the index, so the verdict is the one of the content being committed.
+  specs from the index, so the verdict is the one of the content being
+  committed. It finds staged docs by their real names, including names git
+  would quote (non-ASCII, for example), and body-lints them the same way.
 
 ## Data model
 
@@ -53,7 +55,8 @@ fields; these are the links intake and planning already write.
 
 - `docs-audit.mjs --gate <DOC-ID>` and `--gate-file <path>`: exit 0 pass, 1
   fail, 2 unresolvable id or file (unchanged). `--gate-file <path> --staged`
-  reads the docs it resolves as staged in the index, else HEAD; `--staged` without
+  reads the docs it resolves as staged in the index, else HEAD for a doc the
+  commit does not delete; `--staged` without
   `--gate-file`, or outside a git work tree, exits 2. Output lines:
   `GATE PASS via linked spec(s) <ID> (<path>)`, reasons prefixed with the
   deciding spec's id, `Decided by linked spec(s): <ID> pass|fail (<path>)`,
@@ -82,8 +85,10 @@ fields; these are the links intake and planning already write.
 - A gated file with no frontmatter `id` can only be linked through its own
   `links.spec`.
 - The hook reads the staged linked specs out of the index, not the working
-  tree; a spec missing in the index is read from HEAD, and a spec that
-  exists only as an untracked file is not read. With `--staged` the gate's
+  tree. A linked spec the commit deletes is not read (`git rm`, and `git rm
+  --cached` too), so an intake whose linked spec the commit deletes fails
+  with the `no linked spec` reason; a spec that exists only as an untracked
+  file is not read either. With `--staged` the gate's
   configuration keys (`scan_exclude`, `review_by_methods`) come from the
   staged `docs/ai/docs-audit.yaml` too (HEAD's when it is not staged), so an
   unstaged edit of the config cannot hide a linked spec.
@@ -93,6 +98,8 @@ fields; these are the links intake and planning already write.
 
 - Request: docs/issues/ISSUE-0120-issue-gate-via-spec.md
 - Spec: docs/specs/SPEC-0297-spec-issue-gate-via-spec.md
+- Deleted linked spec, NUL-separated hook lists: precommit-residual-defects
+  (issue) and spec-precommit-residual-defects (spec)
 - Staged read: hook-gate-staged-content (issue) and
   spec-hook-gate-staged-content (spec)
 - Validation evidence (local, gitignored): docs/ai/validation/VALIDATION-issue-gate-via-spec-r4.md (final round)

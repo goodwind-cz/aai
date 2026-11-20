@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-19T21:10:47.093Z",
+  "generatedAt": "2026-11-20T02:35:00.868Z",
   "project": "aai",
   "counts": {
-    "delivered": 373,
+    "delivered": 374,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 195488540
+    "tokens_total": 196532220
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -209,6 +209,19 @@
   ],
   "delivered": [
     {
+      "ref": "precommit-residual-defects",
+      "title": "Four residual defects in the commit-time guards",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0124-precommit-residual-defects.md",
+      "closed_on": "2026-11-20",
+      "agent_minutes": 193,
+      "token_total": 1043680,
+      "spec": "docs/specs/SPEC-0304-spec-precommit-residual-defects.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "test-residue-safe-cleanup",
       "title": "Change: test runs remove their own container residue, behind hard safeguards",
       "type": "change",
@@ -219,7 +232,7 @@
       "token_total": 393794,
       "spec": "docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-test-residue-safe-cleanup-20261119T205918Z.md"
     },
     {
       "ref": "precommit-sentinel-trap",
@@ -5085,6 +5098,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "precommit-residual-defects",
+          "title": "Four residual defects in the commit-time guards",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0124-precommit-residual-defects.md",
+          "closed_on": "2026-11-20",
+          "agent_minutes": 193,
+          "token_total": 1043680,
+          "spec": "docs/specs/SPEC-0304-spec-precommit-residual-defects.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "test-residue-safe-cleanup",
           "title": "Change: test runs remove their own container residue, behind hard safeguards",
           "type": "change",
@@ -5095,7 +5121,7 @@
           "token_total": 393794,
           "spec": "docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-test-residue-safe-cleanup-20261119T205918Z.md"
         },
         {
           "ref": "precommit-sentinel-trap",

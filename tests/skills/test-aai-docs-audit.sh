@@ -9671,8 +9671,11 @@ test_3860_staged_gate_reads_index_spec() {  # TEST-3860 / Spec-AC-01
   log_pass "--gate-file --staged reads the linked spec from the index; without it the working tree decides (TEST-3860)"
 }
 
+# Re-pinned by spec-precommit-residual-defects D1: the git rm --cached case below asserted the HEAD
+# fallback (exit 0 through HEAD's copy); a path the commit deletes is no longer read, so it now fails
+# with the no linked spec reason. TEST-3915 covers git rm and the passing control.
 test_3861_staged_gate_head_fallback() {  # TEST-3861 / Spec-AC-02
-  log_info "Test: a linked spec absent from the index is read from HEAD; an untracked one is not read (TEST-3861)..."
+  log_info "Test: a linked spec the commit removes from the index is not read; an untracked one is not read (TEST-3861)..."
   igs_own_root
   local d; d="$(setup_iso_repo hgs-3861)"
   mkdir -p "$d/docs/issues" "$d/staged"
@@ -9684,8 +9687,8 @@ test_3861_staged_gate_head_fallback() {  # TEST-3861 / Spec-AC-02
   cp "$d/docs/issues/ISSUE-5861-head.md" "$d/staged/blob1.tmp"
   local ec
   ec="$(igs_gate "$d" "$d/g1.log" --gate-file staged/blob1.tmp --staged)"
-  [[ "$ec" == 0 ]] || log_fail "TEST-3861: a spec absent from the index must be read from HEAD (got $ec): $(cat "$d/g1.log")"
-  grep -F "GATE PASS via linked spec(s)" "$d/g1.log" | qgrep -qF "SPEC-5861" || log_fail "TEST-3861: the PASS line must name SPEC-5861: $(cat "$d/g1.log")"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3861: a spec the commit removes from the index must not be read from HEAD (got $ec): $(cat "$d/g1.log")"
+  grep -qF -- "- no linked spec" "$d/g1.log" || log_fail "TEST-3861: the removed spec must give the no linked spec reason: $(cat "$d/g1.log")"
   igs_intake "$d/docs/issues/ISSUE-5862-untracked.md" issue-5862 issue
   (cd "$d" && git add docs/issues/ISSUE-5862-untracked.md) || log_fail "TEST-3861: git add failed"
   igs_spec "$d/docs/specs/SPEC-5862-untracked.md" spec-5862 done requirement issue-5862
@@ -9695,7 +9698,7 @@ test_3861_staged_gate_head_fallback() {  # TEST-3861 / Spec-AC-02
   grep -qF -- "- no linked spec" "$d/g2.log" || log_fail "TEST-3861: must give the no linked spec reason: $(cat "$d/g2.log")"
   rm -rf "$d"
   igs_release_root
-  log_pass "A spec absent from the index is read from HEAD; an untracked one is not read (TEST-3861)"
+  log_pass "A spec the commit removes from the index is not read; an untracked one is not read (TEST-3861)"
 }
 
 test_3862_staged_usage_and_non_git() {  # TEST-3862 / Spec-AC-04
@@ -9805,6 +9808,131 @@ test_3870_staged_config_from_index() {  # TEST-3870 / Spec-AC-11
   log_pass "--staged reads scan_exclude from the staged config (TEST-3870)"
 }
 
+# --- precommit-residual-defects (spec-precommit-residual-defects): a linked spec
+# the commit deletes is not read by --gate-file --staged (D1), and the index hook
+# reads its staged name lists NUL-separated (D2). Reuses the igs_* helpers. -----
+
+test_3915_staged_gate_skips_deleted_spec() {  # TEST-3915 / Spec-AC-01
+  log_info "Test: a linked spec the commit deletes is not read by --gate-file --staged (TEST-3915)..."
+  igs_own_root
+  local d how ec
+  for how in rm cached keep sub; do
+    d="$(setup_iso_repo prd-3915-$how)"
+    if [[ "$how" == sub ]]; then
+      # the project is a subdirectory of the repository: the deleted list must be read relative to it
+      rm -rf "$d/.git"
+      mkdir -p "$d.outer"
+      mv "$d" "$d.outer/proj"
+      d="$d.outer/proj"
+      (cd "${d%/proj}" && git init -q && git config user.email test@example.com && git config user.name "AAI Test") || log_fail "TEST-3915: outer repository init failed"
+    fi
+    mkdir -p "$d/docs/issues" "$d/staged"
+    igs_intake "$d/docs/issues/ISSUE-5915-deleted.md" issue-5915 issue
+    sed -i.bak 's/^status: done/status: draft/' "$d/docs/issues/ISSUE-5915-deleted.md" && rm -f "$d/docs/issues/ISSUE-5915-deleted.md.bak"
+    igs_spec "$d/docs/specs/SPEC-5915-linked.md" spec-5915 done requirement issue-5915
+    (cd "$d" && git add docs && git commit -qm "docs: baseline") || log_fail "TEST-3915: baseline commit failed"
+    sed -i.bak 's/^status: draft/status: done/' "$d/docs/issues/ISSUE-5915-deleted.md" && rm -f "$d/docs/issues/ISSUE-5915-deleted.md.bak"
+    (cd "$d" && git add docs/issues/ISSUE-5915-deleted.md) || log_fail "TEST-3915: git add failed"
+    case "$how" in
+      rm|sub) (cd "$d" && git rm -q docs/specs/SPEC-5915-linked.md) || log_fail "TEST-3915: git rm failed" ;;
+      cached) (cd "$d" && git rm -q --cached docs/specs/SPEC-5915-linked.md) || log_fail "TEST-3915: git rm --cached failed" ;;
+    esac
+    cp "$d/docs/issues/ISSUE-5915-deleted.md" "$d/staged/blob.tmp"
+    ec="$(igs_gate "$d" "$d/g.log" --gate-file staged/blob.tmp --staged)"
+    if [[ "$how" == keep ]]; then
+      [[ "$ec" == 0 ]] || log_fail "TEST-3915: control: a spec left in the index must pass the gate (got $ec): $(cat "$d/g.log")"
+      grep -F "GATE PASS via linked spec(s)" "$d/g.log" | qgrep -qF "SPEC-5915" || log_fail "TEST-3915: control: the PASS line must name SPEC-5915: $(cat "$d/g.log")"
+    else
+      [[ "$ec" == 1 ]] || log_fail "TEST-3915: a spec the commit deletes (git rm$([[ "$how" == cached ]] && printf ' --cached')) must not pass the gate (got $ec): $(cat "$d/g.log")"
+      grep -qF -- "- no linked spec" "$d/g.log" || log_fail "TEST-3915: ($how) must give the no linked spec reason: $(cat "$d/g.log")"
+    fi
+    if [[ "$how" == sub ]]; then rm -rf "${d%/proj}"; else rm -rf "$d"; fi
+  done
+  igs_release_root
+  log_pass "A linked spec the commit deletes (git rm, git rm --cached, and at a project root below the repository top) is not read; one left in the index decides (TEST-3915)"
+}
+
+# prd_hook_repo <name>: an installed-hook fixture whose git quotes non-ASCII names (core.quotePath true,
+# whatever the caller's global config says).
+prd_hook_repo() {
+  local d
+  d="$(setup_spec0011_hook_repo "$1")"
+  git -C "$d" config core.quotePath true
+  printf '%s' "$d"
+}
+
+# prd_dial <repo> <config line>: commits the gate dial on its own, after the fixture's baseline (so the
+# baseline is not gated and the commit under test can stage the doc alone).
+prd_dial() {
+  printf '%s\n' "$2" > "$1/docs/ai/docs-audit.yaml"
+  (cd "$1" && git add docs/ai/docs-audit.yaml && git commit -qm "docs: gate dial" > dial.out 2>&1) || log_fail "prd_dial: the dial commit failed: $(cat "$1/dial.out")"
+}
+
+test_3916_hook_gates_quoted_doc_name() {  # TEST-3916 / Spec-AC-02
+  log_info "Test: the hook gates a done-flip of a doc whose name git quotes (TEST-3916)..."
+  igs_own_root
+  local d with ec head_before intake
+  intake="docs/issues/ISSUE-DRAFT-caf$(printf '\303\251').md"
+  for with in alone companion; do
+    d="$(prd_hook_repo prd-3916-$with)"
+    mkdir -p "$d/docs/issues"
+    igs_intake "$d/$intake" issue-5916 issue
+    sed -i.bak 's/^status: done/status: draft/' "$d/$intake" && rm -f "$d/$intake.bak"
+    igs_spec "$d/docs/specs/SPEC-5916-linked.md" spec-5916 implementing requirement issue-5916
+    printf '# notes\n' > "$d/docs/notes.md"
+    (cd "$d" && git add docs && git commit -qm "docs: baseline draft intake" > base.out 2>&1) || log_fail "TEST-3916: baseline commit failed: $(cat "$d/base.out")"
+    git -C "$d" diff HEAD~1 HEAD --name-only | qgrep -qF '"docs/issues/ISSUE-DRAFT-caf\303\251.md"' || log_fail "TEST-3916: git does not quote the fixture name, the case would not exercise the defect"
+    prd_dial "$d" 'close_gate: enforce'
+    sed -i.bak 's/^status: draft/status: done/' "$d/$intake" && rm -f "$d/$intake.bak"
+    (cd "$d" && git add "$intake") || log_fail "TEST-3916: git add failed"
+    if [[ "$with" == companion ]]; then
+      printf '# notes\nmore\n' > "$d/docs/notes.md"
+      (cd "$d" && git add docs/notes.md) || log_fail "TEST-3916: git add failed"
+    fi
+    ec=0
+    (cd "$d" && git commit -qm "docs: flip the intake (spec open)" > a.out 2>&1) || ec=$?
+    [[ "$ec" != 0 ]] || log_fail "TEST-3916: ($with) a done-flip of a quoted name with an open linked spec must abort the commit under enforce: $(cat "$d/a.out")"
+    grep -qF "close-gate: issue-5916 fails the close gate" "$d/a.out" || log_fail "TEST-3916: ($with) the abort must name issue-5916: $(cat "$d/a.out")"
+    igs_spec "$d/docs/specs/SPEC-5916-linked.md" spec-5916 done requirement issue-5916
+    (cd "$d" && git add docs/specs/SPEC-5916-linked.md) || log_fail "TEST-3916: git add failed"
+    head_before="$(git -C "$d" rev-parse HEAD)"
+    ec=0
+    (cd "$d" && git commit -qm "docs: flip the intake (spec reconciled)" > b.out 2>&1) || ec=$?
+    [[ "$ec" == 0 ]] || log_fail "TEST-3916: ($with) a reconciled linked spec must let the commit through (got $ec): $(cat "$d/b.out")"
+    [[ "$(git -C "$d" rev-parse HEAD)" != "$head_before" ]] || log_fail "TEST-3916: ($with) HEAD did not move"
+    rm -rf "$d"
+  done
+  igs_release_root
+  log_pass "The hook gates a done-flip of a doc whose name git quotes, alone and beside an ASCII doc (TEST-3916)"
+}
+
+test_3917_hook_lints_quoted_doc_name() {  # TEST-3917 / Spec-AC-03
+  log_info "Test: the hook body-lints a doc whose name git quotes (TEST-3917)..."
+  igs_own_root
+  local d ec head_before doc
+  doc="docs/specs/notes-$(printf '\303\274').md"
+  d="$(prd_hook_repo prd-3917)"
+  prd_dial "$d" 'body_lint: enforce'
+  printf '# Notes\n\nText.\n</content>\n' > "$d/$doc"
+  printf '# notes\n' > "$d/docs/notes.md"
+  (cd "$d" && git add "$doc" docs/notes.md) || log_fail "TEST-3917: git add failed"
+  git -C "$d" diff --cached --name-only | qgrep -qF '"docs/specs/notes-\303\274.md"' || log_fail "TEST-3917: git does not quote the fixture name, the case would not exercise the defect"
+  ec=0
+  (cd "$d" && git commit -qm "docs: notes with a stray tag" > a.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "TEST-3917: a stray closing tag in a quoted-name doc must abort the commit under body_lint enforce: $(cat "$d/a.out")"
+  grep -qF "body-lint: $doc fails body lint" "$d/a.out" || log_fail "TEST-3917: the abort must name $doc: $(cat "$d/a.out")"
+  printf '# Notes\n\nText.\n' > "$d/$doc"
+  (cd "$d" && git add "$doc") || log_fail "TEST-3917: git add failed"
+  head_before="$(git -C "$d" rev-parse HEAD)"
+  ec=0
+  (cd "$d" && git commit -qm "docs: notes" > b.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3917: a clean quoted-name doc must commit (got $ec): $(cat "$d/b.out")"
+  [[ "$(git -C "$d" rev-parse HEAD)" != "$head_before" ]] || log_fail "TEST-3917: HEAD did not move"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "The hook body-lints a doc whose name git quotes (TEST-3917)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -9905,6 +10033,9 @@ main() {
   test_3863_hook_gates_staged_linked_spec  # hook-gate-staged-content
   test_3869_staged_rename_drops_head_copy  # hook-gate-staged-content
   test_3870_staged_config_from_index  # hook-gate-staged-content
+  test_3915_staged_gate_skips_deleted_spec  # precommit-residual-defects
+  test_3916_hook_gates_quoted_doc_name  # precommit-residual-defects
+  test_3917_hook_lints_quoted_doc_name  # precommit-residual-defects
   test_536_unparseable_ac_table_shape
   test_582_status_vocabulary_scoped_to_spec_ac_col
   test_538_duplicate_ac_id_multiplicity

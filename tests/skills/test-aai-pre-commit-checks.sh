@@ -3,7 +3,7 @@
 # Test: aai-pre-commit-checks
 # (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461; the later cases TEST-3831..3868
 # and TEST-3871..3882 belong to the staged-content and batched-read specs, TEST-3883..3887 to
-# spec-precommit-sentinel-trap)
+# spec-precommit-sentinel-trap, TEST-3918..3922 to spec-precommit-residual-defects)
 #
 # Two things: the PowerShell pre-commit checks are a deprecation launcher (one retired line
 # naming pre-commit-checks.sh, exit 1), and the bash checks no longer pipe into an
@@ -228,10 +228,12 @@ test_3454_small_input_parity() {
   # VALIDATION r2 B2 fix (one `git rev-parse --git-dir` predicate), then +47 -0 from its
   # VALIDATION r3 B3 fix, then +8 -0 from its VALIDATION r4 remediation (leading-zero and length checks on the
   # size, the parse-completed sentinel, the trap closing descriptors 3 and 4 for rm), then +5 -0 from
-  # precommit-sentinel-trap (PCC_PARSED set to 0, the sentinel keyed on IN_REPO, the CHECK 4 skip-list comment);
+  # precommit-sentinel-trap (PCC_PARSED set to 0, the sentinel keyed on IN_REPO, the CHECK 4 skip-list comment),
+  # then +50 -9 from precommit-residual-defects (the read-and-count loop with one re-read, a pipe probe before the batch read, STATE matched in the
+  # shell, line lists walked by parameter expansion, tools looked up in a subshell);
   # the seven fixtures above stay byte-identical.
-  [[ "$numstat" == "192 30" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '192 30'"
-  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 192 added and 30 removed lines"
+  [[ "$numstat" == "242 39" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '242 39'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 242 added and 39 removed lines"
 }
 
 # shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
@@ -509,8 +511,9 @@ test_3461_line_budget_and_follow_up() {
   # VALIDATION r2 B2 fix (one `git rev-parse --git-dir` predicate for every scratch and list failure, -6/-9),
   # then 472/357 after its VALIDATION r3 B3 fix (descriptor-safe reads, independent count cross-checks, scan-open
   # checks, +47/+32), then 480/360 after its VALIDATION r4 remediation (+8/+3), then 485/361 after
-  # precommit-sentinel-trap (PCC_PARSED initialised, +5/+1).
-  [[ "$sh_t" == 485 && "$sh_c" == 361 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 485 and 361"
+  # precommit-sentinel-trap (PCC_PARSED initialised, +5/+1), then 526/390 after precommit-residual-defects (the
+  # re-read loop, a pipe probe, in-shell STATE matches, parameter-expansion line walks, +41/+29).
+  [[ "$sh_t" == 526 && "$sh_c" == 390 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 526 and 390"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -526,7 +529,7 @@ test_3461_line_budget_and_follow_up() {
     process.stdout.write(bad.join("; "));
   ' "$TEST_DIR/fu.json")"
   [[ -z "$out" ]] || log_fail "TEST-3461: the delete follow-up: $out"
-  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh is 480/360, and the delete follow-up is filed (P3)"
+  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh is $sh_t/$sh_c, and the delete follow-up is filed (P3)"
 }
 
 # --- pr-ceremony-friction-fixes (GitHub #565): CHECK 2 in the AAI evidence folders -------------
@@ -682,14 +685,16 @@ pre_batch_script() {
 # listdrop (its output loses its last whole record, exit 0), listempty (no output at all, exit 0), sizehuge (the
 # first header's size becomes 20 nines, past 64-bit arithmetic), sizepad (the
 # first header's size gets a leading 08: "6" reads "086", a bad octal for bash arithmetic), listspace (every
-# record's status gets one extra leading space, so a record holds five spaces).
+# record's status gets one extra leading space, so a record holds five spaces), late (logs like log; right
+# after it answers the first diff --cached --raw it stages late.txt with the real git, standing in for another
+# process changing the index between the script's two list reads).
 make_git_wrapper() {
   local d="$1" mode="$2" log="${3:-/dev/null}"
   mkdir -p "$d"
   {
     printf '#!/bin/bash\nREAL=%q\nMODE=%q\nLOG=%q\nTMP=%q\n' "$REAL_GIT" "$mode" "$log" "$d/wrap.tmp.$$"
     cat <<'WRAP'
-if [ "$MODE" = log ]; then printf '%s\n' "$*" >> "$LOG"; fi
+if [ "$MODE" = log ] || [ "$MODE" = late ]; then printf '%s\n' "$*" >> "$LOG"; fi
 is_batch=0; is_list=0
 case " $* " in *" cat-file --batch "*) is_batch=1 ;; esac
 case " $* " in *" diff --cached --raw "*) is_list=1 ;; esac
@@ -717,6 +722,10 @@ if [ "$is_list" = 1 ]; then
     listdrop) "$REAL" "$@" > "$TMP"; tr '\0' '\n' < "$TMP" | sed '$d' | sed '$d' | tr '\n' '\0'; rm -f "$TMP"; exit 0 ;;
     listempty) exit 0 ;;
     listspace) "$REAL" "$@" | tr '\0' '\n' | sed 's/^\(:.* \)\([A-Z]\)$/\1 \2/' | tr '\n' '\0'; exit 0 ;;
+    late)
+      "$REAL" "$@"; rc=$?
+      if [ ! -e "${TMP%/*}/late.done" ]; then : > "${TMP%/*}/late.done"; "$REAL" add late.txt >/dev/null 2>&1 || exit 97; fi
+      exit "$rc" ;;
   esac
 fi
 exec "$REAL" "$@"
@@ -728,7 +737,7 @@ WRAP
 # run_with <fixture> <wrapper dir or ""> [VAR=value ...]: runs the fixture's script with the wrapper dir
 # first on PATH; RUN_ULIMIT_F, when set, applies `ulimit -f` to the run, RUN_ULIMIT_N `ulimit -n`, and RUN_HOLD_FDS
 # (any value) keeps the default soft limit of 256 with descriptors 10..254 inherited open (the descriptor table
-# the script's builtin redirections would need to save into). Sets OUT, ERR, RC.
+# the script's builtin redirections would need to save into), and RUN_STRICT (any value) passes --strict. Sets OUT, ERR, RC.
 run_with() {
   local fx="$1" wd="$2" p="$PATH" hold_i
   shift 2
@@ -740,7 +749,7 @@ run_with() {
       ulimit -n 256 || exit 99
       for hold_i in $(seq 10 254); do eval "exec $hold_i</dev/null"; done
     fi
-    cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null PATH="$p" "$@" bash .aai/scripts/pre-commit-checks.sh ) >"$TEST_DIR/run.out" 2>"$TEST_DIR/run.err" || RC=$?
+    cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null PATH="$p" "$@" bash .aai/scripts/pre-commit-checks.sh ${RUN_STRICT:+--strict} ) >"$TEST_DIR/run.out" 2>"$TEST_DIR/run.err" || RC=$?
   OUT="$TEST_DIR/run.out"; ERR="$TEST_DIR/run.err"
 }
 
@@ -1086,6 +1095,146 @@ test_3887_preservation_and_moved_pins() {
   log_pass "TEST-3887: the seven-fixture parity and its numstat pin, the line-count pin, and TEST-3873, TEST-3875, TEST-3880 and TEST-3882 hold"
 }
 
+# --- precommit-residual-defects (spec-precommit-residual-defects): one re-read absorbs an index change
+# between the two list reads (D3); no builtin redirection loses the report under a full descriptor table
+# (D4). ---------------------------------------------------------------------------------------------------
+
+test_3918_index_race_reread() {
+  local fx wd kind
+  for kind in secret clean; do
+    fx="$TEST_DIR/t3918$kind"; wd="$TEST_DIR/w3918$kind"
+    make_fx "$fx"
+    printf 'clean a\n' > "$fx/a.txt"
+    git -C "$fx" add a.txt
+    if [[ "$kind" == secret ]]; then printf '%s\n' "$(secret_line)" > "$fx/late.txt"; else printf 'clean late\n' > "$fx/late.txt"; fi
+    make_git_wrapper "$wd" late "$TEST_DIR/t3918$kind.log"
+    run_with "$fx" "$wd"
+    [[ -e "$wd/late.done" ]] || log_fail "TEST-3918: ($kind) the wrapper never staged late.txt, the case is not exercising the race"
+    [[ "$(count_in "$TEST_DIR/t3918$kind.log" "diff --cached --raw")" == 2 ]] || { cat "$TEST_DIR/t3918$kind.log" >&2; log_fail "TEST-3918: ($kind) the staged list was read $(count_in "$TEST_DIR/t3918$kind.log" "diff --cached --raw") times, expected 2"; }
+    [[ "$(count_in "$OUT" "$FAIL_CLOSED")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3918: ($kind) an index change between the two reads blocked the commit as unreadable"; }
+    if [[ "$kind" == secret ]]; then
+      [[ "$RC" == 1 && "$(count_in "$OUT" "$SECRET_HIT late.txt")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3918: the secret in the file staged between the reads was not reported once with exit 1 (exit $RC)"; }
+    else
+      [[ "$RC" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3918: a clean file staged between the reads: exit $RC, expected 0"; }
+      "$GREP" -qE 'ALL CHECKS PASS|PASS WITH WARNINGS' "$OUT" || { cat "$OUT" >&2; log_fail "TEST-3918: a clean file staged between the reads: no passing summary"; }
+    fi
+  done
+  staged_fx "$TEST_DIR/t3918drop"
+  make_git_wrapper "$TEST_DIR/w3918drop" listdrop
+  run_with "$TEST_DIR/t3918drop" "$TEST_DIR/w3918drop"
+  assert_closed TEST-3918 "staged list count mismatch"
+  log_pass "TEST-3918: a file staged by another process between the two list reads is absorbed by one re-read of both lists (its secret reported, a clean one passes); a list still short on the re-read fails closed"
+}
+
+# hold_node_shim <dir>: a node on PATH that closes descriptors 10..254 before it runs the real node, so
+# CHECK 9's tracked-ignored.mjs can run under RUN_HOLD_FDS while the script itself keeps the full table.
+hold_node_shim() {
+  mkdir -p "$1"
+  printf '#!/bin/bash\nfor i in $(seq 10 254); do eval "exec $i<&-"; done\nexec %q "$@"\n' "$(command -v node)" > "$1/node"
+  chmod +x "$1/node"
+}
+
+test_3919_full_descriptor_table_reports() {
+  local fx="$TEST_DIR/t3919" sd="$TEST_DIR/w3919" fx2="$TEST_DIR/t3919s"
+  hold_node_shim "$sd"
+  make_fx "$fx"
+  cp "$PROJECT_ROOT/.aai/scripts/tracked-ignored.mjs" "$fx/.aai/scripts/"
+  printf 'ignored.log\n' > "$fx/.gitignore"
+  git -C "$fx" add .gitignore .aai/scripts/tracked-ignored.mjs
+  git -C "$fx" commit -q -m ignore
+  printf 'data\n' > "$fx/ignored.log"
+  git -C "$fx" add -f ignored.log
+  RUN_HOLD_FDS=1 run_with "$fx" "$sd"
+  [[ "$RC" != 99 ]] || log_fail "TEST-3919: the descriptor limit could not be set to 256"
+  [[ "$RC" == 1 ]] || { cat "$OUT" "$ERR" >&2; log_fail "TEST-3919: an added ignored path under a full table: exit $RC, expected 1"; }
+  [[ "$(count_in "$OUT" "Gitignored path staged for ADD: ignored.log")" == 1 ]] || { cat "$OUT" "$ERR" >&2; log_fail "TEST-3919: the ADD line for ignored.log was not printed once"; }
+  [[ "$(count_in "$OUT" "BLOCKED:")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3919: the BLOCKED summary was not printed"; }
+  [[ "$(count_in "$ERR" "cannot duplicate fd")" == 0 ]] || { cat "$ERR" >&2; log_fail "TEST-3919: a builtin redirection could not save its descriptor"; }
+  make_fx "$fx2"
+  write_state "$fx2" review_not_run small
+  RUN_HOLD_FDS=1 RUN_STRICT=1 run_with "$fx2" "$sd"
+  [[ "$RC" == 1 ]] || { cat "$OUT" "$ERR" >&2; log_fail "TEST-3919: --strict with a review not run under a full table: exit $RC, expected 1"; }
+  [[ "$(count_in "$OUT" "$REVIEW_WARN")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3919: the review warning was not printed once"; }
+  [[ "$(count_in "$OUT" "BLOCKED (strict mode)")" == 1 ]] || { cat "$OUT" "$ERR" >&2; log_fail "TEST-3919: the BLOCKED (strict mode) summary was not printed"; }
+  [[ "$(count_in "$ERR" "cannot duplicate fd")" == 0 ]] || { cat "$ERR" >&2; log_fail "TEST-3919: --strict: a builtin redirection could not save its descriptor"; }
+  log_pass "TEST-3919: at the 256 limit with descriptors 10..254 inherited, an added ignored path is reported and blocks with its summary, a --strict review warning blocks with its summary, and no redirection fails to save a descriptor"
+}
+
+# builtin_redir_scan <script>: prints every line of a bash script holding a redirection on a builtin, a shell
+# function or a compound command (done, fi, }, esac): the redirections bash 3.2 must save a descriptor for. Quoted
+# text and comments are dropped first; a simple command is split at |, &&, ||, ;, $( and ( and judged by its first
+# word after assignments, a case pattern (`x)`) and if/then/else/elif/do/while/until/!; command substitutions and
+# backticks are blanked first. The two permanent `exec N< file` opens (they save nothing) are the only builtin
+# redirections allowed. A here-string or here-document is reported too. A lexical scan, not a parser: a shape outside
+# the planted set below can escape it; TEST-3919 guards the behaviour under a full descriptor table.
+builtin_redir_scan() {
+  node -e '
+    const fs = require("fs");
+    const src = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const builtins = new Set(("alias bg bind break builtin caller cd command compgen complete continue declare dirs disown " +
+      "echo enable eval exec exit export false fc fg getopts hash help history jobs kill let local logout mapfile popd " +
+      "printf pushd pwd read readarray readonly return set shift shopt source suspend test times trap true type typeset " +
+      "ulimit umask unalias unset wait : . [ [[ done fi } esac").split(" "));
+    const fns = new Set();
+    for (const l of src) { const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{/.exec(l); if (m) fns.add(m[1]); }
+    const lead = new Set(["if", "then", "else", "elif", "do", "while", "until", "!", "{", "time"]);
+    const out = [];
+    src.forEach((raw, i) => {
+      if (/^\s*#/.test(raw)) return;
+      let l = raw.replace(/\x27[^\x27]*\x27/g, "Q").replace(/"(?:\\.|[^"\\])*"/g, "Q").replace(/\s#.*$/, "");
+      for (let prev = ""; prev !== l;) { prev = l; l = l.replace(/\$\([^()]*\)/g, "Q").replace(/`[^`]*`/g, "Q"); }
+      if (/<</.test(l)) { out.push((i + 1) + ": here-string or here-document: " + raw.trim()); return; }
+      if (/^\s*exec [34]< Q/.test(l)) return;
+      for (const seg of l.split(/\|\||&&|\||;|\$\(|\(/)) {
+        if (!/[0-9]?(>>?|<)&?/.test(seg.replace(/\[\[.*?\]\]/g, ""))) continue;
+        if (/\)\s*[0-9]?(>>?|<)/.test(seg)) continue;   // ( ... ) >: the subshell redirects in its own child
+        const words = seg.replace(/^\s*case\s+\S+\s+in\s+/, "").trim().split(/\s+/).filter(Boolean);
+        let k = 0;
+        while (k < words.length && (lead.has(words[k]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[k]) || /.\)$/.test(words[k]))) k++;
+        const w = words[k] ?? "";
+        if (w === ")" || /^\)/.test(w)) continue;
+        if (builtins.has(w) || fns.has(w) || /^[0-9]?(>>?|<)/.test(w)) out.push((i + 1) + ": " + (w || "(none)") + ": " + raw.trim());
+      }
+    });
+    process.stdout.write(out.join("\n"));
+  ' "$1"
+}
+
+test_3920_no_builtin_redirection_text() {
+  local bad probe="$TEST_DIR/t3920-probe.sh" m
+  bad="$(builtin_redir_scan "$SH_CHECKS")"
+  [[ -z "$bad" ]] || log_fail "TEST-3920: pre-commit-checks.sh holds a builtin, function or compound-command redirection: $bad"
+  bad="$(awk '/command -v/ && !/\( command -v [a-z]+ \)/ { print FNR": "$0 }' "$SH_CHECKS")"
+  [[ -z "$bad" ]] || log_fail "TEST-3920: command -v outside the subshell form: $bad"
+  [[ "$("$GREP" -c '( command -v [a-z]* )' "$SH_CHECKS" || true)" -ge 3 ]] || log_fail "TEST-3920: CHECKs 7, 8 and 9 do not test for their tool in a subshell"
+  # the scan itself must see each shape it claims to forbid (one planted line each, in a copy)
+  for m in 'hash node >/dev/null 2>&1' 'command -v node >/dev/null 2>&1' 'echo "x" > "$PCC_TMP/f"' 'read -r x < "$PCC_TMP/f"' \
+    'pass "ok" 2>/dev/null' ': > "$PCC_TMP/f"' 'grep -q x <<< "$y"' 'done < "$PCC_TMP/f"' '} >/dev/null' 'if [ -f x ] && type node >/dev/null; then :; fi' \
+    'case "$x" in *) staged_read_fail "y" >&2 ;; esac' 'case "$x" in D|U) warn x >&2 ;; esac' 'echo $(date) >/dev/null' 'echo `date` >/dev/null'; do
+    { cat "$SH_CHECKS"; printf '%s\n' "$m"; } > "$probe"
+    [[ -n "$(builtin_redir_scan "$probe")" ]] || log_fail "TEST-3920: the scan does not see a planted builtin redirection: $m"
+  done
+  log_pass "TEST-3920: pre-commit-checks.sh holds no redirection on a builtin, a function or a compound command (only the two exec opens), no here-string or here-document, and tests for a tool only in a subshell; the scan sees each planted shape (a lexical scan: TEST-3919 guards the behaviour)"
+}
+
+test_3921_preservation_and_moved_pins() {
+  local sel
+  for sel in test_3451_large_state_check1_check5 test_3454_small_input_parity test_3461_line_budget_and_follow_up \
+    test_3873_response_count_mismatch_fails_closed test_3880_descriptor_exhaustion_fails_closed \
+    test_3881_list_count_crosscheck_fails_closed test_3885_trap_closes_descriptors_before_cleanup; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-pre-commit-checks.sh" "$sel" >"$TEST_DIR/self3921.out" 2>&1 || { tail -10 "$TEST_DIR/self3921.out" >&2; log_fail "TEST-3921: $sel failed"; }
+  done
+  log_pass "TEST-3921: TEST-3451, the seven-fixture parity and its numstat pin, the line-count pin, TEST-3873, TEST-3880, TEST-3881 and TEST-3885 hold"
+}
+
+test_3922_changelog_and_product_doc() {
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/docs-close-gate.md" n
+  n="$("$GREP" -cE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — fix: commit-time guards skip a deleted linked spec' "$cl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3922: CHANGELOG.md holds $n headings for this fix, want exactly 1"
+  "$GREP" -qF "the commit deletes is not read" "$doc" || log_fail "TEST-3922: the product doc must say a linked spec the commit deletes is not read"
+  log_pass "TEST-3922: one CHANGELOG heading, and the product doc states the deletion policy"
+}
+
 # build_ac06 <dir> <script>: the Spec-AC-06 fixture, staged and unstaged shapes in one repository.
 build_ac06() {
   local d="$1" line n sub
@@ -1227,7 +1376,7 @@ test_3879_installed_hook_reads_the_commits_index() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3882)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3887, TEST-3918..3922)"
   check_deps
   setup_fixture
   test_3448_ps1_retired_run
@@ -1268,6 +1417,11 @@ main() {
   test_3885_trap_closes_descriptors_before_cleanup
   test_3886_check3_copy_removed_still_blocks
   test_3887_preservation_and_moved_pins
+  test_3918_index_race_reread
+  test_3919_full_descriptor_table_reports
+  test_3920_no_builtin_redirection_text
+  test_3921_preservation_and_moved_pins
+  test_3922_changelog_and_product_doc
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

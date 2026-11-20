@@ -2012,8 +2012,11 @@ function scanGateEntries(root, { staged = false } = {}) {
 // records it: every path under docs/ in the index or in HEAD, admitted by the
 // scan's own rule (admitScanFile), each read from its stage-0 index blob, else
 // from HEAD's committed blob. A path only in the working tree is not part of
-// the commit and is not read. Throws when root is not inside a git work tree.
-// Returns [{ rel, fileId, content }] sorted by rel.
+// the commit and is not read. spec-precommit-residual-defects D1: neither is a
+// path the commit deletes (git rm, git rm --cached), so a linked spec removed
+// in the commit is not found and cannot pass the gate on HEAD's copy. Throws
+// when root is not inside a git work tree. Returns [{ rel, fileId, content }]
+// sorted by rel.
 function readStagedDocSet(root, scanExclude) {
   const git = (args) => execFileSync('git', ['-C', root, ...args], {
     stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 30,
@@ -2027,8 +2030,10 @@ function readStagedDocSet(root, scanExclude) {
   } catch {
     inHead = [];   // no commit yet: HEAD contributes nothing
   }
+  const deleted = new Set(zList(git(['diff', '--cached', '--relative', '--name-only', '-z', '--no-renames', '--diff-filter=D', '--', SCAN_ROOT])));
   const admitted = [];
   for (const rel of new Set([...inIndex, ...inHead])) {
+    if (deleted.has(rel)) continue;
     const parts = rel.split('/');
     if (parts.length > 2 && EXCLUDE_DIRS.has(parts[1])) continue;
     if (scanExcluded(rel, scanExclude)) continue;

@@ -545,7 +545,10 @@ test_307_clone_seam() {
 # (one flag on the call plus a three-line comment) -- an intentional,
 # in-scope change, not drift. New hash measured by the full sweep's own run
 # of this test at 3aad8989 (the "got" value of TEST-308).
-PRECOMMIT_SHA256_BASELINE="5c5b0bd0315471885ed5c7ef1f140673e554aa1b1cb6bd79c69cc031258da595"
+# Re-pinned by precommit-residual-defects (D2): the hook reads its staged name
+# lists NUL-separated (-z) into a scratch directory -- an intentional, in-scope
+# change, measured by VALIDATION r1's run of this test (its "got" value).
+PRECOMMIT_SHA256_BASELINE="94472712b7b9a4c5c4dd2361c4c1a1fe3c7dbdd26e893997514e37e9c6d8666f"
 
 test_308_installer_contract() {
   local ok=1

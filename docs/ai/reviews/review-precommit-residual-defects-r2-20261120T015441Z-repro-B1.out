@@ -1,0 +1,10 @@
+--- M1:
+<     case "$meta" in :*) ;; *) staged_read_fail "malformed staged list" ;; esac
+---
+>     case "$meta" in :*) ;; *) staged_read_fail "malformed staged list" >&2 ;; esac
+M1: TEST-3920 PASSES on the mutant (gap)
+--- M2:
+> echo $(date) >/dev/null
+M2: TEST-3920 PASSES on the mutant (gap)
+GAP REPRODUCED
+rc=1
