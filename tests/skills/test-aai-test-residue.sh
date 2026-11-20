@@ -1072,6 +1072,14 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
     sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
   [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root the mount table shows a mount inside was removed: $T_OUT"; ok=0; }
   command grep -qF 'mount table' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the mount table: $T_OUT"; ok=0; }
+  # a mount attached directly AT the root (no trailing slash in the table) keeps it as well
+  printf '#!/bin/sh\necho "/dev/fake on %s type none (rw,bind)"\n' "$root" > "$fsd/mount"
+  chmod +x "$fsd/mount"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root with a mount attached at it was removed: $T_OUT"; ok=0; }
+  command grep -qF 'mount table lists a mount' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the mount at the root: $T_OUT"; ok=0; }
   # a mount table that cannot be read (mount fails) keeps the root too: a bind mount could be hiding there
   printf '#!/bin/sh\nexit 1\n' > "$fsd/mount"
   chmod +x "$fsd/mount"

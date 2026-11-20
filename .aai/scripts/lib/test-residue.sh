@@ -401,8 +401,8 @@ aai_residue_tmp_cleanup() {
     aai_residue_say "kept temp root $tc_root - the mount table could not be read, so a mount inside it cannot be ruled out"
     return 0
   fi
-  if printf '%s\n' "$tc_mounts" | grep -qF " on $tc_root/"; then
-    aai_residue_say "kept temp root $tc_root - the mount table lists a mount inside it; unmount it and remove the root by hand"
+  if printf '%s\n' "$tc_mounts" | grep -qF -e " on $tc_root/" -e " on $tc_root "; then
+    aai_residue_say "kept temp root $tc_root - the mount table lists a mount at or inside it; unmount it and remove the root by hand"
     return 0
   fi
   if [ "${AAI_RESIDUE_DRY_RUN:-0}" = "1" ]; then
