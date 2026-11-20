@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: ea654ff7acb6a7ee6b8e870a1fd3b5cfa2864f72a72fbba3b355963b223eaca5
+frozen_sha256: e9bb541e5f9acb52f6a32684876c726c5fe12b53ded84a7df06e9af92b624790
 ceremony_level: 2
 links:
   requirement: bootstrap-on-node
@@ -85,6 +85,8 @@ SPEC-FROZEN: true
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   docs/ai/decisions.jsonl docs/issues/CHANGE-DRAFT-bootstrap-on-node.md
   docs/specs/SPEC-DRAFT-bootstrap-on-node.md docs/INDEX.md
+  tests/skills/lib/aai-bootstrap-fixtures.mjs tests/skills/lib/aai-bootstrap-golden.json
+  tests/skills/test-aai-pr-preflight.sh tests/skills/test-aai-suite-reuse.sh
   (decisions.jsonl only for the amendment and follow-up records; the
   allocator renames the two DRAFT files at merge).
 - Code review required: true.
@@ -388,7 +390,7 @@ with a positive and a negative fixture (TEST-3943 to TEST-3945):
 | Id | Reference | Module | Why | Test |
 |---|---|---|---|---|
 | DR-1 | `-h` prints `set -euo pipefail`, an empty line, then the comment block | the comment block plus the PowerShell usage line | the reference prints its own source line by accident; a Node module has no such line | TEST-3942 |
-| DR-2 | a bad target prints bash's `line 76: cd:` error | prints `aai-bootstrap: target not found: <arg>`; exit 1 in both | bash's message names a script line | TEST-3942 |
+| DR-2 | a bad target prints bash's `line 76: cd:` error | prints `aai-bootstrap: target not found: <arg>`; exit 1 in both | bash's message names a script line; DR-11 covers the three `cd`-option targets the reference accepts | TEST-3942 |
 | DR-3 | three branches for a missing node (package.json grep fallback, hooks WARN, platform line) | absent | Node runs the module, so node exists | TEST-3941 |
 | DR-4 | with `lib/gitignore-block.sh` missing it prints a skip note and seeds no runtime pattern | seeds from the list; the library is not a dependency | the Node reconcile is the module's own | TEST-3948 |
 | DR-5 | auth search by `rg` (skips hidden and gitignored paths) or `grep -R` (skips nothing), host-dependent | one walk: skips node_modules, .git, dist, build; searches hidden files; ignores .gitignore | one deterministic rule on every host | TEST-3945 |
@@ -397,6 +399,7 @@ with a positive and a negative fixture (TEST-3943 to TEST-3945):
 | DR-8 | script-dir paths in messages are logical; a missing `../system` gives `/RUNTIME_IGNORE.list` | module dir as Node resolves it; the full expected list path | Node resolves the main module through symlinks | TEST-3948 |
 | DR-9 | on Windows (Git Bash) the marker records `Target root: /c/...` | records the native path `C:\...` | the native path is what a Windows bootstrap should record; one allowlist row (D-PARITY) | TEST-3956 |
 | DR-10 | an `.env.*` file without a matching credential name makes the `grep` into `cut` pipeline fail under pipefail: silent exit 1, empty stdout and stderr, nothing written (corpus K19) | the file is skipped as D-AUTH says and the run completes, exit 0 | the reference aborts by accident, not by policy; K19 stays in the corpus as an asserted divergence and K19b (K19 without that file) is byte-equal | TEST-3949 |
+| DR-11 | a target of `--`, `-P` or `-L` is taken by `cd` as an option, so the reference changes to HOME and bootstraps HOME (exit 0) | the target is resolved as a path name; these three name no directory, so the module exits 1 with `aai-bootstrap: target not found: <target>` and writes nothing | the reference behaviour is an accident of `cd` option parsing that bootstraps an unintended directory; refusing is safer | TEST-3942 |
 
 Kept for parity, pinned as rules and not drifts: the docker tag's trailing
 dash, `GENERATOR` dots matching any character, cache patterns compared

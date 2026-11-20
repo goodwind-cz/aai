@@ -398,6 +398,29 @@ describe('TEST-3942 arguments and root', () => {
     assert.ok(!ok.stderr.includes('target not found'));
   });
 
+  test('TEST-3942 the targets -- -P -L are refused by the module and bootstrap HOME in the reference (DR-11)', () => {
+    const refTree = scratch('cdopt-ref-');
+    const ref0 = materializeBootstrapReference(ROOT, refTree);
+    for (const target of ['--', '-P', '-L']) {
+      const cwd = scratch('cdopt-cwd-');
+      const home = scratch('cdopt-home-');
+      const env = { ...process.env, HOME: home };
+      const beforeCwd = listTree(cwd);
+      const beforeHome = listTree(home);
+      const r = spawnSync(process.execPath, [MODULE, target], { encoding: 'utf8', cwd, env });
+      assert.equal(r.status, 1, `${target}: ${r.stderr}`);
+      assert.equal(r.stdout, '');
+      assert.equal(r.stderr, `aai-bootstrap: target not found: ${target}\n`);
+      assert.deepEqual(listTree(home), beforeHome, `${target} wrote into HOME`);
+      assert.deepEqual(listTree(cwd), beforeCwd, `${target} wrote into the working directory`);
+      // the reference reads the target as a cd option and lands in the (scratch) HOME
+      const ref = spawnSync('bash', [ref0, target], { encoding: 'utf8', cwd, env });
+      assert.equal(ref.status, 0, `reference on ${target}: ${ref.stderr}`);
+      assert.ok(listTree(home).length > beforeHome.length, `reference on ${target} bootstrapped nothing in HOME`);
+      assert.deepEqual(listTree(cwd), beforeCwd, `reference on ${target} wrote into the working directory`);
+    }
+  });
+
   test('TEST-3942 resolveRoot keeps the logical path when PWD names the working directory', async () => {
     const { resolveRoot } = await import(pathToFileURL(MODULE).href);
     const base = scratch('root-');

@@ -107,10 +107,6 @@ const MONTY_EXTRA = [
   '```',
 ].join('\n') + '\n';
 
-const notYet = (name) => () => {
-  throw new Error(`aai-bootstrap: ${name} is not implemented yet`);
-};
-
 // parseArgs(argv): arguments left to right as the reference reads them. outcome is 'run', 'help'
 // (-h or --help seen first) or 'usage' (a second positional, named in extra).
 export function parseArgs(argv) {
@@ -470,11 +466,12 @@ function prerequisites(auth) {
   return `## Prerequisites\n${cred}- ${auth.sessionRef}\n`;
 }
 
-// planSkills(root): the skills in order ({ name, description, command, extra }) and the skipped messages.
-export function planSkills(root) {
-  const det = detect(root);
-  const cmds = chooseCommands(root);
-  const auth = detectAuth(root, cmds);
+// planSkills(root, known): the skills in order ({ name, description, command, extra }) and the skipped messages.
+// known may hold the already computed det, cmds and auth; whatever is missing is computed here.
+export function planSkills(root, known = {}) {
+  const det = known.det ?? detect(root);
+  const cmds = known.cmds ?? chooseCommands(root);
+  const auth = known.auth ?? detectAuth(root, cmds);
   const skills = [];
   const skipped = [];
   const add = (name, description, command, extra = '') => skills.push({ name, description, command, extra });
@@ -738,7 +735,6 @@ export function recordGitPlatform(root, { dryRun, spawn: child = runChild }) {
 
 const stamp = (d) => (typeof d === 'string' ? d : d.toISOString().replace(/\.\d+Z$/, 'Z'));
 
-
 // run(argv, io): returns the exit code. io holds out, err (string sinks), now, env, cwd and spawn.
 export function run(argv, io = {}) {
   const out = io.out ?? ((s) => process.stdout.write(s));
@@ -765,7 +761,7 @@ export function run(argv, io = {}) {
   const det = detect(root);
   const cmds = chooseCommands(root);
   const auth = detectAuth(root, cmds);
-  const plan = planSkills(root);
+  const plan = planSkills(root, { det, cmds, auth });
   const conflicts = preflight(root, plan, args.force);
   if (conflicts.length > 0) {
     err('ERROR: bootstrap would overwrite unmarked files.\n');
