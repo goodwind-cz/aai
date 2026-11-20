@@ -871,6 +871,12 @@ test_3924_tampered_roots_are_kept() {
   T_OUT="$(HOME="$sb" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
     sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
   kept "HOME base" "$root" "HOME"
+  # a marker that cannot be written (file size limit) rolls the new root back
+  T_RC=0
+  T_OUT="$(AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c 'trap "" XFSZ; ulimit -f 0; . "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_create "$TID_OTHER" "$st" "$sb" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 ]] || { log_fail "TEST-3924 a root whose marker could not be written was reported as made: $T_OUT"; ok=0; }
+  [[ ! -e "$sb/aai-tr-ffffffff" ]] || { log_fail "TEST-3924 a root whose marker could not be written was left behind"; ok=0; }
   for t in "" "aai-x" ; do
     lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$t" "$st" "$sb" "$root"
     [[ "$T_RC" -eq 2 && -f "$root/keep.txt" ]] || { log_fail "TEST-3924 id [$t]: exit $T_RC (want 2) or the root was touched: $T_OUT"; ok=0; }
@@ -1066,6 +1072,14 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
     sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
   [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root the mount table shows a mount inside was removed: $T_OUT"; ok=0; }
   command grep -qF 'mount table' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the mount table: $T_OUT"; ok=0; }
+  # a mount table that cannot be read (mount fails) keeps the root too: a bind mount could be hiding there
+  printf '#!/bin/sh\nexit 1\n' > "$fsd/mount"
+  chmod +x "$fsd/mount"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root was removed although the mount table could not be read: $T_OUT"; ok=0; }
+  command grep -qF 'could not be read' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the unreadable mount table: $T_OUT"; ok=0; }
   rm -f "$fsd/mount"
   # the real thing where it can be made without privileges (macOS disk image); elsewhere the shim cases stand
   if [[ "$(uname -s)" == Darwin ]] && command -v hdiutil >/dev/null 2>&1; then

@@ -313,7 +313,12 @@ aai_residue_tmp_create() {
   case "${3:-}" in /?*) : ;; *) return 2 ;; esac
   tc_new="$3/aai-tr-$(aai_residue_suffix "$1")"
   (umask 077 && mkdir -- "$tc_new") 2>/dev/null || return 1
-  printf '%s %s\n' "$1" "$2" > "$tc_new/.aai-test-run" || return 1
+  if ! printf '%s %s\n' "$1" "$2" > "$tc_new/.aai-test-run"; then
+    # roll back only what this call just made: the marker file and the empty root
+    rm -f -- "$tc_new/.aai-test-run" 2>/dev/null
+    rmdir -- "$tc_new" 2>/dev/null
+    return 1
+  fi
   printf '%s\n' "$tc_new"
 }
 
@@ -390,8 +395,13 @@ aai_residue_tmp_cleanup() {
     return 0
   fi
   # A bind mount of a directory on the same filesystem keeps the device, so the
-  # walk above cannot see it; the mount table can.
-  if mount 2>/dev/null | grep -qF " on $tc_root/"; then
+  # walk above cannot see it; the mount table can. A table that cannot be read
+  # keeps the root (a bind mount could be hiding there).
+  if ! tc_mounts=$(mount 2>/dev/null) || [ -z "$tc_mounts" ]; then
+    aai_residue_say "kept temp root $tc_root - the mount table could not be read, so a mount inside it cannot be ruled out"
+    return 0
+  fi
+  if printf '%s\n' "$tc_mounts" | grep -qF " on $tc_root/"; then
     aai_residue_say "kept temp root $tc_root - the mount table lists a mount inside it; unmount it and remove the root by hand"
     return 0
   fi

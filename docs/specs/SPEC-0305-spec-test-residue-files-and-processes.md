@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 616d220dce3794d75372f4e56576505a9fb6607e4ba8ece114d8ec7cc46267fb
+frozen_sha256: 71162233f6b5100776c082c72e2a3f976130ccebcc6ed7aecc97d5c50ac8132a
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -97,7 +97,9 @@ SPEC-FROZEN: true
   kept with that reason, because `rm -rf` would delete the mounted data. A
   bind mount of a same-device directory keeps the device number, so the
   root is also kept when the `mount` table lists any mount point under
-  `<root>/` (amendment after validation r2 NB-3). Anything else keeps the root and prints the reason.
+  `<root>/` (amendment after validation r2 NB-3), and when the mount table
+  cannot be read at all (Codex P1 on PR #574: fail closed). A root whose
+  marker cannot be written is rolled back at creation (Codex P2 on PR #574). Anything else keeps the root and prints the reason.
   An empty or malformed id, a non-integer start, or an empty base or root
   refuses with exit 2 before any check.
 - D4 (outside the root: report only). Before the removal, `find <base>
