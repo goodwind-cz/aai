@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 1400471142241319c2b3ff36a40094aedf7d35fb2b1eaba40661abc6a5603a90
+frozen_sha256: d493687d508068f3eeca6199fb3cd681be0bd994a4b2b37472d77b9065f533d0
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -322,3 +322,8 @@ Registry items closed by this scope: fu-test-residue-temp-and-processes
   network mount could hold the wrapper (follow-up `fu-tree-lsof-unbounded`).
 - The Git Bash path runs none of this; Windows CI covers only that it stays
   off.
+- A same-device bind mount added under the root by a privileged process
+  after the last probe keeps the device number, so `find -xdev` cannot tell
+  it apart at deletion time; a different-device mount added then is not
+  entered. A same-uid process can still rearrange entries inside the run's
+  own root while it is removed (shell has no descriptor-relative deletion).
