@@ -4254,3 +4254,7 @@
 {"v":1,"ts":"2026-11-20T15:57:00Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-04","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-11-20T15:57:00Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-05","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-11-20T15:57:00Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-20T16:14:32Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-20T16:14:32Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-08","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-20T16:14:32Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-09","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-20T16:14:32Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-bootstrap-on-node/Spec-AC-10","payload":{"from":"planned","to":"done"}}

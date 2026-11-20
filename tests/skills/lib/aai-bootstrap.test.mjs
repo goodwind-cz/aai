@@ -8,13 +8,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync,
+  appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { K_CASES, GOLDEN_EMPTY, GOLDEN_FULL } from './aai-bootstrap-fixtures.mjs';
+import { compareSnapshots, snapshotNormalized } from './install-parity.mjs';
 import {
   OWN_MARKER_FILE, REFERENCE_BLOB, REFERENCE_COMMIT, REFERENCE_PATH, REFERENCE_SHA256,
   createOwnScratch, materializeBootstrapReference, removeOwnScratch, removeOwnScratchAll, sha256File,
@@ -28,6 +30,7 @@ const NEW_TEST_FILES = [
   path.join(ROOT, 'tests', 'skills', 'test-aai-bootstrap-node.sh'),
   path.join(HERE, 'aai-bootstrap.test.mjs'),
   path.join(HERE, 'bootstrap-reference.mjs'),
+  path.join(HERE, 'aai-bootstrap-fixtures.mjs'),
 ];
 
 const scratchDirs = [];
@@ -938,5 +941,447 @@ describe('TEST-3945 auth and plan', () => {
       const refDirs = readdirSync(path.join(root, '.claude', 'skills')).filter((n) => n.startsWith('aai-') && statSync(path.join(root, '.claude', 'skills', n)).isDirectory()).sort();
       assert.deepEqual(plan.skills.map((s) => s.name).sort(), refDirs, `${label}: the reference wrote no other skill`);
     }
+  });
+});
+
+// --- slice b: rendering, writes, .gitignore and the masked corpus ---------------------------------
+
+const GOLDEN = JSON.parse(readFileSync(path.join(HERE, 'aai-bootstrap-golden.json'), 'utf8'));
+const NOW = '2026-01-02T03:04:05Z';
+const fill = (text, root, now = NOW) => text.split('@ROOT@').join(root).split('@NOW@').join(now);
+const strip = (text) => text.replace(/\n+$/, '');
+const RUNTIME_LIST = path.join(ROOT, '.aai', 'system', 'RUNTIME_IGNORE.list');
+const runtimePatterns = () => readFileSync(RUNTIME_LIST, 'utf8').split('\n').filter((l) => l !== '' && !l.startsWith('#'));
+const SEED_MARKER = '# AAI runtime sidecars (seeded by aai-bootstrap; per-dev, never commit)';
+const CACHE = ['.claude/skills/.cache', '.codex/skills.local/.cache', '.gemini/skills.local/.cache'];
+
+// parseSummary(text): the lists the summary holds, read back from the reference's stdout.
+function summaryLists(text) {
+  const block = (title) => {
+    const m = text.match(new RegExp(`\\n${title}:\\n([\\s\\S]*?)(?:\\n\\n|\\n$)`));
+    return m ? m[1].split('\n').map((l) => l.replace(/^- /, '')) : [];
+  };
+  return { written: block('Generated/updated files').filter((l) => l !== 'No file changes'), unchanged: block('Unchanged files'), platform: block('Git platform') };
+}
+
+// --- TEST-3946 ---------------------------------------------------------------------------------
+
+describe('TEST-3946 rendering', () => {
+  test('TEST-3946 renderSkill returns the reference bytes for every skill of a full plan', async () => {
+    const { renderSkill, planSkills } = await modP();
+    const root = fx(GOLDEN_FULL);
+    const plan = planSkills(root);
+    assert.deepEqual(plan.skills.map((s) => s.name).sort(), Object.keys(GOLDEN.skills).sort());
+    for (const skill of plan.skills) {
+      assert.equal(renderSkill(skill), strip(fill(GOLDEN.skills[skill.name], root)), skill.name);
+    }
+  });
+
+  test('TEST-3946 the fence rule and the empty extra block', async () => {
+    const { renderSkill } = await modP();
+    const base = { name: 'aai-x', description: 'd', extra: '' };
+    const wrapped = renderSkill({ ...base, command: 'Windows: a\nPOSIX: b' });
+    assert.ok(wrapped.includes('Run from the repository root:\n\n```\nWindows: a\nPOSIX: b\n```\n'), 'a newline gives an empty fence');
+    const oneLine = renderSkill({ ...base, command: 'powershell -File .aai/scripts/aai-run-tests.ps1 npm test' });
+    assert.ok(oneLine.includes('\n```\npowershell -File .aai/scripts/aai-run-tests.ps1 npm test\n```\n'), 'a one-line ps1 command gives an empty fence');
+    const plain = renderSkill({ ...base, command: 'npm run build' });
+    assert.ok(plain.includes('\n```bash\nnpm run build\n```\n'), 'a plain command gives a bash fence');
+    assert.ok(plain.includes('```\n\n\n## Notes\n'), 'an empty extra block leaves two empty lines');
+    assert.ok(renderSkill({ ...base, command: 'x', extra: 'EXTRA\n' }).includes('```\n\nEXTRA\n\n## Notes\n'));
+    assert.ok(plain.endsWith('<!-- AAI-DYNAMIC-SKILL:END -->'), 'trailing newlines are removed');
+  });
+
+  test('TEST-3946 renderMarker and renderIndex return the reference bytes with and without skills', async () => {
+    const { renderMarker, renderIndex, planSkills, detect } = await modP();
+    const root = fx(GOLDEN_FULL);
+    const plan = planSkills(root);
+    const det = detect(root);
+    assert.equal(renderMarker(plan, det, { now: NOW, root }), strip(fill(GOLDEN.marker, root)));
+    assert.equal(renderIndex('Codex', plan, NOW), strip(fill(GOLDEN.codex, root)));
+    assert.equal(renderIndex('Gemini', plan, NOW), strip(fill(GOLDEN.gemini, root)));
+    const eroot = fx(GOLDEN_EMPTY);
+    const eplan = planSkills(eroot);
+    const edet = detect(eroot);
+    assert.equal(renderMarker(eplan, edet, { now: NOW, root: eroot }), strip(fill(GOLDEN.markerEmpty, eroot)));
+    assert.equal(renderIndex('Codex', eplan, NOW), strip(fill(GOLDEN.codexEmpty, eroot)));
+    assert.equal(renderIndex('Gemini', eplan, NOW), strip(fill(GOLDEN.geminiEmpty, eroot)));
+    for (const text of [GOLDEN.markerEmpty, GOLDEN.codexEmpty]) assert.ok(/- None( generated)?\n/.test(text), 'a fallback line exists in the golden');
+  });
+
+  test('TEST-3946 the CI and deploy signals are one joined list', async () => {
+    const { renderMarker, planSkills, detect } = await modP();
+    const root = fx({ '.github/workflows/': '', 'wrangler.toml': '', 'vercel.json': '' });
+    const text = renderMarker(planSkills(root), detect(root), { now: NOW, root });
+    assert.ok(text.includes('### CI/CD Signals\n- .github/workflows\n- Cloudflare Wrangler\n- Vercel\n\n## Generated Skills\n'));
+    const none = fx({});
+    assert.ok(renderMarker(planSkills(none), detect(none), { now: NOW, root: none }).includes('### CI/CD Signals\n- Not detected\n'));
+  });
+
+  test('TEST-3946 renderSummary returns the reference stdout for each summary shape', async () => {
+    const { renderSummary, planSkills, detect, detectAuth } = await modP();
+    const shapes = [
+      ['first', GOLDEN_FULL, { dryRun: false, force: false }],
+      ['rerun', GOLDEN_FULL, { dryRun: false, force: false }],
+      ['dry', GOLDEN_FULL, { dryRun: true, force: true }],
+      ['empty', GOLDEN_EMPTY, { dryRun: false, force: false }],
+    ];
+    for (const [key, files, mode] of shapes) {
+      const root = fx(files);
+      const text = fill(GOLDEN.summaries[key], root);
+      const lists = summaryLists(text);
+      const plan = planSkills(root);
+      const got = renderSummary({
+        root, ...mode, det: detect(root), auth: detectAuth(root), plan, written: lists.written, unchanged: lists.unchanged, platformLines: lists.platform.join('\n'),
+      });
+      assert.equal(got, text, key);
+    }
+    // sections that depend on the inputs: no auth, no platform, no unchanged, empty written
+    const root = fx({});
+    const bare = renderSummary({ root, dryRun: false, force: false, det: detect(root), auth: detectAuth(root), plan: planSkills(root), written: [], unchanged: [], platformLines: '' });
+    assert.ok(!bare.includes('Auth notes:') && !bare.includes('Git platform:') && !bare.includes('Unchanged files:'));
+    assert.ok(bare.includes('Ready-to-use commands:\n- None generated\n'));
+    assert.ok(bare.includes('Generated/updated files:\n- No file changes\n'));
+    assert.ok(bare.includes('Skipped:\n- aai-test-unit: no unit test command detected\n'));
+  });
+});
+
+// --- TEST-3947 ---------------------------------------------------------------------------------
+
+describe('TEST-3947 writes and conflicts', () => {
+  const ctxFor = async (root, extra = {}) => {
+    const m = await modP();
+    return { m, ctx: { plan: m.planSkills(root), det: m.detect(root), now: NOW, dryRun: false, runtimeList: RUNTIME_LIST, ...extra } };
+  };
+  const SKILL = '.claude/skills/aai-build/SKILL.md';
+
+  test('TEST-3947 isManagedFile accepts a missing path and each managed mark, and refuses the rest', async () => {
+    const { isManagedFile } = await modP();
+    const dir = fx({});
+    const at = (body) => {
+      const f = path.join(dir, `f${fxCount += 1}.md`);
+      writeFileSync(f, body);
+      return f;
+    };
+    assert.equal(isManagedFile(path.join(dir, 'missing.md')), true);
+    assert.equal(isManagedFile(dir), true, 'not a regular file counts as managed');
+    for (const mark of ['AAI-DYNAMIC-SKILL:START', 'AAI-DYNAMIC-FILE:START', 'Generated by: .aai/scripts/aai-bootstrap.sh', 'generated by aai-bootstrap', 'AAI Dynamic Skills']) {
+      assert.equal(isManagedFile(at(`x\n${mark}\ny\n`)), true, mark);
+    }
+    // the GENERATOR dots match any character
+    assert.equal(isManagedFile(at('Generated by: Xaai/scripts/aai-bootstrapYsh\n')), true);
+    assert.equal(isManagedFile(at('Generated by: .aai/scripts/aai-bootstrap.s\n')), false);
+    assert.equal(isManagedFile(at('my own skill\n')), false);
+    assert.equal(isManagedFile(at('')), false);
+    assert.equal(isManagedFile(at('generated BY aai-bootstrap\n')), false, 'marks are case-sensitive');
+  });
+
+  test('TEST-3947 preflight lists the conflict of each unmarked file in write order and force clears them', async () => {
+    const root = fx({ ...K01_PLAN_FILES, '.claude/skills/aai-build/SKILL.md': 'mine\n', '.claude/skills/aai-lint/SKILL.md': 'AAI-DYNAMIC-SKILL:START\n', '.claude/skills/AAI_DYNAMIC_SKILLS.md': 'mine\n', '.codex/skills.local/README.md': 'mine\n', '.gemini/skills.local/README.md': 'AAI Dynamic Skills\n' });
+    const { m, ctx } = await ctxFor(root);
+    const why = (p) => `${p} exists and is not marked as AAI-generated; rerun with --force to replace it`;
+    assert.deepEqual(m.preflight(root, ctx.plan, false), [why(SKILL), why('.claude/skills/AAI_DYNAMIC_SKILLS.md'), why('.codex/skills.local/README.md')]);
+    assert.deepEqual(m.preflight(root, ctx.plan, true), []);
+    // a missing file and a directory in the way are no conflict
+    const clean = fx(K01_PLAN_FILES);
+    assert.deepEqual(m.preflight(clean, (await ctxFor(clean)).ctx.plan, false), []);
+    const dirRoot = fx({ ...K01_PLAN_FILES, '.claude/skills/aai-build/SKILL.md/': '' });
+    assert.deepEqual(m.preflight(dirRoot, (await ctxFor(dirRoot)).ctx.plan, false), []);
+  });
+
+  test('TEST-3947 run refuses unmarked files with the three stderr lines and exit 1 before any write', async () => {
+    const { run } = await modP();
+    const root = fx({ ...K01_PLAN_FILES, [SKILL]: 'mine\n' });
+    const before = listTree(root);
+    const c = cap();
+    assert.equal(run([], { ...c.io, env: { PWD: root }, cwd: root, now: () => new Date('2026-01-02T03:04:05Z') }), 1);
+    assert.equal(c.out, '');
+    assert.equal(c.err, `ERROR: bootstrap would overwrite unmarked files.\n- ${SKILL} exists and is not marked as AAI-generated; rerun with --force to replace it\nRerun with --force only if replacing these files is intentional.\n`);
+    assert.deepEqual(listTree(root), before);
+    assert.equal(readFileSync(path.join(root, SKILL), 'utf8'), 'mine\n');
+    // with --force the file is replaced and the run ends 0
+    const f = cap();
+    assert.equal(run(['--force'], { ...f.io, env: { PWD: root }, cwd: root, now: () => new Date('2026-01-02T03:04:05Z') }), 0);
+    assert.ok(readFileSync(path.join(root, SKILL), 'utf8').includes('AAI-DYNAMIC-SKILL:START'));
+    assert.ok(f.out.startsWith(`\nAAI bootstrap summary\nTarget: ${root}\nForce: true\n`));
+  });
+
+  test('TEST-3947 writeOutputs writes content plus one newline in the fixed order', async () => {
+    const root = fx(K01_PLAN_FILES);
+    const { m, ctx } = await ctxFor(root);
+    const r = m.writeOutputs(root, ctx);
+    const names = ctx.plan.skills.map((s) => `.claude/skills/${s.name}/SKILL.md`);
+    assert.deepEqual(r.written.slice(0, names.length + 3), [...names, '.claude/skills/AAI_DYNAMIC_SKILLS.md', '.codex/skills.local/README.md', '.gemini/skills.local/README.md']);
+    assert.ok(r.written[names.length + 3].startsWith('.gitignore'), 'the gitignore entries come last');
+    assert.deepEqual(r.unchanged, []);
+    for (const n of names) {
+      const text = readFileSync(path.join(root, n), 'utf8');
+      assert.ok(text.endsWith('<!-- AAI-DYNAMIC-SKILL:END -->\n') && !text.endsWith('\n\n'));
+    }
+  });
+
+  test('TEST-3947 a file equal after trailing newlines is unchanged, a different one is rewritten', async () => {
+    const root = fx(K01_PLAN_FILES);
+    const { m, ctx } = await ctxFor(root);
+    m.writeOutputs(root, ctx);
+    const file = path.join(root, SKILL);
+    appendFileSync(file, '\n\n\n');
+    const again = m.writeOutputs(root, ctx);
+    assert.ok(again.unchanged.includes(SKILL), 'extra trailing newlines still count as unchanged');
+    assert.ok(!again.written.includes(SKILL));
+    assert.ok(readFileSync(file, 'utf8').endsWith('\n\n\n\n'), 'an unchanged file is not touched');
+    writeFileSync(file, `${readFileSync(file, 'utf8').replace('npm run build', 'npm run other')}`);
+    const third = m.writeOutputs(root, ctx);
+    assert.ok(third.written.includes(SKILL));
+    assert.ok(readFileSync(file, 'utf8').includes('npm run build'));
+  });
+
+  test('TEST-3947 dry-run lists the paths and writes nothing, even the unchanged check holds', async () => {
+    const root = fx(K01_PLAN_FILES);
+    const { m, ctx } = await ctxFor(root, { dryRun: true });
+    const before = listTree(root);
+    const r = m.writeOutputs(root, ctx);
+    assert.ok(r.written.includes(`[dry-run] ${SKILL}`));
+    assert.ok(r.written.includes('[dry-run] .claude/skills/AAI_DYNAMIC_SKILLS.md'));
+    assert.deepEqual(listTree(root), before);
+    // an existing equal file is listed unchanged even in dry-run
+    const real = await ctxFor(root);
+    real.m.writeOutputs(root, real.ctx);
+    const dry = m.writeOutputs(root, ctx);
+    assert.ok(dry.unchanged.includes(SKILL));
+    assert.ok(!dry.written.includes(`[dry-run] ${SKILL}`));
+  });
+
+  test('TEST-3947 a file holding a NUL byte is rewritten (DR-7)', async () => {
+    const root = fx(K01_PLAN_FILES);
+    const { m, ctx } = await ctxFor(root);
+    m.writeOutputs(root, ctx);
+    const file = path.join(root, SKILL);
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\0`);
+    const again = m.writeOutputs(root, ctx);
+    assert.ok(again.written.includes(SKILL), 'a NUL-holding file differs from the new content');
+    assert.ok(!readFileSync(file, 'utf8').includes('\0'));
+  });
+});
+
+// The files of GOLDEN_FULL that decide a plan with build and lint skills.
+const K01_PLAN_FILES = { 'package.json': pkg({ scripts: { build: 'x', lint: 'x' } }) };
+
+// --- TEST-3948 ---------------------------------------------------------------------------------
+
+describe('TEST-3948 gitignore', () => {
+  const run = async (root, opts = {}) => (await modP()).ensureGitignore(root, { dryRun: false, runtimeList: RUNTIME_LIST, ...opts });
+  const text = (root) => readFileSync(path.join(root, '.gitignore'), 'utf8');
+  const N = () => runtimePatterns().length;
+
+  test('TEST-3948 a missing .gitignore is only listed in dry-run and created otherwise', async () => {
+    const dry = fx({});
+    assert.deepEqual(await run(dry, { dryRun: true }), ['[dry-run] .gitignore']);
+    assert.ok(!existsSync(path.join(dry, '.gitignore')));
+    const root = fx({});
+    const lines = await run(root);
+    assert.deepEqual(lines, [...CACHE.map((p) => `.gitignore add ${p}`), `.gitignore add ${N()} AAI runtime sidecar pattern(s)`]);
+    assert.equal(text(root), `${CACHE.map((p) => `\n${p}\n`).join('')}\n${SEED_MARKER}\n${runtimePatterns().join('\n')}\n`);
+    assert.equal(N(), 30);
+  });
+
+  test('TEST-3948 cache patterns go after a blank line and a CR-suffixed line is not counted', async () => {
+    const root = fx({ '.gitignore': 'node_modules/' });
+    await run(root);
+    assert.ok(text(root).startsWith(`node_modules/\n${CACHE[0]}\n\n${CACHE[1]}\n\n${CACHE[2]}\n\n${SEED_MARKER}\n`), 'a missing final newline is completed by the blank-line echo');
+    const crlf = fx({ '.gitignore': `${CACHE[0]}\r\n` });
+    const lines = await run(crlf);
+    assert.ok(lines.includes(`.gitignore add ${CACHE[0]}`), 'a CR-suffixed cache line does not count as present');
+    assert.ok(!lines.includes(`.gitignore add ${CACHE[1]}x`));
+    // exact lines count as present
+    const present = fx({ '.gitignore': `${CACHE.join('\n')}\n` });
+    assert.deepEqual((await run(present)).filter((l) => l.includes('.cache')), []);
+  });
+
+  test('TEST-3948 runtime patterns are compared against a CR-stripped target', async () => {
+    const all = runtimePatterns();
+    const root = fx({ '.gitignore': `${CACHE.join('\r\n')}\r\n${all.join('\r\n')}\r\n` });
+    const lines = await run(root);
+    assert.deepEqual(lines.filter((l) => l.includes('sidecar')), [], 'every pattern is present behind its carriage return');
+    const partial = fx({ '.gitignore': `${all.slice(0, 5).join('\r\n')}\r\n` });
+    assert.ok((await run(partial)).includes(`.gitignore add ${all.length - 5} AAI runtime sidecar pattern(s)`));
+  });
+
+  test('TEST-3948 the marker is written once and never when a line starts with the prefix', async () => {
+    const root = fx({});
+    await run(root);
+    assert.equal(text(root).split('\n').filter((l) => l.startsWith('# AAI runtime sidecars')).length, 1);
+    assert.deepEqual(await run(root), [], 'a second run adds nothing');
+    const legacy = fx({ '.gitignore': '# AAI runtime sidecars (seeded from sync)\n' });
+    await run(legacy);
+    assert.equal(text(legacy).split('\n').filter((l) => l.startsWith('# AAI runtime sidecars')).length, 1, 'the legacy marker suppresses a second one');
+    assert.ok(!text(legacy).includes(SEED_MARKER));
+    assert.ok(text(legacy).includes(runtimePatterns()[0]));
+  });
+
+  test('TEST-3948 dry-run prints the count line and writes nothing', async () => {
+    const root = fx({ '.gitignore': 'node_modules/\n' });
+    const lines = await run(root, { dryRun: true });
+    assert.deepEqual(lines, [...CACHE.map((p) => `[dry-run] .gitignore add ${p}`), `[dry-run] .gitignore add ${N()} AAI runtime sidecar pattern(s)`]);
+    assert.equal(text(root), 'node_modules/\n');
+  });
+
+  test('TEST-3948 a missing list prints the named skip line with the full path and writes nothing', async () => {
+    const { seedRuntimeGitignore } = await modP();
+    const root = fx({ '.gitignore': 'x\n' });
+    const missing = path.join(fx({}), 'system', 'RUNTIME_IGNORE.list');
+    assert.equal(seedRuntimeGitignore(path.join(root, '.gitignore'), missing, SEED_MARKER, false, '.gitignore'), `skipped runtime-sidecar gitignore seed: ${missing} missing`);
+    assert.equal(text(root), 'x\n');
+    const lines = await run(root, { runtimeList: missing });
+    assert.equal(lines[lines.length - 1], `skipped runtime-sidecar gitignore seed: ${missing} missing`);
+  });
+
+  test('TEST-3948 list lines keep a carriage return, blank and comment lines are skipped', async () => {
+    const list = path.join(fx({ 'list.txt': 'a\r\n\n# note\nb\nc' }), 'list.txt');
+    const root = fx({ '.gitignore': `${CACHE.join('\n')}\n` });
+    const { seedRuntimeGitignore } = await modP();
+    const note = seedRuntimeGitignore(path.join(root, '.gitignore'), list, SEED_MARKER, false, '.gitignore');
+    assert.equal(note, '.gitignore add 3 AAI runtime sidecar pattern(s)');
+    assert.ok(text(root).endsWith(`\n\n${SEED_MARKER}\na\r\nb\nc\n`));
+    assert.equal(seedRuntimeGitignore(path.join(root, '.gitignore'), list, SEED_MARKER, false, '.gitignore'), '.gitignore add 1 AAI runtime sidecar pattern(s)', 'the CR line never matches its stripped copy');
+  });
+
+  test('TEST-3948 a tree copy without lib/gitignore-block.sh still seeds the 30 patterns (DR-4)', () => {
+    const base = scratch('dr4-');
+    const tree = path.join(base, 'tree');
+    materializeBootstrapReference(ROOT, tree);
+    const lib = path.join(tree, '.aai', 'scripts', 'lib', 'gitignore-block.sh');
+    assert.ok(lib.startsWith(base) && existsSync(lib));
+    unlinkSync(lib);
+    const root = fx(K01_PLAN_FILES);
+    const r = spawnSync(process.execPath, [path.join(tree, '.aai', 'scripts', 'aai-bootstrap.mjs'), root], { encoding: 'utf8', cwd: root, env: { ...process.env, PWD: root } });
+    assert.equal(r.status, 0, r.stderr);
+    const got = readFileSync(path.join(root, '.gitignore'), 'utf8').split('\n');
+    for (const p of runtimePatterns()) assert.ok(got.includes(p), p);
+    assert.ok(r.stdout.includes(`- .gitignore add ${runtimePatterns().length} AAI runtime sidecar pattern(s)`));
+    assert.ok(!r.stdout.includes('skipped runtime-sidecar'));
+  });
+});
+
+// --- the differential corpus -------------------------------------------------------------------
+
+const waitNextSecond = () => {
+  const ms = 1000 - (Date.now() % 1000) + 30;
+  spawnSync(process.execPath, ['-e', `setTimeout(() => {}, ${ms})`]);
+};
+
+// The stubs a corpus run puts first on PATH: each appends its argv to the log and exits 0.
+function makeStubs(base) {
+  const bin = path.join(base, 'stub-bin');
+  const log = path.join(base, 'stub.log');
+  mkdirSync(bin);
+  writeFileSync(log, '');
+  for (const name of [FORBIDDEN[0], 'gh', 'az']) {
+    const f = path.join(bin, name);
+    writeFileSync(f, `#!/bin/sh\necho "${name} $*" >> "${log}"\nexit 0\n`);
+    chmodSync(f, 0o755);
+  }
+  const gitconfig = path.join(base, 'gitconfig');
+  writeFileSync(gitconfig, '');
+  return { bin, log, gitconfig };
+}
+
+function layout(root, files) {
+  mkdirSync(root, { recursive: true });
+  for (const [rel, body] of Object.entries(files)) {
+    const p = path.join(root, rel);
+    if (rel.endsWith('/')) mkdirSync(p, { recursive: true });
+    else {
+      mkdirSync(path.dirname(p), { recursive: true });
+      writeFileSync(p, body);
+    }
+  }
+}
+
+function gitInit(root) {
+  for (const args of [['init', '-q'], ['config', 'user.email', 'fixture@example.invalid'], ['config', 'user.name', 'fixture'], ['config', 'commit.gpgsign', 'false']]) {
+    const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' } });
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+  }
+}
+
+// maskSnapshot(snap, masked): N5 stand-in (the stamp of the Generated at lines) and, in masked mode, the cut of
+// docs/ai/pr-config.yaml and of the directories that only it created.
+function maskSnapshot(snap, masked) {
+  const out = new Map();
+  for (const [p, e] of snap) {
+    if (masked && p === 'docs/ai/pr-config.yaml') continue;
+    out.set(p, e.kind === 'file' ? { ...e, data: Buffer.from(e.data.toString('latin1').replace(/Generated at \(UTC\): \S+/g, 'Generated at (UTC): <stamp>'), 'latin1') } : e);
+  }
+  if (masked) {
+    for (const dir of ['docs/ai', 'docs']) {
+      if (out.get(dir)?.kind === 'dir' && ![...out.keys()].some((k) => k.startsWith(`${dir}/`))) out.delete(dir);
+    }
+  }
+  return out;
+}
+
+const maskStdout = (text, masked) => (masked ? text.replace(/\nGit platform:\n[\s\S]*?\n\n(?=Generated\/updated files:)/, '\n') : text);
+
+function runCorpus(cases, { masked }) {
+  const base = scratch('corpus-');
+  const tree = path.join(base, 'tree');
+  materializeBootstrapReference(ROOT, tree);
+  const { bin, log, gitconfig } = makeStubs(base);
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('AAI_')) env[k] = v;
+  Object.assign(env, { PATH: `${bin}${path.delimiter}${process.env.PATH}`, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: gitconfig });
+  const scripts = { sh: ['bash', path.join(tree, '.aai', 'scripts', 'aai-bootstrap.sh')], node: [process.execPath, path.join(tree, '.aai', 'scripts', 'aai-bootstrap.mjs')] };
+  const problems = [];
+  for (const k of cases) {
+    const caseDir = path.join(base, 'cases', k.id);
+    const target = path.join(caseDir, k.name);
+    const sides = {};
+    for (const side of ['sh', 'node']) {
+      layout(target, k.files);
+      if (k.repo) gitInit(target);
+      const [cmd, script] = scripts[side];
+      const results = [];
+      k.steps.forEach((step, i) => {
+        if (i > 0) waitNextSecond();
+        if (step.before) step.before(target);
+        const argv = [script, ...(k.target ? [target] : []), ...step.args];
+        const r = spawnSync(cmd, argv, { cwd: target, env: { ...env, PWD: target }, encoding: 'utf8', timeout: 60000 });
+        results.push({ code: r.status, stdout: maskStdout(r.stdout, masked), stderr: r.stderr });
+      });
+      sides[side] = { results, snap: maskSnapshot(snapshotNormalized(target), masked) };
+      if (side === 'sh') renameSync(target, `${target}.ref-side`);
+    }
+    if (k.knownDivergence) {
+      const [a, b] = [sides.sh.results[0], sides.node.results[0]];
+      const want = k.knownDivergence;
+      if (a.code !== want.sh.code || a.stdout !== want.sh.stdout || a.stderr !== want.sh.stderr) problems.push(`${k.id}: the reference no longer ends as recorded (exit ${a.code}, stdout ${JSON.stringify(a.stdout)})`);
+      if (b.code !== want.node.code) problems.push(`${k.id}: the module ends with exit ${b.code}, recorded ${want.node.code}`);
+      if (sides.sh.snap.has('.claude')) problems.push(`${k.id}: the reference wrote output after all`);
+      assert.deepEqual(readdirSync(caseDir).sort(), [k.name, `${k.name}.ref-side`].sort());
+      continue;
+    }
+    for (let i = 0; i < k.steps.length; i += 1) {
+      const a = sides.sh.results[i];
+      const b = sides.node.results[i];
+      if (a.code !== b.code) problems.push(`${k.id} step ${i + 1}: exit ${a.code} (sh) vs ${b.code} (node)`);
+      if (a.stdout !== b.stdout) problems.push(`${k.id} step ${i + 1}: stdout differs\n--- sh\n${a.stdout}\n--- node\n${b.stdout}`);
+      if (a.stderr !== b.stderr) problems.push(`${k.id} step ${i + 1}: stderr differs\n--- sh\n${a.stderr}\n--- node\n${b.stderr}`);
+    }
+    for (const d of compareSnapshots(sides.sh.snap, sides.node.snap, 'sh:node')) problems.push(`${k.id}: tree ${d.kind} at ${d.path}: ${d.detail}`);
+    assert.deepEqual(readdirSync(caseDir).sort(), [k.name, `${k.name}.ref-side`].sort(), `${k.id}: the case directory holds only its two sides`);
+  }
+  assert.deepEqual(readdirSync(base).sort(), ['cases', 'gitconfig', 'stub-bin', 'stub.log', 'tree', OWN_MARKER_FILE].sort(), 'the scratch root holds only its own parts');
+  const stub = readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  return { problems, stub };
+}
+
+const CORPUS_SKIP = process.platform === 'win32' ? 'the corpus needs bash and runs on POSIX hosts' : false;
+
+describe('TEST-3949 masked corpus', { skip: CORPUS_SKIP }, () => {
+  test('TEST-3949 K01 to K27 and K38 agree in exit, stdout, stderr and tree, and no stub logs a container call', () => {
+    const { problems, stub } = runCorpus(K_CASES, { masked: true });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(stub.filter((l) => l.startsWith(`${FORBIDDEN[0]} `) || l === FORBIDDEN[0]), []);
+    assert.deepEqual(K_CASES.map((k) => k.id).filter((id) => !/^K(0[1-9]|1\d|19b|2[0-7]|38)$/.test(id)), [], 'the masked set holds only K01 to K27 and K38');
   });
 });

@@ -181,8 +181,30 @@ test_3945_auth_and_plan() {
   log_pass "TEST-3945: the auth search and credential order, the session line, the skill plan and its extra blocks, equal to the reference on shared fixtures"
 }
 
+test_3946_rendering() {
+  run_node_tests TEST-3946
+  log_pass "TEST-3946: skills, marker, indices and summary equal the bytes captured from the reference, the fence rule, the empty extra block, the fallback lines, the CI/CD join"
+}
+
+test_3947_writes_and_conflicts() {
+  run_node_tests TEST-3947
+  log_pass "TEST-3947: managed marks, conflicts with exit 1 before any write, force, unchanged after trailing newlines, dry-run, write order, a NUL byte file rewritten"
+}
+
+test_3948_gitignore() {
+  run_node_tests TEST-3948
+  log_pass "TEST-3948: cache and runtime-sidecar patterns, CR handling, one marker, dry-run count line, missing list line, no dependency on gitignore-block.sh"
+}
+
+test_3949_corpus_masked() {
+  need_tool TEST-3949 bash || return 0
+  need_tool TEST-3949 git || return 0
+  run_node_tests TEST-3949
+  log_pass "TEST-3949: K01 to K27 and K38 in masked mode equal the reference in exit, stdout, stderr and tree, with no container call in any stub log"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3945 so far)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3949 so far)"
   check_deps
   setup_fixture
   test_3940_scratch_safety
@@ -191,6 +213,10 @@ main() {
   test_3943_detection
   test_3944_commands
   test_3945_auth_and_plan
+  test_3946_rendering
+  test_3947_writes_and_conflicts
+  test_3948_gitignore
+  test_3949_corpus_masked
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
