@@ -689,10 +689,55 @@ export function writeOutputs(root, { plan, det, now, dryRun, runtimeList }) {
   return result;
 }
 
+const HOOKS_TEMPLATE = '.aai/templates/hooks/settings-hooks.json';
+const HOOKS_DESTINATION = '.claude/settings.json';
+const MERGE_LIBRARY = path.join(MODULE_DIR, 'lib', 'merge-hooks-json.mjs');
+const PLATFORM_SCRIPT = path.join(MODULE_DIR, 'platform.mjs');
+const DASH = '\u2014';
+const childText = (r) => stripTrailingNewlines(`${r.stdout ?? ''}${r.stderr ?? ''}`);
+
+// installClaudeHooks(root, { dryRun, spawn, out, err }): the opt-in hooks overlay. Lines the overlay prints go to
+// out and err at once; returns the entries for the written and unchanged lists and whether it was refused.
+export function installClaudeHooks(root, { dryRun, spawn: child = runChild, out, err }) {
+  const result = { written: [], unchanged: [], failed: false };
+  if (!isFile(path.join(root, HOOKS_TEMPLATE))) {
+    out(`WARN: Claude hooks template not found (${HOOKS_TEMPLATE}) ${DASH} skipping hooks install. Vendor it via .aai/scripts/aai-sync.sh, then rerun with --with-claude-hooks.\n`);
+    return result;
+  }
+  if (!isFile(MERGE_LIBRARY)) {
+    err(`ERROR: hooks merge library not found (${MERGE_LIBRARY}) ${DASH} the hooks overlay was NOT installed. Re-sync (.aai/scripts/aai-sync.sh) to vendor it, then rerun with --with-claude-hooks.\n`);
+    result.failed = true;
+    return result;
+  }
+  if (dryRun) {
+    result.written.push(`[dry-run] ${HOOKS_DESTINATION} (merge AAI hooks overlay from ${HOOKS_TEMPLATE})`);
+    return result;
+  }
+  mkdirSync(path.join(root, '.claude'), { recursive: true });
+  const r = child(MERGE_LIBRARY, [HOOKS_TEMPLATE, HOOKS_DESTINATION], root);
+  const text = childText(r);
+  if ((r.status ?? 1) === 0) {
+    out(`  hooks overlay: ${text}\n`);
+    if (text.includes(HOOKS_UNCHANGED)) result.unchanged.push(`${HOOKS_DESTINATION} (AAI hooks overlay already present)`);
+    else result.written.push(`${HOOKS_DESTINATION} (AAI hooks overlay merged)`);
+  } else {
+    err(`ERROR: hooks overlay merge refused ${DASH} ${text}\n`);
+    err(`ERROR: ${HOOKS_DESTINATION} left untouched. Merge the "hooks" key from ${HOOKS_TEMPLATE} manually.\n`);
+    result.failed = true;
+  }
+  return result;
+}
+
+// recordGitPlatform(root, { dryRun, spawn }): the platform record relayed as text; it never fails the run.
+export function recordGitPlatform(root, { dryRun, spawn: child = runChild }) {
+  const r = child(PLATFORM_SCRIPT, ['record', '--repo-root', root, ...(dryRun ? ['--dry-run'] : [])], root);
+  const status = r.status ?? 1;
+  const text = childText(r);
+  return status !== 0 && status !== PLATFORM_MISMATCH ? `platform record failed (exit ${status}): ${text}` : text;
+}
+
 const stamp = (d) => (typeof d === 'string' ? d : d.toISOString().replace(/\.\d+Z$/, 'Z'));
 
-export const installClaudeHooks = notYet('installClaudeHooks');
-export const recordGitPlatform = notYet('recordGitPlatform');
 
 // run(argv, io): returns the exit code. io holds out, err (string sinks), now, env, cwd and spawn.
 export function run(argv, io = {}) {
@@ -729,9 +774,13 @@ export function run(argv, io = {}) {
     return EXIT_CONFLICT;
   }
   const { written, unchanged } = writeOutputs(root, { plan, det, now, dryRun: args.dryRun, runtimeList: io.runtimeList });
-  if (args.withClaudeHooks) notYet('installClaudeHooks')();
-  out(renderSummary({ root, dryRun: args.dryRun, force: args.force, det, auth, plan, written, unchanged, platformLines: '' }));
-  return 0;
+  const spawn = io.spawn ?? runChild;
+  const hooks = args.withClaudeHooks ? installClaudeHooks(root, { dryRun: args.dryRun, spawn, out, err }) : { written: [], unchanged: [], failed: false };
+  written.push(...hooks.written);
+  unchanged.push(...hooks.unchanged);
+  const platformLines = recordGitPlatform(root, { dryRun: args.dryRun, spawn });
+  out(renderSummary({ root, dryRun: args.dryRun, force: args.force, det, auth, plan, written, unchanged, platformLines }));
+  return hooks.failed ? EXIT_HOOKS_REFUSED : 0;
 }
 
 export function main(argv = process.argv.slice(2)) {

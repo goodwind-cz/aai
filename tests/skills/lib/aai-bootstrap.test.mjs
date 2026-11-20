@@ -15,7 +15,7 @@ import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { K_CASES, GOLDEN_EMPTY, GOLDEN_FULL } from './aai-bootstrap-fixtures.mjs';
+import { K_CASES, K_CASES_AB, K_CASES_C, GOLDEN_EMPTY, GOLDEN_FULL, HOOKS_TEMPLATE_REL } from './aai-bootstrap-fixtures.mjs';
 import { compareSnapshots, snapshotNormalized } from './install-parity.mjs';
 import {
   OWN_MARKER_FILE, REFERENCE_BLOB, REFERENCE_COMMIT, REFERENCE_PATH, REFERENCE_SHA256,
@@ -1330,17 +1330,39 @@ function runCorpus(cases, { masked }) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('AAI_')) env[k] = v;
   Object.assign(env, { PATH: `${bin}${path.delimiter}${process.env.PATH}`, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: gitconfig });
-  const scripts = { sh: ['bash', path.join(tree, '.aai', 'scripts', 'aai-bootstrap.sh')], node: [process.execPath, path.join(tree, '.aai', 'scripts', 'aai-bootstrap.mjs')] };
+  let bareTree = '';
+  const scriptsFor = (k) => {
+    let t = tree;
+    if (k.noMergeLib) {
+      if (!bareTree) {
+        bareTree = path.join(base, 'tree-nolib');
+        materializeBootstrapReference(ROOT, bareTree);
+        const lib = path.join(bareTree, '.aai', 'scripts', 'lib', 'merge-hooks-json.mjs');
+        assert.ok(lib.startsWith(`${base}${path.sep}`) && existsSync(lib), 'the library removed from the copy is inside the own scratch root');
+        unlinkSync(lib);
+      }
+      t = bareTree;
+    }
+    return { sh: ['bash', path.join(t, '.aai', 'scripts', 'aai-bootstrap.sh')], node: [process.execPath, path.join(t, '.aai', 'scripts', 'aai-bootstrap.mjs')] };
+  };
   const problems = [];
+  const stubBySide = {};
+  const logLines = () => readFileSync(log, 'utf8').split('\n').filter(Boolean);
   for (const k of cases) {
     const caseDir = path.join(base, 'cases', k.id);
     const target = path.join(caseDir, k.name);
+    const scripts = scriptsFor(k);
     const sides = {};
     for (const side of ['sh', 'node']) {
       layout(target, k.files);
       if (k.repo) gitInit(target);
+      if (k.remote) {
+        const r = spawnSync('git', ['remote', 'add', 'origin', k.remote], { cwd: target, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' } });
+        assert.equal(r.status, 0, r.stderr);
+      }
       const [cmd, script] = scripts[side];
       const results = [];
+      const logBefore = logLines().length;
       k.steps.forEach((step, i) => {
         if (i > 0) waitNextSecond();
         if (step.before) step.before(target);
@@ -1348,16 +1370,18 @@ function runCorpus(cases, { masked }) {
         const r = spawnSync(cmd, argv, { cwd: target, env: { ...env, PWD: target }, encoding: 'utf8', timeout: 60000 });
         results.push({ code: r.status, stdout: maskStdout(r.stdout, masked), stderr: r.stderr });
       });
+      stubBySide[`${k.id}:${side}`] = logLines().slice(logBefore);
       sides[side] = { results, snap: maskSnapshot(snapshotNormalized(target), masked) };
       if (side === 'sh') renameSync(target, `${target}.ref-side`);
     }
+    const two = [k.name, `${k.name}.ref-side`].sort();
     if (k.knownDivergence) {
       const [a, b] = [sides.sh.results[0], sides.node.results[0]];
       const want = k.knownDivergence;
       if (a.code !== want.sh.code || a.stdout !== want.sh.stdout || a.stderr !== want.sh.stderr) problems.push(`${k.id}: the reference no longer ends as recorded (exit ${a.code}, stdout ${JSON.stringify(a.stdout)})`);
       if (b.code !== want.node.code) problems.push(`${k.id}: the module ends with exit ${b.code}, recorded ${want.node.code}`);
       if (sides.sh.snap.has('.claude')) problems.push(`${k.id}: the reference wrote output after all`);
-      assert.deepEqual(readdirSync(caseDir).sort(), [k.name, `${k.name}.ref-side`].sort());
+      assert.deepEqual(readdirSync(caseDir).sort(), two);
       continue;
     }
     for (let i = 0; i < k.steps.length; i += 1) {
@@ -1368,20 +1392,202 @@ function runCorpus(cases, { masked }) {
       if (a.stderr !== b.stderr) problems.push(`${k.id} step ${i + 1}: stderr differs\n--- sh\n${a.stderr}\n--- node\n${b.stderr}`);
     }
     for (const d of compareSnapshots(sides.sh.snap, sides.node.snap, 'sh:node')) problems.push(`${k.id}: tree ${d.kind} at ${d.path}: ${d.detail}`);
-    assert.deepEqual(readdirSync(caseDir).sort(), [k.name, `${k.name}.ref-side`].sort(), `${k.id}: the case directory holds only its two sides`);
+    if (stubBySide[`${k.id}:sh`].join('\n') !== stubBySide[`${k.id}:node`].join('\n')) problems.push(`${k.id}: the stub calls differ (sh ${JSON.stringify(stubBySide[`${k.id}:sh`])} vs node ${JSON.stringify(stubBySide[`${k.id}:node`])})`);
+    assert.deepEqual(readdirSync(caseDir).sort(), two, `${k.id}: the case directory holds only its two sides`);
   }
-  assert.deepEqual(readdirSync(base).sort(), ['cases', 'gitconfig', 'stub-bin', 'stub.log', 'tree', OWN_MARKER_FILE].sort(), 'the scratch root holds only its own parts');
-  const stub = readFileSync(log, 'utf8').split('\n').filter(Boolean);
-  return { problems, stub };
+  const parts = ['cases', 'gitconfig', 'stub-bin', 'stub.log', 'tree', OWN_MARKER_FILE, ...(bareTree ? ['tree-nolib'] : [])];
+  assert.deepEqual(readdirSync(base).sort(), parts.sort(), 'the scratch root holds only its own parts');
+  return { problems, stub: logLines(), stubBySide };
 }
 
 const CORPUS_SKIP = process.platform === 'win32' ? 'the corpus needs bash and runs on POSIX hosts' : false;
 
 describe('TEST-3949 masked corpus', { skip: CORPUS_SKIP }, () => {
   test('TEST-3949 K01 to K27 and K38 agree in exit, stdout, stderr and tree, and no stub logs a container call', () => {
-    const { problems, stub } = runCorpus(K_CASES, { masked: true });
+    const { problems, stub } = runCorpus(K_CASES_AB, { masked: true });
     assert.deepEqual(problems, []);
     assert.deepEqual(stub.filter((l) => l.startsWith(`${FORBIDDEN[0]} `) || l === FORBIDDEN[0]), []);
-    assert.deepEqual(K_CASES.map((k) => k.id).filter((id) => !/^K(0[1-9]|1\d|19b|2[0-7]|38)$/.test(id)), [], 'the masked set holds only K01 to K27 and K38');
+    assert.deepEqual(K_CASES_AB.map((k) => k.id).filter((id) => !/^K(0[1-9]|1\d|19b|2[0-7]|38)$/.test(id)), [], 'the masked set holds only K01 to K27 and K38');
+  });
+});
+
+// --- slice c: hooks overlay, platform record, the full corpus --------------------------------------
+
+const TPL_REL = HOOKS_TEMPLATE_REL;
+const EM = '—';
+const PLATFORM_OK = 'RECORDED platform=none (new file)\nAUTH none skipped\n';
+const realSpawn = (script, args, cwd) => spawnSync(process.execPath, [script, ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+// A spawn that runs the merge library for real and answers the platform record with a fixed result.
+const spawnWith = (platform, calls = []) => (script, args, cwd) => {
+  calls.push({ script: path.basename(script), args, cwd });
+  return path.basename(script) === 'platform.mjs' ? platform : realSpawn(script, args, cwd);
+};
+const platformOk = { status: 0, stdout: PLATFORM_OK, stderr: '' };
+const hooksIo = (root, extra = {}) => {
+  const c = cap();
+  return { c, io: { ...c.io, env: { PWD: root }, cwd: root, now: () => new Date('2026-01-02T03:04:05Z'), spawn: spawnWith(platformOk), ...extra } };
+};
+const tplText = readFileSync(path.join(ROOT, TPL_REL), 'utf8');
+const hooksRoot = (files = {}) => fx({ [TPL_REL]: tplText, ...K01_PLAN_FILES, ...files });
+const SETTINGS = '.claude/settings.json';
+
+describe('TEST-3950 hooks overlay', () => {
+  test('TEST-3950 a run without the flag creates no settings.json and prints no overlay line', async () => {
+    const { run } = await modP();
+    const root = hooksRoot();
+    const { c, io } = hooksIo(root);
+    assert.equal(run([], io), 0);
+    assert.ok(!existsSync(path.join(root, SETTINGS)));
+    assert.ok(!c.out.includes('hooks overlay'));
+  });
+
+  test('TEST-3950 a missing template warns, continues and exits 0', async () => {
+    const { run } = await modP();
+    const root = fx(K01_PLAN_FILES);
+    const { c, io } = hooksIo(root);
+    assert.equal(run(['--with-claude-hooks'], io), 0);
+    assert.ok(c.out.startsWith(`WARN: Claude hooks template not found (${TPL_REL}) ${EM} skipping hooks install. Vendor it via .aai/scripts/aai-sync.sh, then rerun with --with-claude-hooks.\n\nAAI bootstrap summary\n`));
+    assert.equal(c.err, '');
+    assert.ok(!existsSync(path.join(root, SETTINGS)));
+  });
+
+  test('TEST-3950 dry-run lists the merge and writes no settings.json', async () => {
+    const { run } = await modP();
+    const root = hooksRoot();
+    const { c, io } = hooksIo(root);
+    assert.equal(run(['--dry-run', '--with-claude-hooks'], io), 0);
+    assert.ok(c.out.includes(`- [dry-run] ${SETTINGS} (merge AAI hooks overlay from ${TPL_REL})\n`));
+    assert.ok(!existsSync(path.join(root, SETTINGS)));
+    assert.ok(!c.out.includes('  hooks overlay: '));
+  });
+
+  test('TEST-3950 the overlay is merged, then reported unchanged on a re-run, keeping foreign keys', async () => {
+    const { run } = await modP();
+    const root = hooksRoot({ [SETTINGS]: JSON.stringify({ permissions: { allow: ['Bash(ls:*)'] }, hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo foreign-start' }] }] } }) });
+    const first = hooksIo(root);
+    assert.equal(run(['--with-claude-hooks'], first.io), 0);
+    assert.match(first.c.out, /^  hooks overlay: /m);
+    assert.ok(first.c.out.includes(`- ${SETTINGS} (AAI hooks overlay merged)\n`));
+    const merged = JSON.parse(readFileSync(path.join(root, SETTINGS), 'utf8'));
+    assert.deepEqual(merged.permissions, { allow: ['Bash(ls:*)'] });
+    assert.ok(JSON.stringify(merged.hooks.SessionStart).includes('echo foreign-start'), 'the foreign hook stays');
+    assert.ok(Object.keys(merged.hooks).length >= 1);
+    const bytes = readFileSync(path.join(root, SETTINGS), 'utf8');
+    const second = hooksIo(root);
+    assert.equal(run(['--with-claude-hooks'], second.io), 0);
+    assert.ok(second.c.out.includes('0 hook(s) added, 0 updated'));
+    assert.ok(second.c.out.includes('\nUnchanged files:\n') && second.c.out.includes(`- ${SETTINGS} (AAI hooks overlay already present)\n`));
+    assert.equal(readFileSync(path.join(root, SETTINGS), 'utf8'), bytes);
+  });
+
+  test('TEST-3950 invalid JSON and a non-object hooks key are refused with the file untouched and exit 3', async () => {
+    const { run } = await modP();
+    for (const body of ['NOT JSON {', '{"hooks": []}']) {
+      const root = hooksRoot({ [SETTINGS]: body });
+      const { c, io } = hooksIo(root);
+      assert.equal(run(['--with-claude-hooks'], io), 3, body);
+      assert.equal(readFileSync(path.join(root, SETTINGS), 'utf8'), body, 'the file is byte-identical');
+      const lines = c.err.split('\n');
+      assert.ok(lines[0].startsWith(`ERROR: hooks overlay merge refused ${EM} `), lines[0]);
+      assert.equal(lines[lines.length - 2], `ERROR: ${SETTINGS} left untouched. Merge the "hooks" key from ${TPL_REL} manually.`);
+      assert.ok(c.out.startsWith('\nAAI bootstrap summary\n'), 'the summary is printed before the exit');
+      assert.ok(!c.out.includes('hooks overlay:'));
+    }
+  });
+
+  test('TEST-3950 a merge library missing next to the module ends with exit 3 after the summary', () => {
+    const base = scratch('nolib-');
+    const tree = path.join(base, 'tree');
+    materializeBootstrapReference(ROOT, tree);
+    const lib = path.join(tree, '.aai', 'scripts', 'lib', 'merge-hooks-json.mjs');
+    assert.ok(lib.startsWith(`${base}${path.sep}`) && existsSync(lib));
+    unlinkSync(lib);
+    const root = hooksRoot();
+    const r = spawnSync(process.execPath, [path.join(tree, '.aai', 'scripts', 'aai-bootstrap.mjs'), root, '--with-claude-hooks'], { encoding: 'utf8', cwd: root, env: { ...process.env, PWD: root } });
+    assert.equal(r.status, 3, r.stderr);
+    assert.equal(r.stderr, `ERROR: hooks merge library not found (${lib}) ${EM} the hooks overlay was NOT installed. Re-sync (.aai/scripts/aai-sync.sh) to vendor it, then rerun with --with-claude-hooks.\n`);
+    assert.ok(r.stdout.startsWith('\nAAI bootstrap summary\n'));
+    assert.ok(!existsSync(path.join(root, SETTINGS)));
+    // the template check comes first: without a template the run only warns
+    const bare = fx(K01_PLAN_FILES);
+    const w = spawnSync(process.execPath, [path.join(tree, '.aai', 'scripts', 'aai-bootstrap.mjs'), bare, '--with-claude-hooks'], { encoding: 'utf8', cwd: bare, env: { ...process.env, PWD: bare } });
+    assert.equal(w.status, 0, w.stderr);
+    assert.ok(w.stdout.startsWith('WARN: Claude hooks template not found'));
+  });
+
+  test('TEST-3950 the child runs in the root with the relative template and destination', async () => {
+    const { run } = await modP();
+    const root = hooksRoot();
+    const calls = [];
+    const { io } = hooksIo(root, { spawn: spawnWith(platformOk, calls) });
+    assert.equal(run(['--with-claude-hooks'], io), 0);
+    const merge = calls.find((x) => x.script === 'merge-hooks-json.mjs');
+    assert.deepEqual(merge.args, [TPL_REL, SETTINGS]);
+    assert.equal(merge.cwd, root);
+  });
+});
+
+// --- TEST-3951 ---------------------------------------------------------------------------------
+
+describe('TEST-3951 platform record', () => {
+  const record = async (result, { dryRun = false } = {}) => {
+    const { recordGitPlatform } = await modP();
+    const calls = [];
+    const root = fx({});
+    const text = recordGitPlatform(root, { dryRun, spawn: (script, args, cwd) => { calls.push({ script: path.basename(script), args, cwd }); return result; } });
+    return { text, calls, root };
+  };
+
+  test('TEST-3951 exit 0 and exit 6 relay the child text as is', async () => {
+    const ok = await record({ status: 0, stdout: 'RECORDED platform=azure\nAUTH azure ok\n', stderr: '' });
+    assert.equal(ok.text, 'RECORDED platform=azure\nAUTH azure ok');
+    const mismatch = await record({ status: 6, stdout: 'MISMATCH recorded=azure origin=github\n', stderr: 'note\n' });
+    assert.equal(mismatch.text, 'MISMATCH recorded=azure origin=github\nnote');
+  });
+
+  test('TEST-3951 any other exit relays platform record failed with the exit and the text', async () => {
+    for (const code of [1, 4, 2, 3]) {
+      const r = await record({ status: code, stdout: '', stderr: 'boom\n\n' });
+      assert.equal(r.text, `platform record failed (exit ${code}): boom`);
+    }
+    assert.equal((await record({ status: null, stdout: '', stderr: 'killed\n' })).text, 'platform record failed (exit 1): killed');
+  });
+
+  test('TEST-3951 the dry-run flag reaches the argument list and the child runs in the root', async () => {
+    const real = await record(platformOk);
+    assert.deepEqual(real.calls, [{ script: 'platform.mjs', args: ['record', '--repo-root', real.root], cwd: real.root }]);
+    const dry = await record(platformOk, { dryRun: true });
+    assert.deepEqual(dry.calls[0].args, ['record', '--repo-root', dry.root, '--dry-run']);
+  });
+
+  test('TEST-3951 the run prints the relayed text and keeps its own exit code', async () => {
+    const { run } = await modP();
+    for (const [result, want] of [[{ status: 6, stdout: 'MISMATCH x\n', stderr: '' }, 'MISMATCH x'], [{ status: 4, stdout: '', stderr: 'bad\n' }, 'platform record failed (exit 4): bad']]) {
+      const root = fx(K01_PLAN_FILES);
+      const { c, io } = hooksIo(root, { spawn: spawnWith(result) });
+      assert.equal(run([], io), 0);
+      assert.ok(c.out.includes(`\nGit platform:\n${want}\n\nGenerated/updated files:\n`), c.out);
+    }
+    // a refused hooks overlay still ends 3 whatever the platform record says
+    const root = hooksRoot({ [SETTINGS]: 'NOT JSON {' });
+    const { io } = hooksIo(root, { spawn: spawnWith({ status: 6, stdout: 'MISMATCH x\n', stderr: '' }) });
+    assert.equal(run(['--with-claude-hooks'], io), 3);
+  });
+});
+
+// --- TEST-3952 ---------------------------------------------------------------------------------
+
+describe('TEST-3952 full corpus', { skip: CORPUS_SKIP }, () => {
+  test('TEST-3952 K01 to K38 agree in exit, stdout, stderr and tree, with platform stub lines only for K35 to K37', () => {
+    const ids = K_CASES.map((k) => k.id);
+    for (let n = 1; n <= 38; n += 1) assert.ok(ids.includes(`K${String(n).padStart(2, '0')}`), `K${n} is in the corpus`);
+    const { problems, stub, stubBySide } = runCorpus(K_CASES, { masked: false });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(stub.filter((l) => l.startsWith(`${FORBIDDEN[0]} `) || l === FORBIDDEN[0]), []);
+    const platformCases = new Set(['K35', 'K36', 'K37']);
+    for (const [key, lines] of Object.entries(stubBySide)) {
+      if (!platformCases.has(key.split(':')[0])) assert.deepEqual(lines, [], `${key} must not start gh or az`);
+    }
+    assert.ok(K_CASES_C.length === 10);
   });
 });

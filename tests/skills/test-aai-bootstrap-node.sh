@@ -203,8 +203,25 @@ test_3949_corpus_masked() {
   log_pass "TEST-3949: K01 to K27 and K38 in masked mode equal the reference in exit, stdout, stderr and tree, with no container call in any stub log"
 }
 
+test_3950_hooks_overlay() {
+  run_node_tests TEST-3950
+  log_pass "TEST-3950: every hooks overlay branch on scratch roots, file bytes before and after a refusal, exit codes 0 and 3, no settings.json without the flag"
+}
+
+test_3951_platform_record() {
+  run_node_tests TEST-3951
+  log_pass "TEST-3951: an injected child result with exit 0, 6, 1 and 4 gives the relayed or failed text, the dry-run flag reaches the argv, the run exit code is unchanged"
+}
+
+test_3952_corpus_full() {
+  need_tool TEST-3952 bash || return 0
+  need_tool TEST-3952 git || return 0
+  run_node_tests TEST-3952
+  log_pass "TEST-3952: K01 to K38 in full mode equal the reference, platform stub lines only for K35 to K37, no container call"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3949 so far)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3952 so far)"
   check_deps
   setup_fixture
   test_3940_scratch_safety
@@ -217,6 +234,9 @@ main() {
   test_3947_writes_and_conflicts
   test_3948_gitignore
   test_3949_corpus_masked
+  test_3950_hooks_overlay
+  test_3951_platform_record
+  test_3952_corpus_full
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -6,8 +6,14 @@
 // repository, target whether the target is passed as an argument (false: no argument, cwd is the target),
 // steps the runs in order ({ args, before }); before(root) edits the target ahead of that step.
 
-import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+// The hooks overlay template as this checkout ships it; corpus fixtures copy it into their root.
+export const HOOKS_TEMPLATE_REL = '.aai/templates/hooks/settings-hooks.json';
+export const HOOKS_TEMPLATE = readFileSync(path.join(HERE, '..', '..', '..', HOOKS_TEMPLATE_REL), 'utf8');
 
 const pkg = (o) => `${JSON.stringify(o, null, 2)}\n`;
 
@@ -37,8 +43,8 @@ const TWO = [{ args: [] }, { args: [] }];
 // Generated files of a fresh run, edited between two steps by K26 and K27.
 const GENERATED = ['.claude/skills/aai-test-unit/SKILL.md', '.claude/skills/AAI_DYNAMIC_SKILLS.md', '.codex/skills.local/README.md', '.gemini/skills.local/README.md'];
 
-// Corpus cases of slice a and b (K01 to K27 and K38). Slice c adds K28 to K37.
-export const K_CASES = [
+// Corpus cases of slice a and b (K01 to K27, K19b and K38).
+export const K_CASES_AB = [
   c('K01', K01_FILES),
   c('K02', K01_FILES, { steps: withArgs(['--dry-run']) }),
   c('K03', {}, { repo: false, target: false }),
@@ -109,3 +115,22 @@ export const GOLDEN_FULL = {
   'docs/knowledge/FACTS.md': '# Facts\n\n## Test Credentials\n- see the vault\n',
 };
 export const GOLDEN_EMPTY = {};
+
+// Corpus cases of slice c: the hooks overlay (K28 to K34) and the platform record (K35 to K37). They run in full mode only.
+const HOOKS = ['--with-claude-hooks'];
+const TPL = { [HOOKS_TEMPLATE_REL]: HOOKS_TEMPLATE };
+const SETTINGS = '.claude/settings.json';
+export const K_CASES_C = [
+  c('K28', TPL, { steps: [{ args: HOOKS }, { args: HOOKS }] }),
+  c('K29', { ...TPL, [SETTINGS]: JSON.stringify({ permissions: { allow: ['Bash(ls:*)'] }, hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo foreign-start' }] }] } }, null, 2) }, { steps: withArgs(HOOKS) }),
+  c('K30', { ...TPL, [SETTINGS]: 'NOT JSON {' }, { steps: withArgs(HOOKS) }),
+  c('K31', { ...TPL, [SETTINGS]: '{"hooks": []}' }, { steps: withArgs(HOOKS) }),
+  c('K32', {}, { steps: withArgs(HOOKS) }),
+  c('K33', TPL, { steps: withArgs(HOOKS), noMergeLib: true }),
+  c('K34', TPL, { steps: withArgs(['--dry-run', ...HOOKS]) }),
+  c('K35', {}, { remote: 'https://dev.azure.com/org/proj/_git/repo' }),
+  c('K36', { 'docs/ai/pr-config.yaml': 'platform: azure\n' }, { remote: 'https://github.com/owner/repo.git' }),
+  c('K37', {}, { remote: 'https://dev.azure.com/org/proj/_git/repo', steps: withArgs(['--dry-run']) }),
+];
+
+export const K_CASES = [...K_CASES_AB, ...K_CASES_C];
