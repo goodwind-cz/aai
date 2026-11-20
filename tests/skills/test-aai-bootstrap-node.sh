@@ -613,9 +613,11 @@ test_3959_docs() {
     const root = process.argv[1];
     const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
     const bad = [];
-    const head = "## [unreleased] \u2014 feat: project bootstrap runs on Node with a native Windows launcher";
+    // A release cut rolls "## [unreleased] \u2014 " into "## [vYYYY.MM.DD] \u2014 ", so the pin accepts both
+    // (an unreleased-only pin rots at the first cut; the release dry-run CI job proves it).
+    const head = /^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] \u2014 feat: project bootstrap runs on Node with a native Windows launcher$/;
     const cl = read("CHANGELOG.md").split("\n");
-    const at = cl.map((l, i) => (l === head ? i : -1)).filter((i) => i >= 0);
+    const at = cl.map((l, i) => (head.test(l) ? i : -1)).filter((i) => i >= 0);
     if (at.length !== 1) bad.push("the CHANGELOG heading appears " + at.length + " times");
     else {
       let end = cl.length;
