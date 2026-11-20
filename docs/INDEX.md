@@ -35,7 +35,7 @@ _None._
 | consumer-config | consumer-config | 1 | docs/product/consumer-config.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
-| docs-close-gate | docs-close-gate | 2 | docs/product/docs-close-gate.md |
+| docs-close-gate | docs-close-gate | 3 | docs/product/docs-close-gate.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -67,7 +67,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (679)
+## Done (681)
 
 | ID | Type | Path |
 |---|---|---|
@@ -429,6 +429,7 @@ _None._
 | ISSUE-0121 | issues | docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md |
 | ISSUE-0122 | issues | docs/issues/ISSUE-0122-hook-gate-staged-content.md |
 | ISSUE-0123 | issues | docs/issues/ISSUE-0123-precommit-sentinel-trap.md |
+| ISSUE-0124 | issues | docs/issues/ISSUE-0124-precommit-residual-defects.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -748,6 +749,7 @@ _None._
 | SPEC-0301 | specs | docs/specs/SPEC-0301-spec-precommit-blob-read-cost.md |
 | SPEC-0302 | specs | docs/specs/SPEC-0302-spec-precommit-sentinel-trap.md |
 | SPEC-0303 | specs | docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md |
+| SPEC-0304 | specs | docs/specs/SPEC-0304-spec-precommit-residual-defects.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -784,7 +786,7 @@ _None._
 
 _None._
 
-## Broken references (585)
+## Broken references (589)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1051,6 +1053,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5863-nogit.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5864-flip.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5866-other-mode.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5915-deleted.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-9001-tracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-999-untracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/x.md | NOT FOUND |
@@ -1068,6 +1071,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/missing-nongit.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/missing-untracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/missing-z.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/notes.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/opendecision/SPEC-9100-open-decision.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/opendecision/SPEC-9101-informational.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/opendecision/SPEC-9102-plural-open-decisions.md | NOT FOUND |
@@ -1112,6 +1116,8 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5867-armc-fileid-ref.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5868-armc-slugid-ref.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5870-failing.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5915-linked.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5916-linked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-6009-both.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-acflip-hash.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-lean.md | NOT FOUND |
@@ -1410,4 +1416,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-19 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-20 — counts above use this date for overdue checks.

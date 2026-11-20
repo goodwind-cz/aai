@@ -32,6 +32,24 @@ error() { echo -e "${RED}✗ $1${NC}"; ERRORS=$((ERRORS+1)); }
 warn()  { echo -e "${YELLOW}⚠ $1${NC}"; WARNINGS=$((WARNINGS+1)); }
 pass()  { echo -e "${GREEN}✓ $1${NC}"; }
 
+# No check below uses a here-string, a here-document or a redirection on a builtin: when the descriptor table is
+# nearly full, bash 3.2 cannot save a descriptor for such a redirection, applies it anyway and never restores it, so
+# the rest of the report went to /dev/null. STATE is matched in the shell (`[[ =~ ]]`, per line as grep did), a line
+# list is walked by parameter expansion, and a tool is looked up in a forked subshell, ( command -v node ).
+PCC_RE_IMPL=$'phase:[^\n]*implementation'
+PCC_RE_VALID=$'phase:[^\n]*validation'
+PCC_RE_PASS='status: *pass'
+PCC_RE_REQUIRED='required: *true'
+PCC_RE_REVIEW_OK='status: *(pass|waived)'
+# pcc_next_line: moves the first line of PCC_REST into PCC_LINE and drops it from PCC_REST.
+pcc_next_line() {
+  PCC_LINE="${PCC_REST%%$'\n'*}"
+  case "$PCC_REST" in
+    *$'\n'*) PCC_REST="${PCC_REST#*$'\n'}" ;;
+    *) PCC_REST="" ;;
+  esac
+}
+
 echo "─────────────────────────────────────"
 echo "PRE-COMMIT QUALITY GATES"
 echo "─────────────────────────────────────"
@@ -43,13 +61,13 @@ if [ -f "$STATE_FILE" ]; then
   STATE_DATA=$(grep -v '^[[:space:]]*#' "$STATE_FILE" 2>/dev/null || true)
   # Check if there's an active work item in implementation phase
   # Simple heuristic: look for phase: implementation without corresponding validation pass
-  if grep -q "phase:.*implementation" <<< "$STATE_DATA"; then
+  if [[ "$STATE_DATA" =~ $PCC_RE_IMPL ]]; then
     LAST_VALIDATION_BLOCK=$(echo "$STATE_DATA" | awk '
       /^last_validation:/ { flag=1; next }
       /^[^[:space:]]/ { flag=0 }
       flag { print }
     ')
-    if ! grep -q "status: *pass" <<< "$LAST_VALIDATION_BLOCK"; then
+    if ! [[ "$LAST_VALIDATION_BLOCK" =~ $PCC_RE_PASS ]]; then
       warn "TDD cycle may be incomplete — active implementation without validation pass"
     else
       pass "TDD evidence appears complete"
@@ -75,7 +93,7 @@ fi
 # is made and the checks report no staged files, as before. Wherever one exists
 # (a work tree, a cwd inside `.git`, GIT_DIR set) every failure blocks.
 # Descriptor safety: when the descriptor table is nearly full, bash 3.2 cannot
-# save a descriptor for a builtin's redirection (`read <<<`, `read <&3`,
+# save a descriptor for a builtin's redirection (a here-string read, `read <&3`,
 # `: >`), prints "cannot duplicate fd", applies the redirection anyway and
 # never restores stdin, which ended a read loop after its first record. So the
 # parse uses no builtin redirection: the list and the batch file are opened
@@ -106,8 +124,21 @@ PCC_PARSED=0
 if [ "$IN_REPO" -eq 1 ]; then
   PCC_TMP="$(mktemp -d "${TMPDIR:-/tmp}/aai-pre-commit.XXXXXX" 2>/dev/null)" || staged_read_fail "cannot create a scratch directory"
   trap 'rm -rf "$PCC_TMP" 3<&- 4<&-' EXIT
-  git -C "$PROJECT_ROOT" diff --cached --raw -z --no-renames --no-abbrev --no-color > "$PCC_TMP/list" 2>/dev/null || staged_read_fail "git diff --cached failed"
-  git -C "$PROJECT_ROOT" diff --cached --name-only -z --no-renames --no-color > "$PCC_TMP/names" 2>/dev/null || staged_read_fail "git diff --cached failed"
+  # The NUL terminators of both lists are counted (by tr and wc, not the parse) before the parse. Another process
+  # can change the index between the two reads: when the list's count is even and is not twice the names' count,
+  # both are read once more. The loop stops after the second read whatever it finds, and at once on an odd list
+  # count (malformed, not a race); the post-parse checks below judge the last pair and still block a mismatch.
+  pcc_try=1
+  while :; do
+    git -C "$PROJECT_ROOT" diff --cached --raw -z --no-renames --no-abbrev --no-color > "$PCC_TMP/list" 2>/dev/null || staged_read_fail "git diff --cached failed"
+    git -C "$PROJECT_ROOT" diff --cached --name-only -z --no-renames --no-color > "$PCC_TMP/names" 2>/dev/null || staged_read_fail "git diff --cached failed"
+    tr -cd '\000' < "$PCC_TMP/list" > "$PCC_TMP/list.nul" || staged_read_fail "malformed staged list"
+    nul="$(wc -c < "$PCC_TMP/list.nul")" || staged_read_fail "malformed staged list"
+    tr -cd '\000' < "$PCC_TMP/names" > "$PCC_TMP/names.nul" || staged_read_fail "staged list count mismatch"
+    nnames="$(wc -c < "$PCC_TMP/names.nul")" || staged_read_fail "staged list count mismatch"
+    if [ "$pcc_try" -ge 2 ] || [ $((nul % 2)) -eq 1 ] || [ "$nul" -eq $((nnames * 2)) ]; then break; fi
+    pcc_try=$((pcc_try + 1))
+  done
   PCC_LIST=1
 fi
 if [ "$PCC_LIST" -eq 1 ]; then
@@ -145,13 +176,13 @@ if [ "$PCC_LIST" -eq 1 ]; then
     meta=""
   done
   [ -z "$meta" ] || staged_read_fail "malformed staged list"
-  tr -cd '\000' < "$PCC_TMP/list" > "$PCC_TMP/list.nul" || staged_read_fail "malformed staged list"
-  nul="$(wc -c < "$PCC_TMP/list.nul")" || staged_read_fail "malformed staged list"
   [ "$nul" -eq $((nrec * 2)) ] || staged_read_fail "malformed staged list"
-  tr -cd '\000' < "$PCC_TMP/names" > "$PCC_TMP/names.nul" || staged_read_fail "staged list count mismatch"
-  nnames="$(wc -c < "$PCC_TMP/names.nul")" || staged_read_fail "staged list count mismatch"
   [ "$nnames" -eq "$nrec" ] || staged_read_fail "staged list count mismatch"
   if [ "${#STAGED_REQ[@]}" -gt 0 ]; then
+    # A pipeline whose pipe cannot be made ends bash itself (exit 129, no report), while a command substitution
+    # that cannot make one comes back empty: one is tried first, so a table too full for the pipe blocks here.
+    pcc_probe="$(echo ok)"
+    [ "$pcc_probe" = ok ] || staged_read_fail "git cat-file --batch failed"
     printf '%s\n' "${STAGED_REQ[@]}" | git -C "$PROJECT_ROOT" cat-file --batch > "$PCC_TMP/batch" 2>/dev/null || staged_read_fail "git cat-file --batch failed"
     exec 3< "$PCC_TMP/batch" || staged_read_fail "git cat-file --batch failed"
     for idx in "${!STAGED_SHA[@]}"; do
@@ -259,7 +290,13 @@ if [ "${#STAGED[@]}" -gt 0 ]; then
     matches=$(grep -n 'console\.log\|debugger\|pdb\.set_trace\|binding\.pry\|var_dump' < "$blob" || true)
     if [ -n "$matches" ]; then
       warn "Debug statements in $file:"
-      head -3 <<< "$matches" | sed 's/^/    /'
+      PCC_REST="$matches"
+      PCC_SHOWN=0
+      while [ -n "$PCC_REST" ] && [ "$PCC_SHOWN" -lt 3 ]; do
+        pcc_next_line
+        echo "    $PCC_LINE"
+        PCC_SHOWN=$((PCC_SHOWN + 1))
+      done
       DEBUG_FOUND=1
     fi
   done
@@ -305,8 +342,8 @@ if [ -f "$STATE_FILE" ]; then
     /^[^[:space:]]/ { flag=0 }
     flag { print }
   ')
-  if grep -q "phase:.*validation" <<< "$STATE_DATA" ||
-     grep -q "status: *pass" <<< "$LAST_VALIDATION_BLOCK"; then
+  if [[ "$STATE_DATA" =~ $PCC_RE_VALID ]] ||
+     [[ "$LAST_VALIDATION_BLOCK" =~ $PCC_RE_PASS ]]; then
     REPORTS_DIR="$PROJECT_ROOT/docs/ai/reports"
     if [ -d "$REPORTS_DIR" ] && {
       ls "$REPORTS_DIR"/validation-*.md 1>/dev/null 2>&1 ||
@@ -327,8 +364,8 @@ if [ -f "$STATE_FILE" ]; then
     /^[^[:space:]]/ { flag=0 }
     flag { print }
   ' "$STATE_FILE")
-  if grep -q "required: *true" <<< "$CODE_REVIEW_BLOCK"; then
-    if grep -qE "status: *(pass|waived)" <<< "$CODE_REVIEW_BLOCK"; then
+  if [[ "$CODE_REVIEW_BLOCK" =~ $PCC_RE_REQUIRED ]]; then
+    if [[ "$CODE_REVIEW_BLOCK" =~ $PCC_RE_REVIEW_OK ]]; then
       pass "Code review gate satisfied"
     else
       warn "Code review required but not pass/waived"
@@ -343,16 +380,19 @@ fi
 # absent (most macOS/Linux dev boxes) — the full gate runs in tests/skills/.
 STAGED_PS1=$(git -C "$PROJECT_ROOT" diff --cached --name-only --diff-filter=ACM 2>/dev/null | grep -E '\.ps1$' || true)
 if [ -n "$STAGED_PS1" ]; then
-  if command -v pwsh >/dev/null 2>&1; then
+  if ( command -v pwsh ) >/dev/null 2>&1; then
     PS1_BAD=0
-    while IFS= read -r f; do
+    PCC_REST="$STAGED_PS1"
+    while [ -n "$PCC_REST" ]; do
+      pcc_next_line
+      f="$PCC_LINE"
       [ -z "$f" ] && continue
       [ -f "$PROJECT_ROOT/$f" ] || continue
       if ! pwsh -NoProfile -Command "\$e=\$null; [System.Management.Automation.Language.Parser]::ParseFile('$PROJECT_ROOT/$f', [ref]\$null, [ref]\$e) | Out-Null; if (\$e -and \$e.Count) { exit 1 } else { exit 0 }" >/dev/null 2>&1; then
         error "PowerShell parse error in staged $f"
         PS1_BAD=$((PS1_BAD+1))
       fi
-    done <<< "$STAGED_PS1"
+    done
     [ "$PS1_BAD" -eq 0 ] && pass "Staged .ps1 scripts parse cleanly"
   else
     warn "Staged .ps1 changes not parse-checked (pwsh not installed)"
@@ -372,7 +412,7 @@ fi
 # dial; the CANONICAL reader of docs-audit.yaml is .aai/scripts/lib/guard-config.mjs
 # (a conformance test asserts this pattern and the reader agree on fixtures).
 DOC_NUMBER_GUARD="$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs"
-if [ -f "$DOC_NUMBER_GUARD" ] && command -v node >/dev/null 2>&1; then
+if [ -f "$DOC_NUMBER_GUARD" ] && ( command -v node ) >/dev/null 2>&1; then
   DN_MODE="report-only"
   if grep -Eq '^doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
        "$PROJECT_ROOT/docs/ai/docs-audit.yaml" 2>/dev/null; then
@@ -421,7 +461,7 @@ fi
 # deletion passes. The remedy for deliberate tracking is a `!<path>`
 # re-include in .gitignore, which is reviewable; there is no env bypass.
 TRACKED_IGNORED_SCRIPT="$PROJECT_ROOT/.aai/scripts/tracked-ignored.mjs"
-if [ -f "$TRACKED_IGNORED_SCRIPT" ] && command -v node >/dev/null 2>&1; then
+if [ -f "$TRACKED_IGNORED_SCRIPT" ] && ( command -v node ) >/dev/null 2>&1; then
   TI_RC=0
   TI_OUT="$(node "$TRACKED_IGNORED_SCRIPT" --staged 2>&1)" || TI_RC=$?
   if [ "$TI_RC" -gt 1 ]; then
@@ -430,7 +470,10 @@ if [ -f "$TRACKED_IGNORED_SCRIPT" ] && command -v node >/dev/null 2>&1; then
   else
     TI_SEEN=0
     TI_ADDED=0
-    while IFS= read -r TI_LINE; do
+    PCC_REST="$TI_OUT"
+    while [ -n "$PCC_REST" ]; do
+      pcc_next_line
+      TI_LINE="$PCC_LINE"
       case "$TI_LINE" in
         "IGNORED_ADDED "*)
           TI_REST="${TI_LINE#IGNORED_ADDED }"
@@ -450,9 +493,7 @@ if [ -f "$TRACKED_IGNORED_SCRIPT" ] && command -v node >/dev/null 2>&1; then
           warn "${TI_LINE#IGNORED_PREEXISTING count=} tracked path(s) already match .gitignore (not touched by this commit) — run: node .aai/scripts/tracked-ignored.mjs --all"
           ;;
       esac
-    done <<TIEOF
-$TI_OUT
-TIEOF
+    done
     if [ "$TI_RC" -eq 1 ] && [ "$TI_ADDED" -eq 0 ]; then
       # exit 1 is "an ADDED ignored path"; with no IGNORED_ADDED line the script
       # itself failed (e.g. an uncaught load error) and checked nothing.

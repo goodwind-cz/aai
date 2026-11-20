@@ -7,12 +7,14 @@ if ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
-# Capture, then here-string into grep -q -- never a live pipe into an
-# early-closing reader under pipefail (round 10, PR #381).
-_staged_names="$(git diff --cached --name-only)"
-if ! grep -qE '^docs/' <<<"$_staged_names"; then
-  exit 0
-fi
+# spec-precommit-residual-defects D2: staged name lists are read with -z and walked with
+# read -d '', so a name git would C-quote (non-ASCII) is gated under its real path.
+_aai_lists="$(mktemp -d "${TMPDIR:-/tmp}/aai-index-hook.XXXXXX")"
+trap 'rm -rf "$_aai_lists"' EXIT
+git diff --cached --name-only -z > "$_aai_lists/staged"
+_has_docs=0
+while IFS= read -r -d '' f; do case "$f" in docs/*) _has_docs=1; break ;; esac; done < "$_aai_lists/staged"
+[[ "$_has_docs" == 1 ]] || exit 0
 
 GEN=".aai/scripts/generate-docs-index.mjs"
 if [[ ! -f "$GEN" ]]; then
@@ -65,12 +67,12 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
   # with no AC table of its own gates through its linked spec inside
   # docs-audit.mjs). docs/releases/ is not gated: a release plan carries no
   # acceptance table and no spec links to it.
-  STAGED_GATED_DOCS="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/(issues|rfc|specs|requirements)/.*\.md$' || true)"
+  git diff --cached --name-only -z --diff-filter=ACM > "$_aai_lists/gated"
   # SPEC-0013 W2: newline-safe iteration -- an unquoted `for` word-splits paths
   # with spaces into nonexistent fragments whose failed `git show` silently
-  # SKIPS the gate (the worst failure shape for a gate).
-  while IFS= read -r f; do
-    [[ -n "$f" ]] || continue
+  # SKIPS the gate (the worst failure shape for a gate). D2: NUL-separated.
+  while IFS= read -r -d '' f; do
+    case "$f" in docs/issues/*.md|docs/rfc/*.md|docs/specs/*.md|docs/requirements/*.md) ;; *) continue ;; esac
     # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
     # Capture, then here-string into grep -q (round 10, PR #381).
     _staged_hunk="$(git diff --cached -U0 -- "$f")"
@@ -108,7 +110,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
       fi
       rm -f "$STAGED_TMP"
     fi
-  done <<< "$STAGED_GATED_DOCS"
+  done < "$_aai_lists/gated"
   if [[ "$CLOSE_GATE_FAILED" == 1 ]]; then
     exit 1
   fi
@@ -134,13 +136,13 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     BODY_LINT_MODE="enforce"
   fi
   BODY_LINT_FAILED=0
-  STAGED_GOVERNED_DOCS="$(git diff --cached --name-only --diff-filter=ACM \
-    | grep -E '^docs/.*\.md$' \
-    | grep -Ev '^docs/(ai|knowledge|archive|_archive|project-sessions|templates|plans)/' \
-    | grep -Ev '^docs/INDEX' || true)"
-  # SPEC-0013 W2: newline-safe iteration (see the close-gate loop above).
-  while IFS= read -r f; do
-    [[ -n "$f" ]] || continue
+  git diff --cached --name-only -z --diff-filter=ACM > "$_aai_lists/linted"
+  # SPEC-0013 W2: newline-safe iteration (see the close-gate loop above). D2: NUL-separated.
+  while IFS= read -r -d '' f; do
+    case "$f" in
+      docs/ai/*|docs/knowledge/*|docs/archive/*|docs/_archive/*|docs/project-sessions/*|docs/templates/*|docs/plans/*|docs/INDEX*) continue ;;
+      docs/*.md) ;; *) continue ;;
+    esac
     STAGED_TMP="$(mktemp)"
     if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
       rm -f "$STAGED_TMP"
@@ -157,7 +159,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
       echo "$LINT_OUT" >&2
     fi
     rm -f "$STAGED_TMP"
-  done <<< "$STAGED_GOVERNED_DOCS"
+  done < "$_aai_lists/linted"
   if [[ "$BODY_LINT_FAILED" == 1 ]]; then
     exit 1
   fi

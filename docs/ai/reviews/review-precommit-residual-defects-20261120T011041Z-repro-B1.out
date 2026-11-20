@@ -1,0 +1,8 @@
+463:hash node >/dev/null 2>&1 || true
+--- TEST-3920 on the mutant:
+INFO: Checking dependencies...
+PASS: Dependencies checked
+PASS: TEST-3920: pre-commit-checks.sh holds no here-string or here-document, and tests for a tool only in a subshell
+--- TEST-3920 exit: 0
+GAP REPRODUCED: TEST-3920 (named no_builtin_redirection) passes on a script holding a builtin redirection
+rc=1
