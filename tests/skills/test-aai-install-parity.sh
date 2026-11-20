@@ -166,6 +166,11 @@ test_3561_compare_kinds() {
   log_pass "TEST-3561: compareTrees reports one divergence of each kind and counts empty directories and symlinks"
 }
 
+test_3934_odd_name_does_not_crash() {
+  run_node_tests TEST-3934
+  log_pass "TEST-3934: a root entry whose name cannot be stat'ed (no UTF-8 form) is recorded as a directory; any other lstat failure still throws"
+}
+
 test_3562_normalizations() {
   run_node_tests TEST-3562
   log_pass "TEST-3562: the normalization table is exactly N1 to N4 and E1, E2 with their rules"
@@ -505,6 +510,7 @@ main() {
   test_3570_trackers
   test_3571_wiring
   test_3572_rfc
+  test_3934_odd_name_does_not_crash
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -212,7 +212,16 @@ export function snapshot(dir, { hooks = false } = {}) {
     const abs = rel ? path.join(dir, ...rel.split('/')) : dir;
     for (const name of fs.readdirSync(abs).sort()) {
       const r = rel ? `${rel}/${name}` : name;
-      const st = fs.lstatSync(path.join(abs, name));
+      let st;
+      try {
+        st = fs.lstatSync(path.join(abs, name));
+      } catch (err) {
+        // A name with no UTF-8 form (fu-parity-win-odd-root-dirs: random wide-character directories on Windows)
+        // comes back from readdir with replacement characters and cannot be stat'ed by that name. Record it as the
+        // directory it is, so the allowlist row for odd root entries decides, instead of crashing the matrix.
+        if (err && err.code === 'ENOENT' && !/^[\x20-\x7e]*$/.test(name)) { out.set(r, { kind: 'dir' }); continue; }
+        throw err;
+      }
       const inGit = r === '.git' || r.startsWith('.git/');
       if (inGit) {
         if (!hooks) continue;

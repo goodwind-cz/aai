@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: ccd8570694fe90da896cd9a3411ff51410698b140bba4cbbeacbed4a01dae58f
+frozen_sha256: 03ce4597a582e40646ae5ad571ad0373d2ca4dbc17e5dedf90e3f0cf6fb4ed5b
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -52,6 +52,8 @@ SPEC-FROZEN: true
 - Review scope (explicit paths): .aai/scripts/lib/test-residue.sh;
   .aai/scripts/aai-run-tests.sh; tests/skills/test-aai-test-residue.sh;
   tests/skills/lib/cd-subshell-leak-baseline.tsv;
+  tests/skills/lib/install-parity.mjs; tests/skills/lib/install-parity.test.mjs;
+  tests/skills/test-aai-install-parity.sh;
   docs/TECHNOLOGY.md; CHANGELOG.md; docs/product/test-residue-safe-cleanup.md;
   docs/ai/roadmap.yaml;
   docs/issues/CHANGE-0260-test-residue-files-and-processes.md;
@@ -96,7 +98,13 @@ SPEC-FROZEN: true
   the root (a disk image or bind mount a killed test left) and the root is
   kept with that reason, because `rm -rf` would delete the mounted data.
   Both walks must exit 0; a walk that fails keeps the root too (Codex P1 on
-  PR #574, fourth review). A
+  PR #574, fourth review). Restructured after the fifth Codex finding on the
+  same check into one function, `aai_residue_tmp_mount_free`, that fails
+  closed by construction: every probe's own exit status is checked, the walk
+  and mount-table comparisons are made in the shell (no awk or grep whose
+  failure could read as "no match"), and any failure keeps the root. The
+  outside scan reports when its `find` fails; a host without `lsof` skips
+  the process check silently (a machine constant; Spec-AC-11). A
   bind mount of a same-device directory keeps the device number, so the
   root is also kept when the `mount` table lists any mount point at
   `<root>` itself or under `<root>/` (the exact-root match after Codex P1 on
@@ -180,6 +188,12 @@ SPEC-FROZEN: true
 - Spec-AC-08 maps to AC-008 (D10).
 - Spec-AC-09 maps to code review r1 BLOCKING-1 (D3, amendment).
 - Spec-AC-10 maps to code review r1 NB-1 (D11, amendment).
+- Spec-AC-11 maps to Codex P2 on PR #574 and the WSL1 CI leg (D3, D5).
+- Spec-AC-12 maps to the Windows install-parity CI leg: the pre-existing
+  random wide-character root directories (fu-parity-win-odd-root-dirs)
+  sometimes have no UTF-8 name, and the driver's snapshot crashed on them
+  (two of five heads of PR #574); the driver now records them for the
+  existing allowlist row.
 
 ## Constitution deviations
 
@@ -199,6 +213,8 @@ None.
 | Spec-AC-08 | CHANGELOG.md SHALL hold exactly one unreleased heading for this change, docs/TECHNOLOGY.md SHALL name AAI_TEST_OWNER and the aai-tr- root, and docs/product/test-residue-safe-cleanup.md SHALL say that a leftover process is terminated only while it holds the run's marker | done | TEST-3930 red docs/ai/tdd/test-residue-files-and-processes/red-test_3930_consumer_record.log; TEST-3930 green docs/ai/tdd/test-residue-files-and-processes/green-test_3930_consumer_record.log and docs/ai/tdd/test-residue-files-and-processes/green-full-suite-residue.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3930.txt; validation docs/ai/validation/VALIDATION-test-residue-files-and-processes-r3.md | — | D10 |
 | Spec-AC-09 | WHEN aai_residue_tmp_cleanup runs on a valid root whose find -xdev walk lists fewer entries than its plain find walk (a find shim standing in for a mount point, and on macOS a real disk image attached inside the root), or whose path the mount table lists a mount under (a mount shim), the root and every file below it SHALL still exist and the output SHALL name the mount | done | TEST-3931 red docs/ai/tdd/test-residue-files-and-processes/red-r1-test_3931_mounted_filesystem_inside_root_is_kept.log; TEST-3931 red (mount table) docs/ai/tdd/test-residue-files-and-processes/red-r2-test_3931_mounted_filesystem_inside_root_is_kept.log; TEST-3931 green docs/ai/tdd/test-residue-files-and-processes/green-test_3931_mounted_filesystem_inside_root_is_kept.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3931.txt; validation docs/ai/validation/VALIDATION-test-residue-files-and-processes-r3.md | — | D3 |
 | Spec-AC-10 | WHEN the owning wrapper runs with AAI_TEST_TMPDIR=keep in sandbox mode, the command SHALL see the caller's TMPDIR, a detached process it leaves holding descriptor 9 SHALL be gone afterwards, and no root SHALL remain | done | TEST-3932 red docs/ai/tdd/test-residue-files-and-processes/red-r1-test_3932_tmpdir_opt_out_keeps_caller_tmpdir.log; TEST-3932 green docs/ai/tdd/test-residue-files-and-processes/green-test_3932_tmpdir_opt_out_keeps_caller_tmpdir.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3932.txt; validation docs/ai/validation/VALIDATION-test-residue-files-and-processes-r3.md | — | D11 |
+| Spec-AC-11 | WHEN the scan for temp entries outside the root fails, the output SHALL say it did not complete; WHEN no lsof command exists, the process cleanup SHALL exit 0 and print nothing | done | TEST-3933 red docs/ai/tdd/test-residue-files-and-processes/red-restructure-test_3933_outside_scan_failure_and_no_lsof.log; TEST-3933 green docs/ai/tdd/test-residue-files-and-processes/green-full-suite-residue.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3933.txt | — | D3, D5 |
+| Spec-AC-12 | WHEN lstat of a root entry whose name is not printable ASCII fails ENOENT during a parity snapshot, the snapshot SHALL record it as a directory; WHEN it fails for a printable-ASCII name, the snapshot SHALL throw | done | TEST-3934 red docs/ai/tdd/test-residue-files-and-processes/red-test_3934_parity_odd_name.log; TEST-3934 green tests/skills/test-aai-install-parity.sh run, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3934.txt | — | CI parity leg |
 
 ## Implementation plan
 
@@ -236,8 +252,10 @@ None.
 | TEST-3928 | Spec-AC-06 | integration | tests/skills/test-aai-test-residue.sh | a logging lsof shim: every listing line carries -a, -d 9 and the marker; empty and missing marker exit 2 with no shim call; a shim listing 26 sandbox pids gives exit 4 and every sleep still runs; a shim that fails (exit 1 with error text) or stops part-way (exit 2 after one record) gives the listing-failed NOTE and signals nothing; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/"\$AAI_RESIDUE_LSOF" -a -d 9 -F p/"$AAI_RESIDUE_LSOF" -F p/` drops the descriptor filter and the case must fail | green |
 | TEST-3929 | Spec-AC-07 | integration | tests/skills/test-aai-test-residue.sh | mutated copies of the library in the scratch directory: listing without -d 9 (filter check fails, foreign sleep on descriptor 8 survives, owned sleep gone); verify without the name check (decoy without marker survives); verify without the marker line check (decoy named after another run survives); control: the unmutated library passes the filter check; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/grep -qx 'f9'/true/` makes the per-process descriptor check always pass and the case must fail | green |
 | TEST-3930 | Spec-AC-08 | unit | tests/skills/test-aai-test-residue.sh | one CHANGELOG heading; TECHNOLOGY names AAI_TEST_OWNER and aai-tr-; the product doc names the marker condition; RED on the unchanged tree | target `docs/product/test-residue-safe-cleanup.md`; `sed:s/only while it holds the run's marker/whenever it outlives the run/` reverts the statement and the case must fail | green |
-| TEST-3931 | Spec-AC-09 | integration | tests/skills/test-aai-test-residue.sh | a find shim makes the -xdev walk stop at mnt: the root and mnt/deep/keep.txt survive with the mounted-inside reason; a mount shim listing a bind mount at root/mnt keeps the root with the mount-table reason; on macOS an hdiutil disk image attached at root/mnt keeps its file; RED on the code without the walk comparison | target `.aai/scripts/lib/test-residue.sh`; `sed:s/if \[ -z "\$tc_all" \] \x7c\x7c \[ "\$tc_all" != "\$tc_one" \]; then/if false; then/` drops the mount guard and the case must fail | green |
+| TEST-3931 | Spec-AC-09 | integration | tests/skills/test-aai-test-residue.sh | one table-driven case: find and mount shims for a shorter -xdev walk, a failing find, a failing -xdev find, an empty walk, a failing mount, an empty mount table, a mount at the root and one below it each keep the root with its reason; a control row with the real tools removes it; on macOS an hdiutil disk image attached inside the root keeps its file | target `.aai/scripts/lib/test-residue.sh`; `sed:s/\[ "\$mf_all" = "\$mf_one" \]/true/` stops comparing the two walks and the case must fail | green |
 | TEST-3932 | Spec-AC-10 | integration | tests/skills/test-aai-test-residue.sh | AAI_TEST_TMPDIR=keep through the real wrapper in sandbox mode: TMP equals the sandbox, the fd-9 sleep is terminated, no aai-tr- root remains; RED on the wrapper without the opt-out | target `.aai/scripts/aai-run-tests.sh`; `sed:s/if \[ "\$\{AAI_TEST_TMPDIR:-\}" != keep \]; then/if true; then/` drops the opt-out and the case must fail | green |
+| TEST-3933 | Spec-AC-11 | integration | tests/skills/test-aai-test-residue.sh | a find shim fails the outside scan: one NOTE says it did not complete; AAI_RESIDUE_LSOF naming a missing command: the process cleanup exits 0 and prints nothing | target `.aai/scripts/lib/test-residue.sh`; `sed:s/if ! to_out=\$\(find/if to_out=$(find/` inverts the scan status check and the case must fail | green |
+| TEST-3934 | Spec-AC-12 | unit | tests/skills/test-aai-install-parity.sh | lstatSync patched to throw ENOENT for one non-ASCII directory name: the snapshot records it as a dir and the other entries; for an ASCII name it throws | target `tests/skills/lib/install-parity.mjs`; `sed:s/if \(err && err.code === 'ENOENT'/if (false && err.code === 'ENOENT'/` stops tolerating the unreadable odd name and the case must fail | green |
 
 RED observations: TEST-3923 to TEST-3930 are written first and run against
 the unchanged tree; failing runs go to `red-<selector>.log` under

@@ -356,11 +356,40 @@ aai_residue_tmp_verify() {
 # aai_residue_tmp_outside <base> <root> — one NOTE naming the temp entries made
 # in <base> after the marker, outside the root (and outside any aai-tr- root).
 aai_residue_tmp_outside() {
-  to_out=$(find "$1" -mindepth 1 -maxdepth 1 -user "$(id -u)" -newer "$2/.aai-test-run" ! -name 'aai-tr-*' -print 2>/dev/null)
+  if ! to_out=$(find "$1" -mindepth 1 -maxdepth 1 -user "$(id -u)" -newer "$2/.aai-test-run" ! -name 'aai-tr-*' -print 2>/dev/null); then
+    aai_residue_say "NOTE - the scan of $1 for temp entries made outside this run's root did not complete; some may be unreported."
+    return 0
+  fi
   [ -n "$to_out" ] || return 0
   to_n=$(printf '%s\n' "$to_out" | awk 'END { print NR }')
   to_names=$(printf '%s\n' "$to_out" | awk -F/ 'NR <= 5 { printf "%s%s", (NR > 1 ? ", " : ""), $NF }')
   aai_residue_say "NOTE - $to_n temp entr$( [ "$to_n" -eq 1 ] && echo y || echo ies) in $1 changed since this run started (by this run or any other process), outside its temp root, not removed: $to_names"
+}
+
+# aai_residue_tmp_mount_free <root> — 0 only when every probe below ran to
+# completion AND none shows a mount at or below <root>; otherwise print the
+# reason and return 1 (the caller keeps the root). rm -rf would descend into a
+# filesystem mounted inside the root (a test's disk image or bind mount) and
+# delete data this run never made. Fail closed by construction: each probe's
+# own exit status is checked, and the comparisons are made in the shell, so a
+# missing or failing helper can only ever keep the root.
+#   1. `find <root>` and `find <root> -xdev` both exit 0, list something, and
+#      list exactly the same entries (a shorter -xdev walk = another device);
+#   2. `mount` exits 0 with a non-empty table that names no mount point at
+#      <root> or under <root>/ (a same-device bind mount keeps the device).
+aai_residue_tmp_mount_free() {
+  mf_root="${1:-}"
+  [ -n "$mf_root" ] || { echo "no root given"; return 1; }
+  mf_all=$(find "$mf_root" 2>/dev/null) || { echo "its find walk did not complete"; return 1; }
+  mf_one=$(find "$mf_root" -xdev 2>/dev/null) || { echo "its find -xdev walk did not complete"; return 1; }
+  [ -n "$mf_all" ] || { echo "its find walk listed nothing"; return 1; }
+  [ "$mf_all" = "$mf_one" ] || { echo "another filesystem is mounted inside it"; return 1; }
+  mf_tab=$(mount 2>/dev/null) || { echo "the mount table could not be read"; return 1; }
+  [ -n "$mf_tab" ] || { echo "the mount table could not be read (empty)"; return 1; }
+  case "$mf_tab" in
+    *" on $mf_root "* | *" on $mf_root/"*) echo "the mount table lists a mount at or inside it"; return 1 ;;
+  esac
+  return 0
 }
 
 # aai_residue_tmp_cleanup <id> <start> <base> <root> — report what lies
@@ -385,29 +414,8 @@ aai_residue_tmp_cleanup() {
     return 0
   fi
   aai_residue_tmp_outside "$tc_base" "$tc_root"
-  # rm -rf would descend into a filesystem mounted inside the root (a test's
-  # disk image or bind mount) and delete data this run never made: keep the
-  # root when anything below it lies on another filesystem.
-  # Both walks must complete (exit 0): a walk cut short proves nothing.
-  if ! tc_walk=$(find "$tc_root" 2>/dev/null) || ! tc_walk1=$(find "$tc_root" -xdev 2>/dev/null); then
-    aai_residue_say "kept temp root $tc_root - its find walk did not complete, so a mount inside it cannot be ruled out"
-    return 0
-  fi
-  tc_all=$(printf '%s\n' "$tc_walk" | awk 'END { print NR }')
-  tc_one=$(printf '%s\n' "$tc_walk1" | awk 'END { print NR }')
-  if [ -z "$tc_all" ] || [ "$tc_all" != "$tc_one" ]; then
-    aai_residue_say "kept temp root $tc_root - another filesystem is mounted inside it; unmount it and remove the root by hand"
-    return 0
-  fi
-  # A bind mount of a directory on the same filesystem keeps the device, so the
-  # walk above cannot see it; the mount table can. A table that cannot be read
-  # keeps the root (a bind mount could be hiding there).
-  if ! tc_mounts=$(mount 2>/dev/null) || [ -z "$tc_mounts" ]; then
-    aai_residue_say "kept temp root $tc_root - the mount table could not be read, so a mount inside it cannot be ruled out"
-    return 0
-  fi
-  if printf '%s\n' "$tc_mounts" | grep -qF -e " on $tc_root/" -e " on $tc_root "; then
-    aai_residue_say "kept temp root $tc_root - the mount table lists a mount at or inside it; unmount it and remove the root by hand"
+  if ! tc_why=$(aai_residue_tmp_mount_free "$tc_root"); then
+    aai_residue_say "kept temp root $tc_root - $tc_why; unmount it if a mount is there and remove the root by hand"
     return 0
   fi
   if [ "${AAI_RESIDUE_DRY_RUN:-0}" = "1" ]; then
@@ -535,10 +543,9 @@ aai_residue_proc_cleanup() {
     return 2
   fi
   AAI_RESIDUE_LSOF="${AAI_RESIDUE_LSOF:-lsof}"
-  if ! command -v "$AAI_RESIDUE_LSOF" >/dev/null 2>&1; then
-    aai_residue_say "NOTE - no lsof found; leftover processes of this run were not checked."
-    return 0
-  fi
+  # No lsof is a constant of the machine, not news about this run: silent
+  # (docs/TECHNOLOGY.md says the process check needs lsof).
+  command -v "$AAI_RESIDUE_LSOF" >/dev/null 2>&1 || return 0
   pc_list=$(aai_residue_proc_list "$3")
   case "$pc_list" in *AAI-RESIDUE-LIST-REFUSED*) return 2 ;; esac
   case "$pc_list" in

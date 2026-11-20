@@ -4,7 +4,7 @@
 # and cannot reach a daemon unless they opt in
 # (docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md, TEST-3900 to
 # TEST-3914), and the run temp root and leftover processes
-# (spec-test-residue-files-and-processes, TEST-3923 to TEST-3932).
+# (spec-test-residue-files-and-processes, TEST-3923 to TEST-3933).
 #
 # SAFETY RULE OF THIS FILE. No case here ever invokes a real container CLI.
 # Every cleanup runs against STUB_CLI, a shell script written into this
@@ -1046,58 +1046,55 @@ test_3930_consumer_record() {
   [[ $ok -eq 1 ]] && log_pass "TEST-3930 CHANGELOG, TECHNOLOGY and the product doc carry the consumer record"
 }
 
-# --- TEST-3931 (Spec-AC-09: a root with a filesystem mounted inside is kept) --
+# --- TEST-3931 (Spec-AC-09: the mount guard keeps the root on any doubt) ------
+# One table: each row plants a find and/or mount shim (or none) for one cleanup of a valid root and says whether the
+# root must survive and which reason the output must name. Every probe failure, and every mount sign, keeps the root.
+#   row = name|find mode|mount mode|expect (kept or removed)|reason fragment
+TREE_MOUNT_TABLE='xdev-differs|xdevdrop|real|kept|mounted inside
+find-fails|fail|real|kept|did not complete
+xdev-fails|xdevfail|real|kept|did not complete
+find-empty|empty|real|kept|listed nothing
+mount-fails|real|fail|kept|could not be read
+mount-empty|real|empty|kept|could not be read
+mount-at-root|real|atroot|kept|at or inside
+mount-below|real|below|kept|at or inside
+control|real|real|removed|'
 test_3931_mounted_filesystem_inside_root_is_kept() {
-  local ok=1 sb st root fsd real img
+  local ok=1 sb st root fsd realfind img row name fm mm want why
   sb="$(sandbox_new 3931)"
   st=$(( $(date +%s) - 5 ))
   root="$sb/aai-tr-0123abcd"
-  mkdir -p "$root/mnt/deep"; echo keep > "$root/mnt/deep/keep.txt"; printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
-  # a find shim that, asked for -xdev, stops at mnt as a mount point would: the two walks differ
-  fsd="$sb/bin"; mkdir -p "$fsd"
-  real="$(command -v find)"
-  printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@" | grep -v "/mnt/" ;; *) exec %q "$@" ;; esac\n' "$real" "$real" > "$fsd/find"
-  chmod +x "$fsd/find"
-  T_RC=0
-  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
-    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
-  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root whose walk crosses a filesystem boundary was removed: $T_OUT"; ok=0; }
-  command grep -qF 'mounted inside' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the mount: $T_OUT"; ok=0; }
-  # a find that fails (here: full output, exit 1, for both walks) keeps the root: the walk was not proven whole
-  printf '#!/bin/sh\n%q "$@"\nexit 1\n' "$real" > "$fsd/find"
-  chmod +x "$fsd/find"
-  T_RC=0
-  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
-    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
-  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root was removed although its find walk failed: $T_OUT"; ok=0; }
-  command grep -qF 'walk did not complete' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the failed walk: $T_OUT"; ok=0; }
-  # a same-device bind mount: only the mount table shows it (a mount shim stands in for it)
-  rm -f "$fsd/find"
-  printf '#!/bin/sh\necho "/dev/fake on %s/mnt type none (rw,bind)"\n' "$root" > "$fsd/mount"
-  chmod +x "$fsd/mount"
-  T_RC=0
-  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
-    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
-  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root the mount table shows a mount inside was removed: $T_OUT"; ok=0; }
-  command grep -qF 'mount table' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the mount table: $T_OUT"; ok=0; }
-  # a mount attached directly AT the root (no trailing slash in the table) keeps it as well
-  printf '#!/bin/sh\necho "/dev/fake on %s type none (rw,bind)"\n' "$root" > "$fsd/mount"
-  chmod +x "$fsd/mount"
-  T_RC=0
-  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
-    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
-  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root with a mount attached at it was removed: $T_OUT"; ok=0; }
-  command grep -qF 'mount table lists a mount' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the mount at the root: $T_OUT"; ok=0; }
-  # a mount table that cannot be read (mount fails) keeps the root too: a bind mount could be hiding there
-  printf '#!/bin/sh\nexit 1\n' > "$fsd/mount"
-  chmod +x "$fsd/mount"
-  T_RC=0
-  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
-    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
-  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root was removed although the mount table could not be read: $T_OUT"; ok=0; }
-  command grep -qF 'could not be read' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the unreadable mount table: $T_OUT"; ok=0; }
-  rm -f "$fsd/mount"
-  # the real thing where it can be made without privileges (macOS disk image); elsewhere the shim cases stand
+  fsd="$sb/bin"
+  realfind="$(command -v find)"
+  while IFS='|' read -r name fm mm want why; do
+    [[ -n "$name" ]] || continue
+    rm -rf "$root" "$fsd"; mkdir -p "$root/mnt/deep" "$fsd"
+    echo keep > "$root/mnt/deep/keep.txt"; printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
+    case "$fm" in
+      xdevdrop) printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@" | sed "/\\/mnt\\//d" ;; *) exec %q "$@" ;; esac\n' "$realfind" "$realfind" > "$fsd/find" ;;
+      fail) printf '#!/bin/sh\n%q "$@"\nexit 1\n' "$realfind" > "$fsd/find" ;;
+      xdevfail) printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@"; exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" "$realfind" > "$fsd/find" ;;
+      empty) printf '#!/bin/sh\nexit 0\n' > "$fsd/find" ;;
+    esac
+    case "$mm" in
+      fail) printf '#!/bin/sh\nexit 1\n' > "$fsd/mount" ;;
+      empty) printf '#!/bin/sh\nexit 0\n' > "$fsd/mount" ;;
+      atroot) printf '#!/bin/sh\necho "/dev/fake on %s type none (rw,bind)"\n' "$root" > "$fsd/mount" ;;
+      below) printf '#!/bin/sh\necho "/dev/fake on %s/mnt type none (rw,bind)"\n' "$root" > "$fsd/mount" ;;
+    esac
+    chmod +x "$fsd"/* 2>/dev/null
+    T_RC=0
+    T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+      sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+    if [[ "$want" == kept ]]; then
+      [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 ($name) the root was removed: $T_OUT"; ok=0; }
+      command grep -qF -- "$why" <<<"$T_OUT" || { log_fail "TEST-3931 ($name) the output does not name [$why]: $T_OUT"; ok=0; }
+    else
+      [[ ! -e "$root" ]] || { log_fail "TEST-3931 ($name) a root with no mount sign was kept: $T_OUT"; ok=0; }
+    fi
+  done <<<"$TREE_MOUNT_TABLE"
+  rm -rf "$fsd"
+  # the real thing where it can be made without privileges (macOS disk image); elsewhere the shim rows stand
   if [[ "$(uname -s)" == Darwin ]] && command -v hdiutil >/dev/null 2>&1; then
     rm -rf "$root"; mkdir -p "$root/mnt" "$sb/src"; echo precious > "$sb/src/precious.txt"
     printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
@@ -1110,7 +1107,26 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
       echo "SKIP-CASE: TEST-3931 could not attach a disk image here"
     fi
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-3931 a root with another filesystem inside it is kept with the reason (find -xdev walk differs, the mount table lists a bind mount, a real disk image on macOS)"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3931 every probe failure (find, find -xdev, mount) and every mount sign (a shorter -xdev walk, a mount at or below the root, a real disk image on macOS) keeps the root with its reason; a root with none is removed"
+}
+
+# --- TEST-3933 (Spec-AC-11: an incomplete outside scan, and no lsof) ------------
+test_3933_outside_scan_failure_and_no_lsof() {
+  local ok=1 sb root fsd realfind
+  sb="$(sandbox_new 3933)"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  root="$sb/aai-tr-0123abcd"
+  fsd="$sb/bin"; mkdir -p "$fsd"
+  realfind="$(command -v find)"
+  printf '#!/bin/sh\ncase " $* " in *" -maxdepth 1 "*) exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" > "$fsd/find"
+  chmod +x "$fsd/find"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_outside "$sb" "$root" 2>&1)" || T_RC=$?
+  command grep -qF 'did not complete' <<<"$T_OUT" || { log_fail "TEST-3933 a failed outside scan was read as complete: $T_OUT"; ok=0; }
+  TREE_LSOF="$sb/no-such-lsof" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$root/.aai-test-run"
+  [[ "$T_RC" -eq 0 && -z "$T_OUT" ]] || { log_fail "TEST-3933 a host without lsof printed or failed (rc $T_RC): $T_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3933 an outside scan that fails says so; a host without lsof skips the process check silently (a machine constant, not news about the run)"
 }
 
 # --- TEST-3932 (Spec-AC-10: AAI_TEST_TMPDIR=keep) ------------------------------
@@ -1164,6 +1180,7 @@ main() {
   test_3930_consumer_record
   test_3931_mounted_filesystem_inside_root_is_kept
   test_3932_tmpdir_opt_out_keeps_caller_tmpdir
+  test_3933_outside_scan_failure_and_no_lsof
   if [[ -s "$AAI_NO_CLI_LOG" ]]; then
     log_fail "$TEST_NAME a bare container CLI was invoked during the run: $(cat "$AAI_NO_CLI_LOG")"
   fi

@@ -189,6 +189,7 @@
   none. It reports temp entries created in the base outside the root and
   removes the root only when its exact name and its marker prove it is this
   run's, and keeps it when another filesystem is mounted inside it.
+  The process check needs `lsof` and is skipped silently where none exists.
   `AAI_TEST_TMPDIR=keep` leaves the command's `TMPDIR` unchanged (the root,
   the marker and the process check stay). `AAI_RESIDUE_DRY_RUN=1` reports
   only; the exit code never changes.

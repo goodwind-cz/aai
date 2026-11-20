@@ -862,3 +862,35 @@ describe('driver import and CLI', () => {
     assert.match(r.stderr, /reason/);
   });
 });
+
+// TEST-3934 (spec-test-residue-files-and-processes, Spec-AC-12): a root entry whose name has no UTF-8 form (the
+// random wide-character directories of fu-parity-win-odd-root-dirs on Windows) comes back from readdir with
+// replacement characters, and lstat of that name fails ENOENT. The snapshot must record such an odd entry as a
+// directory (the allowlist row win-sh-odd-root-dirs covers it) instead of crashing the whole matrix.
+describe('TEST-3934 an unreadable odd root name does not crash the snapshot', () => {
+  test('lstat ENOENT on a non-ASCII name is recorded, any other is thrown', () => {
+    const d = scratch('oddname');
+    put(d, 'a.txt', 'a\n');
+    const odd = 'odd-éé';
+    fs.mkdirSync(path.join(d, odd));
+    const real = fs.lstatSync;
+    fs.lstatSync = (p, ...rest) => {
+      if (path.basename(String(p)) === odd) { const e = new Error(`ENOENT: no such file or directory, lstat '${p}'`); e.code = 'ENOENT'; throw e; }
+      return real.call(fs, p, ...rest);
+    };
+    try {
+      const snap = M.snapshot(d);
+      assert.deepEqual(snap.get(odd), { kind: 'dir' });
+      assert.equal(snap.get('a.txt').kind, 'file');
+    } finally { fs.lstatSync = real; }
+    const plain = 'plain-ascii';
+    fs.mkdirSync(path.join(d, plain));
+    fs.lstatSync = (p, ...rest) => {
+      if (path.basename(String(p)) === plain) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; }
+      return real.call(fs, p, ...rest);
+    };
+    try {
+      assert.throws(() => M.snapshot(d), /ENOENT/);
+    } finally { fs.lstatSync = real; }
+  });
+});
