@@ -887,6 +887,13 @@ test_3924_tampered_roots_are_kept() {
   T_OUT="$(HOME="$sb" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
     sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_create "$TID_OTHER" "$st" "$sb" 2>&1)" || T_RC=$?
   [[ "$T_RC" -ne 0 && ! -e "$sb/aai-tr-ffffffff" ]] || { log_fail "TEST-3924 a root was created under HOME, which the cleanup refuses (rc $T_RC)"; ok=0; rm -rf "$sb/aai-tr-ffffffff"; }
+  # a symlinked HOME whose physical path is the base is refused too (the wrapper hands the physical base)
+  mkdir -p "$sb/links"; ln -s "$sb" "$sb/links/home"
+  T_RC=0
+  T_OUT="$(HOME="$sb/links/home" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_create "$TID_OTHER" "$st" "$sb" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 && ! -e "$sb/aai-tr-ffffffff" ]] || { log_fail "TEST-3924 a root was created under a symlinked HOME's physical path (rc $T_RC)"; ok=0; rm -rf "$sb/aai-tr-ffffffff"; }
+  rm -rf "$sb/links"
   # a marker that cannot be written (file size limit) rolls the new root back
   T_RC=0
   T_OUT="$(AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
@@ -1132,6 +1139,27 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
     else
       echo "SKIP-CASE: TEST-3931 could not attach a disk image here"
     fi
+  fi
+  # a late mount: the image is attached under the moved-aside root during the SECOND mount probe, after every
+  # inspection has passed; the deletion itself must refuse to cross into it (macOS, real disk image)
+  if [[ "$(uname -s)" == Darwin ]] && command -v hdiutil >/dev/null 2>&1 && [[ -f "$sb/img.dmg" ]]; then
+    rm -rf "$root" "$sb"/aai-tr-0123abcd.removing.* "$fsd"; mkdir -p "$root/late" "$fsd"
+    printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
+    # the shim reads the real table FIRST and attaches afterwards, so the probe sees a clean table and the mount
+    # appears only after every inspection has passed
+    printf '#!/bin/sh\nout=$(%q "$@"); rc=$?\nn=$(cat %q 2>/dev/null || echo 0); n=$((n+1)); echo $n > %q\nif [ "$n" -eq 2 ]; then for q in %q.removing.*; do [ -d "$q" ] && hdiutil attach -quiet -nobrowse -mountpoint "$q/late" %q && echo "$q/late" > %q; done; fi\nprintf "%%s\\n" "$out"; exit $rc\n' \
+      "$(command -v mount)" "$fsd/n" "$fsd/n" "$root" "$sb/img.dmg" "$fsd/attached" > "$fsd/mount"
+    chmod +x "$fsd/mount"
+    T_RC=0
+    T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+      sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+    if [[ -s "$fsd/attached" ]]; then
+      [[ -f "$(cat "$fsd/attached")/precious.txt" ]] || { log_fail "TEST-3931 (late mount) the deletion crossed into a mount attached after the probes: $T_OUT"; ok=0; }
+      hdiutil detach -quiet "$(cat "$fsd/attached")" || hdiutil detach -quiet -force "$(cat "$fsd/attached")"
+    else
+      log_fail "TEST-3931 (late mount) the shim never attached the image, the case is not exercising the window: $T_OUT"; ok=0
+    fi
+    rm -rf "$fsd"
   fi
   # a swap while the probes run: the mount shim renames the verified root away and moves a decoy (no marker) into its
   # path; the removal must act only on the directory it verified, so the decoy survives

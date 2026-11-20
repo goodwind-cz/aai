@@ -305,6 +305,15 @@ aai_residue_suffix() { printf '%s\n' "${1##*-}"; }
 # aai_residue_mtime <file> — modification time in epoch seconds.
 aai_residue_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
 
+# aai_residue_is_home <path> — 0 when <path> is HOME, literally or as HOME's
+# physical path (a symlinked home).
+aai_residue_is_home() {
+  [ -n "${HOME:-}" ] || return 1
+  [ "$1" = "$HOME" ] && return 0
+  ih_phys=$(cd "$HOME" 2>/dev/null && pwd -P) || return 1
+  [ -n "$ih_phys" ] && [ "$1" = "$ih_phys" ]
+}
+
 # aai_residue_tmp_create <owner id> <start> <base> — make <base>/aai-tr-<tail>
 # (mode 700, never an existing path) with its marker; print the root.
 aai_residue_tmp_create() {
@@ -313,7 +322,7 @@ aai_residue_tmp_create() {
   # The same base rules the removal applies, so no root is made that the
   # cleanup would then refuse to remove: absolute, not /, not HOME, physical.
   case "${3:-}" in /?*) : ;; *) return 2 ;; esac
-  [ "$3" != "${HOME:-/nonexistent-home}" ] || return 2
+  ! aai_residue_is_home "$3" || return 2
   [ "$(cd "$3" 2>/dev/null && pwd -P)" = "$3" ] || return 2
   tc_new="$3/aai-tr-$(aai_residue_suffix "$1")"
   (umask 077 && mkdir -- "$tc_new") 2>/dev/null || return 1
@@ -336,7 +345,7 @@ aai_residue_tmp_verify() {
   aai_residue_runid_valid "$tv_id" || { echo "no valid owner id"; return 1; }
   case "$tv_start" in '' | *[!0-9]*) echo "no valid run start"; return 1 ;; esac
   case "$tv_base" in /?*) : ;; *) echo "base '$tv_base' is not an absolute path other than /"; return 1 ;; esac
-  [ "$tv_base" != "${HOME:-/nonexistent-home}" ] || { echo "base '$tv_base' is HOME"; return 1; }
+  ! aai_residue_is_home "$tv_base" || { echo "base '$tv_base' is HOME"; return 1; }
   [ "$(cd "$tv_base" 2>/dev/null && pwd -P)" = "$tv_base" ] || { echo "base '$tv_base' is not its own physical path"; return 1; }
   if [ "$(aai_residue_tree_mode)" = sandbox ]; then
     [ "$(cd "$AAI_RESIDUE_SANDBOX" 2>/dev/null && pwd -P)" = "$tv_base" ] || { echo "base '$tv_base' is not the test sandbox"; return 1; }
@@ -467,7 +476,11 @@ aai_residue_tmp_cleanup() {
     cd -P -- "$tc_q" 2>/dev/null || { echo "it could not be entered"; exit 1; }
     [ "$(aai_residue_dir_identity .)" = "$tc_pin" ] || { echo "the directory at its path changed while it was checked (identity differs)"; exit 1; }
     [ "$(sed -n '1p' .aai-test-run 2>/dev/null)" = "$1 $2" ] || { echo "the directory at its path changed while it was checked (marker differs)"; exit 1; }
-    rm -rf -- ./* ./.[!.]* ./..?* 2>/dev/null
+    # The deletion itself refuses to cross into a filesystem mounted after
+    # the probes: find -xdev pins the device of "." and never descends into
+    # another one (a mount point is visited, not entered, and cannot be
+    # removed while mounted); find never follows a symlink.
+    find . -xdev -mindepth 1 -delete 2>/dev/null
     echo ok
   )
   if [ "$tc_out" != ok ]; then

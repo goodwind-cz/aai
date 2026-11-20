@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: db3688310c0e427640b31d99fa59d824a650751f03897fc6a622b99c0fc1ac53
+frozen_sha256: 1400471142241319c2b3ff36a40094aedf7d35fb2b1eaba40661abc6a5603a90
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -89,7 +89,8 @@ SPEC-FROZEN: true
   `aai_residue_tmp_verify <id> <start> <base> <root>` passes only when all of
   the following hold:
   - the id is valid and the start is an integer;
-  - the base is absolute, not `/`, not `$HOME`, and its own physical path;
+  - the base is absolute, not `/`, not `$HOME` (literally or as HOME's
+    physical path), and its own physical path;
   - in `sandbox` mode, the base is the sandbox;
   - the root is exactly `<base>/aai-tr-<this id's tail>` (the name layer);
   - the root is a directory, not a symlink, owned by the current uid;
@@ -102,8 +103,10 @@ SPEC-FROZEN: true
   root is renamed to a fresh `<root>.removing.<pid>` name and probed again,
   and the deletion then goes through the pinned directory itself: a subshell
   changes into it, re-reads the identity of `.` and the marker, and removes
-  the entries by relative name; only the then-empty directory is removed by
-  name, with `rmdir` (Codex P1 on PR #574, eleventh review). A directory
+  the entries with `find . -xdev -mindepth 1 -delete`, which pins the device
+  of `.` and never enters a filesystem mounted after the probes (Codex P1 on
+  PR #574, twelfth review); only the then-empty directory is removed by
+  name, with `rmdir` (eleventh review). A directory
   swapped into either name while the checks ran is never emptied. Residual:
   a same-uid process can still move entries around inside the run's own
   root while it is removed. Post-freeze amendment (code review r1 BLOCKING-1):
@@ -266,7 +269,7 @@ None.
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
 | TEST-3923 | Spec-AC-01 | integration | tests/skills/test-aai-test-residue.sh | the real wrapper in sandbox mode: a probe command prints TMPDIR and the marker; pass, fail (exit 3) and watchdog (AAI_TEST_TIMEOUT=2) runs leave no root and keep their exit codes; a nested wrapper creates no second root; a test-context wrapper without a sandbox leaves TMPDIR alone and prints no AAI-RESIDUE line; RED on the unchanged tree | target `.aai/scripts/aai-run-tests.sh`; `sed:s/TMPDIR="\$AAI_TREE_ROOT"/TMPDIR="$AAI_TREE_BASE"/` hands the command the base instead of the root and the case must fail | green |
-| TEST-3924 | Spec-AC-02 | integration | tests/skills/test-aai-test-residue.sh | library cases in a sandbox: wrong name, symlink root, no marker, foreign marker, old marker (touch -t), empty, relative, slash and HOME base each keep their directory and print the reason; empty id, malformed id and bad start exit 2; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/\[ "\$tv_base" != "\$\{HOME:-\/nonexistent-home\}" \]/true/` drops the HOME guard and the case must fail | green |
+| TEST-3924 | Spec-AC-02 | integration | tests/skills/test-aai-test-residue.sh | library cases in a sandbox: wrong name, symlink root, no marker, foreign marker, old marker (touch -t), empty, relative, slash and HOME base each keep their directory and print the reason; empty id, malformed id and bad start exit 2; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/  \[ -n "\$\{HOME:-\}" \] \x7c\x7c return 1/  return 1/` makes the HOME test (literal and physical) always answer no and the case must fail | green |
 | TEST-3925 | Spec-AC-03 | integration | tests/skills/test-aai-test-residue.sh | the wrapper in sandbox mode with a command that writes outside.txt into the sandbox: one NOTE line names outside.txt, the file remains, the root is gone; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/aai_residue_tmp_outside "\$tc_base" "\$tc_root"/:/` drops the outside report and the case must fail | green |
 | TEST-3926 | Spec-AC-04 | integration | tests/skills/test-aai-test-residue.sh | the wrapper in sandbox mode with a command that starts two detached sleeps (perl setsid), one keeping descriptor 9 and one with 9 closed, pids into the sandbox: the first is gone, the second runs (the case kills it itself); dry run keeps both and says would terminate; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/kill -s "\$2" "\$1"/: kill -s "$2" "$1"/` stops sending the signal and the case must fail | green |
 | TEST-3927 | Spec-AC-05 | integration | tests/skills/test-aai-test-residue.sh | verify on pid 1, $$, $PPID, a sleep not in the sandbox list and a sleep with the run start one hour ahead, each holding the marker on descriptor 9 where the case can arrange it: each refused with its reason; signal with a wrong identity leaves the sleep running; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/case " \$pv_excl " in \*" \$pv_pid "\*\) echo "is this wrapper or one of its ancestors"; return 1 ;; esac//` drops the ancestor exclusion and the case must fail | green |
