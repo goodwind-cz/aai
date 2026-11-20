@@ -841,6 +841,15 @@ test_3923_owner_temp_root_lifecycle() {
   compgen -G "$sb2/aai-tr-*/keep.txt" >/dev/null || compgen -G "$sb2/aai-tr-*.removing.*/keep.txt" >/dev/null \
     || { log_fail "TEST-3923 (swap) a decoy put at the root's path by the command was deleted: $W_OUT"; ok=0; }
   command grep -qF 'not the root created for this run' <<<"$W_OUT" || { log_fail "TEST-3923 (swap) no NOTE says the root was replaced: $W_OUT"; ok=0; }
+  # the root was made but its identity cannot be read (stat fails): the just-made empty root and its marker are
+  # rolled back, nothing is left behind, and the NOTE names the identity failure
+  sb2="$(sandbox_new 3923-nostat)"
+  mkdir -p "$sb2/bin"; printf '#!/bin/sh\nexit 1\n' > "$sb2/bin/stat"; chmod +x "$sb2/bin/stat"
+  W_RC=0
+  W_OUT="$(env -u AAI_TEST_OWNER -u AAI_TEST_OWNER_START AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb2" TMPDIR="$sb2" \
+    PATH="$sb2/bin:$PATH" bash "$WRAP" sh -c 'echo "TMP=$TMPDIR"' 2>&1)" || W_RC=$?
+  ! compgen -G "$sb2/aai-tr-*" >/dev/null || { log_fail "TEST-3923 (no identity) the made root was left behind: $(ls -a "$sb2")"; ok=0; }
+  command grep -qF 'identity' <<<"$W_OUT" || { log_fail "TEST-3923 (no identity) the NOTE does not name the identity failure: $W_OUT"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-3923 the owning wrapper hands its command a private aai-tr-<hex> root with a marker naming the owner, removes it after a pass, a failure and a watchdog kill; nested and off-mode wrappers make none"
 }
 

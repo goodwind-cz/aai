@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 93f91a4a6461e985d5359b63ad484b12f7190ac6593ec60e2eed7f77f3cddea9
+frozen_sha256: 26441c2f80364ac85caad545f6f02b0bb1aadfd0478fb6e036e64a7d6f8bc7e4
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -103,7 +103,9 @@ SPEC-FROZEN: true
   the cleanup keeps (with a NOTE) a root whose directory or marker is no
   longer that pinned object, so a command that swaps its own root cannot
   hand the cleanup another directory (Codex P1 on PR #574, fifteenth
-  review). The removal is pinned too (tenth review): the directory's device
+  review). When that identity cannot be read, the wrapper removes the
+  marker it just wrote and rmdirs the just-made, empty root (never rm -rf)
+  and says so in a NOTE (sixteenth review). The removal is pinned too (tenth review): the directory's device
   and inode are read again before any check, the
   root is renamed to a fresh `<root>.removing.<pid>` name and probed again,
   and the deletion then goes through the pinned directory itself: a subshell

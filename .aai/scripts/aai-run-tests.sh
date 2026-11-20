@@ -867,10 +867,20 @@ if [ -z "${AAI_TEST_OWNER:-}" ] && [ "$DEGRADED_MSYS" -eq 0 ] && [ -n "$AAI_SELF
     if [ -n "$AAI_TREE_ROOT" ]; then
       AAI_TREE_PIN=$(aai_residue_dir_identity "$AAI_TREE_ROOT") || AAI_TREE_PIN=''
       AAI_TREE_MARK_PIN=$(aai_residue_file_identity "$AAI_TREE_ROOT/.aai-test-run") || AAI_TREE_MARK_PIN=''
-      [ -n "$AAI_TREE_PIN" ] && [ -n "$AAI_TREE_MARK_PIN" ] || AAI_TREE_ROOT=''
+      if [ -z "$AAI_TREE_PIN" ] || [ -z "$AAI_TREE_MARK_PIN" ]; then
+        # Roll back exactly what was just made: the marker, then the root
+        # with rmdir, which removes it only if it is empty (never rm -rf).
+        rm -f -- "$AAI_TREE_ROOT/.aai-test-run" 2>/dev/null
+        rmdir -- "$AAI_TREE_ROOT" 2>/dev/null
+        echo "AAI-RESIDUE: NOTE - the identity (device and inode) of the new temp root could not be read, so it was rolled back; temp files and leftover processes of this run will not be cleaned." >&2
+        AAI_TREE_ROOT=''
+        AAI_TREE_PIN_FAILED=1
+      fi
     fi
     if [ -n "$AAI_TREE_ROOT" ]; then
       AAI_TREE_OWN=1
+    elif [ "${AAI_TREE_PIN_FAILED:-0}" -eq 1 ]; then
+      :
     else
       echo "AAI-RESIDUE: NOTE - no temp root could be made under ${TMPDIR:-/tmp}; temp files and leftover processes of this run will not be cleaned." >&2
     fi
