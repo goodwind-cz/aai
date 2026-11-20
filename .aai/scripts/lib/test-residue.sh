@@ -310,7 +310,11 @@ aai_residue_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null
 aai_residue_tmp_create() {
   aai_residue_runid_valid "${1:-}" || return 2
   case "${2:-}" in '' | *[!0-9]*) return 2 ;; esac
+  # The same base rules the removal applies, so no root is made that the
+  # cleanup would then refuse to remove: absolute, not /, not HOME, physical.
   case "${3:-}" in /?*) : ;; *) return 2 ;; esac
+  [ "$3" != "${HOME:-/nonexistent-home}" ] || return 2
+  [ "$(cd "$3" 2>/dev/null && pwd -P)" = "$3" ] || return 2
   tc_new="$3/aai-tr-$(aai_residue_suffix "$1")"
   (umask 077 && mkdir -- "$tc_new") 2>/dev/null || return 1
   if ! printf '%s %s\n' "$1" "$2" > "$tc_new/.aai-test-run"; then
@@ -508,7 +512,9 @@ aai_residue_proc_verify() {
   if [ "$(aai_residue_tree_mode)" = sandbox ]; then
     grep -qx "$pv_pid" "$AAI_RESIDUE_SANDBOX/pids" 2>/dev/null || { echo "is not listed in the test sandbox"; return 1; }
   fi
-  "$AAI_RESIDUE_LSOF" -a -p "$pv_pid" -d 9 -F f -- "$pv_m" 2>/dev/null | grep -qx 'f9' || { echo "does not hold this run's marker on descriptor 9"; return 1; }
+  # The per-process check counts only when lsof itself completed (exit 0).
+  pv_fd=$("$AAI_RESIDUE_LSOF" -a -p "$pv_pid" -d 9 -F f -- "$pv_m" 2>/dev/null) || { echo "its lsof ownership check did not complete or found no marker"; return 1; }
+  printf '%s\n' "$pv_fd" | grep -qx 'f9' || { echo "does not hold this run's marker on descriptor 9"; return 1; }
   printf '%s\n' "$pv_ident"
 }
 

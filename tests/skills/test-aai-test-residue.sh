@@ -871,6 +871,11 @@ test_3924_tampered_roots_are_kept() {
   T_OUT="$(HOME="$sb" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
     sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
   kept "HOME base" "$root" "HOME"
+  # a base the cleanup would refuse (HOME) is refused at creation too, so no root is made that cannot be removed
+  T_RC=0
+  T_OUT="$(HOME="$sb" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_create "$TID_OTHER" "$st" "$sb" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 && ! -e "$sb/aai-tr-ffffffff" ]] || { log_fail "TEST-3924 a root was created under HOME, which the cleanup refuses (rc $T_RC)"; ok=0; rm -rf "$sb/aai-tr-ffffffff"; }
   # a marker that cannot be written (file size limit) rolls the new root back
   T_RC=0
   T_OUT="$(AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
@@ -950,6 +955,12 @@ test_3927_per_process_check_refusals() {
   [[ "$T_RC" -eq 0 && -n "$T_OUT" ]] || { log_fail "TEST-3927 control: a listed marker holder failed the check: $T_OUT"; ok=0; }
   lib_tree "$sb" "$LIB" aai_residue_proc_verify "$p" "$m" "$(( $(date +%s) + 3600 ))"
   [[ "$T_RC" -ne 0 ]] && command grep -qF 'before this run' <<<"$T_OUT" || { log_fail "TEST-3927 a process started before the run start passed: $T_OUT"; ok=0; }
+  # a per-process lsof that prints the f9 record but then fails is not a completed ownership check
+  mkdir -p "$sb/bin3927"
+  printf '#!/bin/sh\ncase " $* " in *" -p "*) echo p%s; echo f9; exit 1 ;; esac\nexec %q "$@"\n' "$p" "$(command -v lsof)" > "$sb/bin3927/lsof"
+  chmod +x "$sb/bin3927/lsof"
+  TREE_LSOF="$sb/bin3927/lsof" lib_tree "$sb" "$LIB" aai_residue_proc_verify "$p" "$m" 0
+  [[ "$T_RC" -ne 0 ]] || { log_fail "TEST-3927 a failed per-process lsof still passed the check: $T_OUT"; ok=0; }
   lib_tree "$sb" "$LIB" aai_residue_proc_signal "$p" TERM "$m" 0 "bogus identity"
   [[ "$T_RC" -ne 0 ]] || { log_fail "TEST-3927 a changed identity was signalled"; ok=0; }
   alive "$p" || { log_fail "TEST-3927 the process with a changed identity was terminated"; ok=0; }

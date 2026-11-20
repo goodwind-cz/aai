@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: f32f8e2200deb3b74554deb266f2b779b4bda49d20f05a0b1beb268e1b586033
+frozen_sha256: a0432286a7d08e7203b5f7829401263eb65fc3e50cc93333b241dc43d44fad6e
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -77,7 +77,10 @@ SPEC-FROZEN: true
 - D2 (temp root). The owner creates `<base>/aai-tr-<8 hex>`, where `<base>`
   is the physical `${TMPDIR:-/tmp}` and the 8 hex are the owner id's random
   tail. It uses `mkdir` under `umask 077` (no reuse of an existing path) and
-  writes the marker `.aai-test-run` holding `<owner id> <start>`. The
+  writes the marker `.aai-test-run` holding `<owner id> <start>`. Creation
+  applies the removal's base rules (absolute, not `/`, not `$HOME`, its own
+  physical path), so no root is made that the cleanup would then refuse to
+  remove (Codex P2 on PR #574). The
   command gets `TMPDIR=<root>`, `AAI_TEST_OWNER` and `AAI_TEST_OWNER_START`;
   the wrapper's own `TMPDIR` is restored right after the launch.
 - D3 (root removal: two layers plus context).
@@ -141,8 +144,9 @@ SPEC-FROZEN: true
   - it started at or after the run start, measured as now minus `etime`,
     with one second of slack;
   - in `sandbox` mode, its pid is listed in `$AAI_RESIDUE_SANDBOX/pids`;
-  - `lsof -a -p <pid> -d 9 -F f -- <marker>` shows it still holds the marker
-    on descriptor 9.
+  - `lsof -a -p <pid> -d 9 -F f -- <marker>` exits 0 and shows it still
+    holds the marker on descriptor 9 (an lsof that fails is not a check;
+    Codex P2 on PR #574).
   The check prints the pid's `lstart` as its identity.
   `aai_residue_proc_signal` re-runs the check and signals only when the
   identity is unchanged, with `kill -s <SIG> <pid>`: one positive pid,
