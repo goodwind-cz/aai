@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 2c4dd74567f6338a6ad8ca08a4228d4a2c0fdc70b096932dfb05a374f1d98b2e
+frozen_sha256: ccd8570694fe90da896cd9a3411ff51410698b140bba4cbbeacbed4a01dae58f
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -94,7 +94,9 @@ SPEC-FROZEN: true
   before the removal, `find <root>` and `find <root> -xdev` must list the
   same number of entries; when they differ, a filesystem is mounted inside
   the root (a disk image or bind mount a killed test left) and the root is
-  kept with that reason, because `rm -rf` would delete the mounted data. A
+  kept with that reason, because `rm -rf` would delete the mounted data.
+  Both walks must exit 0; a walk that fails keeps the root too (Codex P1 on
+  PR #574, fourth review). A
   bind mount of a same-device directory keeps the device number, so the
   root is also kept when the `mount` table lists any mount point at
   `<root>` itself or under `<root>/` (the exact-root match after Codex P1 on

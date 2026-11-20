@@ -388,8 +388,13 @@ aai_residue_tmp_cleanup() {
   # rm -rf would descend into a filesystem mounted inside the root (a test's
   # disk image or bind mount) and delete data this run never made: keep the
   # root when anything below it lies on another filesystem.
-  tc_all=$(find "$tc_root" 2>/dev/null | awk 'END { print NR }')
-  tc_one=$(find "$tc_root" -xdev 2>/dev/null | awk 'END { print NR }')
+  # Both walks must complete (exit 0): a walk cut short proves nothing.
+  if ! tc_walk=$(find "$tc_root" 2>/dev/null) || ! tc_walk1=$(find "$tc_root" -xdev 2>/dev/null); then
+    aai_residue_say "kept temp root $tc_root - its find walk did not complete, so a mount inside it cannot be ruled out"
+    return 0
+  fi
+  tc_all=$(printf '%s\n' "$tc_walk" | awk 'END { print NR }')
+  tc_one=$(printf '%s\n' "$tc_walk1" | awk 'END { print NR }')
   if [ -z "$tc_all" ] || [ "$tc_all" != "$tc_one" ]; then
     aai_residue_say "kept temp root $tc_root - another filesystem is mounted inside it; unmount it and remove the root by hand"
     return 0

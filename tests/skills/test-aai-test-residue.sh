@@ -1063,6 +1063,14 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
     sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
   [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root whose walk crosses a filesystem boundary was removed: $T_OUT"; ok=0; }
   command grep -qF 'mounted inside' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the mount: $T_OUT"; ok=0; }
+  # a find that fails (here: full output, exit 1, for both walks) keeps the root: the walk was not proven whole
+  printf '#!/bin/sh\n%q "$@"\nexit 1\n' "$real" > "$fsd/find"
+  chmod +x "$fsd/find"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  [[ -f "$root/mnt/deep/keep.txt" ]] || { log_fail "TEST-3931 a root was removed although its find walk failed: $T_OUT"; ok=0; }
+  command grep -qF 'walk did not complete' <<<"$T_OUT" || { log_fail "TEST-3931 no reason names the failed walk: $T_OUT"; ok=0; }
   # a same-device bind mount: only the mount table shows it (a mount shim stands in for it)
   rm -f "$fsd/find"
   printf '#!/bin/sh\necho "/dev/fake on %s/mnt type none (rw,bind)"\n' "$root" > "$fsd/mount"
