@@ -5,8 +5,9 @@ capability: test-residue-safe-cleanup
 status: current
 delivered_by:
   - test-residue-safe-cleanup
+  - test-residue-files-and-processes
 spec: docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md
-updated: 2026-11-19
+updated: 2026-11-20
 ---
 
 # Tests cannot touch a container daemon unless they opt in, and clean up only what they provably created
@@ -86,12 +87,27 @@ their own objects; the run id has the form `aai-<epoch>-<pid>-<8 hex>`.
   check still protects everything they did not label for this run).
 - A daemon that hangs (rather than refusing) holds the cleanup until it
   answers.
-- Temporary files and leftover processes are not part of this feature (the
-  wrapper's process-group reap already covers processes).
+- Temporary files: every test run gets its own temp root,
+  `$TMPDIR/aai-tr-<8 hex>`, as `TMPDIR`, and the root is removed when the
+  run ends, only after its exact name and the marker file inside it prove the
+  run made it. A file a test writes elsewhere (a hard-coded `/tmp` path) is
+  named in a NOTE line and never removed. A root with another filesystem
+  mounted inside it (a test killed before it unmounted a disk image) is kept,
+  with the reason. `AAI_TEST_TMPDIR=keep` keeps the caller's `TMPDIR` for the
+  command (for a cache keyed on it); the cleanup still runs.
+- Leftover processes: a process a test leaves running (outside the wrapper's
+  process group) is terminated only while it holds the run's marker on
+  descriptor 9, re-checked by pid right before each signal. A process that
+  closed that descriptor (a Node or Python child with closed descriptors)
+  cannot be proven and is left alone. Inside a test the wrapper acts only in
+  a sandbox the test names (`AAI_RESIDUE_SANDBOX`). Git Bash on Windows runs
+  none of this.
 - Windows without WSL or Git Bash is not covered.
 
 ## Links
 
 - Request: docs/issues/CHANGE-0259-test-residue-safe-cleanup.md
 - Spec: docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md
+- Temp root and leftover processes: test-residue-files-and-processes (change)
+  and spec-test-residue-files-and-processes (spec)
 - Validation evidence: docs/ai/reports/VALIDATION-test-residue-safe-cleanup-20261119T205353Z.md

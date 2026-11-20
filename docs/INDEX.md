@@ -62,12 +62,12 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | routing-table-freshness | routing-table-freshness | 1 | docs/product/routing-table-freshness.md |
 | telemetry | telemetry | 6 | docs/product/telemetry.md |
-| test-residue-safe-cleanup | test-residue-safe-cleanup | 1 | docs/product/test-residue-safe-cleanup.md |
+| test-residue-safe-cleanup | test-residue-safe-cleanup | 2 | docs/product/test-residue-safe-cleanup.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (681)
+## Done (683)
 
 | ID | Type | Path |
 |---|---|---|
@@ -325,6 +325,7 @@ _None._
 | CHANGE-0257 | issues | docs/issues/CHANGE-0257-consumer-config-routing-override.md |
 | CHANGE-0258 | issues | docs/issues/CHANGE-0258-delegated-requester-approval.md |
 | CHANGE-0259 | issues | docs/issues/CHANGE-0259-test-residue-safe-cleanup.md |
+| CHANGE-0260 | issues | docs/issues/CHANGE-0260-test-residue-files-and-processes.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -750,6 +751,7 @@ _None._
 | SPEC-0302 | specs | docs/specs/SPEC-0302-spec-precommit-sentinel-trap.md |
 | SPEC-0303 | specs | docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md |
 | SPEC-0304 | specs | docs/specs/SPEC-0304-spec-precommit-residual-defects.md |
+| SPEC-0305 | specs | docs/specs/SPEC-0305-spec-test-residue-files-and-processes.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

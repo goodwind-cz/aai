@@ -266,3 +266,299 @@ EOF
   fi
   return 0
 }
+
+# ---------------------------------------------------------------------------
+# RUN TEMP ROOT AND LEFTOVER PROCESSES (test-residue-files-and-processes).
+# The wrapper that owns a run (no inherited AAI_TEST_OWNER) gives its command
+# a private temp root, <base>/aai-tr-<8 hex>, holding a marker file, and the
+# marker opened on descriptor 9. Afterwards it terminates the processes that
+# still hold the marker on descriptor 9 and removes the root. The same rules
+# as above: nothing is acted on from a listing alone. A process is re-checked
+# by pid right before every signal (uid, start time, not an ancestor, still
+# holding the marker on 9, same start time as first seen); the root is
+# removed only when its exact name AND its marker prove this run made it.
+# Temp entries outside the root are reported, never removed. Inside a test
+# nothing runs unless the test names its sandbox (AAI_RESIDUE_SANDBOX); then
+# the base must be the sandbox and only pids listed in <sandbox>/pids may be
+# signalled. Return codes: 0 done or kept with a reason, 2 refused (bad id,
+# start, base, root or marker; nothing touched), 4 refused (more candidates
+# than the cap; nothing signalled).
+
+AAI_RESIDUE_PROC_CAP=25
+
+# aai_residue_tree_mode — real outside a test, sandbox inside a test that
+# names a sandbox directory, off otherwise.
+aai_residue_tree_mode() {
+  case "${AAI_RESIDUE_IN_TEST:-0}" in
+    '' | 0) echo real; return 0 ;;
+  esac
+  if [ -n "${AAI_RESIDUE_SANDBOX:-}" ] && [ -d "$AAI_RESIDUE_SANDBOX" ] && [ ! -L "$AAI_RESIDUE_SANDBOX" ]; then
+    echo sandbox
+  else
+    echo off
+  fi
+}
+
+# aai_residue_suffix <id> — the id's 8-hex tail.
+aai_residue_suffix() { printf '%s\n' "${1##*-}"; }
+
+# aai_residue_mtime <file> — modification time in epoch seconds.
+aai_residue_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
+
+# aai_residue_tmp_create <owner id> <start> <base> — make <base>/aai-tr-<tail>
+# (mode 700, never an existing path) with its marker; print the root.
+aai_residue_tmp_create() {
+  aai_residue_runid_valid "${1:-}" || return 2
+  case "${2:-}" in '' | *[!0-9]*) return 2 ;; esac
+  case "${3:-}" in /?*) : ;; *) return 2 ;; esac
+  tc_new="$3/aai-tr-$(aai_residue_suffix "$1")"
+  (umask 077 && mkdir -- "$tc_new") 2>/dev/null || return 1
+  printf '%s %s\n' "$1" "$2" > "$tc_new/.aai-test-run" || return 1
+  printf '%s\n' "$tc_new"
+}
+
+# aai_residue_tmp_verify <id> <start> <base> <root> — 0 only when <root> is
+# provably this run's; otherwise print the reason and return 1.
+aai_residue_tmp_verify() {
+  tv_id="${1:-}"
+  tv_start="${2:-}"
+  tv_base="${3:-}"
+  tv_root="${4:-}"
+  aai_residue_runid_valid "$tv_id" || { echo "no valid owner id"; return 1; }
+  case "$tv_start" in '' | *[!0-9]*) echo "no valid run start"; return 1 ;; esac
+  case "$tv_base" in /?*) : ;; *) echo "base '$tv_base' is not an absolute path other than /"; return 1 ;; esac
+  [ "$tv_base" != "${HOME:-/nonexistent-home}" ] || { echo "base '$tv_base' is HOME"; return 1; }
+  [ "$(cd "$tv_base" 2>/dev/null && pwd -P)" = "$tv_base" ] || { echo "base '$tv_base' is not its own physical path"; return 1; }
+  if [ "$(aai_residue_tree_mode)" = sandbox ]; then
+    [ "$(cd "$AAI_RESIDUE_SANDBOX" 2>/dev/null && pwd -P)" = "$tv_base" ] || { echo "base '$tv_base' is not the test sandbox"; return 1; }
+  fi
+  tv_want="$tv_base/aai-tr-$(aai_residue_suffix "$tv_id")"
+  [ "$tv_root" = "$tv_want" ] || { echo "'$tv_root' is not $tv_want"; return 1; } # layer:name
+  [ ! -L "$tv_root" ] || { echo "'$tv_root' is a symlink"; return 1; }
+  [ -d "$tv_root" ] || { echo "'$tv_root' is not a directory"; return 1; }
+  tv_uid=$(ls -ldn -- "$tv_root" 2>/dev/null | awk '{ print $3 }')
+  [ "$tv_uid" = "$(id -u)" ] || { echo "'$tv_root' is owned by uid '$tv_uid'"; return 1; }
+  tv_mark="$tv_root/.aai-test-run"
+  { [ -f "$tv_mark" ] && [ ! -L "$tv_mark" ]; } || { echo "no regular marker file in '$tv_root'"; return 1; }
+  tv_line=$(sed -n '1p' "$tv_mark" 2>/dev/null)
+  [ "$tv_line" = "$tv_id $tv_start" ] || { echo "the marker names '$tv_line', not this run"; return 1; } # layer:marker
+  tv_mt=$(aai_residue_mtime "$tv_mark")
+  case "$tv_mt" in '' | *[!0-9]*) echo "the marker's time is unreadable"; return 1 ;; esac
+  [ "$tv_mt" -ge "$tv_start" ] || { echo "the marker is older than the run start"; return 1; }
+  return 0
+}
+
+# aai_residue_tmp_outside <base> <root> — one NOTE naming the temp entries made
+# in <base> after the marker, outside the root (and outside any aai-tr- root).
+aai_residue_tmp_outside() {
+  to_out=$(find "$1" -mindepth 1 -maxdepth 1 -user "$(id -u)" -newer "$2/.aai-test-run" ! -name 'aai-tr-*' -print 2>/dev/null)
+  [ -n "$to_out" ] || return 0
+  to_n=$(printf '%s\n' "$to_out" | awk 'END { print NR }')
+  to_names=$(printf '%s\n' "$to_out" | awk -F/ 'NR <= 5 { printf "%s%s", (NR > 1 ? ", " : ""), $NF }')
+  aai_residue_say "NOTE - $to_n temp entr$( [ "$to_n" -eq 1 ] && echo y || echo ies) in $1 changed since this run started (by this run or any other process), outside its temp root, not removed: $to_names"
+}
+
+# aai_residue_tmp_cleanup <id> <start> <base> <root> — report what lies
+# outside the root, then remove the root when aai_residue_tmp_verify proves it.
+aai_residue_tmp_cleanup() {
+  if ! aai_residue_runid_valid "${1:-}"; then
+    aai_residue_say "REFUSED - owner id '${1:-}' is empty or malformed; no temp root removed."
+    return 2
+  fi
+  case "${2:-}" in
+    '' | *[!0-9]*) aai_residue_say "REFUSED - run start '${2:-}' is not an epoch in seconds; no temp root removed."; return 2 ;;
+  esac
+  if [ -z "${3:-}" ] || [ -z "${4:-}" ]; then
+    aai_residue_say "REFUSED - empty temp base or root; nothing removed."
+    return 2
+  fi
+  [ "$(aai_residue_tree_mode)" != off ] || return 0
+  tc_base="$3"
+  tc_root="$4"
+  if ! tc_why=$(aai_residue_tmp_verify "$1" "$2" "$tc_base" "$tc_root"); then
+    aai_residue_say "kept temp root $tc_root - $tc_why"
+    return 0
+  fi
+  aai_residue_tmp_outside "$tc_base" "$tc_root"
+  # rm -rf would descend into a filesystem mounted inside the root (a test's
+  # disk image or bind mount) and delete data this run never made: keep the
+  # root when anything below it lies on another filesystem.
+  tc_all=$(find "$tc_root" 2>/dev/null | awk 'END { print NR }')
+  tc_one=$(find "$tc_root" -xdev 2>/dev/null | awk 'END { print NR }')
+  if [ -z "$tc_all" ] || [ "$tc_all" != "$tc_one" ]; then
+    aai_residue_say "kept temp root $tc_root - another filesystem is mounted inside it; unmount it and remove the root by hand"
+    return 0
+  fi
+  # A bind mount of a directory on the same filesystem keeps the device, so the
+  # walk above cannot see it; the mount table can.
+  if mount 2>/dev/null | grep -qF " on $tc_root/"; then
+    aai_residue_say "kept temp root $tc_root - the mount table lists a mount inside it; unmount it and remove the root by hand"
+    return 0
+  fi
+  if [ "${AAI_RESIDUE_DRY_RUN:-0}" = "1" ]; then
+    aai_residue_say "would delete temp root $tc_root (name and marker match this run)"
+    return 0
+  fi
+  rm -rf -- "$tc_root" 2>/dev/null
+  [ ! -e "$tc_root" ] || aai_residue_say "FAILED to delete temp root $tc_root"
+  return 0
+}
+
+# aai_residue_ancestors — this shell's pid and every ancestor's, space-separated.
+aai_residue_ancestors() {
+  an_p=$$
+  an_out=" $$ "
+  while [ -n "$an_p" ] && [ "$an_p" -gt 1 ]; do
+    an_p=$(ps -o ppid= -p "$an_p" 2>/dev/null | tr -d ' ')
+    case "$an_p" in '' | *[!0-9]*) break ;; esac
+    an_out="$an_out$an_p "
+  done
+  printf '%s\n' "$an_out"
+}
+
+# aai_residue_etime_s <[[dd-]hh:]mm:ss> — elapsed seconds.
+aai_residue_etime_s() {
+  printf '%s\n' "$1" | awk '{
+    s = $1; d = 0
+    if (index(s, "-")) { split(s, a, "-"); d = a[1]; s = a[2] }
+    n = split(s, b, ":"); t = 0
+    for (i = 1; i <= n; i++) t = t * 60 + b[i]
+    printf "%d\n", d * 86400 + t
+  }'
+}
+
+# aai_residue_marker_ok <marker> — 0 for an existing regular .aai-test-run
+# file under an absolute path.
+aai_residue_marker_ok() {
+  case "${1:-}" in
+    /*/.aai-test-run) [ -f "$1" ] && [ ! -L "$1" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+# aai_residue_proc_list <marker> — the ONLY process listing: pids holding the
+# marker open on descriptor 9. No marker, no listing (never "every process").
+aai_residue_proc_list() {
+  if ! aai_residue_marker_ok "${1:-}"; then
+    aai_residue_say "REFUSED - listing processes needs this run's marker file, got '${1:-}'; nothing listed."
+    echo 'AAI-RESIDUE-LIST-REFUSED'
+    return 2
+  fi
+  "$AAI_RESIDUE_LSOF" -a -d 9 -F p -- "$1" 2>/dev/null | sed -n 's/^p\([0-9][0-9]*\)$/\1/p'
+}
+
+# aai_residue_proc_verify <pid> <marker> <start> — re-check ONE process. 0 =
+# this run's: print its start time (the identity a signal re-compares); else
+# print the reason and return 1.
+aai_residue_proc_verify() {
+  pv_pid="${1:-}"
+  case "$pv_pid" in '' | *[!0-9]* | 0 | 1) echo "pid '$pv_pid' is not a process this run can own"; return 1 ;; esac
+  case "${3:-}" in '' | *[!0-9]*) echo "no valid run start"; return 1 ;; esac
+  pv_excl=$(aai_residue_ancestors)
+  case " $pv_excl " in *" $pv_pid "*) echo "is this wrapper or one of its ancestors"; return 1 ;; esac
+  pv_info=$(ps -o uid= -o etime= -o lstart= -p "$pv_pid" 2>/dev/null) || { echo "is gone"; return 1; }
+  set -- $pv_info "$2" "$3"
+  [ "$#" -ge 4 ] || { echo "is gone"; return 1; }
+  pv_uid=$1
+  pv_et=$(aai_residue_etime_s "$2")
+  shift 2
+  pv_m=''
+  pv_st=''
+  pv_ident=''
+  while [ "$#" -gt 2 ]; do pv_ident="${pv_ident:+$pv_ident }$1"; shift; done
+  pv_m=$1
+  pv_st=$2
+  [ "$pv_uid" = "$(id -u)" ] || { echo "belongs to uid $pv_uid"; return 1; }
+  case "$pv_et" in '' | *[!0-9]*) echo "its elapsed time is unreadable"; return 1 ;; esac
+  [ $(( $(date +%s) - pv_et )) -ge $(( pv_st - 1 )) ] || { echo "started before this run"; return 1; }
+  if [ "$(aai_residue_tree_mode)" = sandbox ]; then
+    grep -qx "$pv_pid" "$AAI_RESIDUE_SANDBOX/pids" 2>/dev/null || { echo "is not listed in the test sandbox"; return 1; }
+  fi
+  "$AAI_RESIDUE_LSOF" -a -p "$pv_pid" -d 9 -F f -- "$pv_m" 2>/dev/null | grep -qx 'f9' || { echo "does not hold this run's marker on descriptor 9"; return 1; }
+  printf '%s\n' "$pv_ident"
+}
+
+# aai_residue_proc_signal <pid> <TERM|KILL> <marker> <start> <identity> —
+# re-check, then signal that one pid if its identity is unchanged.
+aai_residue_proc_signal() {
+  ps_now=$(aai_residue_proc_verify "$1" "$3" "$4") || { echo "$ps_now"; return 1; }
+  [ "$ps_now" = "${5:-}" ] || { echo "its start time changed (pid reused)"; return 1; }
+  case "$2" in TERM | KILL) : ;; *) echo "unknown signal '$2'"; return 1 ;; esac
+  kill -s "$2" "$1" 2>/dev/null || { echo "kill -s $2 failed"; return 1; }
+  return 0
+}
+
+# aai_residue_proc_cleanup <id> <start> <marker> — terminate the processes
+# that still hold this run's marker on descriptor 9.
+aai_residue_proc_cleanup() {
+  if ! aai_residue_runid_valid "${1:-}"; then
+    aai_residue_say "REFUSED - owner id '${1:-}' is empty or malformed; no process signalled."
+    return 2
+  fi
+  case "${2:-}" in
+    '' | *[!0-9]*) aai_residue_say "REFUSED - run start '${2:-}' is not an epoch in seconds; no process signalled."; return 2 ;;
+  esac
+  [ "$(aai_residue_tree_mode)" != off ] || return 0
+  if ! aai_residue_marker_ok "${3:-}"; then
+    aai_residue_say "REFUSED - listing processes needs this run's marker file, got '${3:-}'; no process signalled."
+    return 2
+  fi
+  pc_line=$(sed -n '1p' "$3" 2>/dev/null)
+  if [ "${pc_line%% *}" != "$1" ]; then
+    aai_residue_say "REFUSED - the marker '$3' names '${pc_line%% *}', not this run; no process signalled."
+    return 2
+  fi
+  AAI_RESIDUE_LSOF="${AAI_RESIDUE_LSOF:-lsof}"
+  if ! command -v "$AAI_RESIDUE_LSOF" >/dev/null 2>&1; then
+    aai_residue_say "NOTE - no lsof found; leftover processes of this run were not checked."
+    return 0
+  fi
+  pc_list=$(aai_residue_proc_list "$3")
+  case "$pc_list" in *AAI-RESIDUE-LIST-REFUSED*) return 2 ;; esac
+  pc_n=0
+  for pc_pid in $pc_list; do pc_n=$((pc_n + 1)); done
+  [ "$pc_n" -gt 0 ] || return 0
+  if [ "$pc_n" -gt "$AAI_RESIDUE_PROC_CAP" ]; then
+    aai_residue_say "REFUSED - $pc_n processes hold this run's marker, more than the cap of $AAI_RESIDUE_PROC_CAP; none signalled. Inspect them by hand."
+    return 4
+  fi
+  pc_sent=''
+  for pc_pid in $pc_list; do
+    if ! pc_id=$(aai_residue_proc_verify "$pc_pid" "$3" "$2"); then
+      aai_residue_say "skipped process $pc_pid - $pc_id"
+      continue
+    fi
+    pc_cmd=$(ps -o comm= -p "$pc_pid" 2>/dev/null)
+    if [ "${AAI_RESIDUE_DRY_RUN:-0}" = "1" ]; then
+      aai_residue_say "would terminate process $pc_pid ($pc_cmd), left by this run"
+      continue
+    fi
+    if pc_why=$(aai_residue_proc_signal "$pc_pid" TERM "$3" "$2" "$pc_id"); then
+      aai_residue_say "terminated process $pc_pid ($pc_cmd), left by this run"
+      pc_sent="$pc_sent$pc_pid $pc_id
+"
+    else
+      aai_residue_say "skipped process $pc_pid - $pc_why"
+    fi
+  done
+  [ -n "$pc_sent" ] || return 0
+  # TERM first; whatever still runs after two seconds gets KILL, re-checked first.
+  pc_i=0
+  while [ "$pc_i" -lt 20 ]; do
+    pc_alive=0
+    for pc_pid in $(printf '%s' "$pc_sent" | awk '{ print $1 }'); do kill -0 "$pc_pid" 2>/dev/null && pc_alive=1; done
+    [ "$pc_alive" -eq 1 ] || return 0
+    sleep 0.1 2>/dev/null || sleep 1
+    pc_i=$((pc_i + 1))
+  done
+  printf '%s' "$pc_sent" | while read -r pc_pid pc_id; do
+    [ -n "$pc_pid" ] || continue
+    kill -0 "$pc_pid" 2>/dev/null || continue
+    if pc_why=$(aai_residue_proc_signal "$pc_pid" KILL "$3" "$2" "$pc_id"); then
+      aai_residue_say "killed process $pc_pid, which ignored TERM"
+    else
+      aai_residue_say "skipped KILL of process $pc_pid - $pc_why"
+    fi
+  done
+  return 0
+}
