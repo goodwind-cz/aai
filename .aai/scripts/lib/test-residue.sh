@@ -487,6 +487,13 @@ aai_residue_tmp_cleanup() {
     aai_residue_say "kept $tc_q - ${tc_out:-its pinned removal did not run}"
     return 0
   fi
+  # The emptied root is removed by name only while that name is still the
+  # pinned directory; otherwise the name is left alone (the verified root,
+  # empty, stays wherever it was moved).
+  if [ "$(aai_residue_dir_identity "$tc_q")" != "$tc_pin" ]; then
+    aai_residue_say "kept $tc_q - it changed before its final removal (identity differs); left as is"
+    return 0
+  fi
   rmdir -- "$tc_q" 2>/dev/null || aai_residue_say "FAILED to delete temp root $tc_q (not empty after the pinned removal)"
   return 0
 }
@@ -503,15 +510,23 @@ aai_residue_ancestors() {
   printf '%s\n' "$an_out"
 }
 
-# aai_residue_etime_s <[[dd-]hh:]mm:ss> — elapsed seconds.
+# aai_residue_etime_s <[[dd-]hh:]mm:ss> — elapsed seconds, or fail (no
+# output) for anything that is not exactly that grammar with hh 0-23, mm and
+# ss 0-59. A blank or shifted ps field must never read as 0 seconds.
 aai_residue_etime_s() {
-  printf '%s\n' "$1" | awk '{
-    s = $1; d = 0
-    if (index(s, "-")) { split(s, a, "-"); d = a[1]; s = a[2] }
-    n = split(s, b, ":"); t = 0
-    for (i = 1; i <= n; i++) t = t * 60 + b[i]
-    printf "%d\n", d * 86400 + t
-  }'
+  [ -n "${1:-}" ] || return 1
+  printf '%s\n' "$1" | awk '
+    NR > 1 { exit 1 }
+    $0 !~ /^([0-9]+-)?([0-9][0-9]?:)?[0-9][0-9]?:[0-9][0-9]$/ { exit 1 }
+    {
+      s = $0; d = 0; hasd = 0
+      if (index(s, "-")) { split(s, a, "-"); d = a[1] + 0; s = a[2]; hasd = 1 }
+      n = split(s, b, ":")
+      if (hasd && n != 3) exit 1
+      if (n == 3) { h = b[1] + 0; m = b[2] + 0; x = b[3] + 0 } else { h = 0; m = b[1] + 0; x = b[2] + 0 }
+      if (h > 23 || m > 59 || x > 59) exit 1
+      printf "%d\n", d * 86400 + h * 3600 + m * 60 + x
+    }'
 }
 
 # aai_residue_marker_ok <marker> — 0 for an existing regular .aai-test-run
@@ -562,20 +577,21 @@ aai_residue_proc_verify() {
   case "${3:-}" in '' | *[!0-9]*) echo "no valid run start"; return 1 ;; esac
   pv_excl=$(aai_residue_ancestors)
   case " $pv_excl " in *" $pv_pid "*) echo "is this wrapper or one of its ancestors"; return 1 ;; esac
-  pv_info=$(ps -o uid= -o etime= -o lstart= -p "$pv_pid" 2>/dev/null) || { echo "is gone"; return 1; }
-  set -- $pv_info "$2" "$3"
-  [ "$#" -ge 4 ] || { echo "is gone"; return 1; }
-  pv_uid=$1
-  pv_et=$(aai_residue_etime_s "$2")
-  shift 2
-  pv_m=''
-  pv_st=''
-  pv_ident=''
-  while [ "$#" -gt 2 ]; do pv_ident="${pv_ident:+$pv_ident }$1"; shift; done
-  pv_m=$1
-  pv_st=$2
+  pv_m="${2:-}"
+  pv_st="${3:-}"
+  # One field per ps call, so a column that comes back blank (the mid-fork
+  # shift of CHANGE-0050) cannot slide another field into its place; each
+  # field is then checked against its own grammar, and any malformed sample
+  # leaves the process unverified (never signalled).
+  kill -0 "$pv_pid" 2>/dev/null || { echo "is gone"; return 1; }
+  pv_uid=$(ps -o uid= -p "$pv_pid" 2>/dev/null | tr -d ' ')
+  pv_etr=$(ps -o etime= -p "$pv_pid" 2>/dev/null | tr -d ' ')
+  pv_ident=$(ps -o lstart= -p "$pv_pid" 2>/dev/null | sed 's/^ *//; s/ *$//; s/  */ /g')
+  case "$pv_uid" in '' | *[!0-9]*) echo "its ps sample is unreadable (uid '$pv_uid')"; return 1 ;; esac
+  pv_et=$(aai_residue_etime_s "$pv_etr") || { echo "its ps sample is unreadable (elapsed time '$pv_etr')"; return 1; }
+  printf '%s\n' "$pv_ident" | grep -Eqx '[A-Z][a-z]{2} [A-Z][a-z]{2} [0-9]{1,2} [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}' \
+    || { echo "its ps sample is unreadable (start time '$pv_ident')"; return 1; }
   [ "$pv_uid" = "$(id -u)" ] || { echo "belongs to uid $pv_uid"; return 1; }
-  case "$pv_et" in '' | *[!0-9]*) echo "its elapsed time is unreadable"; return 1 ;; esac
   [ $(( $(date +%s) - pv_et )) -ge $(( pv_st - 1 )) ] || { echo "started before this run"; return 1; }
   if [ "$(aai_residue_tree_mode)" = sandbox ]; then
     grep -qx "$pv_pid" "$AAI_RESIDUE_SANDBOX/pids" 2>/dev/null || { echo "is not listed in the test sandbox"; return 1; }

@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: e84d7dffae171f13b3885350d9b571b6e0b9e418a8cb457bd74d39a4770dfb08
+frozen_sha256: bb03ffedca45e0adfd6cd96eb4386ad77f572eae2f2daaede38313b3c55870b1
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -107,7 +107,8 @@ SPEC-FROZEN: true
   of `.` and never enters a filesystem mounted after the probes (Codex P1 on
   PR #574, twelfth review); a `find` that fails is reported (thirteenth
   review); only the then-empty directory is removed by name, with `rmdir`
-  (eleventh review). A directory
+  (eleventh review), and only while the name still has the pinned identity;
+  otherwise the name is left alone (fourteenth review). A directory
   swapped into either name while the checks ran is never emptied. Residual:
   a same-uid process can still move entries around inside the run's own
   root while it is removed. Post-freeze amendment (code review r1 BLOCKING-1):
@@ -162,7 +163,11 @@ SPEC-FROZEN: true
   - it is not the wrapper or any of its ancestors (ppid chain to 1);
   - it is owned by the current uid;
   - it started at or after the run start, measured as now minus `etime`,
-    with one second of slack;
+    with one second of slack; uid, `etime` and `lstart` are read by one ps
+    call each and each is checked against its own grammar (`etime` exactly
+    `[[dd-]hh:]mm:ss` with hh 0-23, mm and ss 0-59; `lstart` the five
+    fields of a date), so a blank or shifted sample leaves the process
+    unverified (Codex P2 on PR #574, fourteenth review; Spec-AC-13);
   - in `sandbox` mode, its pid is listed in `$AAI_RESIDUE_SANDBOX/pids`;
   - `lsof -a -p <pid> -d 9 -F f -- <marker>` exits 0 and shows it still
     holds the marker on descriptor 9 (an lsof that fails is not a check;
@@ -213,6 +218,7 @@ SPEC-FROZEN: true
 - Spec-AC-09 maps to code review r1 BLOCKING-1 (D3, amendment).
 - Spec-AC-10 maps to code review r1 NB-1 (D11, amendment).
 - Spec-AC-11 maps to Codex P2 on PR #574 and the WSL1 CI leg (D3, D5).
+- Spec-AC-13 maps to Codex P2 on PR #574 (fourteenth review) (D6).
 - Spec-AC-12 maps to the Windows install-parity CI leg: the pre-existing
   random wide-character root directories (fu-parity-win-odd-root-dirs)
   sometimes have no UTF-8 name, and the driver's snapshot crashed on them
@@ -240,6 +246,7 @@ None.
 | Spec-AC-10 | WHEN the owning wrapper runs with AAI_TEST_TMPDIR=keep in sandbox mode, the command SHALL see the caller's TMPDIR, a detached process it leaves holding descriptor 9 SHALL be gone afterwards, and no root SHALL remain | done | TEST-3932 red docs/ai/tdd/test-residue-files-and-processes/red-r1-test_3932_tmpdir_opt_out_keeps_caller_tmpdir.log; TEST-3932 green docs/ai/tdd/test-residue-files-and-processes/green-test_3932_tmpdir_opt_out_keeps_caller_tmpdir.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3932.txt; validation docs/ai/validation/VALIDATION-test-residue-files-and-processes-r3.md | — | D11 |
 | Spec-AC-11 | WHEN the scan for temp entries outside the root fails, the output SHALL say it did not complete; WHEN no lsof command exists, the process cleanup SHALL exit 0 and print nothing | done | TEST-3933 red docs/ai/tdd/test-residue-files-and-processes/red-restructure-test_3933_outside_scan_failure_and_no_lsof.log; TEST-3933 green docs/ai/tdd/test-residue-files-and-processes/green-full-suite-residue.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3933.txt | — | D3, D5 |
 | Spec-AC-12 | WHEN lstat of a root entry whose name is not printable ASCII fails ENOENT during a parity snapshot, the snapshot SHALL record it as a directory and print one NOTE naming it as not compared; WHEN it fails for a printable-ASCII name, the snapshot SHALL throw | done | TEST-3934 red docs/ai/tdd/test-residue-files-and-processes/red-test_3934_parity_odd_name.log; TEST-3934 green tests/skills/test-aai-install-parity.sh run, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3934.txt | — | CI parity leg |
+| Spec-AC-13 | aai_residue_etime_s SHALL convert only an elapsed time of the exact form [[dd-]hh:]mm:ss with hh 0 to 23 and mm and ss 0 to 59 and SHALL fail for a blank, weekday, out-of-range or otherwise malformed field; WHEN ps returns a blank or weekday elapsed time or a shifted start time for a process holding the marker, the cleanup SHALL leave it running and name the unreadable sample | done | TEST-3935 red docs/ai/tdd/test-residue-files-and-processes/red-codex14-test_3935_malformed_ps_sample_fails_closed.log; TEST-3935 green docs/ai/tdd/test-residue-files-and-processes/green-full-suite-residue.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3935.txt | — | D6 |
 
 ## Implementation plan
 
@@ -281,6 +288,7 @@ None.
 | TEST-3932 | Spec-AC-10 | integration | tests/skills/test-aai-test-residue.sh | AAI_TEST_TMPDIR=keep through the real wrapper in sandbox mode: TMP equals the sandbox, the fd-9 sleep is terminated, no aai-tr- root remains; RED on the wrapper without the opt-out | target `.aai/scripts/aai-run-tests.sh`; `sed:s/if \[ "\$\{AAI_TEST_TMPDIR:-\}" != keep \]; then/if true; then/` drops the opt-out and the case must fail | green |
 | TEST-3933 | Spec-AC-11 | integration | tests/skills/test-aai-test-residue.sh | a find shim fails the outside scan: one NOTE says it did not complete; AAI_RESIDUE_LSOF naming a missing command: the process cleanup exits 0 and prints nothing | target `.aai/scripts/lib/test-residue.sh`; `sed:s/if ! to_out=\$\(find/if to_out=$(find/` inverts the scan status check and the case must fail | green |
 | TEST-3934 | Spec-AC-12 | unit | tests/skills/test-aai-install-parity.sh | lstatSync patched to throw ENOENT for one non-ASCII directory name: the snapshot records it as a dir and the other entries; for an ASCII name it throws | target `tests/skills/lib/install-parity.mjs`; `sed:s/if \(err && err.code === 'ENOENT'/if (false && err.code === 'ENOENT'/` stops tolerating the unreadable odd name and the case must fail | green |
+| TEST-3935 | Spec-AC-13 | integration | tests/skills/test-aai-test-residue.sh | an 18-row etime table (valid forms with their seconds; blank, weekday, out-of-range and malformed fields fail); a ps shim returning a blank or weekday elapsed time, or a shifted start time, for a marker-holding sandbox sleep: the sleep survives and the skip names the unreadable sample | target `.aai/scripts/lib/test-residue.sh`; `sed:s/if \(h > 23 \x7c\x7c m > 59 \x7c\x7c x > 59\) exit 1//` accepts out-of-range fields and the case must fail | green |
 
 RED observations: TEST-3923 to TEST-3930 are written first and run against
 the unchanged tree; failing runs go to `red-<selector>.log` under

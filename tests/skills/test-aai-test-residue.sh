@@ -1092,6 +1092,7 @@ mount-empty|real|empty|kept|could not be read
 mount-at-root|real|atroot|kept|at or inside
 mount-below|real|below|kept|at or inside
 delete-fails|deletefail|real|kept|did not complete
+rmdir-swap|rmdirswap|real|kept|changed before its final removal
 control|real|real|removed|'
 test_3931_mounted_filesystem_inside_root_is_kept() {
   local ok=1 sb st root fsd realfind img row name fm mm want why
@@ -1109,6 +1110,7 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
       fail) printf '#!/bin/sh\n%q "$@"\nexit 1\n' "$realfind" > "$fsd/find" ;;
       xdevfail) printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@"; exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" "$realfind" > "$fsd/find" ;;
       empty) printf '#!/bin/sh\nexit 0\n' > "$fsd/find" ;;
+      rmdirswap) printf '#!/bin/sh\n%q "$@"; rc=$?\ncase " $* " in *" -delete "*) q=$(pwd -P); mv "$q" "$q.moved-away" && mkdir "$q" && echo decoy > %q ;; esac\nexit $rc\n' "$realfind" "$fsd/swapped" > "$fsd/find" ;;
       deletefail) printf '#!/bin/sh\ncase " $* " in *" -delete "*) exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" > "$fsd/find" ;;
     esac
     case "$mm" in
@@ -1121,7 +1123,13 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
     T_RC=0
     T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
       sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
-    if [[ "$want" == kept ]]; then
+    if [[ "$name" == rmdir-swap ]]; then
+      # the contents of the verified root are gone; the empty decoy swapped into its name must survive
+      [[ -s "$fsd/swapped" ]] || { log_fail "TEST-3931 (rmdir-swap) the find shim never swapped the name: $T_OUT"; ok=0; }
+      compgen -G "$root.removing.*" >/dev/null || { log_fail "TEST-3931 (rmdir-swap) the empty decoy swapped into the name was removed: $T_OUT"; ok=0; }
+      command grep -qF -- "$why" <<<"$T_OUT" || { log_fail "TEST-3931 (rmdir-swap) the output does not name [$why]: $T_OUT"; ok=0; }
+      rm -rf "$root".removing.*
+    elif [[ "$want" == kept ]]; then
       compgen -G "$root*/mnt/deep/keep.txt" >/dev/null || { log_fail "TEST-3931 ($name) the root was removed: $T_OUT"; ok=0; }
       command grep -qF -- "$why" <<<"$T_OUT" || { log_fail "TEST-3931 ($name) the output does not name [$why]: $T_OUT"; ok=0; }
     else
@@ -1225,6 +1233,63 @@ test_3932_tmpdir_opt_out_keeps_caller_tmpdir() {
   [[ $ok -eq 1 ]] && log_pass "TEST-3932 AAI_TEST_TMPDIR=keep leaves the command's TMPDIR alone while the marker, the process check and the root removal still run"
 }
 
+# --- TEST-3935 (Spec-AC-13: a malformed ps sample is never a verified process) --
+#   row = etime field|expected seconds or "bad"
+TREE_ETIME_TABLE='03:04|184
+00:00|0
+59:59|3599
+1:02:03|3723
+23:59:59|86399
+1-02:03:04|93784
+12-00:00:00|1036800
+|bad
+Fri|bad
+Nov|bad
+12:60|bad
+60:00|bad
+24:00:00|bad
+1-24:00:00|bad
+1-02:03|bad
+-02:03:04|bad
+a1:02|bad
+1:2:3:4|bad'
+test_3935_malformed_ps_sample_fails_closed() {
+  local ok=1 sb m p row et want got rc shimd realps
+  sb="$(sandbox_new 3935)"
+  while IFS='|' read -r et want; do
+    rc=0
+    got="$(sh -c '. "$1" || exit 99; aai_residue_etime_s "$2"' x "$LIB" "$et" 2>/dev/null)" || rc=$?
+    if [[ "$want" == bad ]]; then
+      [[ "$rc" -ne 0 && -z "$got" ]] || { log_fail "TEST-3935 etime [$et] was accepted as [$got] (rc $rc)"; ok=0; }
+    else
+      [[ "$rc" -eq 0 && "$got" == "$want" ]] || { log_fail "TEST-3935 etime [$et] gave [$got] rc $rc, want $want"; ok=0; }
+    fi
+  done <<<"$TREE_ETIME_TABLE"
+  # a ps whose elapsed-time field comes back blank (the mid-fork column shift of CHANGE-0050) or as a weekday,
+  # and whose start time comes back shifted: the process is unverifiable and is never signalled
+  need_lsof TEST-3935 || return 0
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  m="$sb/aai-tr-0123abcd/.aai-test-run"
+  p="$(sb_spawn "$sb" keep9 "$m")"
+  realps="$(command -v ps)"
+  shimd="$sb/bin"; mkdir -p "$shimd"
+  for mode in blank weekday lstart; do
+    case "$mode" in
+      blank) printf '#!/bin/sh\ncase " $* " in *" etime= "*) echo ""; exit 0 ;; esac\nexec %q "$@"\n' "$realps" > "$shimd/ps" ;;
+      weekday) printf '#!/bin/sh\ncase " $* " in *" etime= "*) echo "Fri"; exit 0 ;; esac\nexec %q "$@"\n' "$realps" > "$shimd/ps" ;;
+      lstart) printf '#!/bin/sh\ncase " $* " in *" lstart= "*) echo "00:05 Fri Nov 20"; exit 0 ;; esac\nexec %q "$@"\n' "$realps" > "$shimd/ps" ;;
+    esac
+    chmod +x "$shimd/ps"
+    T_RC=0
+    T_OUT="$(PATH="$shimd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" AAI_RESIDUE_LSOF=lsof \
+      sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m" 2>&1)" || T_RC=$?
+    alive "$p" || { log_fail "TEST-3935 ($mode) a process with a malformed ps sample was signalled: $T_OUT"; ok=0; p="$(sb_spawn "$sb" keep9 "$m")"; }
+    command grep -qF 'unreadable' <<<"$T_OUT" || { log_fail "TEST-3935 ($mode) the skip does not say the sample was unreadable: $T_OUT"; ok=0; }
+  done
+  sb_reap "$sb"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3935 only a well-formed [[dd-]hh:]mm:ss elapsed time converts; a blank, weekday or out-of-range field, or a shifted start time, leaves the process unverified and unsignalled"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-test-residue-safe-cleanup) ==="
   check_deps
@@ -1261,6 +1326,7 @@ main() {
   test_3931_mounted_filesystem_inside_root_is_kept
   test_3932_tmpdir_opt_out_keeps_caller_tmpdir
   test_3933_outside_scan_failure_and_no_lsof
+  test_3935_malformed_ps_sample_fails_closed
   if [[ -s "$AAI_NO_CLI_LOG" ]]; then
     log_fail "$TEST_NAME a bare container CLI was invoked during the run: $(cat "$AAI_NO_CLI_LOG")"
   fi
