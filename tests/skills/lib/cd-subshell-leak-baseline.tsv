@@ -18,12 +18,13 @@
 3	.aai/scripts/aai-bootstrap.sh
 1	.aai/scripts/aai-live.sh
 1	.aai/scripts/aai-reap-tests.sh
-10	.aai/scripts/aai-run-tests.sh
+11	.aai/scripts/aai-run-tests.sh
 2	.aai/scripts/aai-sync.sh
 1	.aai/scripts/aai-update.sh
 1	.aai/scripts/cloudflare-share.sh
 1	.aai/scripts/expert-fetch.sh
 1	.aai/scripts/install-pre-commit-hook.sh
+5	.aai/scripts/lib/test-residue.sh
 1	.aai/scripts/live-spool.sh
 1	.aai/scripts/migrate-state-to-local.sh
 1	.aai/scripts/pre-commit-checks.sh
@@ -136,7 +137,7 @@
 5	tests/skills/test-aai-tdd-evidence.sh
 2	tests/skills/test-aai-tdd.sh
 3	tests/skills/test-aai-test-canon.sh
-4	tests/skills/test-aai-test-residue.sh
+5	tests/skills/test-aai-test-residue.sh
 3	tests/skills/test-aai-token-capture.sh
 2	tests/skills/test-aai-triage.sh
 3	tests/skills/test-aai-unattended.sh

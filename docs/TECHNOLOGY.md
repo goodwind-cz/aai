@@ -176,6 +176,24 @@
   exit 13. `tests/skills/test-framework.sh` and `mutation-run.mjs` isolate
   every suite the same way, with no opt-in.
 
+  Temp root and leftover processes (CHANGE test-residue-files-and-processes):
+  the wrapper that owns a run (no inherited `AAI_TEST_OWNER`; outside a test,
+  or inside one that names `AAI_RESIDUE_SANDBOX`; not Git Bash) gives its
+  command `TMPDIR=<TMPDIR>/aai-tr-<8 hex>` (mode 700, holding a
+  `.aai-test-run` marker with the owner id and start), `AAI_TEST_OWNER`,
+  `AAI_TEST_OWNER_START`, and the marker open on descriptor 9. Afterwards it
+  terminates (TERM, then KILL) only the processes that still hold the marker
+  on descriptor 9 (`lsof -a -d 9`), each re-checked by pid right before each
+  signal: same uid, started at or after the run start, not the wrapper or an
+  ancestor, still holding the marker, same start time; more than 25 signals
+  none. It reports temp entries created in the base outside the root and
+  removes the root only when its exact name and its marker prove it is this
+  run's, and keeps it when another filesystem is mounted inside it.
+  The process check needs `lsof` and is skipped silently where none exists.
+  `AAI_TEST_TMPDIR=keep` leaves the command's `TMPDIR` unchanged (the root,
+  the marker and the process check stay). `AAI_RESIDUE_DRY_RUN=1` reports
+  only; the exit code never changes.
+
 ## Tooling
 
 - Package manager(s): none — no `package.json` or lockfile exists; zero npm

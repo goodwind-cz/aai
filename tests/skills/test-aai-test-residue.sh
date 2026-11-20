@@ -3,7 +3,8 @@
 # Test: test runs remove only the container residue they provably created,
 # and cannot reach a daemon unless they opt in
 # (docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md, TEST-3900 to
-# TEST-3914).
+# TEST-3914), and the run temp root and leftover processes
+# (spec-test-residue-files-and-processes, TEST-3923 to TEST-3933).
 #
 # SAFETY RULE OF THIS FILE. No case here ever invokes a real container CLI.
 # Every cleanup runs against STUB_CLI, a shell script written into this
@@ -60,7 +61,7 @@ case "$TR_TMP" in
   /*/aai-test-residue.*) : ;;
   *) echo "FAIL $TEST_NAME: unsafe scratch directory '$TR_TMP'" >&2; exit 1 ;;
 esac
-cleanup() { rm -rf "$TR_TMP"; }
+cleanup() { reap_all_sandboxes 2>/dev/null; rm -rf "$TR_TMP"; }
 trap cleanup EXIT
 
 check_deps() {
@@ -668,6 +669,644 @@ test_3914_classification_and_consumer_record() {
   [[ $ok -eq 1 ]] && log_pass "TEST-3914 the library is classified core once; TECHNOLOGY and CHANGELOG carry the consumer record"
 }
 
+# =============================================================================
+# spec-test-residue-files-and-processes (TEST-3923 to TEST-3930): the run temp
+# root and the leftover processes. SAFETY RULE OF THESE CASES: everything that
+# can be removed or signalled is created by the case itself inside a sandbox
+# directory under this suite's scratch directory; every pid a case starts is a
+# detached `sleep 127` recorded in the sandbox's pids file, and the case reaps
+# exactly those pids (after checking they are still a `sleep 127`) at its end.
+# The library refuses, in a test context, to signal any pid not in that file.
+# =============================================================================
+TID='aai-1795089600-4242-0123abcd'
+TID_OTHER='aai-1795089600-4242-ffffffff'
+SB_ALL=''
+
+# sandbox_new <name> — a fresh physical directory for one case.
+sandbox_new() {
+  local d="$TR_TMP/sb-$1"
+  rm -rf "$d"
+  mkdir -p "$d" && (cd "$d" && pwd -P)
+}
+
+# sb_spawn <sandbox> <keep9|close9|fd8|keep9-unlisted> <marker> — start a detached `sleep 127`
+# reparented to init (double fork, new session); print its pid and record it in <sandbox>/pids
+# (keep9-unlisted records it in <sandbox>/own-pids only, for the case's own reap).
+sb_spawn() {
+  local sb="$1" how="$2" m="$3" pf="$1/pids.tmp" pid
+  rm -f "$pf"
+  case "$how" in
+    keep9|keep9-unlisted) ( perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV' -- sleep 127 9<"$m" </dev/null >/dev/null 2>&1 & echo $! > "$pf" ) ;;
+    close9) ( perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV' -- sleep 127 9<&- </dev/null >/dev/null 2>&1 & echo $! > "$pf" ) ;;
+    fd8) ( perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV' -- sleep 127 8<"$m" 9<&- </dev/null >/dev/null 2>&1 & echo $! > "$pf" ) ;;
+  esac
+  pid="$(cat "$pf")"
+  rm -f "$pf"
+  echo "$pid" >> "$sb/own-pids"
+  [[ "$how" == keep9-unlisted ]] || echo "$pid" >> "$sb/pids"
+  SB_ALL="$SB_ALL $sb"
+  sleep 0.3
+  printf '%s\n' "$pid"
+}
+
+# alive <pid> — 0 while the pid runs (a zombie does not count).
+alive() {
+  local st
+  st="$(ps -o stat= -p "$1" 2>/dev/null)" || return 1
+  case "$st" in '' | *Z*) return 1 ;; esac
+  return 0
+}
+
+# gone_within <pid> <seconds>
+gone_within() {
+  local i=0
+  while [[ $i -lt $(( $2 * 10 )) ]]; do alive "$1" || return 0; sleep 0.1; i=$((i + 1)); done
+  return 1
+}
+
+# sb_reap <sandbox> — kill the case's own sleeps, each only while it is still a `sleep 127`.
+sb_reap() {
+  local p c
+  [[ -f "$1/own-pids" ]] || return 0
+  while IFS= read -r p; do
+    [[ "$p" =~ ^[0-9]+$ ]] || continue
+    c="$(ps -o command= -p "$p" 2>/dev/null || true)"
+    [[ "$c" == "sleep 127" ]] && kill "$p" 2>/dev/null
+  done < "$1/own-pids"
+  return 0
+}
+reap_all_sandboxes() { local s; for s in $SB_ALL; do sb_reap "$s"; done; }
+
+# tree_wrap <sandbox> <cmd...> — the REAL wrapper as a test-context run with this sandbox; sets W_OUT, W_RC.
+tree_wrap() {
+  local sb="$1"
+  shift
+  W_RC=0
+  W_OUT="$(env -u AAI_TEST_OWNER -u AAI_TEST_OWNER_START AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    WRAP_PATH="$WRAP" AAI_TEST_TIMEOUT="${TREE_TIMEOUT:-60}" bash "$WRAP" "$@" 2>&1)" || W_RC=$?
+}
+
+# lib_tree <sandbox> <lib> <function> [args...] — one library call in sandbox mode; sets T_OUT, T_RC.
+lib_tree() {
+  local sb="$1" lib="$2"
+  shift 2
+  T_RC=0
+  T_OUT="$(AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" AAI_RESIDUE_LSOF="${TREE_LSOF:-lsof}" \
+    AAI_RESIDUE_DRY_RUN="${AAI_RESIDUE_DRY_RUN:-0}" sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$lib" "$@" 2>&1)" || T_RC=$?
+}
+
+# lsof_shim <sandbox> [lie26 <pid>] — a logging lsof that runs the real one (or, for lie26, answers every
+# listing call with 26 copies of the given pid); its log is <sandbox>/lsof.log.
+lsof_shim() {
+  local real
+  real="$(command -v lsof)"
+  mkdir -p "$1/bin"
+  {
+    printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> %q\n' "$1/lsof.log"
+    if [[ "${2:-}" == lie26 ]]; then
+      printf 'case " $* " in *" -p "*) ;; *) %q "$@"; rc=$?; i=0; while [ $i -lt 26 ]; do echo p%s; i=$((i+1)); done; exit $rc ;; esac\n' "$real" "$3"
+    fi
+    if [[ "${2:-}" == silent1 ]]; then
+      printf 'case " $* " in *" -p "*) ;; *) exit 1 ;; esac\n'
+    fi
+    if [[ "${2:-}" == fail ]]; then
+      printf 'case " $* " in *" -p "*) ;; *) echo "lsof: simulated failure" >&2; exit 1 ;; esac\n'
+    fi
+    if [[ "${2:-}" == partial ]]; then
+      printf 'case " $* " in *" -p "*) ;; *) echo p%s; exit 2 ;; esac\n' "$3"
+    fi
+    printf 'exec %q "$@"\n' "$real"
+  } > "$1/bin/lsof"
+  chmod +x "$1/bin/lsof"
+  printf '%s\n' "$1/bin/lsof"
+}
+
+# listing_filter_ok <sandbox> <marker> — 0 when every listing call in the shim log carried -a, -d 9 and the marker.
+listing_filter_ok() {
+  local line n=0
+  [[ -f "$1/lsof.log" ]] || return 1
+  while IFS= read -r line; do
+    [[ " $line " == *" -p "* ]] && continue
+    n=$((n + 1))
+    [[ " $line " == *" -a "* && " $line " == *" -d 9 "* && " $line " == *" $2"* ]] || return 1
+  done < "$1/lsof.log"
+  [[ $n -ge 1 ]]
+}
+
+need_lsof() {
+  command -v lsof >/dev/null 2>&1 && command -v perl >/dev/null 2>&1 && return 0
+  [[ -z "${CI:-}" ]] || { log_fail "$1 lsof and perl are required on CI"; return 1; }
+  echo "SKIP-CASE: $1 needs lsof and perl"
+  return 1
+}
+
+# --- TEST-3923 (Spec-AC-01: the owner's temp root) ----------------------------
+test_3923_owner_temp_root_lifecycle() {
+  local ok=1 sb sb2 tmp mark owner
+  sb="$(sandbox_new 3923)"
+  tree_wrap "$sb" sh -c 'echo "TMP=$TMPDIR"; echo "OWNER=$AAI_TEST_OWNER $AAI_TEST_OWNER_START"; echo "MARK=$(cat "$TMPDIR/.aai-test-run" 2>/dev/null)"; mkdir -p "$TMPDIR/sub" && echo x > "$TMPDIR/sub/f"; bash "$WRAP_PATH" sh -c "echo INNER=\$TMPDIR"; exit 0'
+  tmp="$(sed -n 's/^TMP=//p' <<<"$W_OUT")"
+  owner="$(sed -n 's/^OWNER=//p' <<<"$W_OUT")"
+  mark="$(sed -n 's/^MARK=//p' <<<"$W_OUT")"
+  [[ "$W_RC" -eq 0 ]] || { log_fail "TEST-3923 pass run exited $W_RC: $W_OUT"; ok=0; }
+  [[ "$tmp" =~ ^"$sb"/aai-tr-[0-9a-f]{8}$ ]] || { log_fail "TEST-3923 the command saw TMPDIR [$tmp], want $sb/aai-tr-<8 hex>: $W_OUT"; ok=0; }
+  [[ -n "$mark" && "$mark" == "$owner" ]] || { log_fail "TEST-3923 the marker [$mark] does not name the owner and start [$owner]"; ok=0; }
+  command grep -qxF "INNER=$tmp" <<<"$W_OUT" || { log_fail "TEST-3923 a nested wrapper made its own root or lost TMPDIR: $W_OUT"; ok=0; }
+  [[ -n "$tmp" && ! -e "$tmp" ]] || { log_fail "TEST-3923 the root $tmp is still there after a pass"; ok=0; }
+  tree_wrap "$sb" sh -c 'exit 3'
+  [[ "$W_RC" -eq 3 ]] || { log_fail "TEST-3923 fail run exited $W_RC, want 3: $W_OUT"; ok=0; }
+  TREE_TIMEOUT=2 tree_wrap "$sb" sh -c 'sleep 30'
+  [[ "$W_RC" -eq 124 ]] || { log_fail "TEST-3923 watchdog run exited $W_RC, want 124: $W_OUT"; ok=0; }
+  ls -d "$sb"/aai-tr-* >/dev/null 2>&1 && { log_fail "TEST-3923 a root is left after the fail or watchdog run: $(ls -a "$sb")"; ok=0; }
+  sb2="$(sandbox_new 3923-off)"
+  W_RC=0
+  W_OUT="$(env -u AAI_TEST_OWNER -u AAI_TEST_OWNER_START -u AAI_RESIDUE_SANDBOX AAI_RESIDUE_IN_TEST=1 TMPDIR="$sb2" \
+    bash "$WRAP" sh -c 'echo "TMP=$TMPDIR"' 2>&1)" || W_RC=$?
+  command grep -qxF "TMP=$sb2" <<<"$W_OUT" || { log_fail "TEST-3923 a test-context wrapper without a sandbox changed TMPDIR: $W_OUT"; ok=0; }
+  command grep -qF 'AAI-RESIDUE' <<<"$W_OUT" && { log_fail "TEST-3923 a test-context wrapper without a sandbox printed an AAI-RESIDUE line: $W_OUT"; ok=0; }
+  ls -d "$sb2"/aai-tr-* >/dev/null 2>&1 && { log_fail "TEST-3923 a test-context wrapper without a sandbox made a root"; ok=0; }
+  # an owning wrapper outside a test whose library is missing says the cleanup is unavailable (nothing can be removed)
+  sb2="$(sandbox_new 3923-nolib)"
+  mkdir -p "$sb2/w/.aai/scripts"
+  cp "$WRAP" "$sb2/w/.aai/scripts/aai-run-tests.sh"
+  W_RC=0
+  W_OUT="$(cd "$sb2/w" && env -u AAI_TEST_OWNER -u AAI_TEST_OWNER_START -u AAI_RESIDUE_IN_TEST -u AAI_RESIDUE_SANDBOX TMPDIR="$sb2" \
+    bash .aai/scripts/aai-run-tests.sh sh -c 'exit 0' 2>&1)" || W_RC=$?
+  command grep -qF 'AAI-RESIDUE: NOTE - lib/test-residue.sh not found' <<<"$W_OUT" || { log_fail "TEST-3923 a missing residue library was silent on an owning run: rc $W_RC $W_OUT"; ok=0; }
+  # the command swaps its root: renames its TMPDIR away, puts a decoy directory at that path and moves the real
+  # marker into it; the cleanup must recognise that the directory is not the one created for the run
+  sb2="$(sandbox_new 3923-swap)"
+  tree_wrap "$sb2" sh -c 'mv "$TMPDIR" "$TMPDIR.away" && mkdir "$TMPDIR" && echo keep > "$TMPDIR/keep.txt" && mv "$TMPDIR.away/.aai-test-run" "$TMPDIR/" && echo "SWAPPED=$TMPDIR"'
+  command grep -q '^SWAPPED=' <<<"$W_OUT" || { log_fail "TEST-3923 (swap) the command did not swap its root: $W_OUT"; ok=0; }
+  compgen -G "$sb2/aai-tr-*/keep.txt" >/dev/null || compgen -G "$sb2/aai-tr-*.removing.*/keep.txt" >/dev/null \
+    || { log_fail "TEST-3923 (swap) a decoy put at the root's path by the command was deleted: $W_OUT"; ok=0; }
+  command grep -qF 'not the root created for this run' <<<"$W_OUT" || { log_fail "TEST-3923 (swap) no NOTE says the root was replaced: $W_OUT"; ok=0; }
+  # the root was made but its identity cannot be read (stat fails): the just-made empty root and its marker are
+  # rolled back, nothing is left behind, and the NOTE names the identity failure
+  sb2="$(sandbox_new 3923-nostat)"
+  mkdir -p "$sb2/bin"; printf '#!/bin/sh\nexit 1\n' > "$sb2/bin/stat"; chmod +x "$sb2/bin/stat"
+  W_RC=0
+  W_OUT="$(env -u AAI_TEST_OWNER -u AAI_TEST_OWNER_START AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb2" TMPDIR="$sb2" \
+    PATH="$sb2/bin:$PATH" bash "$WRAP" sh -c 'echo "TMP=$TMPDIR"' 2>&1)" || W_RC=$?
+  ! compgen -G "$sb2/aai-tr-*" >/dev/null || { log_fail "TEST-3923 (no identity) the made root was left behind: $(ls -a "$sb2")"; ok=0; }
+  command grep -qF 'identity' <<<"$W_OUT" || { log_fail "TEST-3923 (no identity) the NOTE does not name the identity failure: $W_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3923 the owning wrapper hands its command a private aai-tr-<hex> root with a marker naming the owner, removes it after a pass, a failure and a watchdog kill; nested and off-mode wrappers make none"
+}
+
+# --- TEST-3924 (Spec-AC-02: a root that is not provably this run's is kept) ---
+test_3924_tampered_roots_are_kept() {
+  local ok=1 sb st root t why
+  sb="$(sandbox_new 3924)"
+  st=$(( $(date +%s) - 5 ))
+  root="$sb/aai-tr-0123abcd"
+  # mk_root <dir> <marker line or ""> — a directory with a file in it and, optionally, a marker.
+  mk_root() { rm -rf "$1"; mkdir -p "$1"; echo keep > "$1/keep.txt"; [[ -z "$2" ]] || printf '%s\n' "$2" > "$1/.aai-test-run"; }
+  kept() { # kept <label> <dir> <reason fragment>
+    [[ -f "$2/keep.txt" ]] || { log_fail "TEST-3924 ($1) $2 was removed: $T_OUT"; ok=0; return; }
+    command grep -qF -- "$3" <<<"$T_OUT" || { log_fail "TEST-3924 ($1) the output does not name the reason [$3]: $T_OUT"; ok=0; }
+  }
+  # control: a valid root is removed
+  mk_root "$root" "$TID $st"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root"
+  [[ "$T_RC" -eq 0 && ! -e "$root" ]] || { log_fail "TEST-3924 control: a valid root was not removed (rc $T_RC): $T_OUT"; ok=0; }
+  mk_root "$sb/aai-tr-deadbeef" "$TID $st"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$sb/aai-tr-deadbeef"
+  kept "wrong name" "$sb/aai-tr-deadbeef" "kept temp root"
+  mk_root "$sb/target" "$TID $st"; rm -rf "$root"; ln -s "$sb/target" "$root"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root"
+  kept "symlink" "$sb/target" "symlink"
+  [[ -L "$root" ]] || { log_fail "TEST-3924 (symlink) the link itself was removed"; ok=0; }
+  rm -f "$root"
+  mk_root "$root" ""
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root"
+  kept "no marker" "$root" "marker"
+  mk_root "$root" "$TID_OTHER $st"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root"
+  kept "foreign marker" "$root" "marker"
+  mk_root "$root" "$TID $st"; touch -t 202001010000 "$root/.aai-test-run"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root"
+  kept "old marker" "$root" "older than"
+  mk_root "$root" "$TID $st"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "" "$root"
+  kept "empty base" "$root" "REFUSED"
+  [[ "$T_RC" -eq 2 ]] || { log_fail "TEST-3924 (empty base) exit $T_RC, want 2"; ok=0; }
+  ( cd "$sb" && lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "." "./aai-tr-0123abcd"; printf '%s' "$T_OUT" > "$sb/rel.out" )
+  T_OUT="$(cat "$sb/rel.out")"
+  kept "relative base" "$root" "base"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "/" "/aai-tr-0123abcd"
+  command grep -qF 'base' <<<"$T_OUT" || { log_fail "TEST-3924 (slash base) no reason: $T_OUT"; ok=0; }
+  T_RC=0
+  T_OUT="$(HOME="$sb" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  kept "HOME base" "$root" "HOME"
+  # a base the cleanup would refuse (HOME) is refused at creation too, so no root is made that cannot be removed
+  T_RC=0
+  T_OUT="$(HOME="$sb" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_create "$TID_OTHER" "$st" "$sb" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 && ! -e "$sb/aai-tr-ffffffff" ]] || { log_fail "TEST-3924 a root was created under HOME, which the cleanup refuses (rc $T_RC)"; ok=0; rm -rf "$sb/aai-tr-ffffffff"; }
+  # a symlinked HOME whose physical path is the base is refused too (the wrapper hands the physical base)
+  mkdir -p "$sb/links"; ln -s "$sb" "$sb/links/home"
+  T_RC=0
+  T_OUT="$(HOME="$sb/links/home" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_create "$TID_OTHER" "$st" "$sb" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 && ! -e "$sb/aai-tr-ffffffff" ]] || { log_fail "TEST-3924 a root was created under a symlinked HOME's physical path (rc $T_RC)"; ok=0; rm -rf "$sb/aai-tr-ffffffff"; }
+  rm -rf "$sb/links"
+  # a marker that cannot be written (file size limit) rolls the new root back
+  T_RC=0
+  T_OUT="$(AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c 'trap "" XFSZ; ulimit -f 0; . "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_create "$TID_OTHER" "$st" "$sb" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 ]] || { log_fail "TEST-3924 a root whose marker could not be written was reported as made: $T_OUT"; ok=0; }
+  [[ ! -e "$sb/aai-tr-ffffffff" ]] || { log_fail "TEST-3924 a root whose marker could not be written was left behind"; ok=0; }
+  for t in "" "aai-x" ; do
+    lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$t" "$st" "$sb" "$root"
+    [[ "$T_RC" -eq 2 && -f "$root/keep.txt" ]] || { log_fail "TEST-3924 id [$t]: exit $T_RC (want 2) or the root was touched: $T_OUT"; ok=0; }
+  done
+  lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "12a" "$sb" "$root"
+  [[ "$T_RC" -eq 2 && -f "$root/keep.txt" ]] || { log_fail "TEST-3924 start 12a: exit $T_RC (want 2) or the root was touched: $T_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3924 a valid root is removed; a wrong name, a symlink, a missing, foreign or old marker, an empty, relative, slash or HOME base each keep the directory with the reason; a bad id or start exits 2"
+}
+
+# --- TEST-3925 (Spec-AC-03: outside the root is reported, never removed) ------
+test_3925_outside_entries_reported_and_kept() {
+  local ok=1 sb
+  sb="$(sandbox_new 3925)"
+  tree_wrap "$sb" sh -c 'sleep 1; echo x > "$AAI_RESIDUE_SANDBOX/outside.txt"; echo y > "$TMPDIR/inside.txt"'
+  [[ "$W_RC" -eq 0 ]] || { log_fail "TEST-3925 wrapper exited $W_RC: $W_OUT"; ok=0; }
+  [[ -f "$sb/outside.txt" ]] || { log_fail "TEST-3925 outside.txt was removed"; ok=0; }
+  command grep -qE 'AAI-RESIDUE: NOTE.*outside\.txt' <<<"$W_OUT" || { log_fail "TEST-3925 no NOTE line names outside.txt: $W_OUT"; ok=0; }
+  ls -d "$sb"/aai-tr-* >/dev/null 2>&1 && { log_fail "TEST-3925 the root was not removed"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3925 a temp entry made outside the root during the run is named in one NOTE line and kept; the root is removed"
+}
+
+# --- TEST-3926 (Spec-AC-04: a process holding the marker is terminated) -------
+test_3926_owned_process_terminated_foreign_kept() {
+  local ok=1 sb p1 p2 cmd
+  need_lsof TEST-3926 || return 0
+  cmd='perl -e "use POSIX qw(setsid); setsid(); exec @ARGV" -- sleep 127 </dev/null >/dev/null 2>&1 & echo $! >> "$AAI_RESIDUE_SANDBOX/pids"
+perl -e "use POSIX qw(setsid); setsid(); exec @ARGV" -- sleep 127 9<&- </dev/null >/dev/null 2>&1 & echo $! >> "$AAI_RESIDUE_SANDBOX/pids"
+sleep 0.5; exit 0'
+  for mode in real dry; do
+    sb="$(sandbox_new "3926-$mode")"
+    SB_ALL="$SB_ALL $sb"
+    if [[ "$mode" == dry ]]; then AAI_RESIDUE_DRY_RUN=1 tree_wrap "$sb" sh -c "$cmd"; else tree_wrap "$sb" sh -c "$cmd"; fi
+    cp "$sb/pids" "$sb/own-pids" 2>/dev/null
+    p1="$(sed -n 1p "$sb/pids" 2>/dev/null)"; p2="$(sed -n 2p "$sb/pids" 2>/dev/null)"
+    [[ -n "$p1" && -n "$p2" ]] || { log_fail "TEST-3926 ($mode) the command did not record two pids: $W_OUT"; ok=0; continue; }
+    alive "$p2" || { log_fail "TEST-3926 ($mode) the process without the marker was terminated: $W_OUT"; ok=0; }
+    if [[ "$mode" == dry ]]; then
+      alive "$p1" || { log_fail "TEST-3926 (dry) the marker holder was terminated in a dry run: $W_OUT"; ok=0; }
+      command grep -qF "would terminate" <<<"$W_OUT" || { log_fail "TEST-3926 (dry) no would terminate line: $W_OUT"; ok=0; }
+    else
+      gone_within "$p1" 5 || { log_fail "TEST-3926 the marker holder $p1 is still running: $W_OUT"; ok=0; }
+    fi
+    sb_reap "$sb"
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-3926 a detached process still holding the marker on descriptor 9 is terminated, one that closed it survives, and a dry run terminates nothing"
+}
+
+# --- TEST-3927 (Spec-AC-05: the per-process check) ---------------------------
+test_3927_per_process_check_refusals() {
+  local ok=1 sb m st p
+  need_lsof TEST-3927 || return 0
+  sb="$(sandbox_new 3927)"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  m="$sb/aai-tr-0123abcd/.aai-test-run"
+  [[ -f "$m" ]] || { log_fail "TEST-3927 no marker could be made: $T_OUT"; return; }
+  st=0
+  lib_tree "$sb" "$LIB" aai_residue_proc_verify 1 "$m" "$st"
+  [[ "$T_RC" -ne 0 ]] || { log_fail "TEST-3927 pid 1 passed the check"; ok=0; }
+  # the calling shell and its parent, each listed in the sandbox and holding the marker on descriptor 9
+  T_RC=0
+  T_OUT="$(AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" sh -c 'echo $$ >> "$AAI_RESIDUE_SANDBOX/pids"; . "$1" || exit 99; aai_residue_proc_verify $$ "$2" 0' tree-case "$LIB" "$m" 9<"$m" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 ]] && command grep -qF 'ancestors' <<<"$T_OUT" || { log_fail "TEST-3927 the calling shell passed the check: rc $T_RC $T_OUT"; ok=0; }
+  T_RC=0
+  T_OUT="$(AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" sh -c 'sh -c "echo \$PPID >> \"\$AAI_RESIDUE_SANDBOX/pids\"; . \"\$1\" || exit 99; aai_residue_proc_verify \$PPID \"\$2\" 0" x "$1" "$2"' tree-case "$LIB" "$m" 9<"$m" 2>&1)" || T_RC=$?
+  [[ "$T_RC" -ne 0 ]] && command grep -qF 'ancestors' <<<"$T_OUT" || { log_fail "TEST-3927 the parent passed the check: rc $T_RC $T_OUT"; ok=0; }
+  p="$(sb_spawn "$sb" keep9-unlisted "$m")"
+  lib_tree "$sb" "$LIB" aai_residue_proc_verify "$p" "$m" 0
+  [[ "$T_RC" -ne 0 ]] && command grep -qF 'sandbox' <<<"$T_OUT" || { log_fail "TEST-3927 a pid outside the sandbox list passed: $T_OUT"; ok=0; }
+  p="$(sb_spawn "$sb" keep9 "$m")"
+  lib_tree "$sb" "$LIB" aai_residue_proc_verify "$p" "$m" 0
+  [[ "$T_RC" -eq 0 && -n "$T_OUT" ]] || { log_fail "TEST-3927 control: a listed marker holder failed the check: $T_OUT"; ok=0; }
+  lib_tree "$sb" "$LIB" aai_residue_proc_verify "$p" "$m" "$(( $(date +%s) + 3600 ))"
+  [[ "$T_RC" -ne 0 ]] && command grep -qF 'before this run' <<<"$T_OUT" || { log_fail "TEST-3927 a process started before the run start passed: $T_OUT"; ok=0; }
+  # a per-process lsof that prints the f9 record but then fails is not a completed ownership check
+  mkdir -p "$sb/bin3927"
+  printf '#!/bin/sh\ncase " $* " in *" -p "*) echo p%s; echo f9; exit 1 ;; esac\nexec %q "$@"\n' "$p" "$(command -v lsof)" > "$sb/bin3927/lsof"
+  chmod +x "$sb/bin3927/lsof"
+  TREE_LSOF="$sb/bin3927/lsof" lib_tree "$sb" "$LIB" aai_residue_proc_verify "$p" "$m" 0
+  [[ "$T_RC" -ne 0 ]] || { log_fail "TEST-3927 a failed per-process lsof still passed the check: $T_OUT"; ok=0; }
+  lib_tree "$sb" "$LIB" aai_residue_proc_signal "$p" TERM "$m" 0 "bogus identity"
+  [[ "$T_RC" -ne 0 ]] || { log_fail "TEST-3927 a changed identity was signalled"; ok=0; }
+  alive "$p" || { log_fail "TEST-3927 the process with a changed identity was terminated"; ok=0; }
+  sb_reap "$sb"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3927 pid 1, the calling shell, its parent, an unlisted pid and a process older than the run start fail the check; a changed identity is never signalled"
+}
+
+# --- TEST-3928 (Spec-AC-06: the listing filter, its refusal and the cap) ------
+test_3928_listing_filter_refusal_and_cap() {
+  local ok=1 sb m p shim
+  need_lsof TEST-3928 || return 0
+  sb="$(sandbox_new 3928)"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  m="$sb/aai-tr-0123abcd/.aai-test-run"
+  p="$(sb_spawn "$sb" keep9 "$m")"
+  shim="$(lsof_shim "$sb")"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  listing_filter_ok "$sb" "$m" || { log_fail "TEST-3928 a listing call lacked -a, -d 9 or the marker: $(cat "$sb/lsof.log" 2>/dev/null)"; ok=0; }
+  gone_within "$p" 5 || { log_fail "TEST-3928 the listed marker holder survived: $T_OUT"; ok=0; }
+  rm -f "$sb/lsof.log"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 ""
+  [[ "$T_RC" -eq 2 && ! -e "$sb/lsof.log" ]] || { log_fail "TEST-3928 an empty marker: exit $T_RC (want 2), lsof called: $(cat "$sb/lsof.log" 2>/dev/null)"; ok=0; }
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$sb/aai-tr-ffffffff/.aai-test-run"
+  [[ "$T_RC" -eq 2 && ! -e "$sb/lsof.log" ]] || { log_fail "TEST-3928 a missing marker: exit $T_RC (want 2), lsof called"; ok=0; }
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID_OTHER" 0 "$m"
+  [[ "$T_RC" -eq 2 && ! -e "$sb/lsof.log" ]] || { log_fail "TEST-3928 a marker naming another run: exit $T_RC (want 2), lsof called"; ok=0; }
+  p="$(sb_spawn "$sb" keep9 "$m")"
+  shim="$(lsof_shim "$sb" lie26 "$p")"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  [[ "$T_RC" -eq 4 ]] || { log_fail "TEST-3928 26 candidates: exit $T_RC, want 4: $T_OUT"; ok=0; }
+  alive "$p" || { log_fail "TEST-3928 26 candidates: a process was signalled"; ok=0; }
+  # a listing that fails (error text, exit 1) or stops part-way (exit 2 after one record) checks nothing and says so
+  shim="$(lsof_shim "$sb" fail)"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a failing lsof listing was read as no process: rc $T_RC $T_OUT"; ok=0; }
+  # exit 1 with no output at all is not "nothing found": lsof also exits 1 on an error whose warning -w hides
+  shim="$(lsof_shim "$sb" silent1)"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a silent lsof exit 1 was read as no process: rc $T_RC $T_OUT"; ok=0; }
+  shim="$(lsof_shim "$sb" partial "$p")"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a partial lsof listing was trusted: rc $T_RC $T_OUT"; ok=0; }
+  alive "$p" || { log_fail "TEST-3928 a partial lsof listing led to a signal"; ok=0; }
+  sb_reap "$sb"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3928 every listing carries -a, -d 9 and the marker; an empty or missing marker, or one naming another run, exits 2 without lsof; 26 candidates exit 4 and signal nothing; a failed or partial listing signals nothing and says so"
+}
+
+# --- TEST-3929 (Spec-AC-07: two independent layers under mutation) -----------
+test_3929_two_layers_under_mutation() {
+  local ok=1 sb m pown pfor shim m1="$TR_TMP/lib-tree-m1.sh" m2="$TR_TMP/lib-tree-m2.sh" m3="$TR_TMP/lib-tree-m3.sh" st
+  need_lsof TEST-3929 || return 0
+  sed 's/"\$AAI_RESIDUE_LSOF" -a -d 9 -F p/"$AAI_RESIDUE_LSOF" -F p/' "$LIB" > "$m1"
+  command grep -v 'layer:name' "$LIB" > "$m2"
+  command grep -v 'layer:marker' "$LIB" > "$m3"
+  cmp -s "$LIB" "$m1" && { log_fail "TEST-3929 the listing mutation did not apply"; ok=0; }
+  cmp -s "$LIB" "$m2" && { log_fail "TEST-3929 the name-layer mutation did not apply"; ok=0; }
+  cmp -s "$LIB" "$m3" && { log_fail "TEST-3929 the marker-layer mutation did not apply"; ok=0; }
+  # control: the unmutated listing passes the filter check
+  sb="$(sandbox_new 3929-ctl)"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  m="$sb/aai-tr-0123abcd/.aai-test-run"
+  shim="$(lsof_shim "$sb")"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  listing_filter_ok "$sb" "$m" || { log_fail "TEST-3929 control: the unmutated listing failed the filter check"; ok=0; }
+  # layer 1 catches the dropped filter; layer 2 still spares a foreign holder of the marker on descriptor 8
+  sb="$(sandbox_new 3929-proc)"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  m="$sb/aai-tr-0123abcd/.aai-test-run"
+  pown="$(sb_spawn "$sb" keep9 "$m")"
+  pfor="$(sb_spawn "$sb" fd8 "$m")"
+  shim="$(lsof_shim "$sb")"
+  TREE_LSOF="$shim" lib_tree "$sb" "$m1" aai_residue_proc_cleanup "$TID" 0 "$m"
+  listing_filter_ok "$sb" "$m" && { log_fail "TEST-3929 the filter check did not catch the dropped -d 9"; ok=0; }
+  alive "$pfor" || { log_fail "TEST-3929 filter dropped: the foreign holder on descriptor 8 was terminated: $T_OUT"; ok=0; }
+  gone_within "$pown" 5 || { log_fail "TEST-3929 filter dropped: the owned holder was not terminated: $T_OUT"; ok=0; }
+  sb_reap "$sb"
+  # files: without the name layer the marker layer keeps a decoy; without the marker layer the name layer does
+  sb="$(sandbox_new 3929-tmp)"
+  st=$(( $(date +%s) - 5 ))
+  mkdir -p "$sb/victim"; echo keep > "$sb/victim/keep.txt"
+  lib_tree "$sb" "$m2" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$sb/victim"
+  [[ -f "$sb/victim/keep.txt" ]] || { log_fail "TEST-3929 name layer removed: a decoy without a marker was deleted: $T_OUT"; ok=0; }
+  mkdir -p "$sb/aai-tr-ffffffff"; echo keep > "$sb/aai-tr-ffffffff/keep.txt"; printf '%s %s\n' "$TID_OTHER" "$st" > "$sb/aai-tr-ffffffff/.aai-test-run"
+  lib_tree "$sb" "$m3" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$sb/aai-tr-ffffffff"
+  [[ -f "$sb/aai-tr-ffffffff/keep.txt" ]] || { log_fail "TEST-3929 marker layer removed: another run's root was deleted: $T_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3929 a dropped descriptor filter is caught by the filter check and the per-process check still spares a foreign holder; each root layer alone keeps a decoy when the other is removed"
+}
+
+# --- TEST-3930 (Spec-AC-08: consumer record) ----------------------------------
+test_3930_consumer_record() {
+  local ok=1 n
+  n="$(command grep -cE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — feat: test runs remove the temp root and leftover processes' CHANGELOG.md || true)"
+  [[ "$n" -eq 1 ]] || { log_fail "TEST-3930 CHANGELOG.md holds $n headings for this change, want 1"; ok=0; }
+  command grep -qF 'AAI_TEST_OWNER' docs/TECHNOLOGY.md && command grep -qF 'aai-tr-' docs/TECHNOLOGY.md \
+    || { log_fail "TEST-3930 docs/TECHNOLOGY.md does not name AAI_TEST_OWNER and the aai-tr- root"; ok=0; }
+  command grep -qF "only while it holds the run's marker" docs/product/test-residue-safe-cleanup.md \
+    || { log_fail "TEST-3930 the product doc does not state the marker condition"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3930 CHANGELOG, TECHNOLOGY and the product doc carry the consumer record"
+}
+
+# --- TEST-3931 (Spec-AC-09: the mount guard keeps the root on any doubt) ------
+# One table: each row plants a find and/or mount shim (or none) for one cleanup of a valid root and says whether the
+# root must survive and which reason the output must name. Every probe failure, and every mount sign, keeps the root.
+#   row = name|find mode|mount mode|expect (kept or removed)|reason fragment
+TREE_MOUNT_TABLE='xdev-differs|xdevdrop|real|kept|mounted inside
+find-fails|fail|real|kept|did not complete
+xdev-fails|xdevfail|real|kept|did not complete
+find-empty|empty|real|kept|listed nothing
+mount-fails|real|fail|kept|could not be read
+mount-empty|real|empty|kept|could not be read
+mount-at-root|real|atroot|kept|at or inside
+mount-below|real|below|kept|at or inside
+delete-fails|deletefail|real|kept|did not complete
+rmdir-swap|rmdirswap|real|kept|changed before its final removal
+control|real|real|removed|'
+test_3931_mounted_filesystem_inside_root_is_kept() {
+  local ok=1 sb st root fsd realfind img row name fm mm want why
+  sb="$(sandbox_new 3931)"
+  st=$(( $(date +%s) - 5 ))
+  root="$sb/aai-tr-0123abcd"
+  fsd="$sb/bin"
+  realfind="$(command -v find)"
+  while IFS='|' read -r name fm mm want why; do
+    [[ -n "$name" ]] || continue
+    rm -rf "$root" "$root".removing.* "$fsd"; mkdir -p "$root/mnt/deep" "$fsd"
+    echo keep > "$root/mnt/deep/keep.txt"; printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
+    case "$fm" in
+      xdevdrop) printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@" | sed "/\\/mnt\\//d" ;; *) exec %q "$@" ;; esac\n' "$realfind" "$realfind" > "$fsd/find" ;;
+      fail) printf '#!/bin/sh\n%q "$@"\nexit 1\n' "$realfind" > "$fsd/find" ;;
+      xdevfail) printf '#!/bin/sh\ncase " $* " in *" -xdev "*) %q "$@"; exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" "$realfind" > "$fsd/find" ;;
+      empty) printf '#!/bin/sh\nexit 0\n' > "$fsd/find" ;;
+      rmdirswap) printf '#!/bin/sh\n%q "$@"; rc=$?\ncase " $* " in *" -delete "*) q=$(pwd -P); mv "$q" "$q.moved-away" && mkdir "$q" && echo decoy > %q ;; esac\nexit $rc\n' "$realfind" "$fsd/swapped" > "$fsd/find" ;;
+      deletefail) printf '#!/bin/sh\ncase " $* " in *" -delete "*) exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" > "$fsd/find" ;;
+    esac
+    case "$mm" in
+      fail) printf '#!/bin/sh\nexit 1\n' > "$fsd/mount" ;;
+      empty) printf '#!/bin/sh\nexit 0\n' > "$fsd/mount" ;;
+      atroot) printf '#!/bin/sh\necho "/dev/fake on %s type none (rw,bind)"\n' "$root" > "$fsd/mount" ;;
+      below) printf '#!/bin/sh\necho "/dev/fake on %s/mnt type none (rw,bind)"\n' "$root" > "$fsd/mount" ;;
+    esac
+    chmod +x "$fsd"/* 2>/dev/null
+    T_RC=0
+    T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+      sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+    if [[ "$name" == rmdir-swap ]]; then
+      # the contents of the verified root are gone; the empty decoy swapped into its name must survive
+      [[ -s "$fsd/swapped" ]] || { log_fail "TEST-3931 (rmdir-swap) the find shim never swapped the name: $T_OUT"; ok=0; }
+      compgen -G "$root.removing.*" >/dev/null || { log_fail "TEST-3931 (rmdir-swap) the empty decoy swapped into the name was removed: $T_OUT"; ok=0; }
+      command grep -qF -- "$why" <<<"$T_OUT" || { log_fail "TEST-3931 (rmdir-swap) the output does not name [$why]: $T_OUT"; ok=0; }
+      rm -rf "$root".removing.*
+    elif [[ "$want" == kept ]]; then
+      compgen -G "$root*/mnt/deep/keep.txt" >/dev/null || { log_fail "TEST-3931 ($name) the root was removed: $T_OUT"; ok=0; }
+      command grep -qF -- "$why" <<<"$T_OUT" || { log_fail "TEST-3931 ($name) the output does not name [$why]: $T_OUT"; ok=0; }
+    else
+      ! compgen -G "$root*" >/dev/null || { log_fail "TEST-3931 ($name) a root with no mount sign was kept: $T_OUT"; ok=0; }
+    fi
+  done <<<"$TREE_MOUNT_TABLE"
+  rm -rf "$fsd"
+  # the real thing where it can be made without privileges (macOS disk image); elsewhere the shim rows stand
+  if [[ "$(uname -s)" == Darwin ]] && command -v hdiutil >/dev/null 2>&1; then
+    rm -rf "$root"; mkdir -p "$root/mnt" "$sb/src"; echo precious > "$sb/src/precious.txt"
+    printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
+    img="$sb/img.dmg"
+    if hdiutil create -quiet -srcfolder "$sb/src" -volname aai3931 -format UDRW "$img" && hdiutil attach -quiet -nobrowse -mountpoint "$root/mnt" "$img"; then
+      lib_tree "$sb" "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root"
+      [[ -f "$root/mnt/precious.txt" ]] || { log_fail "TEST-3931 a file on a disk image mounted inside the root was deleted: $T_OUT"; ok=0; }
+      hdiutil detach -quiet "$root/mnt" || hdiutil detach -quiet -force "$root/mnt"
+    else
+      echo "SKIP-CASE: TEST-3931 could not attach a disk image here"
+    fi
+  fi
+  # a late mount: the image is attached under the moved-aside root during the SECOND mount probe, after every
+  # inspection has passed; the deletion itself must refuse to cross into it (macOS, real disk image)
+  if [[ "$(uname -s)" == Darwin ]] && command -v hdiutil >/dev/null 2>&1 && [[ -f "$sb/img.dmg" ]]; then
+    rm -rf "$root" "$sb"/aai-tr-0123abcd.removing.* "$fsd"; mkdir -p "$root/late" "$fsd"
+    printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"
+    # the shim reads the real table FIRST and attaches afterwards, so the probe sees a clean table and the mount
+    # appears only after every inspection has passed
+    printf '#!/bin/sh\nout=$(%q "$@"); rc=$?\nn=$(cat %q 2>/dev/null || echo 0); n=$((n+1)); echo $n > %q\nif [ "$n" -eq 2 ]; then for q in %q.removing.*; do [ -d "$q" ] && hdiutil attach -quiet -nobrowse -mountpoint "$q/late" %q && echo "$q/late" > %q; done; fi\nprintf "%%s\\n" "$out"; exit $rc\n' \
+      "$(command -v mount)" "$fsd/n" "$fsd/n" "$root" "$sb/img.dmg" "$fsd/attached" > "$fsd/mount"
+    chmod +x "$fsd/mount"
+    T_RC=0
+    T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+      sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+    if [[ -s "$fsd/attached" ]]; then
+      [[ -f "$(cat "$fsd/attached")/precious.txt" ]] || { log_fail "TEST-3931 (late mount) the deletion crossed into a mount attached after the probes: $T_OUT"; ok=0; }
+      hdiutil detach -quiet "$(cat "$fsd/attached")" || hdiutil detach -quiet -force "$(cat "$fsd/attached")"
+    else
+      log_fail "TEST-3931 (late mount) the shim never attached the image, the case is not exercising the window: $T_OUT"; ok=0
+    fi
+    rm -rf "$fsd"
+  fi
+  # a swap while the probes run: the mount shim renames the verified root away and moves a decoy (no marker) into its
+  # path; the removal must act only on the directory it verified, so the decoy survives
+  rm -rf "$root" "$sb/decoy" "$sb/moved" "$fsd"; mkdir -p "$root" "$sb/decoy" "$fsd"
+  printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"; echo keep > "$sb/decoy/keep.txt"
+  printf '#!/bin/sh\nif [ ! -e %q ]; then mv %q %q && mv %q %q; fi\nexec %q "$@"\n' "$sb/moved" "$root" "$sb/moved" "$sb/decoy" "$root" "$(command -v mount)" > "$fsd/mount"
+  chmod +x "$fsd/mount"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  [[ -e "$sb/moved" ]] || { log_fail "TEST-3931 (swap) the mount shim never swapped the root, the case is not exercising the window: $T_OUT"; ok=0; }
+  [[ -n "$(find "$sb" -name keep.txt 2>/dev/null)" ]] || { log_fail "TEST-3931 (swap) the decoy moved into the root's path was deleted: $T_OUT"; ok=0; }
+  # a swap of the moved-aside name during the second mount probe: removal must go through the pinned directory, never
+  # through a pathname a child could have pointed elsewhere
+  rm -rf "$root" "$sb/decoy" "$sb/moved" "$sb/moved2" "$sb"/aai-tr-0123abcd.removing.* "$fsd"; mkdir -p "$root" "$sb/decoy" "$fsd"
+  printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"; echo keep > "$sb/decoy/keep.txt"
+  printf '#!/bin/sh\nn=$(cat %q 2>/dev/null || echo 0); n=$((n+1)); echo $n > %q\nif [ "$n" -eq 2 ]; then for q in %q.removing.*; do [ -d "$q" ] && mv "$q" %q && mv %q "$q"; done; fi\nexec %q "$@"\n' \
+    "$fsd/n" "$fsd/n" "$root" "$sb/moved2" "$sb/decoy" "$(command -v mount)" > "$fsd/mount"
+  chmod +x "$fsd/mount"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  [[ -e "$sb/moved2" ]] || { log_fail "TEST-3931 (swap 2) the mount shim never swapped the moved-aside name: $T_OUT"; ok=0; }
+  [[ -n "$(find "$sb" -name keep.txt 2>/dev/null)" ]] || { log_fail "TEST-3931 (swap 2) the decoy swapped into the moved-aside name was deleted: $T_OUT"; ok=0; }
+  rm -rf "$fsd"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3931 every probe failure (find, find -xdev, mount) and every mount sign (a shorter -xdev walk, a mount at or below the root, a real disk image on macOS) keeps the root with its reason; a root with none is removed"
+}
+
+# --- TEST-3933 (Spec-AC-11: an incomplete outside scan, and no lsof) ------------
+test_3933_outside_scan_failure_and_no_lsof() {
+  local ok=1 sb root fsd realfind
+  sb="$(sandbox_new 3933)"
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  root="$sb/aai-tr-0123abcd"
+  fsd="$sb/bin"; mkdir -p "$fsd"
+  realfind="$(command -v find)"
+  printf '#!/bin/sh\ncase " $* " in *" -maxdepth 1 "*) exit 1 ;; *) exec %q "$@" ;; esac\n' "$realfind" > "$fsd/find"
+  chmod +x "$fsd/find"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_outside "$sb" "$root" 2>&1)" || T_RC=$?
+  command grep -qF 'did not complete' <<<"$T_OUT" || { log_fail "TEST-3933 a failed outside scan was read as complete: $T_OUT"; ok=0; }
+  TREE_LSOF="$sb/no-such-lsof" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$root/.aai-test-run"
+  [[ "$T_RC" -eq 0 && -z "$T_OUT" ]] || { log_fail "TEST-3933 a host without lsof printed or failed (rc $T_RC): $T_OUT"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3933 an outside scan that fails says so; a host without lsof skips the process check silently (a machine constant, not news about the run)"
+}
+
+# --- TEST-3932 (Spec-AC-10: AAI_TEST_TMPDIR=keep) ------------------------------
+test_3932_tmpdir_opt_out_keeps_caller_tmpdir() {
+  local ok=1 sb p
+  need_lsof TEST-3932 || return 0
+  sb="$(sandbox_new 3932)"
+  SB_ALL="$SB_ALL $sb"
+  AAI_TEST_TMPDIR=keep tree_wrap "$sb" sh -c 'echo "TMP=$TMPDIR"; perl -e "use POSIX qw(setsid); setsid(); exec @ARGV" -- sleep 127 </dev/null >/dev/null 2>&1 & echo $! >> "$AAI_RESIDUE_SANDBOX/pids"; sleep 0.5'
+  cp "$sb/pids" "$sb/own-pids" 2>/dev/null
+  command grep -qxF "TMP=$sb" <<<"$W_OUT" || { log_fail "TEST-3932 AAI_TEST_TMPDIR=keep did not keep the caller's TMPDIR: $W_OUT"; ok=0; }
+  p="$(sed -n 1p "$sb/pids" 2>/dev/null)"
+  [[ -n "$p" ]] && gone_within "$p" 5 || { log_fail "TEST-3932 with the opt-out the marker holder was not terminated: $W_OUT"; ok=0; }
+  ls -d "$sb"/aai-tr-* >/dev/null 2>&1 && { log_fail "TEST-3932 the root was left behind"; ok=0; }
+  sb_reap "$sb"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3932 AAI_TEST_TMPDIR=keep leaves the command's TMPDIR alone while the marker, the process check and the root removal still run"
+}
+
+# --- TEST-3935 (Spec-AC-13: a malformed ps sample is never a verified process) --
+#   row = etime field|expected seconds or "bad"
+TREE_ETIME_TABLE='03:04|184
+00:00|0
+59:59|3599
+1:02:03|3723
+23:59:59|86399
+1-02:03:04|93784
+12-00:00:00|1036800
+|bad
+Fri|bad
+Nov|bad
+12:60|bad
+60:00|bad
+24:00:00|bad
+1-24:00:00|bad
+1-02:03|bad
+-02:03:04|bad
+a1:02|bad
+1:2:3:4|bad'
+test_3935_malformed_ps_sample_fails_closed() {
+  local ok=1 sb m p row et want got rc shimd realps
+  sb="$(sandbox_new 3935)"
+  while IFS='|' read -r et want; do
+    rc=0
+    got="$(sh -c '. "$1" || exit 99; aai_residue_etime_s "$2"' x "$LIB" "$et" 2>/dev/null)" || rc=$?
+    if [[ "$want" == bad ]]; then
+      [[ "$rc" -ne 0 && -z "$got" ]] || { log_fail "TEST-3935 etime [$et] was accepted as [$got] (rc $rc)"; ok=0; }
+    else
+      [[ "$rc" -eq 0 && "$got" == "$want" ]] || { log_fail "TEST-3935 etime [$et] gave [$got] rc $rc, want $want"; ok=0; }
+    fi
+  done <<<"$TREE_ETIME_TABLE"
+  # a ps whose elapsed-time field comes back blank (the mid-fork column shift of CHANGE-0050) or as a weekday,
+  # and whose start time comes back shifted: the process is unverifiable and is never signalled
+  need_lsof TEST-3935 || return 0
+  lib_tree "$sb" "$LIB" aai_residue_tmp_create "$TID" 0 "$sb"
+  m="$sb/aai-tr-0123abcd/.aai-test-run"
+  p="$(sb_spawn "$sb" keep9 "$m")"
+  realps="$(command -v ps)"
+  shimd="$sb/bin"; mkdir -p "$shimd"
+  for mode in blank weekday lstart; do
+    case "$mode" in
+      blank) printf '#!/bin/sh\ncase " $* " in *" etime= "*) echo ""; exit 0 ;; esac\nexec %q "$@"\n' "$realps" > "$shimd/ps" ;;
+      weekday) printf '#!/bin/sh\ncase " $* " in *" etime= "*) echo "Fri"; exit 0 ;; esac\nexec %q "$@"\n' "$realps" > "$shimd/ps" ;;
+      lstart) printf '#!/bin/sh\ncase " $* " in *" lstart= "*) echo "00:05 Fri Nov 20"; exit 0 ;; esac\nexec %q "$@"\n' "$realps" > "$shimd/ps" ;;
+    esac
+    chmod +x "$shimd/ps"
+    T_RC=0
+    T_OUT="$(PATH="$shimd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" AAI_RESIDUE_LSOF=lsof \
+      sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m" 2>&1)" || T_RC=$?
+    alive "$p" || { log_fail "TEST-3935 ($mode) a process with a malformed ps sample was signalled: $T_OUT"; ok=0; p="$(sb_spawn "$sb" keep9 "$m")"; }
+    command grep -qF 'unreadable' <<<"$T_OUT" || { log_fail "TEST-3935 ($mode) the skip does not say the sample was unreadable: $T_OUT"; ok=0; }
+  done
+  sb_reap "$sb"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3935 only a well-formed [[dd-]hh:]mm:ss elapsed time converts; a blank, weekday or out-of-range field, or a shifted start time, leaves the process unverified and unsignalled"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-test-residue-safe-cleanup) ==="
   check_deps
@@ -693,6 +1332,18 @@ main() {
   test_3912_no_daemon_is_a_noted_no_op
   test_3913_wrapper_end_to_end_on_the_stub
   test_3914_classification_and_consumer_record
+  test_3923_owner_temp_root_lifecycle
+  test_3924_tampered_roots_are_kept
+  test_3925_outside_entries_reported_and_kept
+  test_3926_owned_process_terminated_foreign_kept
+  test_3927_per_process_check_refusals
+  test_3928_listing_filter_refusal_and_cap
+  test_3929_two_layers_under_mutation
+  test_3930_consumer_record
+  test_3931_mounted_filesystem_inside_root_is_kept
+  test_3932_tmpdir_opt_out_keeps_caller_tmpdir
+  test_3933_outside_scan_failure_and_no_lsof
+  test_3935_malformed_ps_sample_fails_closed
   if [[ -s "$AAI_NO_CLI_LOG" ]]; then
     log_fail "$TEST_NAME a bare container CLI was invoked during the run: $(cat "$AAI_NO_CLI_LOG")"
   fi

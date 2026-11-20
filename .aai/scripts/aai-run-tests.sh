@@ -70,6 +70,21 @@
 #                      nested wrapper's cleanup refuses any CLI but the test
 #                      stub. A refusal of the cleanup itself (malformed run id,
 #                      non-stub CLI in a test) turns the command's 0 into 13.
+#   AAI_TEST_OWNER     (CHANGE test-residue-files-and-processes) set by the
+#                      wrapper that owns the run (none inherited, not in a
+#                      test unless AAI_RESIDUE_SANDBOX names one, not Git
+#                      Bash): the command gets TMPDIR=<TMPDIR>/aai-tr-<8 hex>
+#                      holding a .aai-test-run marker, AAI_TEST_OWNER and
+#                      AAI_TEST_OWNER_START, and the marker on descriptor 9.
+#                      Afterwards the wrapper terminates the processes that
+#                      still hold the marker on descriptor 9 (each re-checked
+#                      by pid right before each signal), reports temp entries
+#                      made outside the root, and removes the root once its
+#                      name and marker prove it is this run's
+#                      (lib/test-residue.sh). Never changes the exit code.
+#                      A root with another filesystem mounted inside it is
+#                      kept. AAI_TEST_TMPDIR=keep leaves the command's TMPDIR
+#                      unchanged (the root and the process check stay).
 #
 # Platform matrix (Spec-AC-07 / SPEC-0046-spec-test-wrapper-windows-fallback;
 # kept identical across this header, aai-reap-tests.sh, aai-run-tests.ps1,
@@ -822,6 +837,68 @@ fi
 AAI_RESIDUE_IN_TEST=1
 export AAI_RESIDUE_IN_TEST
 
+# --- RUN TEMP ROOT AND LEFTOVER PROCESSES (test-residue-files-and-processes) --
+# The wrapper that does not inherit AAI_TEST_OWNER owns the run's temp root and
+# processes; the mode comes from its OWN test context (real, sandbox or off).
+AAI_TREE_OWN=0
+AAI_TREE_ROOT=''
+AAI_TREE_BASE=''
+if [ -z "${AAI_TEST_OWNER:-}" ] && [ "$DEGRADED_MSYS" -eq 0 ] && { [ -z "$AAI_SELF_DIR" ] || [ ! -f "$AAI_SELF_DIR/lib/test-residue.sh" ]; }; then
+  # An owning run outside a test without the library cannot clean its temp
+  # files or leftover processes: say so (inside a test this is off anyway).
+  case "${AAI_RES_CALLER_IN_TEST:-0}" in
+    '' | 0) echo "AAI-RESIDUE: NOTE - lib/test-residue.sh not found next to this wrapper; temp files and leftover processes of this run will not be cleaned." >&2 ;;
+  esac
+fi
+if [ -z "${AAI_TEST_OWNER:-}" ] && [ "$DEGRADED_MSYS" -eq 0 ] && [ -n "$AAI_SELF_DIR" ] && [ -f "$AAI_SELF_DIR/lib/test-residue.sh" ]; then
+  # shellcheck source=lib/test-residue.sh
+  command -v aai_residue_tree_mode >/dev/null 2>&1 || . "$AAI_SELF_DIR/lib/test-residue.sh"
+  AAI_TREE_MODE=$(AAI_RESIDUE_IN_TEST="$AAI_RES_CALLER_IN_TEST" aai_residue_tree_mode)
+  if [ "$AAI_TREE_MODE" != off ]; then
+    AAI_TEST_OWNER_START=$(date +%s)
+    AAI_TEST_OWNER=$(aai_residue_runid_new)
+    export AAI_TEST_OWNER AAI_TEST_OWNER_START
+    AAI_TREE_BASE=$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P) || AAI_TREE_BASE=''
+    if [ -n "$AAI_TREE_BASE" ]; then
+      AAI_TREE_ROOT=$(aai_residue_tmp_create "$AAI_TEST_OWNER" "$AAI_TEST_OWNER_START" "$AAI_TREE_BASE") || AAI_TREE_ROOT=''
+    fi
+    # Pin the created root (and its marker) now, before the command can touch
+    # them: the cleanup removes only a root that is still this very directory.
+    if [ -n "$AAI_TREE_ROOT" ]; then
+      AAI_TREE_PIN=$(aai_residue_dir_identity "$AAI_TREE_ROOT") || AAI_TREE_PIN=''
+      AAI_TREE_MARK_PIN=$(aai_residue_file_identity "$AAI_TREE_ROOT/.aai-test-run") || AAI_TREE_MARK_PIN=''
+      if [ -z "$AAI_TREE_PIN" ] || [ -z "$AAI_TREE_MARK_PIN" ]; then
+        # Roll back exactly what was just made: the marker, then the root
+        # with rmdir, which removes it only if it is empty (never rm -rf).
+        rm -f -- "$AAI_TREE_ROOT/.aai-test-run" 2>/dev/null
+        rmdir -- "$AAI_TREE_ROOT" 2>/dev/null
+        echo "AAI-RESIDUE: NOTE - the identity (device and inode) of the new temp root could not be read, so it was rolled back; temp files and leftover processes of this run will not be cleaned." >&2
+        AAI_TREE_ROOT=''
+        AAI_TREE_PIN_FAILED=1
+      fi
+    fi
+    if [ -n "$AAI_TREE_ROOT" ]; then
+      AAI_TREE_OWN=1
+    elif [ "${AAI_TREE_PIN_FAILED:-0}" -eq 1 ]; then
+      :
+    else
+      echo "AAI-RESIDUE: NOTE - no temp root could be made under ${TMPDIR:-/tmp}; temp files and leftover processes of this run will not be cleaned." >&2
+    fi
+  fi
+fi
+
+# aai_tree_finish — once: terminate this run's leftover processes, report temp
+# entries outside its root and remove the root, judged in this wrapper's own
+# test context.
+aai_tree_finish() {
+  [ "$AAI_TREE_OWN" -eq 1 ] || return 0
+  AAI_TREE_OWN=0
+  AAI_RESIDUE_IN_TEST="$AAI_RES_CALLER_IN_TEST"
+  aai_residue_proc_cleanup "$AAI_TEST_OWNER" "$AAI_TEST_OWNER_START" "$AAI_TREE_ROOT/.aai-test-run"
+  aai_residue_tmp_cleanup "$AAI_TEST_OWNER" "$AAI_TEST_OWNER_START" "$AAI_TREE_BASE" "$AAI_TREE_ROOT" "$AAI_TREE_PIN" "$AAI_TREE_MARK_PIN"
+  return 0
+}
+
 # aai_residue_finish — run the owned cleanup once (normal exit, watchdog or a
 # signal), judged in this wrapper's own test context.
 aai_residue_finish() {
@@ -833,9 +910,9 @@ aai_residue_finish() {
   return 0
 }
 
-trap 'aai_reap_group; aai_iso_cleanup; aai_residue_finish; exit 130' INT
-trap 'aai_reap_group; aai_iso_cleanup; aai_residue_finish; exit 143' TERM
-trap 'aai_reap_group; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
+trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 130' INT
+trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 143' TERM
+trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
 
 # Launch the command as the leader of a NEW session / process group so that even
 # descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
@@ -848,6 +925,20 @@ trap 'aai_reap_group; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
 #      the command, so pid is unchanged (exit-code fidelity kept) and pgid == pid.
 #   3. bash job control (set -m) — ONLY when the wrapper itself runs under bash.
 #   4. bare background — last resort (no isolation) when none of the above exist.
+# The owned run's command gets the temp root as TMPDIR and the marker on
+# descriptor 9; the wrapper restores its own TMPDIR and closes 9 right after.
+AAI_TREE_TMPDIR_SET=0
+if [ "$AAI_TREE_OWN" -eq 1 ]; then
+  [ -n "${TMPDIR+x}" ] && AAI_TREE_TMPDIR_SET=1
+  AAI_TREE_TMPDIR_WAS="${TMPDIR:-}"
+  # AAI_TEST_TMPDIR=keep: the command keeps the caller's TMPDIR (a cache keyed
+  # on it survives); the root still carries the marker for the process check.
+  if [ "${AAI_TEST_TMPDIR:-}" != keep ]; then
+    TMPDIR="$AAI_TREE_ROOT"
+    export TMPDIR
+  fi
+  exec 9<"$AAI_TREE_ROOT/.aai-test-run"
+fi
 if [ "$DEGRADED_MSYS" -eq 1 ]; then
   # Rewrite Windows absolute command arguments to Git Bash paths before
   # exec. Other arguments (including "sh" / "-c") stay byte-identical.
@@ -889,6 +980,10 @@ else
   CMD_PID=$!
 fi
 PGID="$CMD_PID"
+if [ "$AAI_TREE_OWN" -eq 1 ]; then
+  exec 9<&-
+  if [ "$AAI_TREE_TMPDIR_SET" -eq 1 ]; then TMPDIR="$AAI_TREE_TMPDIR_WAS"; export TMPDIR; else unset TMPDIR; fi
+fi
 
 # Marker file the watchdog touches iff it fired (portable boolean across the
 # subshell boundary).
@@ -943,6 +1038,10 @@ rm -f "$TIMED_OUT_FILE"
 # is TERM'd, then KILL'd after a short grace - the same aai_reap_group the
 # signal traps above now call, so this path and a Ctrl-C cannot disagree.
 aai_reap_group
+
+# Leftover processes and the temp root of an owned run (after the group reap,
+# so only what escaped the group is left to prove and signal).
+aai_tree_finish
 
 # The disposable checkout goes BEFORE the after-snapshot, so its removal falls
 # inside the tripwire's window instead of after it. This is the removal that
