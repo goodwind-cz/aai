@@ -766,6 +766,12 @@ lsof_shim() {
     if [[ "${2:-}" == lie26 ]]; then
       printf 'case " $* " in *" -p "*) ;; *) i=0; while [ $i -lt 26 ]; do echo p%s; i=$((i+1)); done; exit 0 ;; esac\n' "$3"
     fi
+    if [[ "${2:-}" == fail ]]; then
+      printf 'case " $* " in *" -p "*) ;; *) echo "lsof: simulated failure" >&2; exit 1 ;; esac\n'
+    fi
+    if [[ "${2:-}" == partial ]]; then
+      printf 'case " $* " in *" -p "*) ;; *) echo p%s; exit 2 ;; esac\n' "$3"
+    fi
     printf 'exec %q "$@"\n' "$real"
   } > "$1/bin/lsof"
   chmod +x "$1/bin/lsof"
@@ -969,8 +975,16 @@ test_3928_listing_filter_refusal_and_cap() {
   TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
   [[ "$T_RC" -eq 4 ]] || { log_fail "TEST-3928 26 candidates: exit $T_RC, want 4: $T_OUT"; ok=0; }
   alive "$p" || { log_fail "TEST-3928 26 candidates: a process was signalled"; ok=0; }
+  # a listing that fails (error text, exit 1) or stops part-way (exit 2 after one record) checks nothing and says so
+  shim="$(lsof_shim "$sb" fail)"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a failing lsof listing was read as no process: rc $T_RC $T_OUT"; ok=0; }
+  shim="$(lsof_shim "$sb" partial "$p")"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a partial lsof listing was trusted: rc $T_RC $T_OUT"; ok=0; }
+  alive "$p" || { log_fail "TEST-3928 a partial lsof listing led to a signal"; ok=0; }
   sb_reap "$sb"
-  [[ $ok -eq 1 ]] && log_pass "TEST-3928 every listing carries -a, -d 9 and the marker; an empty or missing marker, or one naming another run, exits 2 without lsof; 26 candidates exit 4 and signal nothing"
+  [[ $ok -eq 1 ]] && log_pass "TEST-3928 every listing carries -a, -d 9 and the marker; an empty or missing marker, or one naming another run, exits 2 without lsof; 26 candidates exit 4 and signal nothing; a failed or partial listing signals nothing and says so"
 }
 
 # --- TEST-3929 (Spec-AC-07: two independent layers under mutation) -----------

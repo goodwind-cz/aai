@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 53ade357e218a2bdc2120ee11346d6329c5339f2f0f02bcf995fa94491d20f35
+frozen_sha256: 616d220dce3794d75372f4e56576505a9fb6607e4ba8ece114d8ec7cc46267fb
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -113,7 +113,10 @@ SPEC-FROZEN: true
   unless the marker is an existing `.aai-test-run` file under an absolute
   path, and refuses the same way when the marker's first field is not the
   owner id passed to the cleanup (post-freeze amendment after validation
-  r1 NB-3). `AAI_RESIDUE_LSOF` names the `lsof` command; tests point it at a
+  r1 NB-3). The listing is trusted only whole (post-merge-review amendment,
+  Codex P2 on PR #574): exit 0 with only pid and descriptor records, or exit
+  1 with no output; any other exit, error text or a part-way listing prints
+  one NOTE and signals nothing. `AAI_RESIDUE_LSOF` names the `lsof` command; tests point it at a
   logging shim that runs the real one. No `lsof`: one NOTE, nothing
   signalled.
 - D6 (per-process check, re-run right before each signal).
@@ -225,7 +228,7 @@ None.
 | TEST-3925 | Spec-AC-03 | integration | tests/skills/test-aai-test-residue.sh | the wrapper in sandbox mode with a command that writes outside.txt into the sandbox: one NOTE line names outside.txt, the file remains, the root is gone; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/aai_residue_tmp_outside "\$tc_base" "\$tc_root"/:/` drops the outside report and the case must fail | green |
 | TEST-3926 | Spec-AC-04 | integration | tests/skills/test-aai-test-residue.sh | the wrapper in sandbox mode with a command that starts two detached sleeps (perl setsid), one keeping descriptor 9 and one with 9 closed, pids into the sandbox: the first is gone, the second runs (the case kills it itself); dry run keeps both and says would terminate; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/kill -s "\$2" "\$1"/: kill -s "$2" "$1"/` stops sending the signal and the case must fail | green |
 | TEST-3927 | Spec-AC-05 | integration | tests/skills/test-aai-test-residue.sh | verify on pid 1, $$, $PPID, a sleep not in the sandbox list and a sleep with the run start one hour ahead, each holding the marker on descriptor 9 where the case can arrange it: each refused with its reason; signal with a wrong identity leaves the sleep running; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/case " \$pv_excl " in \*" \$pv_pid "\*\) echo "is this wrapper or one of its ancestors"; return 1 ;; esac//` drops the ancestor exclusion and the case must fail | green |
-| TEST-3928 | Spec-AC-06 | integration | tests/skills/test-aai-test-residue.sh | a logging lsof shim: every listing line carries -a, -d 9 and the marker; empty and missing marker exit 2 with no shim call; a shim listing 26 sandbox pids gives exit 4 and every sleep still runs; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/"\$AAI_RESIDUE_LSOF" -a -d 9 -F p/"$AAI_RESIDUE_LSOF" -F p/` drops the descriptor filter and the case must fail | green |
+| TEST-3928 | Spec-AC-06 | integration | tests/skills/test-aai-test-residue.sh | a logging lsof shim: every listing line carries -a, -d 9 and the marker; empty and missing marker exit 2 with no shim call; a shim listing 26 sandbox pids gives exit 4 and every sleep still runs; a shim that fails (exit 1 with error text) or stops part-way (exit 2 after one record) gives the listing-failed NOTE and signals nothing; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/"\$AAI_RESIDUE_LSOF" -a -d 9 -F p/"$AAI_RESIDUE_LSOF" -F p/` drops the descriptor filter and the case must fail | green |
 | TEST-3929 | Spec-AC-07 | integration | tests/skills/test-aai-test-residue.sh | mutated copies of the library in the scratch directory: listing without -d 9 (filter check fails, foreign sleep on descriptor 8 survives, owned sleep gone); verify without the name check (decoy without marker survives); verify without the marker line check (decoy named after another run survives); control: the unmutated library passes the filter check; RED on the unchanged tree | target `.aai/scripts/lib/test-residue.sh`; `sed:s/grep -qx 'f9'/true/` makes the per-process descriptor check always pass and the case must fail | green |
 | TEST-3930 | Spec-AC-08 | unit | tests/skills/test-aai-test-residue.sh | one CHANGELOG heading; TECHNOLOGY names AAI_TEST_OWNER and aai-tr-; the product doc names the marker condition; RED on the unchanged tree | target `docs/product/test-residue-safe-cleanup.md`; `sed:s/only while it holds the run's marker/whenever it outlives the run/` reverts the statement and the case must fail | green |
 | TEST-3931 | Spec-AC-09 | integration | tests/skills/test-aai-test-residue.sh | a find shim makes the -xdev walk stop at mnt: the root and mnt/deep/keep.txt survive with the mounted-inside reason; a mount shim listing a bind mount at root/mnt keeps the root with the mount-table reason; on macOS an hdiutil disk image attached at root/mnt keeps its file; RED on the code without the walk comparison | target `.aai/scripts/lib/test-residue.sh`; `sed:s/if \[ -z "\$tc_all" \] \x7c\x7c \[ "\$tc_all" != "\$tc_one" \]; then/if false; then/` drops the mount guard and the case must fail | green |

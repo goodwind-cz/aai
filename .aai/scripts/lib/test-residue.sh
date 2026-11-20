@@ -444,7 +444,18 @@ aai_residue_proc_list() {
     echo 'AAI-RESIDUE-LIST-REFUSED'
     return 2
   fi
-  "$AAI_RESIDUE_LSOF" -a -d 9 -F p -- "$1" 2>/dev/null | sed -n 's/^p\([0-9][0-9]*\)$/\1/p'
+  # The listing is trusted only whole: exit 0 with pid records, or exit 1 with
+  # no output at all (lsof's "nothing found"). Any other exit, or any line that
+  # is not a pid (p) or descriptor (f) record, means the listing failed and
+  # nothing is signalled.
+  pl_out=$("$AAI_RESIDUE_LSOF" -a -d 9 -F p -w -- "$1" 2>&1)
+  pl_rc=$?
+  pl_bad=$(printf '%s\n' "$pl_out" | sed -n '/^p[0-9][0-9]*$/d; /^f[0-9][0-9]*$/d; /^$/d; p' | sed -n '1p')
+  if [ -n "$pl_bad" ] || { [ "$pl_rc" -ne 0 ] && { [ "$pl_rc" -ne 1 ] || [ -n "$pl_out" ]; }; }; then
+    echo "AAI-RESIDUE-LIST-FAILED exit $pl_rc: ${pl_bad:-no output}"
+    return 3
+  fi
+  printf '%s\n' "$pl_out" | sed -n 's/^p\([0-9][0-9]*\)$/\1/p'
 }
 
 # aai_residue_proc_verify <pid> <marker> <start> — re-check ONE process. 0 =
@@ -515,6 +526,12 @@ aai_residue_proc_cleanup() {
   fi
   pc_list=$(aai_residue_proc_list "$3")
   case "$pc_list" in *AAI-RESIDUE-LIST-REFUSED*) return 2 ;; esac
+  case "$pc_list" in
+    *AAI-RESIDUE-LIST-FAILED*)
+      aai_residue_say "NOTE - the lsof listing failed (${pc_list#*AAI-RESIDUE-LIST-FAILED }); leftover processes of this run were not checked and none was signalled."
+      return 0
+      ;;
+  esac
   pc_n=0
   for pc_pid in $pc_list; do pc_n=$((pc_n + 1)); done
   [ "$pc_n" -gt 0 ] || return 0
