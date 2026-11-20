@@ -764,7 +764,10 @@ lsof_shim() {
   {
     printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> %q\n' "$1/lsof.log"
     if [[ "${2:-}" == lie26 ]]; then
-      printf 'case " $* " in *" -p "*) ;; *) i=0; while [ $i -lt 26 ]; do echo p%s; i=$((i+1)); done; exit 0 ;; esac\n' "$3"
+      printf 'case " $* " in *" -p "*) ;; *) %q "$@"; rc=$?; i=0; while [ $i -lt 26 ]; do echo p%s; i=$((i+1)); done; exit $rc ;; esac\n' "$real" "$3"
+    fi
+    if [[ "${2:-}" == silent1 ]]; then
+      printf 'case " $* " in *" -p "*) ;; *) exit 1 ;; esac\n'
     fi
     if [[ "${2:-}" == fail ]]; then
       printf 'case " $* " in *" -p "*) ;; *) echo "lsof: simulated failure" >&2; exit 1 ;; esac\n'
@@ -1004,6 +1007,10 @@ test_3928_listing_filter_refusal_and_cap() {
   shim="$(lsof_shim "$sb" fail)"
   TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
   command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a failing lsof listing was read as no process: rc $T_RC $T_OUT"; ok=0; }
+  # exit 1 with no output at all is not "nothing found": lsof also exits 1 on an error whose warning -w hides
+  shim="$(lsof_shim "$sb" silent1)"
+  TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
+  command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a silent lsof exit 1 was read as no process: rc $T_RC $T_OUT"; ok=0; }
   shim="$(lsof_shim "$sb" partial "$p")"
   TREE_LSOF="$shim" lib_tree "$sb" "$LIB" aai_residue_proc_cleanup "$TID" 0 "$m"
   command grep -qF 'listing failed' <<<"$T_OUT" || { log_fail "TEST-3928 a partial lsof listing was trusted: rc $T_RC $T_OUT"; ok=0; }

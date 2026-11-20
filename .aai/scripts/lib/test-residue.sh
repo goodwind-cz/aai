@@ -471,18 +471,26 @@ aai_residue_proc_list() {
     echo 'AAI-RESIDUE-LIST-REFUSED'
     return 2
   fi
-  # The listing is trusted only whole: exit 0 with pid records, or exit 1 with
-  # no output at all (lsof's "nothing found"). Any other exit, or any line that
-  # is not a pid (p) or descriptor (f) record, means the listing failed and
-  # nothing is signalled.
-  pl_out=$("$AAI_RESIDUE_LSOF" -a -d 9 -F p -w -- "$1" 2>&1)
+  # The listing is trusted only whole. lsof exits 1 both for "nothing found"
+  # and for an error whose warning -w hides, so "nothing found" is made
+  # impossible: the listing runs in a subshell that itself holds the marker on
+  # descriptor 9 (a positive control). Only exit 0 with at least one pid record
+  # and nothing but pid (p) and descriptor (f) records is a complete listing;
+  # anything else means the listing failed and nothing is signalled. The
+  # control (and lsof itself) are gone once the subshell returns; the cleanup
+  # drops pids that no longer exist.
+  pl_out=$(
+    exec 9<"$1" || { echo "the marker could not be opened for the control"; exit 97; }
+    "$AAI_RESIDUE_LSOF" -a -d 9 -F p -w -- "$1" 2>&1
+  )
   pl_rc=$?
   pl_bad=$(printf '%s\n' "$pl_out" | sed -n '/^p[0-9][0-9]*$/d; /^f[0-9][0-9]*$/d; /^$/d; p' | sed -n '1p')
-  if [ -n "$pl_bad" ] || { [ "$pl_rc" -ne 0 ] && { [ "$pl_rc" -ne 1 ] || [ -n "$pl_out" ]; }; }; then
-    echo "AAI-RESIDUE-LIST-FAILED exit $pl_rc: ${pl_bad:-no output}"
+  pl_pids=$(printf '%s\n' "$pl_out" | sed -n 's/^p\([0-9][0-9]*\)$/\1/p')
+  if [ "$pl_rc" -ne 0 ] || [ -n "$pl_bad" ] || [ -z "$pl_pids" ]; then
+    echo "AAI-RESIDUE-LIST-FAILED exit $pl_rc: ${pl_bad:-no pid record, not even the control}"
     return 3
   fi
-  printf '%s\n' "$pl_out" | sed -n 's/^p\([0-9][0-9]*\)$/\1/p'
+  printf '%s\n' "$pl_pids"
 }
 
 # aai_residue_proc_verify <pid> <marker> <start> — re-check ONE process. 0 =
@@ -560,6 +568,10 @@ aai_residue_proc_cleanup() {
       return 0
       ;;
   esac
+  # The listing's own control and lsof are gone by now: keep only live pids.
+  pc_live=''
+  for pc_pid in $pc_list; do kill -0 "$pc_pid" 2>/dev/null && pc_live="$pc_live $pc_pid"; done
+  pc_list=$pc_live
   pc_n=0
   for pc_pid in $pc_list; do pc_n=$((pc_n + 1)); done
   [ "$pc_n" -gt 0 ] || return 0

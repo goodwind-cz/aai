@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 46bb5d953d995428194c6293cdc5e2275493658dc44fa08b93f51a95fc6b50b3
+frozen_sha256: de99ab0d34c9a025d5ce85e08e5ccb12404c1e64ec32d4f80d8369bbe59fd30f
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -134,7 +134,12 @@ SPEC-FROZEN: true
   r1 NB-3). The listing is trusted only whole (post-merge-review amendment,
   Codex P2 on PR #574): exit 0 with only pid and descriptor records, or exit
   1 with no output; any other exit, error text or a part-way listing prints
-  one NOTE and signals nothing. `AAI_RESIDUE_LSOF` names the `lsof` command; tests point it at a
+  one NOTE and signals nothing. Because lsof exits 1 both for "nothing found"
+  and for an error whose warning `-w` hides, the listing runs in a subshell
+  that itself holds the marker on descriptor 9 (a positive control): only
+  exit 0 with at least one pid record counts, and pids gone by the time the
+  cleanup looks (the control, lsof) are dropped (Codex P2 on PR #574, ninth
+  review). `AAI_RESIDUE_LSOF` names the `lsof` command; tests point it at a
   logging shim that runs the real one. No `lsof`: one NOTE, nothing
   signalled.
 - D6 (per-process check, re-run right before each signal).
