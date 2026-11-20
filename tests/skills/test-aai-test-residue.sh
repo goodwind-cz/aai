@@ -1133,6 +1133,18 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
       echo "SKIP-CASE: TEST-3931 could not attach a disk image here"
     fi
   fi
+  # a swap while the probes run: the mount shim renames the verified root away and moves a decoy (no marker) into its
+  # path; the removal must act only on the directory it verified, so the decoy survives
+  rm -rf "$root" "$sb/decoy" "$sb/moved" "$fsd"; mkdir -p "$root" "$sb/decoy" "$fsd"
+  printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"; echo keep > "$sb/decoy/keep.txt"
+  printf '#!/bin/sh\nif [ ! -e %q ]; then mv %q %q && mv %q %q; fi\nexec %q "$@"\n' "$sb/moved" "$root" "$sb/moved" "$sb/decoy" "$root" "$(command -v mount)" > "$fsd/mount"
+  chmod +x "$fsd/mount"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  [[ -e "$sb/moved" ]] || { log_fail "TEST-3931 (swap) the mount shim never swapped the root, the case is not exercising the window: $T_OUT"; ok=0; }
+  [[ -n "$(find "$sb" -name keep.txt 2>/dev/null)" ]] || { log_fail "TEST-3931 (swap) the decoy moved into the root's path was deleted: $T_OUT"; ok=0; }
+  rm -rf "$fsd"
   [[ $ok -eq 1 ]] && log_pass "TEST-3931 every probe failure (find, find -xdev, mount) and every mount sign (a shorter -xdev walk, a mount at or below the root, a real disk image on macOS) keeps the root with its reason; a root with none is removed"
 }
 

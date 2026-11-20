@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: de99ab0d34c9a025d5ce85e08e5ccb12404c1e64ec32d4f80d8369bbe59fd30f
+frozen_sha256: 61c31c19096cccd3938e9236c965ad4a9a7f7087e5cfed728cdc0f79483c5a86
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -96,8 +96,13 @@ SPEC-FROZEN: true
   - the marker is a regular file, not a symlink, whose first line is exactly
     `<id> <start>` (the marker layer);
   - the marker's modification time is at or after the start.
-  Only then is the root removed with `rm -rf -- <root>`, which never follows
-  a symlink inside it. Post-freeze amendment (code review r1 BLOCKING-1):
+  Only then is the root removed, with `rm -rf`, which never follows a
+  symlink inside it. The removal is pinned (Codex P1 on PR #574, tenth
+  review): the directory's device and inode are read before any check, the
+  root is renamed to a fresh `<root>.removing.<pid>` name, and that name is
+  removed only if it is still the pinned directory, its marker still names
+  the run and the mount guard still passes, so a directory swapped into the
+  root's path while the checks ran is never removed. Post-freeze amendment (code review r1 BLOCKING-1):
   before the removal, `find <root>` and `find <root> -xdev` must list the
   same number of entries; when they differ, a filesystem is mounted inside
   the root (a disk image or bind mount a killed test left) and the root is

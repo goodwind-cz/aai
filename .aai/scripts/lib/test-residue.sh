@@ -370,6 +370,17 @@ aai_residue_tmp_outside() {
   aai_residue_say "NOTE - $to_n temp entr$( [ "$to_n" -eq 1 ] && echo y || echo ies) in $1 changed since this run started (by this run or any other process), outside its temp root, not removed: $to_names"
 }
 
+# aai_residue_dir_identity <dir> — print "<device> <inode>" of a directory that
+# is not a symlink; fail otherwise.
+aai_residue_dir_identity() {
+  [ -d "${1:-}" ] && [ ! -L "$1" ] || return 1
+  di_out=$(stat -c '%d %i' -- "$1" 2>/dev/null) || di_out=$(stat -f '%d %i' -- "$1" 2>/dev/null) || return 1
+  case "$di_out" in
+    [0-9]*' '[0-9]*) printf '%s\n' "$di_out" ;;
+    *) return 1 ;;
+  esac
+}
+
 # aai_residue_tmp_mount_free <root> — 0 only when every probe below ran to
 # completion AND none shows a mount at or below <root>; otherwise print the
 # reason and return 1 (the caller keeps the root). rm -rf would descend into a
@@ -413,6 +424,9 @@ aai_residue_tmp_cleanup() {
   [ "$(aai_residue_tree_mode)" != off ] || return 0
   tc_base="$3"
   tc_root="$4"
+  # Pin the directory's identity (device and inode) before any check, so the
+  # removal can prove it acts on the very directory the checks inspected.
+  tc_pin=$(aai_residue_dir_identity "$tc_root") || tc_pin=''
   if ! tc_why=$(aai_residue_tmp_verify "$1" "$2" "$tc_base" "$tc_root"); then
     aai_residue_say "kept temp root $tc_root - $tc_why"
     return 0
@@ -422,12 +436,35 @@ aai_residue_tmp_cleanup() {
     aai_residue_say "kept temp root $tc_root - $tc_why; unmount it if a mount is there and remove the root by hand"
     return 0
   fi
+  if [ -z "$tc_pin" ]; then
+    aai_residue_say "kept temp root $tc_root - its identity (device and inode) could not be read"
+    return 0
+  fi
   if [ "${AAI_RESIDUE_DRY_RUN:-0}" = "1" ]; then
     aai_residue_say "would delete temp root $tc_root (name and marker match this run)"
     return 0
   fi
-  rm -rf -- "$tc_root" 2>/dev/null
-  [ ! -e "$tc_root" ] || aai_residue_say "FAILED to delete temp root $tc_root"
+  # Move the root to a fresh name (an atomic rename in the same directory),
+  # then remove that name only if it is still the pinned directory, carrying
+  # this run's marker, with nothing mounted below it. A directory swapped into
+  # the root's path while the checks ran is therefore never removed.
+  tc_q="$tc_root.removing.$$"
+  if [ -e "$tc_q" ] || [ -L "$tc_q" ] || ! mv -- "$tc_root" "$tc_q" 2>/dev/null; then
+    aai_residue_say "kept temp root $tc_root - it could not be moved aside for a pinned removal"
+    return 0
+  fi
+  tc_now=$(aai_residue_dir_identity "$tc_q") || tc_now=''
+  tc_line=$(sed -n '1p' "$tc_q/.aai-test-run" 2>/dev/null)
+  if [ -L "$tc_q" ] || [ "$tc_now" != "$tc_pin" ] || [ "$tc_line" != "$1 $2" ]; then
+    aai_residue_say "kept $tc_q - the directory at the root's path changed while it was checked (identity or marker differs)"
+    return 0
+  fi
+  if ! tc_why=$(aai_residue_tmp_mount_free "$tc_q"); then
+    aai_residue_say "kept $tc_q - $tc_why; unmount it if a mount is there and remove it by hand"
+    return 0
+  fi
+  rm -rf -- "$tc_q" 2>/dev/null
+  [ ! -e "$tc_q" ] || aai_residue_say "FAILED to delete temp root $tc_q"
   return 0
 }
 
