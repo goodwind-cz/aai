@@ -13,6 +13,7 @@ const WANT = [
   '.aai/SKILL_HITL.prompt.md', '.aai/SKILL_BOOTSTRAP.prompt.md', '.aai/SKILL_VALIDATE_REPORT.prompt.md',
   '.aai/SKILL_CANONICALIZE.prompt.md', '.aai/SKILL_TDD.prompt.md', '.aai/SKILL_WORKTREE.prompt.md',
   '.aai/SKILL_CODE_REVIEW.prompt.md', '.aai/SKILL_SHARE.prompt.md', '.aai/scripts/aai-bootstrap.sh',
+  '.aai/scripts/aai-bootstrap.mjs', '.aai/scripts/aai-bootstrap.ps1',
 ];
 const MARKER = '.claude/skills/AAI_DYNAMIC_SKILLS.md';
 const TICKS = 'docs/ai/LOOP_TICKS.jsonl';
@@ -34,7 +35,7 @@ function fixture({ skip = [], dirs = [], marker = false, ticks = null } = {}) {
 }
 const headLine = (root) => 'Validating skills in: ' + path.resolve(root);
 
-test('TEST-3201 REQUIRED holds the twelve baseline paths in order', () => {
+test('TEST-3201 REQUIRED holds the fourteen baseline paths in order', () => {
   assert.deepEqual(REQUIRED, WANT);
 });
 
@@ -64,11 +65,11 @@ test('TEST-3201 a directory at a required path counts as missing (V-3)', () => {
 });
 
 test('TEST-3201 the last required file missing is still caught (negative control)', () => {
-  const root = fixture({ skip: ['.aai/scripts/aai-bootstrap.sh'] });
+  const root = fixture({ skip: ['.aai/scripts/aai-bootstrap.ps1'] });
   const r = validate(root);
   assert.equal(r.code, 1);
   assert.equal(r.err.length, 1);
-  assert.match(r.err[0], /aai-bootstrap\.sh$/);
+  assert.match(r.err[0], /aai-bootstrap\.ps1$/);
 });
 
 test('TEST-3202 a required-only fixture gives the two WARN lines on stdout and nothing on stderr', () => {

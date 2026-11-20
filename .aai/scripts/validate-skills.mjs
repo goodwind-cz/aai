@@ -10,7 +10,7 @@ export const REQUIRED = [
   '.aai/SKILL_CHECK_STATE.prompt.md', '.aai/SKILL_INTAKE.prompt.md', '.aai/SKILL_LOOP.prompt.md',
   '.aai/SKILL_HITL.prompt.md', '.aai/SKILL_BOOTSTRAP.prompt.md', '.aai/SKILL_VALIDATE_REPORT.prompt.md',
   '.aai/SKILL_CANONICALIZE.prompt.md', '.aai/SKILL_TDD.prompt.md', '.aai/SKILL_WORKTREE.prompt.md',
-  '.aai/SKILL_CODE_REVIEW.prompt.md', '.aai/SKILL_SHARE.prompt.md', '.aai/scripts/aai-bootstrap.sh',
+  '.aai/SKILL_CODE_REVIEW.prompt.md', '.aai/SKILL_SHARE.prompt.md', '.aai/scripts/aai-bootstrap.sh', '.aai/scripts/aai-bootstrap.mjs', '.aai/scripts/aai-bootstrap.ps1',
 ];
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };

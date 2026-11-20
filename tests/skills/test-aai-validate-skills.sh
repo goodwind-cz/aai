@@ -37,7 +37,7 @@ SMOKE_PS1="$PROJECT_ROOT/tests/self-hosting/test-self-hosting-smoke.ps1"
 V7_LINE="ERROR: validate-skills needs node (validate-skills.mjs unavailable)"
 # The retired script's name is built from two parts so this file never names it (TEST-3213 scans tracked files).
 RETIRED="pre-compact""-save"
-REQUIRED_FILES=".aai/SKILL_CHECK_STATE.prompt.md .aai/SKILL_INTAKE.prompt.md .aai/SKILL_LOOP.prompt.md .aai/SKILL_HITL.prompt.md .aai/SKILL_BOOTSTRAP.prompt.md .aai/SKILL_VALIDATE_REPORT.prompt.md .aai/SKILL_CANONICALIZE.prompt.md .aai/SKILL_TDD.prompt.md .aai/SKILL_WORKTREE.prompt.md .aai/SKILL_CODE_REVIEW.prompt.md .aai/SKILL_SHARE.prompt.md .aai/scripts/aai-bootstrap.sh"
+REQUIRED_FILES=".aai/SKILL_CHECK_STATE.prompt.md .aai/SKILL_INTAKE.prompt.md .aai/SKILL_LOOP.prompt.md .aai/SKILL_HITL.prompt.md .aai/SKILL_BOOTSTRAP.prompt.md .aai/SKILL_VALIDATE_REPORT.prompt.md .aai/SKILL_CANONICALIZE.prompt.md .aai/SKILL_TDD.prompt.md .aai/SKILL_WORKTREE.prompt.md .aai/SKILL_CODE_REVIEW.prompt.md .aai/SKILL_SHARE.prompt.md .aai/scripts/aai-bootstrap.sh .aai/scripts/aai-bootstrap.mjs .aai/scripts/aai-bootstrap.ps1"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then echo "INFO: keeping fixture at $TEST_DIR"; return 0; fi
@@ -92,7 +92,7 @@ mk_bin() {
   printf '%s' "$d"
 }
 
-# mk_target <name> [skip-file] [dir-file] [ticks 0|1]: a target root with the twelve required files (minus skip-file,
+# mk_target <name> [skip-file] [dir-file] [ticks 0|1]: a target root with the fourteen required files (minus skip-file,
 # dir-file as a directory) plus the bootstrap marker and, unless ticks is 0, a tick log holding a skill entry; prints it.
 mk_target() {
   local t="$TEST_DIR/$1" skip="${2:-}" dirf="${3:-}" ticks="${4:-1}" f

@@ -41,6 +41,9 @@ REF_HELPER="$PROJECT_ROOT/tests/skills/lib/bootstrap-reference.mjs"
 REFERENCE="$PROJECT_ROOT/tests/fixtures/aai-bootstrap-reference/aai-bootstrap.sh"
 SPEC_ID="spec-bootstrap-on-node"
 SH_LAUNCHER="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.sh"
+PS1_LAUNCHER="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.ps1"
+PESTER_FILE="$PROJECT_ROOT/tests/skills/aai-bootstrap.Tests.ps1"
+PARITY_DRIVER="$PROJECT_ROOT/tests/skills/lib/install-parity.mjs"
 PROFILES="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
 REFUSED="aai-bootstrap: refused - node not found in PATH or aai-bootstrap.mjs missing; nothing was written. Install Node.js 22 or later (https://nodejs.org/) and re-run."
 
@@ -337,8 +340,207 @@ test_3954_rehomed_suites() {
   log_pass "TEST-3954: the re-homed selectors of the bootstrap, hooks-overlay and sync-seed suites pass against the launcher, and the SPEC-0157 and SPEC-0029 amendment records exist"
 }
 
+# ps1_problems <file>: prints the problems of the .ps1 launcher text (empty when clean).
+ps1_problems() {
+  node -e '
+    const fs = require("fs");
+    const buf = fs.readFileSync(process.argv[1]);
+    const s = buf.toString("latin1");
+    const bad = [];
+    if (buf.some((b) => b > 0x7e || (b < 0x20 && b !== 10 && b !== 13 && b !== 9))) bad.push("non-ASCII or control byte");
+    if (s.split("\n").length - (s.endsWith("\n") ? 1 : 0) > 20) bad.push("more than 20 lines");
+    if (/param\s*\(/i.test(s)) bad.push("holds a param block");
+    if (!s.includes(process.argv[2])) bad.push("lacks the refusal line");
+    if (!s.includes("exit $LASTEXITCODE")) bad.push("does not end with the module exit code");
+    if (!s.includes("& node $Module @args")) bad.push("does not pass every argument to node");
+    for (const w of ["package.json", "AAI-DYNAMIC", "aai-test-", "gitignore", "settings-hooks", "platform", "playwright", "pyproject", "RUNTIME_IGNORE", ".claude", ".codex", ".gemini", "docs/ai"]) {
+      if (s.includes(w)) bad.push("holds the policy token " + w);
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$1" "$REFUSED"
+}
+
+# amendment_check <spec id> <what prefix>: empty when exactly one contract record of ref bootstrap-on-node for that spec begins with the text.
+amendment_check() {
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const hits = j.items.filter((i) => i.ref_id === "bootstrap-on-node" && i.spec_id === process.argv[1] && i.amendment_class === "contract");
+    if (hits.length !== 1) process.stdout.write(process.argv[1] + ": " + hits.length + " contract records of ref bootstrap-on-node, expected 1");
+    else if (!hits[0].what.startsWith(process.argv[2])) process.stdout.write(process.argv[1] + ": the record does not begin with " + process.argv[2]);
+  ' "$1" "$2"
+}
+
+test_3955_ps1_launcher() {
+  local problems work out rc=0 counts
+  [[ -f "$PS1_LAUNCHER" ]] || log_fail "TEST-3955: .aai/scripts/aai-bootstrap.ps1 does not exist"
+  problems="$(ps1_problems "$PS1_LAUNCHER")"
+  [[ -z "$problems" ]] || log_fail "TEST-3955: the launcher: $problems"
+  work="$(new_own_scratch ps1)"
+  awk '$0 == "core:" { f = 1; next } /^[^ ]/ { f = 0 } f && sub(/^  - /, "") { sub(/[ \t\r]+$/, ""); print }' "$PROFILES" > "$work/core.list"
+  qgrep -qxF ".aai/scripts/aai-bootstrap.ps1" < "$work/core.list" || log_fail "TEST-3955: PROFILES core does not list .aai/scripts/aai-bootstrap.ps1"
+  env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-validate-skills.sh" test_3201_required_and_first_missing >"$work/vs.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/vs.log" >&2; log_fail "TEST-3955: test_3201_required_and_first_missing exited $rc"; }
+  out="$(amendment_check spec-node-first-small-pairs "TEST-3201 REQUIRED grows")"
+  [[ -z "$out" ]] || log_fail "TEST-3955: $out"
+  node --input-type=module -e '
+    const m = await import(process.argv[1] + "/.aai/scripts/validate-skills.mjs");
+    const r = m.REQUIRED; const n = r.length;
+    if (r[n - 2] !== ".aai/scripts/aai-bootstrap.mjs" || r[n - 1] !== ".aai/scripts/aai-bootstrap.ps1") { console.error("REQUIRED ends with " + r.slice(-2).join(", ")); process.exit(1); }
+  ' "$PROJECT_ROOT" || log_fail "TEST-3955: validate-skills REQUIRED does not end with aai-bootstrap.mjs and aai-bootstrap.ps1"
+  if need_tool TEST-3955 pwsh; then
+    ( cd "$PROJECT_ROOT" && env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command '
+      Import-Module Pester -MinimumVersion 5.0
+      $r = Invoke-Pester -Path "tests/skills/aai-bootstrap.Tests.ps1" -PassThru -Output None
+      Write-Output ("PESTER passed=" + $r.PassedCount + " skipped=" + $r.SkippedCount + " failed=" + $r.FailedCount + " containers=" + $r.FailedContainersCount)
+    ' ) > "$work/pester.log" 2>&1 || { cat "$work/pester.log" >&2; log_fail "TEST-3955: Invoke-Pester did not run"; }
+    out="$(cat "$work/pester.log")"
+    counts="$(printf '%s\n' "$out" | tail -n 1)"
+    [[ "$counts" =~ ^PESTER\ passed=([0-9]+)\ skipped=([0-9]+)\ failed=([0-9]+)\ containers=([0-9]+)$ ]] || log_fail "TEST-3955: unreadable Pester summary: $out"
+    [[ "${BASH_REMATCH[1]}" -ge 4 && "${BASH_REMATCH[2]}" == 0 && "${BASH_REMATCH[3]}" == 0 && "${BASH_REMATCH[4]}" == 0 ]] || log_fail "TEST-3955: Pester summary $counts, expected at least 4 passed and 0 skipped, 0 failed, 0 failed containers"
+  fi
+  safe_rm_own "$work"
+  log_pass "TEST-3955: the .ps1 launcher is the D-LAUNCH text, PROFILES core lists it, validate-skills REQUIRED ends with the module and the launcher, the SPEC-0265 record exists, Pester passes"
+}
+
+# driver_run <report file> <args...>: the parity driver in this suite's environment; prints its stdout, returns its exit code.
+driver_run() {
+  local rep="$1"
+  shift
+  env -u AAI_ROLE -u AAI_GIT_WRITE node "$PARITY_DRIVER" run "$@" --json "$rep"
+}
+
+test_3956_parity_bootstrap() {
+  need_tool TEST-3956 pwsh || return 0
+  need_tool TEST-3956 git || return 0
+  local work out rc=0 sel
+  work="$(new_own_scratch parity)"
+  sel="--scenario BS-01 --scenario BS-02 --scenario BS-03 --scenario BS-04 --scenario BS-05 --scenario BS-06 --scenario BS-07 --scenario BS-08 --scenario BS-09"
+  # shellcheck disable=SC2086
+  driver_run "$work/bs.json" --matrix full --twins sh,ps1,node $sel > "$work/bs.out" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/bs.out" >&2; log_fail "TEST-3956: the driver run over BS-01 to BS-09 exited $rc"; }
+  out="$(node -e '
+    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const bad = [];
+    if (r.verdict !== "PASS") bad.push("verdict " + r.verdict);
+    for (let n = 1; n <= 9; n += 1) {
+      const id = "BS-0" + n;
+      const s = r.scenarios.find((x) => x.id === id);
+      if (!s) { bad.push(id + " missing"); continue; }
+      const twins = [...new Set(s.steps.map((x) => x.twin))].sort().join(",");
+      if (twins !== "node,ps1,sh") bad.push(id + " ran twins " + twins);
+    }
+    for (const p of ["sh:ps1", "sh:node", "ps1:node"]) if (!r.pairs.includes(p)) bad.push("pair " + p + " missing");
+    for (const p of ["sh:sh", "ps1:ps1", "node:node"]) if (!r.pairs.includes(p)) bad.push("self pair " + p + " missing (BS-03)");
+    const bs3 = r.scenarios.find((x) => x.id === "BS-03");
+    if (bs3 && bs3.steps.filter((x) => x.twin === "node").length !== 2) bad.push("BS-03 has no two node steps");
+    if (r.uncovered.length || r.stale.length) bad.push("uncovered or stale rows");
+    process.stdout.write(bad.join("; "));
+  ' "$work/bs.json")"
+  [[ -z "$out" ]] || { cat "$work/bs.out" >&2; log_fail "TEST-3956: $out"; }
+  # the node twin runs on bootstrap scenarios only
+  rc=0
+  driver_run "$work/sy.json" --matrix smoke --twins sh,ps1,node --scenario SY-01 > "$work/sy.out" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/sy.out" >&2; log_fail "TEST-3956: the SY-01 run exited $rc"; }
+  out="$(node -e '
+    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const twins = [...new Set(r.scenarios[0].steps.map((x) => x.twin))].sort().join(",");
+    process.stdout.write(twins === "ps1,sh" ? "" : "SY-01 ran twins " + twins);
+  ' "$work/sy.json")"
+  [[ -z "$out" ]] || log_fail "TEST-3956: $out"
+  run_node_tests TEST-3956
+  # a module twin that appends one byte to the marker fails, naming its pair and the path
+  cat > "$work/skew-wrapper.mjs" <<'EOS'
+import { spawnSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
+import path from 'node:path';
+const [mod, target, ...flags] = process.argv.slice(2);
+const r = spawnSync(process.execPath, [mod, target, ...flags], { stdio: 'inherit' });
+appendFileSync(path.join(target, '.claude', 'skills', 'AAI_DYNAMIC_SKILLS.md'), 'x');
+process.exit(r.status ?? 1);
+EOS
+  cat > "$work/skew.mjs" <<EOS
+import path from 'node:path';
+export default {
+  argv(step, ctx) {
+    return { file: process.execPath, args: ['$work/skew-wrapper.mjs', path.join(ctx.bsref, '.aai', 'scripts', 'aai-bootstrap.mjs'), ctx.target], cwd: ctx.target };
+  },
+};
+EOS
+  rc=0
+  driver_run "$work/skew.json" --matrix smoke --twins sh --twin-module "skew=$work/skew.mjs" --scenario BS-01 > "$work/skew.out" 2>&1 || rc=$?
+  [[ "$rc" == 1 ]] || { cat "$work/skew.out" >&2; log_fail "TEST-3956: the skewed module twin run exited $rc, expected 1"; }
+  qgrep -qF "UNCOVERED BS-01 sh:skew" < "$work/skew.out" || { cat "$work/skew.out" >&2; log_fail "TEST-3956: the skew run does not name the pair sh:skew"; }
+  qgrep -qF ".claude/skills/AAI_DYNAMIC_SKILLS.md" < "$work/skew.out" || log_fail "TEST-3956: the skew run does not name the marker path"
+  for sel in test_3560_matrix_tiers test_3562_normalizations; do
+    rc=0
+    env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-install-parity.sh" "$sel" > "$work/ip.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/ip.log" >&2; log_fail "TEST-3956: $sel exited $rc"; }
+  done
+  out="$(amendment_check spec-install-path-parity-harness "TEST-3560 and TEST-3562 widened")"
+  [[ -z "$out" ]] || log_fail "TEST-3956: $out"
+  safe_rm_own "$work"
+  log_pass "TEST-3956: BS-01 to BS-09 pass with the sh, ps1 and node twins and the three pairs, the node twin stays on bootstrap scenarios, N5 and the DR-9 row hold, a skewed twin fails naming its pair, TEST-3560 and TEST-3562 pass, the SPEC-0284 record exists"
+}
+
+test_3957_scratch_install() {
+  need_tool TEST-3957 git || return 0
+  local work target runp shells shell sh out rc before after
+  work="$(new_own_scratch install)"
+  target="$work/target"
+  mkdir -p "$target"
+  git -C "$target" init -q
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$target" --profile core > "$work/sync.log" 2>&1 || { cat "$work/sync.log" >&2; log_fail "TEST-3957: aai-sync.sh --profile core failed"; }
+  for out in aai-bootstrap.mjs aai-bootstrap.sh aai-bootstrap.ps1; do
+    [[ -f "$target/.aai/scripts/$out" ]] || log_fail "TEST-3957: the core sync did not vendor .aai/scripts/$out"
+  done
+  # three fresh copies at one path, one after another; each run's tree is kept for the comparison
+  runp="$work/run/target"
+  shells="bash sh"
+  need_tool TEST-3957 pwsh && shells="$shells pwsh"
+  for shell in $shells; do
+    mkdir -p "$work/run"
+    cp -R "$target" "$runp"
+    rc=0
+    case "$shell" in
+      bash) ( cd "$runp" && env -u AAI_ROLE bash .aai/scripts/aai-bootstrap.sh . ) > "$work/$shell.log" 2>&1 || rc=$? ;;
+      sh) ( cd "$runp" && env -u AAI_ROLE sh .aai/scripts/aai-bootstrap.sh . ) > "$work/$shell.log" 2>&1 || rc=$? ;;
+      pwsh) ( cd "$runp" && env -u AAI_ROLE pwsh -NoProfile -File .aai/scripts/aai-bootstrap.ps1 . ) > "$work/$shell.log" 2>&1 || rc=$? ;;
+    esac
+    [[ "$rc" == 0 ]] || { cat "$work/$shell.log" >&2; log_fail "TEST-3957: the $shell launcher exited $rc"; }
+    mv "$work/run" "$work/out-$shell"
+  done
+  # equal normalized trees
+  out="$(node --input-type=module -e '
+    const m = await import(process.argv[1]);
+    const names = process.argv.slice(3);
+    const base = process.argv[2];
+    const bad = [];
+    for (let i = 1; i < names.length; i += 1) {
+      const d = m.compareTrees(base + "/out-" + names[0] + "/target", base + "/out-" + names[i] + "/target", { pair: names[0] + ":" + names[i] });
+      for (const x of d) bad.push(x.pair + " " + x.kind + " " + x.path + ": " + x.detail);
+    }
+    process.stdout.write(bad.join("\n"));
+  ' "file://$PARITY_DRIVER" "$work" $shells)"
+  [[ -z "$out" ]] || log_fail "TEST-3957: the launcher trees differ: $out"
+  # without node on PATH sh refuses and the target is unchanged
+  mkdir -p "$work/only-dirname" "$work/run"
+  ln -s "$(command -v dirname)" "$work/only-dirname/dirname"
+  cp -R "$target" "$runp"
+  sh="$(command -v sh)"
+  before="$(tree_listing "$runp")"
+  rc=0
+  ( cd "$runp" && env PATH="$work/only-dirname" "$sh" .aai/scripts/aai-bootstrap.sh . ) 2> "$work/refuse.err" > /dev/null || rc=$?
+  out="$(cat "$work/refuse.err")"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3957: sh without node exited $rc, expected 1"
+  [[ "$out" == "$REFUSED" ]] || log_fail "TEST-3957: sh without node wrote: $out"
+  after="$(tree_listing "$runp")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3957: the target changed after the refusal"
+  safe_rm_own "$work"
+  log_pass "TEST-3957: a core sync vendors the module and both launchers, bash, sh and pwsh runs leave equal trees, sh without node refuses with one line and leaves the tree unchanged"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3954 so far)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3957 so far)"
   check_deps
   setup_fixture
   test_3940_scratch_safety
@@ -356,6 +558,9 @@ main() {
   test_3952_corpus_full
   test_3953_sh_launcher
   test_3954_rehomed_suites
+  test_3955_ps1_launcher
+  test_3956_parity_bootstrap
+  test_3957_scratch_install
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

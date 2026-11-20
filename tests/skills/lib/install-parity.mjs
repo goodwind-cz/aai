@@ -9,6 +9,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { HOOKS_TEMPLATE_REL, K01_FILES } from './aai-bootstrap-fixtures.mjs';
+import { materializeBootstrapReference } from './bootstrap-reference.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '../../..');
@@ -53,6 +55,7 @@ export const NORMALIZATIONS = [
   { id: 'N3', what: 'sync-conflicts report name stamp (every report renamed by ordinal; a name that is not 0 to 2 s before its Generated-at second is reported at #name)',
     reason: 'wall clock; two clock reads of one moment (name up to 2 s before Generated-at) agree; a name that disagrees with the report Generated-at second is still renamed by ordinal and reported at #name' },
   { id: 'N4', what: 'doctor report name stamp and host', reason: 'wall clock and host name' },
+  { id: 'N5', what: 'bootstrap run timestamp (second precision only) in the marker and the two discovery indexes', reason: 'wall clock: the bootstrap run timestamp NOW_UTC' },
   { id: 'E1', what: 'everything under .git/ except, for hooks scenarios, the regular non-sample files of .git/hooks/',
     reason: 'the object store and index are git output, sample hooks are git own' },
   { id: 'E2', what: 'content of a doctor report renamed by N4 (presence stays compared)',
@@ -105,6 +108,25 @@ export const SCENARIOS = [
     steps: [T0('hooks', null, [], '0'), T0('hooks', null, ['uninstall'], '0')], probes: ['docs/ai/docs-audit.yaml'] },
   { id: 'HK-10', tier: 'smoke', op: 'hooks', setup: 'base', target: 'target with space',
     steps: [T0('hooks', null, [], '0')], probes: ['.git/hooks/pre-commit'] },
+  // bootstrap-on-node (D-PARITY): the bootstrap operation, run by the frozen reference (sh), the PowerShell launcher (ps1) and the module (node).
+  { id: 'BS-01', tier: 'smoke', op: 'bootstrap', setup: 'bs-polyglot', target: 'target with space',
+    steps: [T0('bootstrap', null, [], '0')], probes: ['.claude/skills/AAI_DYNAMIC_SKILLS.md', '.claude/skills/aai-test-e2e/SKILL.md', 'docs/ai/pr-config.yaml'] },
+  { id: 'BS-02', tier: 'smoke', op: 'bootstrap', setup: 'bs-unmarked',
+    steps: [T0('bootstrap', null, [], 'nonzero')], probes: ['.claude/skills/aai-test-unit/SKILL.md'] },
+  { id: 'BS-03', tier: 'default', op: 'bootstrap', setup: 'bs-empty',
+    steps: [T0('bootstrap', null, [], '0'), T0('bootstrap', null, [], '0')], probes: ['.gitignore', '.claude/skills/AAI_DYNAMIC_SKILLS.md'] },
+  { id: 'BS-04', tier: 'default', op: 'bootstrap', setup: 'bs-unmarked',
+    steps: [T0('bootstrap', null, ['force'], '0')], probes: ['.claude/skills/aai-test-unit/SKILL.md'] },
+  { id: 'BS-05', tier: 'default', op: 'bootstrap', setup: 'bs-polyglot',
+    steps: [T0('bootstrap', null, ['dry-run'], '0')], probes: ['package.json'] },
+  { id: 'BS-06', tier: 'default', op: 'bootstrap', setup: 'bs-hooks',
+    steps: [T0('bootstrap', null, ['with-claude-hooks'], '0')], probes: ['.claude/settings.json'] },
+  { id: 'BS-07', tier: 'full', op: 'bootstrap', setup: 'bs-hooks-invalid',
+    steps: [T0('bootstrap', null, ['with-claude-hooks'], 'nonzero')], probes: ['.claude/settings.json'] },
+  { id: 'BS-08', tier: 'full', op: 'bootstrap', setup: 'bs-multi',
+    steps: [T0('bootstrap', null, [], '0')], probes: ['.gitignore'] },
+  { id: 'BS-09', tier: 'full', op: 'bootstrap', setup: 'bs-vitest',
+    steps: [T0('bootstrap', null, [], '0')], probes: ['.claude/skills/aai-test-unit/SKILL.md'] },
 ];
 export const TIERS = ['smoke', 'default', 'full'];
 
@@ -119,12 +141,15 @@ export function listMatrix(tier) {
 const fwd = (p) => String(p).replace(/\\/g, '/');
 const SH_FLAG = { force: '--force', uninstall: '--uninstall', 'decline-ref-guard': '--decline-ref-guard' };
 const PS_FLAG = { force: '-Force', uninstall: '-Uninstall', 'decline-ref-guard': '-DeclineRefGuard' };
+const BS_FLAG = { force: '--force', 'dry-run': '--dry-run', 'with-claude-hooks': '--with-claude-hooks' };
+const bsFlags = (step) => (step.flags || []).map((f) => BS_FLAG[f]);
 const psHead = (ctx) => ['-NoProfile', '-NonInteractive', ...(process.platform === 'win32' ? ['-ExecutionPolicy', 'Bypass'] : []), '-File'];
 
 export const TWINS = {
   sh: {
     name: 'sh',
     argv(step, ctx) {
+      if (step.op === 'bootstrap') return { file: ctx.bash, args: [`${fwd(ctx.bsref)}/.aai/scripts/aai-bootstrap.sh`, fwd(ctx.target), ...bsFlags(step)], cwd: ctx.target };
       const src = fwd(ctx.src); const target = fwd(ctx.target);
       if (step.op === 'sync') {
         return { file: ctx.bash, args: [`${src}/.aai/scripts/aai-sync.sh`, target, ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };
@@ -138,6 +163,7 @@ export const TWINS = {
   ps1: {
     name: 'ps1',
     argv(step, ctx) {
+      if (step.op === 'bootstrap') return { file: ctx.ps, args: [...psHead(ctx), `${fwd(ctx.bsref)}/.aai/scripts/aai-bootstrap.ps1`, ctx.target, ...bsFlags(step)], cwd: ctx.target };
       const src = fwd(ctx.src);
       if (step.op === 'sync') {
         return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-sync.ps1`, '-TargetRoot', ctx.target, ...(step.profile ? ['-Profile', step.profile] : [])], cwd: ctx.target };
@@ -148,7 +174,18 @@ export const TWINS = {
       return { file: ctx.ps, args: [...psHead(ctx), '.aai/scripts/install-pre-commit-hook.ps1', ...(step.flags || []).map((f) => PS_FLAG[f])], cwd: ctx.target };
     },
   },
+  // The module twin: it runs only on bootstrap scenarios (ops), straight on the Node module of the reference tree.
+  node: {
+    name: 'node',
+    ops: ['bootstrap'],
+    argv(step, ctx) {
+      return { file: process.execPath, args: [path.join(ctx.bsref, '.aai', 'scripts', 'aai-bootstrap.mjs'), ctx.target, ...bsFlags(step)], cwd: ctx.target };
+    },
+  },
 };
+
+// twinsFor(twins, scenario): the twins that run a scenario; a twin with ops runs only the operations it lists.
+export const twinsFor = (twins, scenario) => twins.filter((t) => !t.ops || t.ops.includes(scenario.op));
 
 export async function loadTwinModule(name, file, registered) {
   if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`--twin-module name ${name} must match [a-z0-9-]+`);
@@ -242,6 +279,9 @@ export function snapshot(dir, { hooks = false } = {}) {
   return out;
 }
 
+// N5: the paths whose run timestamp line is normalized (bootstrap marker and the two discovery indexes).
+const BOOTSTRAP_STAMPED = ['.claude/skills/AAI_DYNAMIC_SKILLS.md', '.codex/skills.local/README.md', '.gemini/skills.local/README.md'];
+const BOOTSTRAP_STAMP_LINE = /^((?:- )?Generated at \(UTC\): )\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ(\r?)$/;
 const STAMP_LINE = (label) => new RegExp(`^(- ${label} \\(UTC\\): )\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ(\\r?)$`);
 const GEN_LINE = /^- Generated at \(UTC\): (\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.\d+)?Z\r?$/;
 const rewriteLines = (data, label) => {
@@ -258,6 +298,7 @@ export function normalizeSnapshot(snap) {
     if (e.kind === 'file' && isText(e.data)) {
       if (p === '.aai/system/AAI_PIN.md') entry = { ...e, data: rewriteLines(e.data, 'Synced at') };
       else if (/^docs\/ai\/reports\/sync-conflicts-[^/]+\.md$/.test(p)) entry = { ...e, data: rewriteLines(e.data, 'Generated at') };
+      else if (BOOTSTRAP_STAMPED.includes(p)) entry = { ...e, data: Buffer.from(e.data.toString('utf8').split('\n').map((l) => l.replace(BOOTSTRAP_STAMP_LINE, '$1<stamp>$2')).join('\n'), 'utf8') };
     }
     const mc = /^docs\/ai\/reports\/sync-conflicts-(\d{8}-\d{6})\.md$/.exec(p);
     if (mc && e.kind === 'file') {
@@ -646,6 +687,26 @@ function fixtureBase(ctx) {
   return dir;
 }
 
+// The bootstrap setups (D-PARITY): every target is a git repository without origin.
+const putFiles = (dir, files) => { for (const [rel, body] of Object.entries(files)) { if (rel.endsWith('/')) fs.mkdirSync(path.join(dir, rel), { recursive: true }); else put(dir, rel, body); } };
+function bootstrapSetup(kind, target, ctx) {
+  const tpl = () => fs.readFileSync(path.join(ctx.src || REPO_ROOT, ...HOOKS_TEMPLATE_REL.split('/')));
+  if (kind === 'bs-empty') return;
+  if (kind === 'bs-polyglot') putFiles(target, K01_FILES);
+  else if (kind === 'bs-unmarked') putFiles(target, { ...K01_FILES, '.claude/skills/aai-test-unit/SKILL.md': 'my own unit skill\n' });
+  else if (kind === 'bs-hooks') putFiles(target, { [HOOKS_TEMPLATE_REL]: tpl(), '.claude/settings.json': `${JSON.stringify({ permissions: { allow: ['Bash(ls:*)'] } }, null, 2)}\n` });
+  else if (kind === 'bs-hooks-invalid') putFiles(target, { [HOOKS_TEMPLATE_REL]: tpl(), '.claude/settings.json': 'NOT JSON {' });
+  else if (kind === 'bs-multi') {
+    putFiles(target, {
+      'go.mod': 'module multi\n', 'Cargo.toml': '[package]\nname = "multi"\n', Makefile: 'test:\n\tgo test ./...\nbuild:\n\tgo build ./...\nlint:\n\tgo vet ./...\n',
+      justfile: 'deploy:\n  echo deploy\n', Dockerfile: 'FROM scratch\n', 'wrangler.toml': 'name = "multi"\n', '.github/workflows/ci.yml': 'name: ci\n',
+      '.gitignore': '.claude/skills/.cache\r\ndocs/ai/STATE.yaml\r\n',
+    });
+  } else if (kind === 'bs-vitest') {
+    putFiles(target, { 'pnpm-lock.yaml': '', 'package.json': `${JSON.stringify({ name: 'vt', devDependencies: { vitest: '^1', typescript: '^5' } }, null, 2)}\n`, 'tsconfig.json': '{}\n', 'biome.json': '{}\n' });
+  } else throw new Error(`unknown bootstrap setup: ${kind}`);
+}
+
 export function defaultSetup(scenario, target, ctx) {
   const kind = scenario.setup;
   fs.rmSync(target, { recursive: true, force: true });
@@ -659,6 +720,7 @@ export function defaultSetup(scenario, target, ctx) {
     return;
   }
   initRepo(ctx, target);
+  if (kind.startsWith('bs-')) { bootstrapSetup(kind, target, ctx); return; }
   if (kind === 'crlf-gitignore') put(target, '.gitignore', ['node_modules/', '.env', '.aai/', '.aai/cache/', '.aai/', '.aai/cache/', ''].join('\r\n'));
   else if (kind === 'hooks-json') {
     put(target, 'hooks/hooks.json', `${JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo user-hook' }] }] } }, null, 2)}\n`);
@@ -677,8 +739,9 @@ const doctorHead = (dir) => {
 };
 const oddRootNames = (dir) => { try { return fs.readdirSync(dir).filter((n) => !/^[\x20-\x7e]*$/.test(n)); } catch { return []; } };
 const birthMs = (p, since) => { try { return Math.round(fs.lstatSync(p).birthtimeMs - since); } catch { return 'unknown'; } };
-function runScenario(scenario, twins, ctx) {
+function runScenario(scenario, allTwins, ctx) {
   const t0 = Date.now();
+  const twins = twinsFor(allTwins, scenario);
   const targetDir = path.join(ctx.root, scenario.id, scenario.target || 'target');
   const hooks = scenario.op === 'hooks';
   const results = []; const broken = []; const steps = [];
@@ -688,7 +751,7 @@ function runScenario(scenario, twins, ctx) {
     (ctx.setup || defaultSetup)(scenario, targetDir, ctx, twin.name);
     const codes = []; const snaps = [];
     scenario.steps.forEach((step, i) => {
-      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps });
+      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref });
       const before = oddRootNames(targetDir); const t1 = Date.now();
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
       if (r.timedOut) throw new InfraTimeout(scenario.id, twin.name, i + 1);
@@ -735,6 +798,8 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   fs.mkdirSync(c.root, { recursive: true });
   prepareRoot(c.root);
   if (!c.src && !c.setup) c.src = buildSource(c);
+  // The frozen reference tree (and the module and launchers beside it) for the bootstrap scenarios, built once from the checkout.
+  if (!c.bsref && scenarios.some((s) => s.op === 'bootstrap')) { c.bsref = path.join(c.root, 'bsref'); materializeBootstrapReference(REPO_ROOT, c.bsref); }
   const host = c.host || hostInfo();
   const report = { verdict: 'PASS', host: host.platform, tz: PINNED_TZ, matrix, twins: twins.map((t) => t.name), pairs: [], total_seconds: 0, scenarios: [], uncovered: [], stale: [] };
   const used = new Set(); const usedPairs = new Set(); const pairsByScenario = {}; const pairSet = []; const ran = [];

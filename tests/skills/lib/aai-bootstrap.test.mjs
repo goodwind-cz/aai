@@ -16,6 +16,7 @@ import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { K_CASES, K_CASES_AB, K_CASES_C, GOLDEN_EMPTY, GOLDEN_FULL, HOOKS_TEMPLATE_REL } from './aai-bootstrap-fixtures.mjs';
+import * as PARITY from './install-parity.mjs';
 import { compareSnapshots, snapshotNormalized } from './install-parity.mjs';
 import {
   OWN_MARKER_FILE, REFERENCE_BLOB, REFERENCE_COMMIT, REFERENCE_PATH, REFERENCE_SHA256,
@@ -1304,13 +1305,13 @@ function gitInit(root) {
   }
 }
 
-// maskSnapshot(snap, masked): N5 stand-in (the stamp of the Generated at lines) and, in masked mode, the cut of
-// docs/ai/pr-config.yaml and of the directories that only it created.
+// maskSnapshot(snap, masked): the stamp lines are normalized by snapshotNormalized (N5); in masked mode this also cuts
+// docs/ai/pr-config.yaml and the directories that only it created.
 function maskSnapshot(snap, masked) {
   const out = new Map();
   for (const [p, e] of snap) {
     if (masked && p === 'docs/ai/pr-config.yaml') continue;
-    out.set(p, e.kind === 'file' ? { ...e, data: Buffer.from(e.data.toString('latin1').replace(/Generated at \(UTC\): \S+/g, 'Generated at (UTC): <stamp>'), 'latin1') } : e);
+    out.set(p, e);
   }
   if (masked) {
     for (const dir of ['docs/ai', 'docs']) {
@@ -1589,5 +1590,108 @@ describe('TEST-3952 full corpus', { skip: CORPUS_SKIP }, () => {
       if (!platformCases.has(key.split(':')[0])) assert.deepEqual(lines, [], `${key} must not start gh or az`);
     }
     assert.ok(K_CASES_C.length === 10);
+  });
+});
+
+// --- TEST-3956 ---------------------------------------------------------------------------------
+
+const BS_STAMPED = ['.claude/skills/AAI_DYNAMIC_SKILLS.md', '.codex/skills.local/README.md', '.gemini/skills.local/README.md'];
+
+describe('TEST-3956 parity harness bootstrap pieces', () => {
+  const snapOf = (files) => {
+    const d = scratch('n5-');
+    for (const [k, v] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(d, k)), { recursive: true });
+      writeFileSync(path.join(d, k), v);
+    }
+    return PARITY.snapshotNormalized(d);
+  };
+  const text = (snap, p) => snap.get(p).data.toString('utf8');
+
+  test('TEST-3956 N5 is in NORMALIZATIONS with its reason', () => {
+    const n5 = PARITY.NORMALIZATIONS.find((n) => n.id === 'N5');
+    assert.ok(n5, 'N5 exists');
+    assert.equal(n5.reason, 'wall clock: the bootstrap run timestamp NOW_UTC');
+    assert.deepEqual(PARITY.NORMALIZATIONS.map((n) => n.id), ['N1', 'N2', 'N3', 'N4', 'N5', 'E1', 'E2']);
+  });
+
+  test('TEST-3956 N5 rewrites the second-precision stamp line of exactly the three paths', () => {
+    const stamp = '2026-11-10T18:54:19Z';
+    const s = snapOf({
+      [BS_STAMPED[0]]: `# AAI Dynamic Skills\n\n- Generated at (UTC): ${stamp}\n- Target root: /x\n`,
+      [BS_STAMPED[1]]: `# AAI Dynamic Skills (Codex)\n\nGenerated at (UTC): ${stamp}\n\nmore\n`,
+      [BS_STAMPED[2]]: `Generated at (UTC): ${stamp}\r\n`,
+      'docs/other.md': `- Generated at (UTC): ${stamp}\n`,
+    });
+    assert.equal(text(s, BS_STAMPED[0]), '# AAI Dynamic Skills\n\n- Generated at (UTC): <stamp>\n- Target root: /x\n');
+    assert.equal(text(s, BS_STAMPED[1]), '# AAI Dynamic Skills (Codex)\n\nGenerated at (UTC): <stamp>\n\nmore\n');
+    assert.equal(text(s, BS_STAMPED[2]), 'Generated at (UTC): <stamp>\r\n');
+    assert.equal(text(s, 'docs/other.md'), `- Generated at (UTC): ${stamp}\n`, 'a path outside the list is unchanged');
+    // fraction digits and another line are not second precision: unchanged
+    const f = snapOf({ [BS_STAMPED[0]]: '- Generated at (UTC): 2026-11-10T18:54:19.123Z\n- Other (UTC): 2026-11-10T18:54:19Z\n' });
+    assert.equal(text(f, BS_STAMPED[0]), '- Generated at (UTC): 2026-11-10T18:54:19.123Z\n- Other (UTC): 2026-11-10T18:54:19Z\n');
+  });
+
+  test('TEST-3956 the DR-9 allowlist row parses with the documented fields', () => {
+    const rows = PARITY.parseAllowlist(readFileSync(PARITY.DEFAULT_ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
+    const row = rows.find((r) => r.id === 'win-bootstrap-target-root');
+    assert.ok(row, 'the row exists');
+    assert.equal(row.pairs, 'sh:ps1,sh:node');
+    assert.equal(row.scenario, 'BS-01,BS-03,BS-04,BS-06,BS-07,BS-08,BS-09');
+    assert.equal(row.path, '.claude/skills/AAI_DYNAMIC_SKILLS.md');
+    assert.equal(row.kind, 'lines');
+    assert.equal(row.host, 'win32');
+    assert.equal(row.tracker, 'accepted');
+    assert.equal(row.match, '^- Target root: ');
+    assert.equal(rows.filter((r) => /bootstrap/.test(r.id)).length, 1, 'exactly one new row');
+  });
+
+  test('TEST-3956 the bootstrap scenarios, tier sizes and setups follow the table', () => {
+    assert.deepEqual(PARITY.listMatrix('smoke').filter((id) => id.startsWith('BS-')), ['BS-01', 'BS-02']);
+    assert.deepEqual(PARITY.listMatrix('default').filter((id) => id.startsWith('BS-')), ['BS-01', 'BS-02', 'BS-03', 'BS-04', 'BS-05', 'BS-06']);
+    assert.deepEqual(PARITY.listMatrix('full').filter((id) => id.startsWith('BS-')), ['BS-01', 'BS-02', 'BS-03', 'BS-04', 'BS-05', 'BS-06', 'BS-07', 'BS-08', 'BS-09']);
+    assert.deepEqual([PARITY.listMatrix('smoke').length, PARITY.listMatrix('default').length, PARITY.listMatrix('full').length], [9, 21, 29]);
+    const by = Object.fromEntries(PARITY.SCENARIOS.filter((x) => x.id.startsWith('BS-')).map((x) => [x.id, x]));
+    assert.equal(by['BS-01'].target, 'target with space');
+    assert.equal(by['BS-03'].steps.length, 2);
+    assert.deepEqual(by['BS-04'].steps[0].flags, ['force']);
+    assert.deepEqual(by['BS-05'].steps[0].flags, ['dry-run']);
+    assert.deepEqual(by['BS-06'].steps[0].flags, ['with-claude-hooks']);
+    assert.equal(by['BS-02'].steps[0].expect, 'nonzero');
+    assert.equal(by['BS-07'].steps[0].expect, 'nonzero');
+    assert.deepEqual(by['BS-01'].probes, ['.claude/skills/AAI_DYNAMIC_SKILLS.md', '.claude/skills/aai-test-e2e/SKILL.md', 'docs/ai/pr-config.yaml']);
+    assert.ok(PARITY.SCENARIOS.filter((x) => x.op === 'bootstrap').every((x) => x.id.startsWith('BS-')));
+  });
+
+  test('TEST-3956 the twin registry holds the node twin restricted to bootstrap and the argv lines follow D-PARITY', () => {
+    assert.deepEqual(Object.keys(PARITY.TWINS), ['sh', 'ps1', 'node']);
+    assert.deepEqual(PARITY.TWINS.node.ops, ['bootstrap']);
+    assert.equal(PARITY.TWINS.sh.ops, undefined);
+    const ctx = { src: '/s', target: '/t', bash: 'bash', ps: 'pwsh', bsref: '/r' };
+    const step = { op: 'bootstrap', profile: null, flags: ['force', 'dry-run', 'with-claude-hooks'] };
+    const flags = ['--force', '--dry-run', '--with-claude-hooks'];
+    const sh = PARITY.TWINS.sh.argv(step, ctx);
+    assert.deepEqual([sh.file, ...sh.args], ['bash', '/r/.aai/scripts/aai-bootstrap.sh', '/t', ...flags]);
+    assert.equal(sh.cwd, '/t');
+    const ps = PARITY.TWINS.ps1.argv(step, ctx);
+    assert.equal(ps.file, 'pwsh');
+    assert.deepEqual(ps.args.slice(ps.args.indexOf('-File')), ['-File', '/r/.aai/scripts/aai-bootstrap.ps1', '/t', ...flags]);
+    const nd = PARITY.TWINS.node.argv(step, ctx);
+    assert.equal(nd.file, process.execPath);
+    assert.deepEqual(nd.args, [path.join('/r', '.aai', 'scripts', 'aai-bootstrap.mjs'), '/t', ...flags]);
+    assert.equal(nd.cwd, '/t');
+    // a module twin without ops still runs everywhere: its argv is used as given
+    assert.equal(PARITY.TWINS.sh.ops, undefined);
+  });
+
+  test('TEST-3956 the runner gives a twin with ops only the scenarios of its operation', () => {
+    assert.equal(typeof PARITY.twinsFor, 'function');
+    const all = [PARITY.TWINS.sh, PARITY.TWINS.ps1, PARITY.TWINS.node];
+    const sync = PARITY.SCENARIOS.find((x) => x.id === 'SY-01');
+    const bs = PARITY.SCENARIOS.find((x) => x.id === 'BS-01');
+    assert.deepEqual(PARITY.twinsFor(all, sync).map((t) => t.name), ['sh', 'ps1']);
+    assert.deepEqual(PARITY.twinsFor(all, bs).map((t) => t.name), ['sh', 'ps1', 'node']);
+    const plain = { name: 'plain', argv: () => ({}) };
+    assert.deepEqual(PARITY.twinsFor([plain, PARITY.TWINS.node], sync).map((t) => t.name), ['plain']);
   });
 });
