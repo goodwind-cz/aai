@@ -8,12 +8,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 |---|---|---|---|---|
 | SPEC-0046 | Spec-AC-10 | deferred | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-bootstrap-on-node | specs | implementing | 20 planned | docs/specs/SPEC-DRAFT-bootstrap-on-node.md |
 
 ## Canonical layer (0)
 
@@ -755,12 +756,13 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (13)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
+| bootstrap-on-node (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-bootstrap-on-node.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

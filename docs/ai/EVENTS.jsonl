@@ -4247,3 +4247,4 @@
 {"v":1,"ts":"2026-11-20T08:51:44Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-residue-files-and-processes","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-20T08:51:45Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-residue-files-and-processes","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-20T08:51:45Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-residue-files-and-processes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-20T15:35:56Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-bootstrap-on-node","payload":{"from":"draft","to":"implementing"}}
