@@ -43,6 +43,7 @@ TEMPLATE=".aai/templates/hooks/settings-hooks.json"
 ADAPTER=".aai/scripts/claude-hook-gate.sh"
 GATE_MODULE=".aai/scripts/hook-gate.mjs"
 BOOTSTRAP=".aai/scripts/aai-bootstrap.sh"
+BOOTSTRAP_MODULE=".aai/scripts/aai-bootstrap.mjs"
 SKILL_PR=".aai/SKILL_PR.prompt.md"
 
 FAILED=0
@@ -397,9 +398,9 @@ test_009_stop_nudge() {
 # TEST-010 — bootstrap opt-in wiring (grep)
 test_010_bootstrap_wiring() {
   local ok=1
-  grep -q -- '--with-claude-hooks' "$BOOTSTRAP" \
-    || { log_info "TEST-010: --with-claude-hooks flag not parsed in $BOOTSTRAP"; ok=0; }
-  grep -qF ".aai/templates/hooks/settings-hooks.json" "$BOOTSTRAP" \
+  grep -q -- '--with-claude-hooks' "$BOOTSTRAP_MODULE" \
+    || { log_info "TEST-010: --with-claude-hooks flag not parsed in $BOOTSTRAP_MODULE"; ok=0; }
+  grep -qF ".aai/templates/hooks/settings-hooks.json" "$BOOTSTRAP_MODULE" \
     || { log_info "TEST-010: bootstrap does not reference the hooks template path"; ok=0; }
   # The flag must be documented in the header usage() prints.
   sed -n '1,25p' "$BOOTSTRAP" | qgrep -q -- '--with-claude-hooks' \

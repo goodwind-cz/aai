@@ -40,6 +40,9 @@ NODE_TEST="$PROJECT_ROOT/tests/skills/lib/aai-bootstrap.test.mjs"
 REF_HELPER="$PROJECT_ROOT/tests/skills/lib/bootstrap-reference.mjs"
 REFERENCE="$PROJECT_ROOT/tests/fixtures/aai-bootstrap-reference/aai-bootstrap.sh"
 SPEC_ID="spec-bootstrap-on-node"
+SH_LAUNCHER="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.sh"
+PROFILES="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
+REFUSED="aai-bootstrap: refused - node not found in PATH or aai-bootstrap.mjs missing; nothing was written. Install Node.js 22 or later (https://nodejs.org/) and re-run."
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -220,8 +223,122 @@ test_3952_corpus_full() {
   log_pass "TEST-3952: K01 to K38 in full mode equal the reference, platform stub lines only for K35 to K37, no container call"
 }
 
+# launcher_problems <file>: prints the problems of the .sh launcher text (empty when clean): the D-LAUNCH text, at most
+# 20 lines, ASCII, no policy token.
+launcher_problems() {
+  node -e '
+    const fs = require("fs");
+    const buf = fs.readFileSync(process.argv[1]);
+    const s = buf.toString("latin1");
+    const bad = [];
+    if (buf.some((b) => b > 0x7e || (b < 0x20 && b !== 10 && b !== 9))) bad.push("non-ASCII or control byte");
+    if (s.split("\n").length - (s.endsWith("\n") ? 1 : 0) > 20) bad.push("more than 20 lines");
+    if (s.split("\n")[0] !== "#!/bin/sh") bad.push("first line is not #!/bin/sh");
+    if (s.includes("[[") || s.includes("BASH_SOURCE")) bad.push("holds a bash-only construct");
+    if (!s.includes(process.argv[2])) bad.push("lacks the refusal line");
+    if (!s.includes("exec node \"$MODULE\" \"$@\"")) bad.push("does not exec node on the module with all arguments");
+    for (const w of ["package.json", "AAI-DYNAMIC", "aai-test-", "gitignore", "settings-hooks", "platform", "playwright", "pyproject", "RUNTIME_IGNORE", ".claude", ".codex", ".gemini", "docs/ai"]) {
+      if (s.includes(w)) bad.push("holds the policy token " + w);
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$1" "$REFUSED"
+}
+
+# tree_listing <dir>: a sorted listing of every entry below dir (names only), for the unchanged-target checks.
+tree_listing() {
+  node -e 'const fs=require("fs");process.stdout.write(fs.readdirSync(process.argv[1],{recursive:true}).map(String).sort().join("\n"));' "$1"
+}
+
+test_3953_sh_launcher() {
+  local problems work bin target out rc sh shells shell expected mode
+  problems="$(launcher_problems "$SH_LAUNCHER")"
+  [[ -z "$problems" ]] || log_fail "TEST-3953: the launcher: $problems"
+  [[ -x "$SH_LAUNCHER" ]] || log_fail "TEST-3953: the launcher is not executable"
+  mode="$(git -C "$PROJECT_ROOT" ls-files -s -- .aai/scripts/aai-bootstrap.sh 2>/dev/null | cut -d' ' -f1 || true)"
+  [[ -z "$mode" || "$mode" == "100755" ]] || log_fail "TEST-3953: the launcher mode in the index is $mode, expected 100755"
+  # a copy beside a stub module: every argument and the exit code pass through, under each shell
+  work="$(new_own_scratch launcher)"
+  bin="$work/bin"
+  mkdir -p "$bin"
+  cp "$SH_LAUNCHER" "$bin/aai-bootstrap.sh"
+  printf '%s\n' 'process.stdout.write(JSON.stringify(process.argv.slice(2)));' 'process.exit(7);' > "$bin/aai-bootstrap.mjs"
+  target="$work/tar get"
+  mkdir -p "$target"
+  expected='["'"$target"'","--dry-run","--force","--with-claude-hooks","-h"]'
+  shells="bash sh"
+  need_tool TEST-3953 dash && shells="$shells dash"
+  for shell in $shells; do
+    sh="$(command -v "$shell")"
+    rc=0
+    out="$("$sh" "$bin/aai-bootstrap.sh" "$target" --dry-run --force --with-claude-hooks -h)" || rc=$?
+    [[ "$rc" == 7 ]] || log_fail "TEST-3953: $shell: exit $rc, expected 7"
+    [[ "$out" == "$expected" ]] || log_fail "TEST-3953: $shell: arguments were not passed through: $out"
+  done
+  # without node on PATH, and with the module missing: exit 1, the one refusal line, the target unchanged
+  mkdir -p "$work/only-dirname" "$work/nomodule"
+  ln -s "$(command -v dirname)" "$work/only-dirname/dirname"
+  cp "$SH_LAUNCHER" "$work/nomodule/aai-bootstrap.sh"
+  local before after
+  before="$(tree_listing "$target")"
+  for shell in $shells; do
+    sh="$(command -v "$shell")"
+    rc=0
+    out="$(env PATH="$work/only-dirname" "$sh" "$bin/aai-bootstrap.sh" "$target" 2>&1 >/dev/null)" || rc=$?
+    [[ "$rc" == 1 ]] || log_fail "TEST-3953: $shell without node: exit $rc, expected 1"
+    [[ "$out" == "$REFUSED" ]] || log_fail "TEST-3953: $shell without node: stderr was: $out"
+    rc=0
+    out="$("$sh" "$work/nomodule/aai-bootstrap.sh" "$target" 2>&1 >/dev/null)" || rc=$?
+    [[ "$rc" == 1 ]] || log_fail "TEST-3953: $shell without the module: exit $rc, expected 1"
+    [[ "$out" == "$REFUSED" ]] || log_fail "TEST-3953: $shell without the module: stderr was: $out"
+  done
+  after="$(tree_listing "$target")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3953: the target changed after a refusal"
+  # PROFILES core lists the module
+  awk '$0 == "core:" { f = 1; next } /^[^ ]/ { f = 0 } f && sub(/^  - /, "") { sub(/[ \t\r]+$/, ""); print }' "$PROFILES" > "$work/core.list"
+  qgrep -qxF ".aai/scripts/aai-bootstrap.mjs" < "$work/core.list" || log_fail "TEST-3953: PROFILES core does not list .aai/scripts/aai-bootstrap.mjs"
+  qgrep -qxF ".aai/scripts/aai-bootstrap.sh" < "$work/core.list" || log_fail "TEST-3953: PROFILES core no longer lists .aai/scripts/aai-bootstrap.sh"
+  safe_rm_own "$work"
+  log_pass "TEST-3953: the .sh launcher is the D-LAUNCH text, passes arguments and exit 7 through bash, sh and dash, refuses without node or module with one line and no write, PROFILES core lists the module"
+}
+
+# amendment_problems: the SPEC-0157 and SPEC-0029 contract records of ref bootstrap-on-node, read from spec-amend list --json.
+amendment_problems() {
+  local json
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json)" || { echo "spec-amend list failed"; return 0; }
+  printf '%s' "$json" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const want = [
+      ["spec-aai-update-gitignore-drift-reconcile", "TEST-011, TEST-016, TEST-017, TEST-019 and TEST-020 re-homed"],
+      ["spec-hook-enforced-gates", "TEST-010 re-homed"],
+    ];
+    const bad = [];
+    for (const [spec, what] of want) {
+      const hits = j.items.filter((i) => i.ref_id === "bootstrap-on-node" && i.spec_id === spec && i.amendment_class === "contract");
+      if (hits.length !== 1) bad.push(spec + ": " + hits.length + " contract records of ref bootstrap-on-node, expected 1");
+      else if (!hits[0].what.startsWith(what)) bad.push(spec + ": the record does not begin with " + what);
+    }
+    process.stdout.write(bad.join("; "));
+  '
+}
+
+test_3954_rehomed_suites() {
+  local problems sel rc
+  for sel in "test-aai-bootstrap.sh test_gitignore_seed_uses_shared_library" \
+    "test-aai-hooks-overlay.sh test_010_bootstrap_wiring" "test-aai-hooks-overlay.sh test_011_bootstrap_behavior" \
+    "test-aai-sync-seed.sh test_single_bash_reader_and_sourcing" "test-aai-sync-seed.sh test_runtime_ignore_header_consumer_accuracy" \
+    "test-aai-sync-seed.sh test_bootstrap_survives_missing_library" "test-aai-sync-seed.sh test_marker_prefix_pinned_across_call_sites"; do
+    rc=0
+    # shellcheck disable=SC2086
+    env -u AAI_ROLE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } >"$TEST_DIR/rehome.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$TEST_DIR/rehome.log" >&2; log_fail "TEST-3954: ${sel#* } of ${sel%% *} exited $rc"; }
+  done
+  problems="$(amendment_problems)"
+  [[ -z "$problems" ]] || log_fail "TEST-3954: $problems"
+  log_pass "TEST-3954: the re-homed selectors of the bootstrap, hooks-overlay and sync-seed suites pass against the launcher, and the SPEC-0157 and SPEC-0029 amendment records exist"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3952 so far)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3954 so far)"
   check_deps
   setup_fixture
   test_3940_scratch_safety
@@ -237,6 +354,8 @@ main() {
   test_3950_hooks_overlay
   test_3951_platform_record
   test_3952_corpus_full
+  test_3953_sh_launcher
+  test_3954_rehomed_suites
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
