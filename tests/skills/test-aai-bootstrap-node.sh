@@ -166,13 +166,31 @@ test_3942_cli_and_root() {
   log_pass "TEST-3942: modes in any position, help per DR-1, exit 2 on a second positional, DR-2 for a missing target, root resolution per D-ROOT"
 }
 
+test_3943_detection() {
+  run_node_tests TEST-3943
+  log_pass "TEST-3943: one positive and one negative fixture per detection rule, lockfile precedence, first-seen order without duplicates, package.json queries on invalid and null JSON"
+}
+
+test_3944_commands() {
+  run_node_tests TEST-3944
+  log_pass "TEST-3944: each command chain step on its own fixture, task runner precedence, script and exec forms per manager, dockerTag"
+}
+
+test_3945_auth_and_plan() {
+  run_node_tests TEST-3945
+  log_pass "TEST-3945: the auth search and credential order, the session line, the skill plan and its extra blocks, equal to the reference on shared fixtures"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3942 so far)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3945 so far)"
   check_deps
   setup_fixture
   test_3940_scratch_safety
   test_3941_module_shape
   test_3942_cli_and_root
+  test_3943_detection
+  test_3944_commands
+  test_3945_auth_and_plan
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
