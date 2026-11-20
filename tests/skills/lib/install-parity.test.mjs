@@ -878,11 +878,16 @@ describe('TEST-3934 an unreadable odd root name does not crash the snapshot', ()
       if (path.basename(String(p)) === odd) { const e = new Error(`ENOENT: no such file or directory, lstat '${p}'`); e.code = 'ENOENT'; throw e; }
       return real.call(fs, p, ...rest);
     };
+    const errWrite = process.stderr.write;
+    let errText = '';
+    process.stderr.write = (chunk, ...rest) => { errText += String(chunk); return true; };
     try {
       const snap = M.snapshot(d);
       assert.deepEqual(snap.get(odd), { kind: 'dir' });
       assert.equal(snap.get('a.txt').kind, 'file');
-    } finally { fs.lstatSync = real; }
+    } finally { fs.lstatSync = real; process.stderr.write = errWrite; }
+    // the skipped subtree is named, never silently truncated (degrade-with-NOTE)
+    assert.match(errText, /NOTE - .*could not be read by name.*not compared/);
     const plain = 'plain-ascii';
     fs.mkdirSync(path.join(d, plain));
     fs.lstatSync = (p, ...rest) => {

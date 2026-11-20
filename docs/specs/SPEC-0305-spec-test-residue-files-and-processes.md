@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 03ce4597a582e40646ae5ad571ad0373d2ca4dbc17e5dedf90e3f0cf6fb4ed5b
+frozen_sha256: f32f8e2200deb3b74554deb266f2b779b4bda49d20f05a0b1beb268e1b586033
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -193,7 +193,8 @@ SPEC-FROZEN: true
   random wide-character root directories (fu-parity-win-odd-root-dirs)
   sometimes have no UTF-8 name, and the driver's snapshot crashed on them
   (two of five heads of PR #574); the driver now records them for the
-  existing allowlist row.
+  existing allowlist row, and names it on stderr as not compared (Codex P2
+  on PR #574: an uninspectable subtree is reported, never silently cut).
 
 ## Constitution deviations
 
@@ -214,7 +215,7 @@ None.
 | Spec-AC-09 | WHEN aai_residue_tmp_cleanup runs on a valid root whose find -xdev walk lists fewer entries than its plain find walk (a find shim standing in for a mount point, and on macOS a real disk image attached inside the root), or whose path the mount table lists a mount under (a mount shim), the root and every file below it SHALL still exist and the output SHALL name the mount | done | TEST-3931 red docs/ai/tdd/test-residue-files-and-processes/red-r1-test_3931_mounted_filesystem_inside_root_is_kept.log; TEST-3931 red (mount table) docs/ai/tdd/test-residue-files-and-processes/red-r2-test_3931_mounted_filesystem_inside_root_is_kept.log; TEST-3931 green docs/ai/tdd/test-residue-files-and-processes/green-test_3931_mounted_filesystem_inside_root_is_kept.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3931.txt; validation docs/ai/validation/VALIDATION-test-residue-files-and-processes-r3.md | — | D3 |
 | Spec-AC-10 | WHEN the owning wrapper runs with AAI_TEST_TMPDIR=keep in sandbox mode, the command SHALL see the caller's TMPDIR, a detached process it leaves holding descriptor 9 SHALL be gone afterwards, and no root SHALL remain | done | TEST-3932 red docs/ai/tdd/test-residue-files-and-processes/red-r1-test_3932_tmpdir_opt_out_keeps_caller_tmpdir.log; TEST-3932 green docs/ai/tdd/test-residue-files-and-processes/green-test_3932_tmpdir_opt_out_keeps_caller_tmpdir.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3932.txt; validation docs/ai/validation/VALIDATION-test-residue-files-and-processes-r3.md | — | D11 |
 | Spec-AC-11 | WHEN the scan for temp entries outside the root fails, the output SHALL say it did not complete; WHEN no lsof command exists, the process cleanup SHALL exit 0 and print nothing | done | TEST-3933 red docs/ai/tdd/test-residue-files-and-processes/red-restructure-test_3933_outside_scan_failure_and_no_lsof.log; TEST-3933 green docs/ai/tdd/test-residue-files-and-processes/green-full-suite-residue.log, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3933.txt | — | D3, D5 |
-| Spec-AC-12 | WHEN lstat of a root entry whose name is not printable ASCII fails ENOENT during a parity snapshot, the snapshot SHALL record it as a directory; WHEN it fails for a printable-ASCII name, the snapshot SHALL throw | done | TEST-3934 red docs/ai/tdd/test-residue-files-and-processes/red-test_3934_parity_odd_name.log; TEST-3934 green tests/skills/test-aai-install-parity.sh run, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3934.txt | — | CI parity leg |
+| Spec-AC-12 | WHEN lstat of a root entry whose name is not printable ASCII fails ENOENT during a parity snapshot, the snapshot SHALL record it as a directory and print one NOTE naming it as not compared; WHEN it fails for a printable-ASCII name, the snapshot SHALL throw | done | TEST-3934 red docs/ai/tdd/test-residue-files-and-processes/red-test_3934_parity_odd_name.log; TEST-3934 green tests/skills/test-aai-install-parity.sh run, mutation docs/ai/tdd/spec-test-residue-files-and-processes/mutation-TEST-3934.txt | — | CI parity leg |
 
 ## Implementation plan
 
