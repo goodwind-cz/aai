@@ -414,9 +414,13 @@ describe('TEST-3942 arguments and root', () => {
       assert.equal(r.stdout, '');
       assert.equal(r.stderr, `aai-bootstrap: target not found: ${target}\n`);
       assert.deepEqual(listTree(cwd), before, `${target} wrote something`);
-      // the reference ends with the same exit code and writes nothing either
+      // the reference fails too and writes nothing either. Its exit code for an
+      // option-shaped target is bash-version dependent: `cd --bogus` returns 1
+      // on bash 3.2 and 2 (builtin usage error) on bash 5.x, so only the
+      // module's exit 1 is the contract; the reference must just fail.
       const ref = spawnSync('bash', [REFERENCE, target], { encoding: 'utf8', cwd });
-      assert.equal(ref.status, 1, `reference on ${target}`);
+      if (target.startsWith('-')) assert.ok([1, 2].includes(ref.status), `reference on ${target}: exit ${ref.status}`);
+      else assert.equal(ref.status, 1, `reference on ${target}`);
       assert.equal(ref.stdout, '');
       assert.deepEqual(listTree(cwd), before, `reference on ${target} wrote something`);
     }
