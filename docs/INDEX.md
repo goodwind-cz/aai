@@ -14,7 +14,7 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-bootstrap-on-node | specs | implementing | 20 planned | docs/specs/SPEC-DRAFT-bootstrap-on-node.md |
+| spec-bootstrap-on-node | specs | implementing | 3 done, 17 planned | docs/specs/SPEC-DRAFT-bootstrap-on-node.md |
 
 ## Canonical layer (0)
 

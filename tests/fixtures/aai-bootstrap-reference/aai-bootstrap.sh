@@ -1,0 +1,1133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Generate project-local AAI dynamic skills from evidence in the target repo.
+#
+# Usage:
+#   ./.aai/scripts/aai-bootstrap.sh [target-root] [--dry-run] [--force] [--with-claude-hooks]
+#
+# Safety model:
+# - Creates or updates only known dynamic skill files and local discovery indexes.
+# - Refuses to overwrite a skill file that does not contain the AAI dynamic marker.
+# - --dry-run prints planned writes without changing files.
+# - --force is the explicit confirmation for replacing unmarked dynamic skill paths.
+# - --with-claude-hooks (OPT-IN, RFC-0010): merge the AAI hook-enforced gates
+#   overlay from .aai/templates/hooks/settings-hooks.json into .claude/settings.json
+#   (additive merge; existing settings preserved; never overwrites silently).
+
+DRY_RUN=0
+FORCE=0
+WITH_CLAUDE_HOOKS=0
+TARGET=""
+GENERATOR=".aai/scripts/aai-bootstrap.sh"
+SKILL_MARKER="AAI-DYNAMIC-SKILL:START"
+FILE_MARKER="AAI-DYNAMIC-FILE:START"
+
+# This script's own directory, resolved once (self-relative, not
+# CWD-relative: the shared libraries below are sibling files regardless of
+# what directory bootstrap is invoked from). One resolution, not one per
+# library: tests/skills/lib/cd-subshell-leak-baseline.tsv ratchets the
+# `cd`-inside-a-substitution shape per file, and a second copy of it here
+# was a RISE (Validation BLOCKING-2, 2026-09-30).
+BOOTSTRAP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Shared JSON-hooks merge (.aai/scripts/lib/merge-hooks-json.mjs — the same
+# file aai-sync.(sh|ps1) call for hooks/hooks*.json).
+HOOKS_JSON_MERGE_LIB="$BOOTSTRAP_SCRIPT_DIR/lib/merge-hooks-json.mjs"
+
+# Shared runtime-sidecar .gitignore reconcile (spec-aai-update-gitignore-drift-reconcile).
+GITIGNORE_BLOCK_LIB="$BOOTSTRAP_SCRIPT_DIR/lib/gitignore-block.sh"
+if [[ -f "$GITIGNORE_BLOCK_LIB" ]]; then
+  # shellcheck source=lib/gitignore-block.sh
+  source "$GITIGNORE_BLOCK_LIB"
+fi
+
+usage() {
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run)
+      DRY_RUN=1
+      ;;
+    --force)
+      FORCE=1
+      ;;
+    --with-claude-hooks)
+      WITH_CLAUDE_HOOKS=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ -z "$TARGET" ]]; then
+        TARGET="$arg"
+      else
+        echo "ERROR: unexpected argument: $arg" >&2
+        usage >&2
+        exit 2
+      fi
+      ;;
+  esac
+done
+
+ROOT="$(cd "${TARGET:-$(pwd)}" && pwd)"
+cd "$ROOT"
+
+NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+declare -a DETECTED_LANGUAGES=()
+declare -a DETECTED_PACKAGE_MANAGERS=()
+declare -a DETECTED_TEST_TOOLS=()
+declare -a DETECTED_BUILD_TOOLS=()
+declare -a DETECTED_LINT_TOOLS=()
+declare -a DETECTED_CI=()
+declare -a DETECTED_DEPLOY=()
+declare -a SKILL_NAMES=()
+declare -a SKILL_DESCRIPTIONS=()
+declare -a SKILL_COMMANDS=()
+declare -a SKILL_EXTRA=()
+declare -a SKIPPED=()
+declare -a CONFLICTS=()
+declare -a WRITTEN=()
+declare -a UNCHANGED=()
+
+PACKAGE_MANAGER=""
+VITEST_DETECTED=0
+AUTH_DETECTED=0
+AUTH_CREDENTIALS_REF=""
+AUTH_SESSION_REF=""
+
+log() {
+  echo "$*"
+}
+
+add_unique() {
+  local value="$1"
+  local array_name="$2"
+  local existing
+  local current=()
+  local len=0
+  # Guard the expansion so an empty array under `set -u` (bash 3.2 / macOS) does
+  # not abort with "unbound variable".
+  eval "len=\${#${array_name}[@]}"
+  if [[ "$len" -gt 0 ]]; then
+    eval "current=(\"\${${array_name}[@]}\")"
+  fi
+  for existing in "${current[@]:-}"; do
+    [[ "$existing" == "$value" ]] && return 0
+  done
+  eval "${array_name}+=(\"\$value\")"
+}
+
+# Prefix a detected test command with BOTH leak-safe process-group wrappers so
+# a generated aai-test-* skill can never orphan a hung test tree (SPEC-0009)
+# and is never bash-only on Windows (SPEC-0191 / TEST-024). The wrappers are
+# vendored under .aai/scripts/ by aai-sync. Emit both allowlist-stable
+# literals; do not host-OS-select — the agent running the skill picks the
+# matching line. Never emit the bare .sh path (PR #254: unstable shapes
+# re-trigger approval).
+wrap_test_command() {
+  printf 'Windows: powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 %s\nPOSIX: bash .aai/scripts/aai-run-tests.sh %s' "$1" "$1"
+}
+
+# One-line form for marker/index/summary (those surfaces put the command in
+# backticks on a single list item).
+flatten_cmd_for_display() {
+  printf '%s' "${1//$'\n'/ / }"
+}
+
+# Leak-safe Vitest guidance emitted (not applied) when Vitest is detected. This
+# is documentation only — bootstrap never overwrites a user's vitest config.
+vitest_leak_safe_guidance() {
+  cat <<'GUIDE'
+## Leak-safe Vitest configuration (bounds fork memory)
+- This project uses Vitest. A default `vitest run` sizes its fork pool to the CPU
+  count (~150 MB per worker), and a suite that leaves an open handle can leave the
+  whole tree resident. Bound a single run to ~300-400 MB by setting, in your
+  Vitest config:
+  - `pool: 'forks'`
+  - `poolOptions.forks.maxForks: 2`, `poolOptions.forks.minForks: 1`
+  - `teardownTimeout: 10_000`
+- Bootstrap does NOT edit an existing Vitest config; apply this yourself.
+- The generated command already runs through the wrapper pair (Windows:
+  `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1`; POSIX:
+  `bash .aai/scripts/aai-run-tests.sh`), which puts the run in a killable
+  process group with a timeout so no fork worker can outlive the step.
+GUIDE
+}
+
+has_glob() {
+  local pattern="$1"
+  compgen -G "$pattern" >/dev/null
+}
+
+first_glob() {
+  local pattern="$1"
+  local match
+  for match in $pattern; do
+    [[ -e "$match" ]] && {
+      printf '%s\n' "$match"
+      return 0
+    }
+  done
+  return 1
+}
+
+json_has_package_script() {
+  local script_name="$1"
+  [[ -f package.json ]] || return 1
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+const fs = require("fs");
+const script = process.argv[1];
+try {
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  process.exit(pkg.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts, script) ? 0 : 1);
+} catch (e) {
+  process.exit(1);
+}
+' "$script_name" 2>/dev/null
+  else
+    grep -Eq "\"$script_name\"[[:space:]]*:" package.json
+  fi
+}
+
+json_has_package_dep() {
+  local dep_name="$1"
+  [[ -f package.json ]] || return 1
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+const fs = require("fs");
+const dep = process.argv[1];
+try {
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const buckets = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
+  process.exit(buckets.some((name) => pkg[name] && Object.prototype.hasOwnProperty.call(pkg[name], dep)) ? 0 : 1);
+} catch (e) {
+  process.exit(1);
+}
+' "$dep_name" 2>/dev/null
+  else
+    grep -Eq "\"$dep_name\"[[:space:]]*:" package.json
+  fi
+}
+
+json_has_package_key() {
+  local key_name="$1"
+  [[ -f package.json ]] || return 1
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+const fs = require("fs");
+const key = process.argv[1];
+try {
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  process.exit(Object.prototype.hasOwnProperty.call(pkg, key) ? 0 : 1);
+} catch (e) {
+  process.exit(1);
+}
+' "$key_name" 2>/dev/null
+  else
+    grep -Eq "\"$key_name\"[[:space:]]*:" package.json
+  fi
+}
+
+detect_package_manager() {
+  [[ -f package.json ]] || return 0
+  if [[ -f pnpm-lock.yaml ]]; then
+    PACKAGE_MANAGER="pnpm"
+  elif [[ -f yarn.lock ]]; then
+    PACKAGE_MANAGER="yarn"
+  elif [[ -f bun.lock || -f bun.lockb ]]; then
+    PACKAGE_MANAGER="bun"
+  else
+    PACKAGE_MANAGER="npm"
+  fi
+  add_unique "$PACKAGE_MANAGER (package.json)" DETECTED_PACKAGE_MANAGERS
+}
+
+pkg_run_command() {
+  local script_name="$1"
+  case "$PACKAGE_MANAGER" in
+    npm)
+      if [[ "$script_name" == "test" ]]; then
+        printf 'npm test\n'
+      else
+        printf 'npm run %s\n' "$script_name"
+      fi
+      ;;
+    pnpm)
+      printf 'pnpm run %s\n' "$script_name"
+      ;;
+    yarn)
+      printf 'yarn run %s\n' "$script_name"
+      ;;
+    bun)
+      printf 'bun run %s\n' "$script_name"
+      ;;
+    *)
+      printf 'npm run %s\n' "$script_name"
+      ;;
+  esac
+}
+
+pkg_exec_command() {
+  local tool="$1"
+  shift || true
+  local rest="$*"
+  case "$PACKAGE_MANAGER" in
+    pnpm)
+      printf 'pnpm exec %s' "$tool"
+      ;;
+    yarn)
+      printf 'yarn exec %s' "$tool"
+      ;;
+    bun)
+      printf 'bunx %s' "$tool"
+      ;;
+    *)
+      printf 'npx %s' "$tool"
+      ;;
+  esac
+  [[ -n "$rest" ]] && printf ' %s' "$rest"
+  printf '\n'
+}
+
+find_package_script_command() {
+  local script_name
+  for script_name in "$@"; do
+    if json_has_package_script "$script_name"; then
+      pkg_run_command "$script_name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+justfile_path() {
+  if [[ -f justfile ]]; then
+    printf 'justfile\n'
+  elif [[ -f Justfile ]]; then
+    printf 'Justfile\n'
+  else
+    return 1
+  fi
+}
+
+makefile_path() {
+  if [[ -f Makefile ]]; then
+    printf 'Makefile\n'
+  elif [[ -f makefile ]]; then
+    printf 'makefile\n'
+  else
+    return 1
+  fi
+}
+
+target_exists_in_justfile() {
+  local target="$1"
+  local file
+  file="$(justfile_path 2>/dev/null)" || return 1
+  grep -Eq "^[[:space:]]*$target([[:space:]].*)?:" "$file"
+}
+
+target_exists_in_makefile() {
+  local target="$1"
+  local file
+  file="$(makefile_path 2>/dev/null)" || return 1
+  grep -Eq "^[[:space:]]*$target[[:space:]]*:" "$file"
+}
+
+find_task_runner_command() {
+  local target
+  for target in "$@"; do
+    if target_exists_in_justfile "$target"; then
+      printf 'just %s\n' "$target"
+      return 0
+    fi
+    if target_exists_in_makefile "$target"; then
+      printf 'make %s\n' "$target"
+      return 0
+    fi
+  done
+  return 1
+}
+
+detect_architecture() {
+  detect_package_manager
+
+  if [[ -f package.json ]]; then
+    add_unique "JavaScript/TypeScript" DETECTED_LANGUAGES
+    json_has_package_key "workspaces" && add_unique "package.json workspaces" DETECTED_BUILD_TOOLS
+  fi
+  if [[ -f pyproject.toml || -f requirements.txt || -f poetry.lock || -f uv.lock || -f setup.cfg || -f setup.py ]]; then
+    add_unique "Python" DETECTED_LANGUAGES
+    if [[ -f poetry.lock ]]; then
+      add_unique "poetry (poetry.lock)" DETECTED_PACKAGE_MANAGERS
+    elif [[ -f uv.lock ]]; then
+      add_unique "uv (uv.lock)" DETECTED_PACKAGE_MANAGERS
+    else
+      add_unique "pip/python (python manifest)" DETECTED_PACKAGE_MANAGERS
+    fi
+  fi
+  if [[ -f go.mod ]]; then
+    add_unique "Go" DETECTED_LANGUAGES
+    add_unique "go modules (go.mod)" DETECTED_PACKAGE_MANAGERS
+  fi
+  if [[ -f Cargo.toml ]]; then
+    add_unique "Rust" DETECTED_LANGUAGES
+    add_unique "cargo (Cargo.toml)" DETECTED_PACKAGE_MANAGERS
+  fi
+  if [[ -f pom.xml ]]; then
+    add_unique "Java" DETECTED_LANGUAGES
+    add_unique "maven (pom.xml)" DETECTED_PACKAGE_MANAGERS
+  fi
+  if [[ -f build.gradle || -f build.gradle.kts || -f gradlew ]]; then
+    add_unique "Java/Kotlin" DETECTED_LANGUAGES
+    add_unique "gradle" DETECTED_PACKAGE_MANAGERS
+  fi
+
+  has_glob "playwright.config.*" && add_unique "Playwright" DETECTED_TEST_TOOLS
+  has_glob "cypress.config.*" && add_unique "Cypress" DETECTED_TEST_TOOLS
+  has_glob "jest.config.*" && add_unique "Jest" DETECTED_TEST_TOOLS
+  if has_glob "vitest.config.*" || json_has_package_dep "vitest"; then
+    VITEST_DETECTED=1
+    add_unique "Vitest" DETECTED_TEST_TOOLS
+  fi
+  [[ -f pytest.ini || -f tox.ini ]] && add_unique "pytest" DETECTED_TEST_TOOLS
+  [[ -d tests || -d test ]] && add_unique "test directory" DETECTED_TEST_TOOLS
+
+  has_glob "vite.config.*" && add_unique "Vite" DETECTED_BUILD_TOOLS
+  has_glob "webpack.config.*" && add_unique "Webpack" DETECTED_BUILD_TOOLS
+  [[ -f tsconfig.json ]] && add_unique "TypeScript (tsconfig.json)" DETECTED_BUILD_TOOLS
+  [[ -f Dockerfile ]] && add_unique "Dockerfile" DETECTED_BUILD_TOOLS
+  [[ -f docker-compose.yml || -f compose.yml ]] && add_unique "Docker Compose" DETECTED_BUILD_TOOLS
+  makefile_path >/dev/null 2>&1 && add_unique "Makefile" DETECTED_BUILD_TOOLS
+  justfile_path >/dev/null 2>&1 && add_unique "justfile" DETECTED_BUILD_TOOLS
+
+  has_glob ".eslintrc*" && add_unique "ESLint config" DETECTED_LINT_TOOLS
+  [[ -f eslint.config.js || -f eslint.config.mjs || -f eslint.config.cjs ]] && add_unique "ESLint config" DETECTED_LINT_TOOLS
+  [[ -f biome.json || -f biome.jsonc ]] && add_unique "Biome" DETECTED_LINT_TOOLS
+  [[ -f ruff.toml ]] && add_unique "Ruff" DETECTED_LINT_TOOLS
+  if [[ -f pyproject.toml ]] && grep -Eq '\[tool\.ruff\]|\[tool\.flake8\]|\[tool\.black\]' pyproject.toml; then
+    add_unique "Python lint config (pyproject.toml)" DETECTED_LINT_TOOLS
+  fi
+
+  [[ -d .github/workflows ]] && add_unique ".github/workflows" DETECTED_CI
+  [[ -f wrangler.toml ]] && add_unique "Cloudflare Wrangler" DETECTED_DEPLOY
+  [[ -f vercel.json ]] && add_unique "Vercel" DETECTED_DEPLOY
+  [[ -f netlify.toml ]] && add_unique "Netlify" DETECTED_DEPLOY
+
+  return 0
+}
+
+choose_unit_command() {
+  find_task_runner_command test-unit unit test && return 0
+  find_package_script_command test:unit unit test && return 0
+
+  if has_glob "vitest.config.*" || json_has_package_dep "vitest"; then
+    pkg_exec_command vitest run
+    return 0
+  fi
+  if has_glob "jest.config.*" || json_has_package_dep "jest"; then
+    pkg_exec_command jest
+    return 0
+  fi
+  if [[ -f pytest.ini ]] || grep -Rqs "pytest" pyproject.toml requirements.txt setup.cfg tox.ini 2>/dev/null; then
+    printf 'pytest\n'
+    return 0
+  fi
+  if [[ -f go.mod ]]; then
+    printf 'go test ./...\n'
+    return 0
+  fi
+  if [[ -f Cargo.toml ]]; then
+    printf 'cargo test\n'
+    return 0
+  fi
+  if [[ -f pom.xml ]]; then
+    printf 'mvn test\n'
+    return 0
+  fi
+  if [[ -f gradlew ]]; then
+    printf './gradlew test\n'
+    return 0
+  fi
+  if [[ -f build.gradle || -f build.gradle.kts ]]; then
+    printf 'gradle test\n'
+    return 0
+  fi
+  return 1
+}
+
+choose_e2e_command() {
+  has_glob "playwright.config.*" || has_glob "cypress.config.*" || json_has_package_script "test:e2e" || json_has_package_script "e2e" || return 1
+
+  find_task_runner_command test-e2e e2e test_e2e && return 0
+  find_package_script_command test:e2e e2e playwright cypress:run cy:run && return 0
+
+  if has_glob "playwright.config.*" || json_has_package_dep "@playwright/test" || json_has_package_dep "playwright"; then
+    pkg_exec_command playwright test
+    return 0
+  fi
+  if has_glob "cypress.config.*" || json_has_package_dep "cypress"; then
+    pkg_exec_command cypress run
+    return 0
+  fi
+  return 1
+}
+
+choose_build_command() {
+  find_task_runner_command build compile && return 0
+  find_package_script_command build compile && return 0
+
+  if has_glob "vite.config.*" || json_has_package_dep "vite"; then
+    pkg_exec_command vite build
+    return 0
+  fi
+  if has_glob "webpack.config.*" || json_has_package_dep "webpack"; then
+    pkg_exec_command webpack
+    return 0
+  fi
+  if [[ -f tsconfig.json ]] && json_has_package_dep "typescript"; then
+    pkg_exec_command tsc --noEmit
+    return 0
+  fi
+  if [[ -f go.mod ]]; then
+    printf 'go build ./...\n'
+    return 0
+  fi
+  if [[ -f Cargo.toml ]]; then
+    printf 'cargo build\n'
+    return 0
+  fi
+  if [[ -f pom.xml ]]; then
+    printf 'mvn package\n'
+    return 0
+  fi
+  if [[ -f gradlew ]]; then
+    printf './gradlew build\n'
+    return 0
+  fi
+  if [[ -f build.gradle || -f build.gradle.kts ]]; then
+    printf 'gradle build\n'
+    return 0
+  fi
+  if [[ -f Dockerfile ]]; then
+    printf 'docker build -t %s .\n' "$(basename "$ROOT" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9_.-' '-')"
+    return 0
+  fi
+  return 1
+}
+
+choose_lint_command() {
+  find_task_runner_command lint check lint-check && return 0
+  find_package_script_command lint check typecheck && return 0
+
+  if [[ -f eslint.config.js || -f eslint.config.mjs || -f eslint.config.cjs ]] || has_glob ".eslintrc*" || json_has_package_dep "eslint"; then
+    pkg_exec_command eslint .
+    return 0
+  fi
+  if [[ -f biome.json || -f biome.jsonc ]] || json_has_package_dep "@biomejs/biome"; then
+    pkg_exec_command biome check .
+    return 0
+  fi
+  if [[ -f ruff.toml ]] || grep -Rqs "ruff" pyproject.toml requirements.txt 2>/dev/null; then
+    printf 'ruff check .\n'
+    return 0
+  fi
+  if grep -Rqs "flake8" pyproject.toml requirements.txt setup.cfg tox.ini 2>/dev/null; then
+    printf 'flake8\n'
+    return 0
+  fi
+  if [[ -f go.mod ]]; then
+    printf 'go vet ./...\n'
+    return 0
+  fi
+  if [[ -f Cargo.toml ]]; then
+    printf 'cargo clippy --all-targets --all-features\n'
+    return 0
+  fi
+  return 1
+}
+
+is_python_project() {
+  [[ -f pyproject.toml || -f requirements.txt || -f poetry.lock || -f uv.lock || -f setup.cfg || -f setup.py ]] && return 0
+  return 1
+}
+
+choose_monty_command() {
+  is_python_project || return 1
+  printf 'python -c "import pydantic_monty; print('\''pydantic-monty available'\'')"\n'
+}
+
+choose_deploy_command() {
+  find_task_runner_command deploy publish release && return 0
+  find_package_script_command deploy publish release && return 0
+
+  if [[ -f wrangler.toml ]]; then
+    printf 'wrangler deploy\n'
+    return 0
+  fi
+  if [[ -f vercel.json ]]; then
+    printf 'vercel deploy\n'
+    return 0
+  fi
+  if [[ -f netlify.toml ]]; then
+    printf 'netlify deploy\n'
+    return 0
+  fi
+  return 1
+}
+
+detect_auth() {
+  choose_e2e_command >/dev/null 2>&1 || return 0
+
+  local auth_paths=()
+  local candidate
+  for candidate in app src pages components routes tests e2e cypress package.json; do
+    [[ -e "$candidate" ]] && auth_paths+=("$candidate")
+  done
+  for candidate in middleware.ts middleware.js playwright.config.* cypress.config.*; do
+    [[ -e "$candidate" ]] && auth_paths+=("$candidate")
+  done
+  [[ "${#auth_paths[@]}" -gt 0 ]] || return 0
+
+  local found=1
+  if command -v rg >/dev/null 2>&1; then
+    rg -i --glob '!node_modules' --glob '!.git' --glob '!dist' --glob '!build' \
+      '(login|sign-in|auth|session|jwt|passport|next-auth|clerk|requireAuth|withAuth|storageState|globalSetup)' \
+      "${auth_paths[@]}" \
+      >/dev/null 2>&1 && found=0
+  else
+    grep -RsiE '(login|sign-in|auth|session|jwt|passport|next-auth|clerk|requireAuth|withAuth|storageState|globalSetup)' \
+      "${auth_paths[@]}" \
+      >/dev/null 2>&1 && found=0
+  fi
+
+  [[ "$found" -eq 0 ]] || return 0
+  AUTH_DETECTED=1
+
+  if [[ -f docs/knowledge/FACTS.md ]] && grep -Eq '^## Test Credentials' docs/knowledge/FACTS.md; then
+    AUTH_CREDENTIALS_REF='docs/knowledge/FACTS.md, section "Test Credentials"'
+  else
+    local env_file
+    for env_file in .env.e2e .env.test .env.testing; do
+      if [[ -f "$env_file" ]]; then
+        local vars
+        vars="$(grep -E '^(TEST|E2E|PLAYWRIGHT|CYPRESS|AUTH|LOGIN).*(_USER|_EMAIL|_PASSWORD|_PASS|_TOKEN)=' "$env_file" 2>/dev/null | cut -d= -f1 | awk 'NF { out = out ? out ", " $0 : $0 } END { print out }')"
+        if [[ -n "$vars" ]]; then
+          AUTH_CREDENTIALS_REF="$env_file variable names: $vars"
+          break
+        fi
+      fi
+    done
+  fi
+
+  if command -v rg >/dev/null 2>&1 && rg -i '(globalSetup|storageState)' "${auth_paths[@]}" >/dev/null 2>&1; then
+    AUTH_SESSION_REF='Existing globalSetup/storageState signal detected.'
+  elif ! command -v rg >/dev/null 2>&1 && grep -RsiE '(globalSetup|storageState)' "${auth_paths[@]}" >/dev/null 2>&1; then
+    AUTH_SESSION_REF='Existing globalSetup/storageState signal detected.'
+  else
+    AUTH_SESSION_REF='No reusable auth session detected; create globalSetup/storageState before scaling E2E coverage.'
+  fi
+}
+
+add_skill() {
+  local name="$1"
+  local description="$2"
+  local command="$3"
+  local extra="${4:-}"
+  SKILL_NAMES+=("$name")
+  SKILL_DESCRIPTIONS+=("$description")
+  SKILL_COMMANDS+=("$command")
+  SKILL_EXTRA+=("$extra")
+}
+
+plan_skills() {
+  local cmd
+
+  if cmd="$(choose_unit_command 2>/dev/null)"; then
+    local unit_extra=""
+    if [[ "$VITEST_DETECTED" -eq 1 ]]; then
+      unit_extra="$(vitest_leak_safe_guidance)"$'\n'
+    fi
+    add_skill "aai-test-unit" "Run project unit tests with the detected project command (routed through the leak-safe wrapper)." "$(wrap_test_command "$cmd")" "$unit_extra"
+  else
+    SKIPPED+=("aai-test-unit: no unit test command detected")
+  fi
+
+  if cmd="$(choose_e2e_command 2>/dev/null)"; then
+    local extra=""
+    if [[ "$AUTH_DETECTED" -eq 1 ]]; then
+      extra=$'## Prerequisites\n'
+      if [[ -n "$AUTH_CREDENTIALS_REF" ]]; then
+        extra+="- Authentication detected. Test credential reference: $AUTH_CREDENTIALS_REF"$'\n'
+      else
+        extra+="- Authentication detected. Add non-secret test credential references to docs/knowledge/FACTS.md; keep actual values in ignored env files or a secret manager."$'\n'
+      fi
+      extra+="- $AUTH_SESSION_REF"$'\n'
+    fi
+    add_skill "aai-test-e2e" "Run project E2E tests with the detected project command (routed through the leak-safe wrapper)." "$(wrap_test_command "$cmd")" "$extra"
+  else
+    SKIPPED+=("aai-test-e2e: no E2E command detected")
+  fi
+
+  if cmd="$(choose_build_command 2>/dev/null)"; then
+    add_skill "aai-build" "Build or type-check the project with the detected project command." "$cmd"
+  else
+    SKIPPED+=("aai-build: no build command detected")
+  fi
+
+  if cmd="$(choose_lint_command 2>/dev/null)"; then
+    add_skill "aai-lint" "Run project lint or static checks with the detected project command." "$cmd"
+  else
+    SKIPPED+=("aai-lint: no lint command detected")
+  fi
+
+  if cmd="$(choose_monty_command 2>/dev/null)"; then
+    local extra=$'## Monty Scratchpad Workflow\n'
+    extra+='- Use Monty only before implementation for isolated Python reasoning: pure functions, small transformations, parser checks, type-hint checks, or agent-generated code that calls explicit host functions.'$'\n'
+    extra+='- Do not use Monty for project imports, third-party libraries, filesystem/network access, framework behavior, database access, or final validation evidence.'$'\n'
+    extra+='- If the availability check fails, add `pydantic-monty` as a dev-only dependency with the project package manager or skip this helper; do not vendor it into production code unless requested.'$'\n'
+    extra+='- Expose host functions narrowly. Never expose shell execution, unrestricted filesystem access, env variables, network access, tokens, or secrets.'$'\n'
+    extra+='- After a Monty check passes, port the logic into the repo and run the generated `/aai-test-unit`, `/aai-lint`, and `/aai-build` skills when available.'$'\n'
+    extra+=$'\n'
+    extra+='Example scratchpad:'$'\n'
+    extra+=$'\n'
+    extra+='```bash'$'\n'
+    extra+='python - <<'\''PY'\'''$'\n'
+    extra+='import pydantic_monty'$'\n'
+    extra+=$'\n'
+    extra+='code = "value.strip().lower()"'$'\n'
+    extra+='stubs = "value: str = '\'''\''"'$'\n'
+    extra+='m = pydantic_monty.Monty(code, inputs=["value"], type_check=True, type_check_stubs=stubs)'$'\n'
+    extra+='print(m.run(inputs={"value": "  Example  "}))'$'\n'
+    extra+='PY'$'\n'
+    extra+='```'$'\n'
+    add_skill "aai-python-monty" "Use pydantic-monty as a safe scratchpad for small isolated Python logic before normal project validation." "$cmd" "$extra"
+  else
+    SKIPPED+=("aai-python-monty: Python project not detected")
+  fi
+
+  if cmd="$(choose_deploy_command 2>/dev/null)"; then
+    add_skill "aai-deploy" "Deploy or publish the project with the detected project command." "$cmd"
+  fi
+
+  return 0
+}
+
+is_managed_file() {
+  local path="$1"
+  [[ ! -f "$path" ]] && return 0
+  grep -q "$SKILL_MARKER\\|$FILE_MARKER\\|Generated by: $GENERATOR\\|generated by aai-bootstrap\\|AAI Dynamic Skills" "$path"
+}
+
+preflight_path() {
+  local path="$1"
+  if [[ -f "$path" ]] && [[ "$FORCE" -ne 1 ]] && ! is_managed_file "$path"; then
+    CONFLICTS+=("$path exists and is not marked as AAI-generated; rerun with --force to replace it")
+  fi
+}
+
+preflight_writes() {
+  local i
+  for i in "${!SKILL_NAMES[@]}"; do
+    preflight_path ".claude/skills/${SKILL_NAMES[$i]}/SKILL.md"
+  done
+  preflight_path ".claude/skills/AAI_DYNAMIC_SKILLS.md"
+  preflight_path ".codex/skills.local/README.md"
+  preflight_path ".gemini/skills.local/README.md"
+}
+
+write_file() {
+  local path="$1"
+  local content="$2"
+
+  if [[ -f "$path" ]]; then
+    local existing
+    existing="$(cat "$path")"
+    if [[ "$existing" == "$content" ]]; then
+      UNCHANGED+=("$path")
+      return 0
+    fi
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    WRITTEN+=("[dry-run] $path")
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$path")"
+  printf '%s\n' "$content" > "$path"
+  WRITTEN+=("$path")
+}
+
+ensure_gitignore() {
+  local path=".gitignore"
+  local pattern
+  [[ -f "$path" ]] || {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      WRITTEN+=("[dry-run] $path")
+      return 0
+    fi
+    : > "$path"
+  }
+
+  for pattern in ".claude/skills/.cache" ".codex/skills.local/.cache" ".gemini/skills.local/.cache"; do
+    if ! grep -qxF "$pattern" "$path" 2>/dev/null; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        WRITTEN+=("[dry-run] $path add $pattern")
+      else
+        {
+          echo
+          echo "$pattern"
+        } >> "$path"
+        WRITTEN+=("$path add $pattern")
+      fi
+    fi
+  done
+
+  # AAI runtime sidecars (gitignore-seed): per-developer runtime files the AAI
+  # layer creates at run time in the TARGET project. Without these seeds they
+  # sit as untracked noise and a `git add -A` commits them — a committed
+  # STATE.yaml breaks the per-developer single-writer model outright (RFC-0001).
+  # Mirrors the AAI repo's own .gitignore runtime block. Deliberately NOT
+  # ignored: factory-report/overview/dashboard HTML+JSON (committed artifacts,
+  # regenerated at close). Idempotent: grep-before-append per pattern; written
+  # under one marker comment on first need.
+  # Patterns come from the SINGLE SOURCE list (bot review: three inline
+  # copies would drift). Reconcile itself lives in the shared library
+  # (gitignore-block.sh) so this and the sync engine cannot drift apart;
+  # missing list file or missing library -> skip with a note, never fail.
+  local runtime_list
+  runtime_list="$(cd "$(dirname "${BASH_SOURCE[0]}")/../system" 2>/dev/null && pwd)/RUNTIME_IGNORE.list"
+  # Prefix must match AAI_GITIGNORE_MARKER_PREFIX (lib/gitignore-block.sh) --
+  # the canonical copy; also mirrored in aai-sync.sh and aai-sync.ps1
+  # (detection regex + written text). TEST-020 pins all 5 to that constant.
+  local marker="# AAI runtime sidecars (seeded by aai-bootstrap; per-dev, never commit)"
+  if declare -f aai_gitignore_seed_runtime >/dev/null 2>&1; then
+    local seed_note
+    seed_note="$(aai_gitignore_seed_runtime "$path" "$runtime_list" "$marker" "$DRY_RUN")"
+    if [[ -n "$seed_note" ]]; then
+      WRITTEN+=("$seed_note")
+    fi
+  else
+    WRITTEN+=("skipped runtime-sidecar gitignore seed: $GITIGNORE_BLOCK_LIB missing")
+  fi
+}
+
+render_skill() {
+  local name="$1"
+  local description="$2"
+  local command="$3"
+  local extra="$4"
+  local fence="bash"
+  if [[ "$command" == *$'\n'* || "$command" == *aai-run-tests.ps1* ]]; then
+    fence=""
+  fi
+
+  cat <<EOF
+---
+name: $name
+description: $description
+---
+
+# $name
+
+<!-- $SKILL_MARKER generated-by=$GENERATOR -->
+
+$description
+
+Run from the repository root:
+
+\`\`\`${fence}
+$command
+\`\`\`
+
+$extra
+## Notes
+- Generated from repository evidence by $GENERATOR.
+- If the command becomes stale, rerun $GENERATOR.
+- Do not store secrets in this skill file.
+
+<!-- AAI-DYNAMIC-SKILL:END -->
+EOF
+}
+
+list_lines() {
+  local empty="$1"
+  shift
+  local items=()
+  local item
+  for item in "$@"; do
+    [[ -n "$item" ]] && items+=("$item")
+  done
+  if [[ "${#items[@]}" -eq 0 ]]; then
+    printf -- '- %s\n' "$empty"
+    return 0
+  fi
+  for item in "${items[@]}"; do
+    printf -- '- %s\n' "$item"
+  done
+}
+
+render_marker() {
+  local generated_lines=""
+  local i
+  for i in "${!SKILL_NAMES[@]}"; do
+    generated_lines+="- ${SKILL_NAMES[$i]}: \`$(flatten_cmd_for_display "${SKILL_COMMANDS[$i]}")\`"$'\n'
+  done
+  [[ -n "$generated_lines" ]] || generated_lines="- None"$'\n'
+
+  local skipped_lines=""
+  if [[ "${#SKIPPED[@]}" -eq 0 ]]; then
+    skipped_lines="- None"$'\n'
+  else
+    for i in "${!SKIPPED[@]}"; do
+      skipped_lines+="- ${SKIPPED[$i]}"$'\n'
+    done
+  fi
+
+  cat <<EOF
+# AAI Dynamic Skills
+
+<!-- $FILE_MARKER generated-by=$GENERATOR -->
+
+- Generated at (UTC): $NOW_UTC
+- Target root: $ROOT
+- Generated by: $GENERATOR
+- Ownership: project-owned dynamic skills
+
+## Detected Stack
+
+### Languages
+$(list_lines "Not detected" "${DETECTED_LANGUAGES[@]:-}")
+
+### Package/Dependency Managers
+$(list_lines "Not detected" "${DETECTED_PACKAGE_MANAGERS[@]:-}")
+
+### Test Tooling
+$(list_lines "Not detected" "${DETECTED_TEST_TOOLS[@]:-}")
+
+### Build Tooling
+$(list_lines "Not detected" "${DETECTED_BUILD_TOOLS[@]:-}")
+
+### Lint Tooling
+$(list_lines "Not detected" "${DETECTED_LINT_TOOLS[@]:-}")
+
+### CI/CD Signals
+$(list_lines "Not detected" "${DETECTED_CI[@]:-}" "${DETECTED_DEPLOY[@]:-}")
+
+## Generated Skills
+$generated_lines
+## Skipped Skills
+$skipped_lines
+These files are generated by aai-bootstrap and preserved by aai-sync as target-owned dynamic skills.
+
+<!-- AAI-DYNAMIC-FILE:END -->
+EOF
+}
+
+render_index() {
+  local agent="$1"
+  local skill_lines=""
+  local i
+  for i in "${!SKILL_NAMES[@]}"; do
+    skill_lines+="- ${SKILL_NAMES[$i]}: .claude/skills/${SKILL_NAMES[$i]}/SKILL.md - \`$(flatten_cmd_for_display "${SKILL_COMMANDS[$i]}")\`"$'\n'
+  done
+  [[ -n "$skill_lines" ]] || skill_lines="- None generated"$'\n'
+
+  cat <<EOF
+# AAI Dynamic Skills ($agent)
+
+<!-- $FILE_MARKER generated-by=$GENERATOR -->
+
+Generated at (UTC): $NOW_UTC
+
+Project-owned dynamic skills live in .claude/skills/ and are discovered here for $agent.
+
+## Skills
+$skill_lines
+## Source
+- Marker: .claude/skills/AAI_DYNAMIC_SKILLS.md
+- Generator: $GENERATOR
+
+<!-- AAI-DYNAMIC-FILE:END -->
+EOF
+}
+
+write_outputs() {
+  local i
+  for i in "${!SKILL_NAMES[@]}"; do
+    local content
+    content="$(render_skill "${SKILL_NAMES[$i]}" "${SKILL_DESCRIPTIONS[$i]}" "${SKILL_COMMANDS[$i]}" "${SKILL_EXTRA[$i]}")"
+    write_file ".claude/skills/${SKILL_NAMES[$i]}/SKILL.md" "$content"
+  done
+
+  write_file ".claude/skills/AAI_DYNAMIC_SKILLS.md" "$(render_marker)"
+  write_file ".codex/skills.local/README.md" "$(render_index Codex)"
+  write_file ".gemini/skills.local/README.md" "$(render_index Gemini)"
+  ensure_gitignore
+}
+
+# OPT-IN Claude Code hooks overlay (RFC-0010 / spec-hook-enforced-gates).
+# Only runs under --with-claude-hooks; a default bootstrap run NEVER touches
+# .claude/settings.json. Merge semantics (never overwrite silently):
+# - existing settings.json is parsed and kept; ONLY the "hooks" key gains the
+#   overlay entries, and only those whose command string is not already
+#   present (idempotent re-run; foreign keys/hooks preserved);
+# - an existing file that does not parse as JSON is REFUSED with a manual
+#   merge instruction — the file is left byte-identical;
+# - a missing template or missing node degrades to a WARN + skip (the .aai
+#   scripts remain the gate floor without the overlay).
+install_claude_hooks() {
+  [[ "$WITH_CLAUDE_HOOKS" -eq 1 ]] || return 0
+  local tpl=".aai/templates/hooks/settings-hooks.json"
+  local dst=".claude/settings.json"
+
+  if [[ ! -f "$tpl" ]]; then
+    echo "WARN: Claude hooks template not found ($tpl) — skipping hooks install. Vendor it via .aai/scripts/aai-sync.sh, then rerun with --with-claude-hooks."
+    return 0
+  fi
+  if [[ ! -f "$HOOKS_JSON_MERGE_LIB" ]]; then
+    # Review NB-1 follow-through (Validation NB-3): --with-claude-hooks was
+    # EXPLICITLY requested; a missing merge library delivers nothing, and
+    # delivering nothing must fail the command (exit 3), not warn-and-succeed.
+    # Bites only on a target vendored from a pre-#414 source.
+    echo "ERROR: hooks merge library not found ($HOOKS_JSON_MERGE_LIB) — the hooks overlay was NOT installed. Re-sync (.aai/scripts/aai-sync.sh) to vendor it, then rerun with --with-claude-hooks." >&2
+    HOOKS_MERGE_FAILED=1
+    return 0
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "WARN: node unavailable — cannot merge the hooks overlay. Manual step: merge the \"hooks\" key from $tpl into $dst yourself."
+    return 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    WRITTEN+=("[dry-run] $dst (merge AAI hooks overlay from $tpl)")
+    return 0
+  fi
+
+  mkdir -p .claude
+  local merge_out
+  # Algorithm lives in one shared file (.aai/scripts/lib/merge-hooks-json.mjs)
+  # — aai-sync.sh/.ps1 call the same script for hooks/hooks*.json (owner
+  # amendment to spec-sync-deletes-target-only-hooks, 2026-09-30). Never
+  # re-type this merge a second time; fix it once, here.
+  if merge_out="$(node "$HOOKS_JSON_MERGE_LIB" "$tpl" "$dst" 2>&1)"; then
+    echo "  hooks overlay: $merge_out"
+    # here-string, never printf piped into "grep -q": under pipefail a
+    # quiet grep that matches early can SIGPIPE the writer (round 10, PR #381).
+    if grep -q "0 hook(s) added, 0 updated" <<<"$merge_out"; then
+      UNCHANGED+=("$dst (AAI hooks overlay already present)")
+    else
+      WRITTEN+=("$dst (AAI hooks overlay merged)")
+    fi
+  else
+    echo "ERROR: hooks overlay merge refused — $merge_out" >&2
+    echo "ERROR: $dst left untouched. Merge the \"hooks\" key from $tpl manually." >&2
+    # Review NB-1 follow-through: --with-claude-hooks was EXPLICITLY requested;
+    # delivering nothing must fail the command, not warn-and-succeed.
+    HOOKS_MERGE_FAILED=1
+  fi
+  return 0
+}
+
+# Git platform record (spec-git-platform-detected-at-bootstrap D4): the Node CLI
+# classifies origin, keeps one `platform:` line in docs/ai/pr-config.yaml and
+# prints a RECORDED/UNCHANGED/WOULD-RECORD/MISMATCH line plus one AUTH line.
+# Never aborts bootstrap: a MISMATCH (exit 6), a failure or a missing node is
+# relayed in the summary, nothing more.
+PLATFORM_LINES=""
+record_git_platform() {
+  local out="" rc=0
+  if ! command -v node >/dev/null 2>&1; then
+    PLATFORM_LINES="platform not recorded: node unavailable (run: node .aai/scripts/platform.mjs record)"
+    return 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    out="$(node "$BOOTSTRAP_SCRIPT_DIR/platform.mjs" record --repo-root "$ROOT" --dry-run 2>&1)" || rc=$?
+  else
+    out="$(node "$BOOTSTRAP_SCRIPT_DIR/platform.mjs" record --repo-root "$ROOT" 2>&1)" || rc=$?
+  fi
+  PLATFORM_LINES="$out"
+  if [[ "$rc" -ne 0 && "$rc" -ne 6 ]]; then
+    PLATFORM_LINES="platform record failed (exit $rc): $out"
+  fi
+  return 0
+}
+
+print_summary() {
+  echo
+  echo "AAI bootstrap summary"
+  echo "Target: $ROOT"
+  [[ "$DRY_RUN" -eq 1 ]] && echo "Mode: dry-run"
+  [[ "$FORCE" -eq 1 ]] && echo "Force: true"
+  echo
+  echo "Detected architecture:"
+  list_lines "Not detected" "${DETECTED_LANGUAGES[@]:-}"
+  list_lines "No package manager detected" "${DETECTED_PACKAGE_MANAGERS[@]:-}"
+  list_lines "No test tooling detected" "${DETECTED_TEST_TOOLS[@]:-}"
+  list_lines "No build tooling detected" "${DETECTED_BUILD_TOOLS[@]:-}"
+  list_lines "No lint tooling detected" "${DETECTED_LINT_TOOLS[@]:-}"
+  if [[ "$AUTH_DETECTED" -eq 1 ]]; then
+    echo
+    echo "Auth notes:"
+    if [[ -n "$AUTH_CREDENTIALS_REF" ]]; then
+      echo "- Authentication detected; credential reference: $AUTH_CREDENTIALS_REF"
+    else
+      echo "- Authentication detected; no non-secret test credential reference found"
+    fi
+    [[ -n "$AUTH_SESSION_REF" ]] && echo "- $AUTH_SESSION_REF"
+  fi
+  echo
+  echo "Ready-to-use commands:"
+  if [[ "${#SKILL_NAMES[@]}" -eq 0 ]]; then
+    echo "- None generated"
+  else
+    local i
+    for i in "${!SKILL_NAMES[@]}"; do
+      echo "- /${SKILL_NAMES[$i]} -> $(flatten_cmd_for_display "${SKILL_COMMANDS[$i]}")"
+    done
+  fi
+  if [[ -n "$PLATFORM_LINES" ]]; then
+    echo
+    echo "Git platform:"
+    echo "$PLATFORM_LINES"
+  fi
+  echo
+  echo "Generated/updated files:"
+  list_lines "No file changes" "${WRITTEN[@]:-}"
+  if [[ "${#UNCHANGED[@]}" -gt 0 ]]; then
+    echo
+    echo "Unchanged files:"
+    list_lines "None" "${UNCHANGED[@]}"
+  fi
+  if [[ "${#SKIPPED[@]}" -gt 0 ]]; then
+    echo
+    echo "Skipped:"
+    list_lines "None" "${SKIPPED[@]}"
+  fi
+}
+
+detect_architecture
+detect_auth
+plan_skills
+preflight_writes
+
+if [[ "${#CONFLICTS[@]}" -gt 0 ]]; then
+  echo "ERROR: bootstrap would overwrite unmarked files." >&2
+  list_lines "None" "${CONFLICTS[@]}" >&2
+  echo "Rerun with --force only if replacing these files is intentional." >&2
+  exit 1
+fi
+
+write_outputs
+install_claude_hooks
+record_git_platform
+print_summary
+
+# Review NB-1: an explicitly requested hooks overlay that was refused fails the run.
+if [ "${HOOKS_MERGE_FAILED:-0}" = "1" ]; then exit 3; fi
