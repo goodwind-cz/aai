@@ -787,12 +787,13 @@ export function main(argv = process.argv.slice(2)) {
   process.exitCode = run(argv);
 }
 
-const isEntryPoint = () => {
+// The main guard resolves both sides through realpath (a symlinked checkout still runs main), falling back to a plain resolve.
+const realOrResolve = (p) => {
   try {
-    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+    return realpathSync(p);
   } catch {
-    return false;
+    return path.resolve(p);
   }
 };
 
-if (isEntryPoint()) main();
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) main();

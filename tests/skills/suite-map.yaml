@@ -1819,6 +1819,15 @@ suites:
 
   aai-bootstrap-node:
     globs:
+      - tests/skills/lib/aai-bootstrap-fixtures.mjs
+      - tests/skills/lib/aai-bootstrap-golden.json
+      - tests/skills/lib/install-parity-allowlist.tsv
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/lib/cd-subshell-leak-baseline.tsv
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
+      - .github/workflows/ps1-quality.yml
       - .aai/scripts/aai-bootstrap.*
       - .aai/scripts/platform.mjs
       - .aai/scripts/lib/platform-adapter.mjs

@@ -539,8 +539,118 @@ test_3957_scratch_install() {
   log_pass "TEST-3957: a core sync vendors the module and both launchers, bash, sh and pwsh runs leave equal trees, sh without node refuses with one line and leaves the tree unchanged"
 }
 
+test_3958_wiring() {
+  local work f out rc sel
+  work="$(new_own_scratch wiring)"
+  for f in .aai/scripts/aai-bootstrap.mjs .aai/scripts/aai-bootstrap.sh .aai/scripts/aai-bootstrap.ps1 tests/fixtures/aai-bootstrap-reference/aai-bootstrap.sh \
+    tests/skills/lib/aai-bootstrap.test.mjs tests/skills/aai-bootstrap.Tests.ps1; do
+    printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
+    qgrep -q "^SELECTED aai-bootstrap-node " < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3958: select-suites does not route $f to aai-bootstrap-node"; }
+  done
+  # the weights row and its fallback line
+  qgrep -qxF "# sample aai-bootstrap-node fallback unsampled (new suite of bootstrap-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-3958: the weights fallback line for aai-bootstrap-node is missing"
+  qgrep -qxF "$(printf 'aai-bootstrap-node\t196')" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3958: the weights row aai-bootstrap-node 196 is missing"
+  for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" "test-aai-win-fallback.sh test_034"; do
+    rc=0
+    # shellcheck disable=SC2086
+    env -u AAI_ROLE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-3958: ${sel#* } of ${sel%% *} exited $rc"; }
+  done
+  rc=0
+  node "$SCRIPT_DIR/lib/nested-suite-lint.mjs" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" > "$work/lint.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/lint.log" >&2; log_fail "TEST-3958: nested-suite-lint exited $rc"; }
+  for f in check-cd-subshell-leak.mjs check-vendored-script-deps.mjs; do
+    rc=0
+    node "$PROJECT_ROOT/.aai/scripts/$f" > "$work/chk.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-3958: $f exited $rc"; }
+  done
+  rc=0
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" > "$work/chk.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-3958: check-test-registration.mjs exited $rc"; }
+  qgrep -qxF "$(printf '1\t.aai/scripts/aai-bootstrap.sh')" < "$SCRIPT_DIR/lib/cd-subshell-leak-baseline.tsv" || log_fail "TEST-3958: the cd-subshell baseline does not hold 1 for .aai/scripts/aai-bootstrap.sh"
+  out="$(node -e '
+    const fs = require("fs");
+    const text = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const lists = [];
+    for (const key of ["push:", "pull_request:"]) {
+      const at = text.findIndex((l) => l === "  " + key);
+      if (at < 0) { lists.push(null); continue; }
+      const p = text.findIndex((l, i) => i > at && l === "    paths:");
+      const out = [];
+      for (let i = p + 1; i < text.length && /^      - /.test(text[i]); i += 1) out.push(text[i].replace(/^      - /, "").replace(/^\x27|\x27$/g, ""));
+      lists.push(out);
+    }
+    const bad = [];
+    if (!lists[0] || !lists[1]) bad.push("a path list is missing");
+    else {
+      if (JSON.stringify(lists[0]) !== JSON.stringify(lists[1])) bad.push("the push and pull_request path lists differ");
+      for (const w of [".aai/scripts/aai-bootstrap.mjs", ".aai/scripts/aai-bootstrap.sh", "tests/fixtures/aai-bootstrap-reference/**"]) {
+        if (!lists[0].includes(w)) bad.push("the push list lacks " + w);
+        if (!lists[1].includes(w)) bad.push("the pull_request list lacks " + w);
+      }
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$PROJECT_ROOT/.github/workflows/ps1-quality.yml")"
+  [[ -z "$out" ]] || log_fail "TEST-3958: ps1-quality.yml: $out"
+  safe_rm_own "$work"
+  log_pass "TEST-3958: select-suites routes every bootstrap file to the suite, the weights row and fallback line hold, test_090, test_129 and test_034 pass, the lint and checks exit 0, the baseline holds 1, both ps1-quality path lists are identical and hold the D-WIRE entries"
+}
+
+test_3959_docs() {
+  local work out rc sel
+  work="$(new_own_scratch docs)"
+  out="$(node -e '
+    const fs = require("fs");
+    const root = process.argv[1];
+    const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
+    const bad = [];
+    const head = "## [unreleased] \u2014 feat: project bootstrap runs on Node with a native Windows launcher";
+    const cl = read("CHANGELOG.md").split("\n");
+    const at = cl.map((l, i) => (l === head ? i : -1)).filter((i) => i >= 0);
+    if (at.length !== 1) bad.push("the CHANGELOG heading appears " + at.length + " times");
+    else {
+      let end = cl.length;
+      for (let i = at[0] + 1; i < cl.length; i += 1) if (cl[i].startsWith("## ")) { end = i; break; }
+      const body = cl.slice(at[0] + 1, end).join("\n");
+      for (const w of ["Node.js 22", "aai-bootstrap.ps1", "DR-1", "DR-2", "DR-4", "DR-5", "DR-9"]) if (!body.includes(w)) bad.push("the CHANGELOG body lacks " + w);
+      if (body.trim() === "") bad.push("the CHANGELOG body is empty");
+    }
+    const sb = read(".aai/SKILL_BOOTSTRAP.prompt.md").split("\n");
+    const once = (l) => sb.filter((x) => x === l).length;
+    for (const l of ["powershell -NoProfile -File .aai/scripts/aai-bootstrap.ps1 . --dry-run", "powershell -NoProfile -File .aai/scripts/aai-bootstrap.ps1 .", "./.aai/scripts/aai-bootstrap.sh . --dry-run", "./.aai/scripts/aai-bootstrap.sh ."]) {
+      if (once(l) !== 1) bad.push("SKILL_BOOTSTRAP holds the line " + JSON.stringify(l) + " " + once(l) + " times");
+    }
+    if (!read(".aai/SKILL_BOOTSTRAP.prompt.md").includes("Node.js 22 or later")) bad.push("SKILL_BOOTSTRAP does not say Node.js 22 or later");
+    if (!read(".aai/system/DYNAMIC_SKILLS.md").includes("`.aai/scripts/aai-bootstrap.mjs`")) bad.push("DYNAMIC_SKILLS.md does not name aai-bootstrap.mjs");
+    if (!read(".aai/system/RUNTIME_IGNORE.list").split("\n").slice(0, 8).join("\n").includes("aai-bootstrap.mjs")) bad.push("the RUNTIME_IGNORE.list header does not name aai-bootstrap.mjs");
+    const rfc = read("docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md").split("\n");
+    const row = rfc.filter((l) => l.startsWith("| 5 |"));
+    if (row.length !== 1) bad.push("the RFC phase 5 row appears " + row.length + " times");
+    else {
+      const r = row[0];
+      if (!r.includes("| in progress |")) bad.push("the RFC phase 5 row is not in progress");
+      const sentence = "The fourteenth slice [moved the project bootstrap to Node](../issues/CHANGE-DRAFT-bootstrap-on-node.md): one module holds the detection, rendering and write policy behind thin aai-bootstrap.sh and aai-bootstrap.ps1 launchers, byte-equivalent to the frozen bash reference in the parity harness, so Windows gets a native bootstrap.";
+      if (r.split(sentence).length !== 2) bad.push("the RFC row does not hold the D-DOCS sentence once");
+      const a = r.indexOf("The thirteenth slice"); const b = r.indexOf("The fourteenth slice"); const c = r.indexOf("The [remaining-scripts plan]");
+      if (!(a >= 0 && a < b && b < c)) bad.push("the RFC sentence is not between the thirteenth slice and the remaining-scripts plan");
+      if (!/\(\.\.\/issues\/[A-Za-z0-9-]*bootstrap-on-node\.md\)/.test(r)) bad.push("the RFC link does not end with bootstrap-on-node.md");
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$PROJECT_ROOT")"
+  [[ -z "$out" ]] || log_fail "TEST-3959: $out"
+  for sel in "test-aai-prompt-diet.sh test_012_growth_sum_matches_ledger" "test-aai-expert-fetch.sh test_2624_inventory_matches_tree"; do
+    rc=0
+    # shellcheck disable=SC2086
+    env -u AAI_ROLE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-3959: ${sel#* } of ${sel%% *} exited $rc"; }
+  done
+  safe_rm_own "$work"
+  log_pass "TEST-3959: the CHANGELOG entry, the PowerShell lines of SKILL_BOOTSTRAP, DYNAMIC_SKILLS, the list header and the RFC-0017 sentence hold, and the prompt-diet ledger and RFC inventory suites pass"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3957 so far)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3959)"
   check_deps
   setup_fixture
   test_3940_scratch_safety
@@ -561,6 +671,8 @@ main() {
   test_3955_ps1_launcher
   test_3956_parity_bootstrap
   test_3957_scratch_install
+  test_3958_wiring
+  test_3959_docs
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
