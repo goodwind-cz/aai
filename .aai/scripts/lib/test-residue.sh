@@ -445,26 +445,36 @@ aai_residue_tmp_cleanup() {
     return 0
   fi
   # Move the root to a fresh name (an atomic rename in the same directory),
-  # then remove that name only if it is still the pinned directory, carrying
-  # this run's marker, with nothing mounted below it. A directory swapped into
-  # the root's path while the checks ran is therefore never removed.
+  # probe it again, then delete THROUGH THE PINNED DIRECTORY: a subshell
+  # changes into it (its working directory is that inode from then on, whatever
+  # happens to the names), re-reads the identity of "." and the marker, and
+  # removes the entries by relative name. Only the then-empty directory is
+  # removed by name, with rmdir, which can never remove a non-empty directory.
+  # A directory swapped into either name while the checks ran is never
+  # emptied. The pid-only fresh name is not a secret; the pinned working
+  # directory is what holds (a same-uid process can of course still move
+  # entries of this run's own root around inside it).
   tc_q="$tc_root.removing.$$"
   if [ -e "$tc_q" ] || [ -L "$tc_q" ] || ! mv -- "$tc_root" "$tc_q" 2>/dev/null; then
     aai_residue_say "kept temp root $tc_root - it could not be moved aside for a pinned removal"
-    return 0
-  fi
-  tc_now=$(aai_residue_dir_identity "$tc_q") || tc_now=''
-  tc_line=$(sed -n '1p' "$tc_q/.aai-test-run" 2>/dev/null)
-  if [ -L "$tc_q" ] || [ "$tc_now" != "$tc_pin" ] || [ "$tc_line" != "$1 $2" ]; then
-    aai_residue_say "kept $tc_q - the directory at the root's path changed while it was checked (identity or marker differs)"
     return 0
   fi
   if ! tc_why=$(aai_residue_tmp_mount_free "$tc_q"); then
     aai_residue_say "kept $tc_q - $tc_why; unmount it if a mount is there and remove it by hand"
     return 0
   fi
-  rm -rf -- "$tc_q" 2>/dev/null
-  [ ! -e "$tc_q" ] || aai_residue_say "FAILED to delete temp root $tc_q"
+  tc_out=$(
+    cd -P -- "$tc_q" 2>/dev/null || { echo "it could not be entered"; exit 1; }
+    [ "$(aai_residue_dir_identity .)" = "$tc_pin" ] || { echo "the directory at its path changed while it was checked (identity differs)"; exit 1; }
+    [ "$(sed -n '1p' .aai-test-run 2>/dev/null)" = "$1 $2" ] || { echo "the directory at its path changed while it was checked (marker differs)"; exit 1; }
+    rm -rf -- ./* ./.[!.]* ./..?* 2>/dev/null
+    echo ok
+  )
+  if [ "$tc_out" != ok ]; then
+    aai_residue_say "kept $tc_q - ${tc_out:-its pinned removal did not run}"
+    return 0
+  fi
+  rmdir -- "$tc_q" 2>/dev/null || aai_residue_say "FAILED to delete temp root $tc_q (not empty after the pinned removal)"
   return 0
 }
 

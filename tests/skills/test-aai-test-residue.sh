@@ -1144,6 +1144,18 @@ test_3931_mounted_filesystem_inside_root_is_kept() {
     sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
   [[ -e "$sb/moved" ]] || { log_fail "TEST-3931 (swap) the mount shim never swapped the root, the case is not exercising the window: $T_OUT"; ok=0; }
   [[ -n "$(find "$sb" -name keep.txt 2>/dev/null)" ]] || { log_fail "TEST-3931 (swap) the decoy moved into the root's path was deleted: $T_OUT"; ok=0; }
+  # a swap of the moved-aside name during the second mount probe: removal must go through the pinned directory, never
+  # through a pathname a child could have pointed elsewhere
+  rm -rf "$root" "$sb/decoy" "$sb/moved" "$sb/moved2" "$sb"/aai-tr-0123abcd.removing.* "$fsd"; mkdir -p "$root" "$sb/decoy" "$fsd"
+  printf '%s %s\n' "$TID" "$st" > "$root/.aai-test-run"; echo keep > "$sb/decoy/keep.txt"
+  printf '#!/bin/sh\nn=$(cat %q 2>/dev/null || echo 0); n=$((n+1)); echo $n > %q\nif [ "$n" -eq 2 ]; then for q in %q.removing.*; do [ -d "$q" ] && mv "$q" %q && mv %q "$q"; done; fi\nexec %q "$@"\n' \
+    "$fsd/n" "$fsd/n" "$root" "$sb/moved2" "$sb/decoy" "$(command -v mount)" > "$fsd/mount"
+  chmod +x "$fsd/mount"
+  T_RC=0
+  T_OUT="$(PATH="$fsd:$PATH" AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$sb" TMPDIR="$sb" \
+    sh -c '. "$1" || exit 99; shift; "$@"' tree-case "$LIB" aai_residue_tmp_cleanup "$TID" "$st" "$sb" "$root" 2>&1)" || T_RC=$?
+  [[ -e "$sb/moved2" ]] || { log_fail "TEST-3931 (swap 2) the mount shim never swapped the moved-aside name: $T_OUT"; ok=0; }
+  [[ -n "$(find "$sb" -name keep.txt 2>/dev/null)" ]] || { log_fail "TEST-3931 (swap 2) the decoy swapped into the moved-aside name was deleted: $T_OUT"; ok=0; }
   rm -rf "$fsd"
   [[ $ok -eq 1 ]] && log_pass "TEST-3931 every probe failure (find, find -xdev, mount) and every mount sign (a shorter -xdev walk, a mount at or below the root, a real disk image on macOS) keeps the root with its reason; a root with none is removed"
 }

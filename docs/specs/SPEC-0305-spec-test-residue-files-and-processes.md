@@ -3,7 +3,7 @@ id: spec-test-residue-files-and-processes
 type: spec
 number: 305
 status: done
-frozen_sha256: 61c31c19096cccd3938e9236c965ad4a9a7f7087e5cfed728cdc0f79483c5a86
+frozen_sha256: db3688310c0e427640b31d99fa59d824a650751f03897fc6a622b99c0fc1ac53
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -99,10 +99,14 @@ SPEC-FROZEN: true
   Only then is the root removed, with `rm -rf`, which never follows a
   symlink inside it. The removal is pinned (Codex P1 on PR #574, tenth
   review): the directory's device and inode are read before any check, the
-  root is renamed to a fresh `<root>.removing.<pid>` name, and that name is
-  removed only if it is still the pinned directory, its marker still names
-  the run and the mount guard still passes, so a directory swapped into the
-  root's path while the checks ran is never removed. Post-freeze amendment (code review r1 BLOCKING-1):
+  root is renamed to a fresh `<root>.removing.<pid>` name and probed again,
+  and the deletion then goes through the pinned directory itself: a subshell
+  changes into it, re-reads the identity of `.` and the marker, and removes
+  the entries by relative name; only the then-empty directory is removed by
+  name, with `rmdir` (Codex P1 on PR #574, eleventh review). A directory
+  swapped into either name while the checks ran is never emptied. Residual:
+  a same-uid process can still move entries around inside the run's own
+  root while it is removed. Post-freeze amendment (code review r1 BLOCKING-1):
   before the removal, `find <root>` and `find <root> -xdev` must list the
   same number of entries; when they differ, a filesystem is mounted inside
   the root (a disk image or bind mount a killed test left) and the root is

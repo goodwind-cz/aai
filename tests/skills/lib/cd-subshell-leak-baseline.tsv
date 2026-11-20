@@ -24,7 +24,7 @@
 1	.aai/scripts/cloudflare-share.sh
 1	.aai/scripts/expert-fetch.sh
 1	.aai/scripts/install-pre-commit-hook.sh
-3	.aai/scripts/lib/test-residue.sh
+4	.aai/scripts/lib/test-residue.sh
 1	.aai/scripts/live-spool.sh
 1	.aai/scripts/migrate-state-to-local.sh
 1	.aai/scripts/pre-commit-checks.sh
