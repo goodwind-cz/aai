@@ -1119,6 +1119,28 @@ describe('TEST-3984 the policy flows', () => {
     assert.equal(readFileSync(cfgPath, 'utf8'), 'a: 1\nref_guard: declined\n');
   });
 
+  test('TEST-3984 decline refuses a symlinked foreign hook like a regular one, and a directory slot as a bad type (DR-23)', () => {
+    const lnk = policyRepo('decline-link-foreign-');
+    mkdirSync(path.join(lnk.repo, '.git', 'hooks'), { recursive: true });
+    const target = path.join(lnk.root, 'elsewhere-foreign');
+    writeFileSync(target, '#!/bin/sh\necho mine\n', { mode: 0o755 });
+    symlinkSync(target, hookOf(lnk.repo, 'reference-transaction'));
+    const r = lnk.run('--decline-ref-guard');
+    assert.equal(r.status, 1, r.stdout);
+    assert.equal(r.stderr, `ERROR: ${hookOf(lnk.repo, 'reference-transaction')} already exists and is not AAI-managed.\n       Refusing to remove a foreign hook -- --decline-ref-guard only removes an AAI-managed guard.\n`);
+    assert.equal(readFileSync(target, 'utf8'), '#!/bin/sh\necho mine\n');
+    assert.ok(lstatSync(hookOf(lnk.repo, 'reference-transaction')).isSymbolicLink(), 'the link is untouched');
+    assert.ok(!existsSync(lnk.cfgPath), 'a refusal writes no declaration');
+
+    const dir = policyRepo('decline-dir-slot-');
+    mkdirSync(hookOf(dir.repo, 'reference-transaction'), { recursive: true });
+    const d = dir.run('--decline-ref-guard');
+    assert.equal(d.status, 1, d.stdout);
+    assert.match(d.stderr, /is a directory, not a regular file\. Nothing was written/);
+    assert.ok(lstatSync(hookOf(dir.repo, 'reference-transaction')).isDirectory());
+    assert.ok(!existsSync(dir.cfgPath), 'a refusal writes no declaration');
+  });
+
   test('TEST-3984 decline discloses the creation of the config: SEED from the template, NOTE without one', () => {
     const noTpl = policyRepo('decline-note-');
     const r = noTpl.run('--decline-ref-guard');
@@ -1211,16 +1233,17 @@ describe('TEST-3984 the policy flows', () => {
   });
 
   test('TEST-3984 uninstalling the ref-guard says what an armed declaration will do, and nothing when declined', () => {
-    const note = [
-      'NOTE: docs/ai/docs-audit.yaml still reads ref_guard: armed, so the next plain install (for example /aai-update) installs the guard again.\n',
-    ];
+    const note = {
+      present: 'NOTE: docs/ai/docs-audit.yaml still reads ref_guard: armed, so the next plain install (for example /aai-update) installs the guard again.\n',
+      absent: 'NOTE: docs/ai/docs-audit.yaml does not exist, so ref_guard reads as armed by default and the next plain install (for example /aai-update) installs the guard again.\n',
+    };
     for (const cfg of [undefined, 'ref_guard: armed\n']) {
       const { repo, run } = policyRepo('uninstall-armed-', cfg);
       assert.equal(run().status, 0);
       const u = run('--uninstall');
       assert.equal(u.status, 0, u.stderr);
       assert.ok(!existsSync(hookOf(repo, 'reference-transaction')));
-      const want = `Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from ${hookOf(repo, 'reference-transaction')}\n${note[0]}To keep it off, run: ${BASH_INSTALLER(repo)} --decline-ref-guard\n`;
+      const want = `Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from ${hookOf(repo, 'reference-transaction')}\n${cfg === undefined ? note.absent : note.present}To keep it off, run: ${BASH_INSTALLER(repo)} --decline-ref-guard\n`;
       assert.ok(u.stdout.includes(want), u.stdout);
     }
     const dec = policyRepo('uninstall-declined-', 'ref_guard: declined\n');
@@ -2282,6 +2305,9 @@ function bashCases(F) {
     k('K14a', '--decline-ref-guard with no config', [['--decline-ref-guard']]),
     k('K14b', '--decline-ref-guard with an existing config', [['--decline-ref-guard']], { setup: (h) => h.cfg('close_gate: report\nref_guard: armed\n') }),
     k('K14c', '--decline-ref-guard with a foreign reference-transaction hook', [['--decline-ref-guard']], { setup: (h) => h.hook('reference-transaction', '#!/bin/sh\necho foreign\n') }),
+    k('K14d', '--decline-ref-guard with a symlinked foreign reference-transaction hook', [['--decline-ref-guard']], {
+      setup: (h) => { h.write('elsewhere-foreign', '#!/bin/sh\necho foreign\n', 0o755); symlinkSync(path.join(h.dir, 'elsewhere-foreign'), path.join(h.hooks, 'reference-transaction')); },
+    }),
     k('K15', '--arm-ref-guard after K14a', [['--decline-ref-guard'], ['--arm-ref-guard']]),
     k('K16', 'a declined config and a plain run', [[]], { setup: (h) => h.cfg(decl) }),
     k('K16f', 'a declined config and a plain run with --force', [['--force']], { setup: (h) => h.cfg(decl) }),
@@ -2330,7 +2356,7 @@ const hookKeys = (snap) => Object.keys(snap).filter((k) => k.startsWith('.git-ho
 const rwWholeRun = { dr: 'DR-12', side: 'mod', text: (t) => t.split(latin1Of('ERROR: refusing the whole run \u2014 nothing was written. Fix the slot(s) named above and re-run.\n')).join('') };
 const rwRearm = { dr: 'DR-10', side: 'mod', text: (t) => t.replace(' (--force installs the hook for this run only; ref_guard: declined stays recorded).', ' (or pass --force).') };
 const rwNote = { dr: 'DR-14', side: 'mod', text: (t) => t.replace(/^NOTE: .* carries # AAI:REF-GUARD but its bytes differ from the shipped body; pass --force to replace it\.\n/m, '') };
-const rwUninstall = { dr: 'DR-18', side: 'mod', text: (t) => t.replace(/^NOTE: docs\/ai\/docs-audit\.yaml still reads ref_guard: armed.*\n/m, '').replace(/^To keep it off, run: .*\n/m, '') };
+const rwUninstall = { dr: 'DR-18', side: 'mod', text: (t) => t.replace(/^NOTE: docs\/ai\/docs-audit\.yaml (?:still reads ref_guard: armed|does not exist, so ref_guard reads as armed by default).*\n/m, '').replace(/^To keep it off, run: .*\n/m, '') };
 const rwMode = { dr: 'DR-15', side: 'ref', snap: (snap) => (snap[CFG_KEY]?.startsWith('file:600:') ? { ...snap, [CFG_KEY]: snap[CFG_KEY].replace('file:600:', 'file:644:') } : snap) };
 
 // The asserted divergences of the bash side, each compared to an expected value instead of byte equality.
@@ -2457,7 +2483,7 @@ describe('TEST-3989 the bash-side corpus K01 to K31 against the frozen bash refe
     const ids = cases.map((c) => c.id);
     assert.equal(new Set(ids).size, ids.length);
     const want = ['K01', 'K02', 'K03', 'K04', 'K05', 'K06', ...'abcdef'.split('').map((l) => `K07${l}`), 'K08', 'K09a', 'K09b', 'K09c', 'K10',
-      'K11a', 'K11b', 'K11c', 'K11d', 'K12a', 'K12b', 'K12c', 'K13a', 'K13b', 'K14a', 'K14b', 'K14c', 'K15', 'K16', 'K16f',
+      'K11a', 'K11b', 'K11c', 'K11d', 'K12a', 'K12b', 'K12c', 'K13a', 'K13b', 'K14a', 'K14b', 'K14c', 'K14d', 'K15', 'K16', 'K16f',
       'K17a', 'K17b', 'K17c', 'K17d', 'K18', 'K19', 'K20', 'K21', 'K22', 'K23', 'K24', 'K25', 'K26', 'K27a', 'K27b', 'K27c', 'K27d',
       'K28', 'K29a', 'K29b', 'K29c', 'K29d', 'K30', 'K31'];
     assert.deepEqual(ids, want);

@@ -591,7 +591,7 @@ function requireTemplates(ctx, kinds) {
 function declineMode(ctx, repo) {
   const cls = classifySlot(repo.paths['ref-guard'], SLOT_MARKERS['ref-guard']);
   if (cls.state === 'bad-type') return refuseWholeRun([{ lines: badTypeLines(repo.paths['ref-guard'], SLOT_NAMES['ref-guard'], cls.kind), foreign: false, err: ctx.err }]);
-  if (cls.state === 'foreign') {
+  if (effective(cls).state === 'foreign') {
     ctx.err(`ERROR: ${repo.paths['ref-guard']} already exists and is not AAI-managed.\n`);
     ctx.err('       Refusing to remove a foreign hook -- --decline-ref-guard only removes an AAI-managed guard.\n');
     return EXIT_FAIL;
@@ -635,7 +635,9 @@ function uninstallMode(ctx, repo, mode) {
       const label = token === 'index' ? 'AAI pre-commit hook' : `AAI ${name} hook (${SLOT_MARKERS[token].slice(2)})`;
       ctx.out(`Uninstalled ${label} from ${p}\n`);
       if (token === 'ref-guard' && readPolicy(ctx, repo) === 'armed') {
-        ctx.out('NOTE: docs/ai/docs-audit.yaml still reads ref_guard: armed, so the next plain install (for example /aai-update) installs the guard again.\n');
+        ctx.out(fs.existsSync(repo.cfgPath)
+          ? 'NOTE: docs/ai/docs-audit.yaml still reads ref_guard: armed, so the next plain install (for example /aai-update) installs the guard again.\n'
+          : 'NOTE: docs/ai/docs-audit.yaml does not exist, so ref_guard reads as armed by default and the next plain install (for example /aai-update) installs the guard again.\n');
         ctx.out(`To keep it off, run: ${installerCmd(repo.root)} --decline-ref-guard\n`);
       }
     } else {

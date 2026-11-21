@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 7ed57e24acfd025ab5a66e3433e09cd6a1ae0d21049b00f42ee00006062208d5
+frozen_sha256: 26a40fa3c44b213778d517841d5beb831298b8ebf8c44b06a86f33c64f7bbbc5
 ceremony_level: 3
 links:
   requirement: pre-commit-installer-on-node
@@ -516,11 +516,13 @@ discipline).
   unlinked, its target kept) with the bash Uninstalled line, else the bash
   `No AAI ... found ...` line; no template, no policy read except below.
   When the reference-transaction hook was removed and the policy reads
-  `armed`, two more lines (DR-18, closing `fu-uninstall-refguard-leaves-armed`):
+  `armed`, two more lines (DR-18, closing `fu-uninstall-refguard-leaves-armed`; when
+  `docs/ai/docs-audit.yaml` does not exist the first line reads `NOTE: docs/ai/docs-audit.yaml does not exist, so ref_guard reads as armed by default and the next plain install (for example /aai-update) installs the guard again.`):
   `NOTE: docs/ai/docs-audit.yaml still reads ref_guard: armed, so the next plain install (for example /aai-update) installs the guard again.`
   and `To keep it off, run: bash <root>/.aai/scripts/install-pre-commit-hook.sh --decline-ref-guard`.
-- Decline: a foreign reference-transaction hook is refused unmodified (the
-  bash two lines, exit 1); otherwise the declaration is written first, and
+- Decline: a foreign reference-transaction hook (also one reached through a
+  symlink) is refused unmodified (the bash two lines, exit 1); a directory or
+  other bad-type slot is refused (DR-23); otherwise the declaration is written first, and
   only then an AAI hook is removed (an unwritable config leaves the hook in
   place and exits 1); the bash lines follow.
 - Arm: the template is required; a foreign hook refused unless `--force`; a
@@ -565,6 +567,7 @@ discipline).
 | DR-20 | message paths from the logical `$PWD` | `Get-Location` | the PWD rule of D-CLI | the bash bytes on POSIX | TEST-3986, K09 |
 | DR-21 | marker followed by space, end of line, or a CR at the end of the line, via grep | on bytes; a CR followed by more bytes also counts | on bytes; a CR counts only before an LF or the end of the file | ownership is decided on the bytes | TEST-3987 |
 | DR-22 | `-x` checked also under Git Bash | skipped on Windows | skipped on win32 | Git for Windows runs hooks regardless of mode bits | TEST-3988 |
+| DR-23 | decline on a directory at the reference-transaction slot: records `declined`, exit 0 | same | refused as a bad-type slot (exit 1, the bad-type lines, nothing written); a symlinked foreign hook is refused like a regular one, as in bash, and is not a drift | a decline must not leave a slot git cannot run a hook from unexplained; the follows-the-link refusal is parity | TEST-3984, K14d |
 
 Kept for parity, pinned as rules and not drifts: `--force` installs a
 declined guard for that run and leaves `ref_guard: declined` recorded (the
@@ -650,7 +653,7 @@ Bash-side cases (K):
 - K13 `--uninstall` after K01, and `--uninstall --hooks ref-guard`.
 - K14a `--decline-ref-guard` with no config (seeded from the template),
   K14b with an existing config, K14c with a foreign reference-transaction
-  hook; K15 `--arm-ref-guard` after K14a; K16 a declined config and a plain
+  hook, K14d with that hook a symlink to a foreign file; K15 `--arm-ref-guard` after K14a; K16 a declined config and a plain
   run (skip); K16f the same with `--force`.
 - K17 `--print` and each of the four kinds, run outside any repository;
   K18 `-h`; K19 `--bogus`; K20 `--uninstall --decline-ref-guard`; K21

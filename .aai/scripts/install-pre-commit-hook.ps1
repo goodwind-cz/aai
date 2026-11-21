@@ -1,5 +1,5 @@
 # AAI git hook installer launcher; mode, policy, slot and write rules live in install-pre-commit-hook.mjs (RFC-0017 phase 5).
-# Usage: powershell -NoProfile -File .aai/scripts/install-pre-commit-hook.ps1 [-Force] [-Uninstall] [-Print [kind]] [-Hooks <csv>] [-DeclineRefGuard] [-ArmRefGuard] [-h] (the --long flags work too)
+# Usage: powershell -NoProfile -File .aai/scripts/install-pre-commit-hook.ps1 [-Force] [-Uninstall] [--print [kind]] [-Hooks <csv>] [-DeclineRefGuard] [-ArmRefGuard] [-h] (the --long flags work too)
 $ErrorActionPreference = 'Continue'
 $PSNativeCommandUseErrorActionPreference = $false
 $Module = Join-Path $PSScriptRoot 'install-pre-commit-hook.mjs'
