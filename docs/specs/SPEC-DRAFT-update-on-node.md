@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 2054f716f3a9e7197e0a36ace5e0dd4957b149aadafd488b37e8b06afb8ee6b4
+frozen_sha256: 18d555958388e82a2f4d2b44bf792247b25ef7b9a139dcf709f742e809d40f11
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -302,7 +302,11 @@ work, temp directory or sync.
   ...ANON_CLONE clone --branch <ref> --depth 1 <url> <srcDir>` with
   `GIT_TERMINAL_PROMPT=0` added to that one child's environment only (DR-9).
   An attempt succeeds on exit 0; a child that cannot start (ENOENT) is a
-  failed attempt. git and gh calls run with stdin, stdout and stderr all
+  failed attempt. A child (clone attempt or local-checkout git command)
+  ended by a signal ends source resolution at once: no later attempt or
+  sync starts, the run exits 130 or 143 when its own handler fired,
+  otherwise stderr `aai-update: <what> interrupted by <SIGNAL>` and exit
+  128 plus the signal number, after D-TEMP cleanup. git and gh calls run with stdin, stdout and stderr all
   `ignore` (DR-20), except the two readers in D-GUARD and D-EVIDENCE whose
   stdout is piped.
 - All three failed: when attempts 2 and 3 both failed to start, stderr
@@ -391,7 +395,8 @@ PowerShell reference is a DR:
 - Real run: `## aai-update — syncing <description> into <target>` (DR-13),
   the sync's own output, an empty line, `## Post-sync evidence`.
 - Changed files: stdout of `git -C <target> status --short` split on LF,
-  empty lines dropped, no CR stripping; any failure reads as none. Non-empty:
+  empty lines dropped, no CR stripping, read with a 1 GiB output buffer so a
+  large status is not cut off; any failure reads as none. Non-empty:
   `- Changed files (<n>):` then each line indented by two spaces; empty:
   `- Changed files: none (already up to date)`. (Both twins agree; one rule.)
 - AAI_PIN: when `<target>/.aai/system/AAI_PIN.md` is a regular file,

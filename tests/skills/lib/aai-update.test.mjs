@@ -196,22 +196,30 @@ export function invocationProblems(source) {
   return problems;
 }
 
-// shellInvocationProblems(source): the same rule for a bash suite: a line that runs an update entry point through
-// bash, sh, dash, node or pwsh must sit inside the run_update function, which sets the same environment.
+// shellInvocationProblems(source): the same rule for a bash suite. A line that runs an update entry point must sit
+// inside the run_update function, which sets the same environment and asserts a repo under the scratch root: a line
+// outside it is flagged when it runs the entry point through bash, sh, dash, node or pwsh, or when it names an
+// aai-update launcher or module together with an update argument (--repo, -Repo, --dry-run, -DryRun), whatever word
+// precedes the path. A line that runs under a PATH without node ("$fakebin") starts no update and is exempt.
 export function shellInvocationProblems(source) {
   const problems = [];
   const lines = source.split('\n');
   const entry = /\b(bash|sh|dash|node|pwsh)\s+("?\$\{?(MJS|SH_LAUNCHER|PS1_LAUNCHER|REFERENCE_SH|REFERENCE_PS1)\b|\S*aai-update\.(sh|mjs|ps1))/;
+  const named = /aai-update\.(sh|ps1|mjs)\b.*(--repo\b|-Repo\b|--dry-run\b|-DryRun\b)/;
   const open = lines.findIndex((l) => /^run_update\(\) \{/.test(l));
   const close = open < 0 ? -1 : lines.findIndex((l, i) => i > open && l === '}');
   lines.forEach((line, i) => {
-    if (/^\s*#/.test(line) || !entry.test(line)) return;
+    if (/^\s*#/.test(line) || !(entry.test(line) || named.test(line))) return;
+    if (line.includes('PATH="$fakebin"')) return;
     if (!(open >= 0 && i > open && i < close)) problems.push(`${i + 1}: an update entry point is run outside run_update: ${line.trim().slice(0, 70)}`);
   });
-  if (open >= 0) {
+  if (open < 0) {
+    problems.push('the suite has no run_update function');
+  } else {
     const body = lines.slice(open, close + 1).join('\n');
     if (!body.includes('GIT_ALLOW_PROTOCOL=file')) problems.push('run_update does not set GIT_ALLOW_PROTOCOL=file');
     if (!body.includes('GH_CONFIG_DIR=')) problems.push('run_update does not set GH_CONFIG_DIR');
+    if (!/case "\$src" in "\$work"\/\*\)/.test(body)) problems.push('run_update does not assert the repo under the scratch root');
   }
   return problems;
 }
@@ -362,11 +370,24 @@ describe('TEST-3960 scratch safety and the frozen references', () => {
     assert.equal(invocationProblems(`${mine.replace("GIT_ALLOW_PROTOCOL: 'file'", "GIT_ALLOW_PROTOCOL: 'all'")}`).length, 1);
     assert.equal(invocationProblems(`${mine.replace('GH_CONFIG_DIR: ghDir', 'GH_X: ghDir')}`).length, 1);
     assert.equal(invocationProblems(mine.replace('  assertRepoUnderRoot(args, root, cwd);\n  let file', '  let file')).length, 1);
-    assert.equal(shellInvocationProblems('bash "$SH_LAUNCHER" --dry-run\n').length, 1);
-    assert.equal(shellInvocationProblems('out="$(node "$MJS" -h)"\n').length, 1);
-    assert.equal(shellInvocationProblems('# bash "$MJS" in a comment\n[[ -f "$MJS" ]]\nMJS="$PROJECT_ROOT/x"\n').length, 0);
-    assert.equal(shellInvocationProblems('run_update() {\n  GIT_ALLOW_PROTOCOL=file GH_CONFIG_DIR="$d" bash "$SH_LAUNCHER" "$@"\n}\n').length, 0);
-    assert.equal(shellInvocationProblems('run_update() {\n  bash "$SH_LAUNCHER" "$@"\n}\n').length, 2);
+    assert.equal(shellInvocationProblems('bash "$SH_LAUNCHER" --dry-run\n').length, 2);
+    assert.equal(shellInvocationProblems('out="$(node "$MJS" -h)"\n').length, 2);
+    const okBody = 'run_update() {\n  case "$src" in "$work"/*) ;; *) exit 1 ;; esac\n  GIT_ALLOW_PROTOCOL=file GH_CONFIG_DIR="$d" bash "$SH_LAUNCHER" "$@"\n}\n';
+    assert.equal(shellInvocationProblems(`# bash "$MJS" in a comment\n[[ -f "$MJS" ]]\nMJS="$PROJECT_ROOT/x"\n${okBody}`).length, 0);
+    assert.equal(shellInvocationProblems(okBody).length, 0);
+    assert.equal(shellInvocationProblems('run_update() {\n  bash "$SH_LAUNCHER" "$@"\n}\n').length, 3);
+    assert.equal(shellInvocationProblems('# no run_update at all\n').length, 1);
+    // the committed bash suite: no problem as committed, and a problem for each property removed from run_update
+    const suiteFile = NEW_TEST_FILES.find((f) => f.endsWith('test-aai-update-node.sh'));
+    const suite = readFileSync(suiteFile, 'utf8');
+    assert.ok(/^run_update\(\) \{/m.test(suite), 'the suite has run_update');
+    assert.deepEqual(shellInvocationProblems(suite), []);
+    assert.ok(shellInvocationProblems(suite.replace(' GIT_ALLOW_PROTOCOL=file', '')).length >= 1, 'GIT_ALLOW_PROTOCOL removed');
+    assert.ok(shellInvocationProblems(suite.replace(' GH_CONFIG_DIR="$work/ghcfg"', '')).length >= 1, 'GH_CONFIG_DIR removed');
+    assert.ok(shellInvocationProblems(suite.replace(/^ {2}case "\$src" in "\$work"\/\*\) ;;.*$/m, '')).length >= 1, 'the scratch-root assertion removed');
+    // an update run outside run_update is flagged whatever word precedes the path
+    assert.ok(shellInvocationProblems(`${suite}\nset -- pwsh -NoProfile -File .aai/scripts/aai-update.ps1 -Repo "$x" -Force\n`).length >= 1);
+    assert.ok(shellInvocationProblems(`${suite}\n"$shell" .aai/scripts/aai-update.sh --repo "$x" --force\n`).length >= 1);
   });
 
   test('TEST-3960 assertRepoUnderRoot accepts a repo under the root and refuses every other one', () => {
@@ -1083,6 +1104,35 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     assert.equal(seen.length, 2);
   });
 
+  test('TEST-3964 a clone attempt killed by a signal stops the chain and the run exits 128 plus the signal number', async () => {
+    const mod = await import(MODULE_URL);
+    for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+      const lay = layout('chain-sig-');
+      const seen = [];
+      const o = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([{ status: null, signal }, 'ok', 'ok'], seen) });
+      assert.equal(seen.length, 1, `no second attempt after ${signal}`);
+      assert.equal(o.code, code);
+      assert.equal(o.others.filter(isSync).length, 0, 'no sync after an interrupted fetch');
+      assert.deepEqual(o.temps, [], 'the run temp directory is removed');
+    }
+    // a signal on the second attempt stops before the third
+    const lay2 = layout('chain-sig2-');
+    const seen2 = [];
+    const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay2, handler: cloneHandler([{ status: 1 }, { status: null, signal: 'SIGINT' }, 'ok'], seen2) });
+    assert.equal(seen2.length, 2);
+    assert.equal(o2.code, 130);
+    assert.deepEqual(o2.temps, []);
+  });
+
+  test('TEST-3964 a local-checkout git command killed by a signal stops the run before the next command and the sync', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('local-sig-');
+    const o = await runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (c.file === 'git' ? { status: null, signal: 'SIGINT' } : null) });
+    assert.equal(o.code, 130);
+    assert.equal(o.others.filter((c) => c.file === 'git').length, 1);
+    assert.equal(o.others.filter(isSync).length, 0);
+  });
+
   test('TEST-3964 all attempts failing exit 3 with the auth line; git that cannot start gives the DR-18 line', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('fail-');
@@ -1092,11 +1142,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     assert.equal(o.out, '');
     assert.equal(o.others.filter(isSync).length, 0, 'no sync after a failed fetch');
     assert.deepEqual(o.temps, []);
-    // a signal-killed attempt is a failed attempt as well
-    const lay1 = layout('fail-sig-');
-    const o1 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay1, handler: cloneHandler([{ status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }]) });
-    assert.equal(o1.code, 3);
-    assert.ok(o1.err.includes('(auth or network?)'));
+    // a signal-killed attempt is not a failed attempt: it stops the chain (see the signal test above)
     // DR-18: gh and git cannot start
     const lay2 = layout('nogit-');
     const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay: lay2, origin: null, handler: cloneHandler([enoent(), enoent(), enoent()]) });
@@ -1620,6 +1666,21 @@ describe('TEST-3967 rendering', () => {
     assert.deepEqual(changedFiles('/t', () => enoent(), {}), []);
     assert.deepEqual(changedFiles('/t', () => { throw new Error('x'); }, {}), []);
     assert.deepEqual(changedFiles('/t', () => ({ status: 0, stdout: '' }), {}), []);
+  });
+
+  test('TEST-3967 changedFiles lifts the output cap and reads a status larger than 1 MiB in full', async () => {
+    const { changedFiles } = await import(MODULE_URL);
+    let opts;
+    changedFiles('/t', (f, a, o) => { opts = o; return { status: 0, stdout: '' }; }, {});
+    assert.ok(opts.maxBuffer >= 1024 * 1024 * 1024, 'maxBuffer is at least 1 GiB');
+    const t = scratch('bigstatus-');
+    const run = (...a) => spawnSync('git', ['-C', t, ...a], { encoding: 'utf8' });
+    assert.equal(spawnSync('git', ['init', '-q', t], { encoding: 'utf8' }).status, 0);
+    run('config', 'status.showUntrackedFiles', 'all');
+    const deep = path.join(t, 'generated', 'a-reasonably-long-directory-name');
+    mkdirSync(deep, { recursive: true });
+    for (let i = 0; i < 30000; i += 1) writeFileSync(path.join(deep, `file-${String(i).padStart(6, '0')}.txt`), '');
+    assert.ok(changedFiles(t).length >= 30000, 'the full status is read');
   });
 
   test('TEST-3967 pinLines keeps the keyword lines case-insensitively without a byte order mark or a CR, and reads a non-file as null', async () => {

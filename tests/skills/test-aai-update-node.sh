@@ -496,10 +496,14 @@ tree_listing() {
   find "$1" | LC_ALL=C sort
 }
 
-# run_launcher_in <dir> <work> <shell> <source>: runs one launcher in dir against the fixture source with the
-# closed-network environment of D-SAFETY (file protocol only, empty gh config, no tokens, a failing gh stub first on PATH).
-run_launcher_in() {
+# run_update <dir> <work> <shell> <source>: the one place this suite runs a real update. It refuses a source outside
+# the run's own scratch root or a non-empty gh config, then runs the launcher in dir with the closed-network
+# environment of D-SAFETY (file protocol only, empty gh config, no tokens, a failing gh stub first on PATH).
+run_update() {
   local dir="$1" work="$2" shell="$3" src="$4"
+  [[ -n "$work" && -d "$work" ]] || log_fail "run_update: no scratch root"
+  case "$src" in "$work"/*) ;; *) log_fail "run_update: repo $src lies outside the scratch root $work" ;; esac
+  [[ -d "$work/ghcfg" && -z "$(ls -A "$work/ghcfg")" ]] || log_fail "run_update: GH_CONFIG_DIR $work/ghcfg is missing or not empty"
   cd "$dir" || return 1
   case "$shell" in
     pwsh) set -- pwsh -NoProfile -File .aai/scripts/aai-update.ps1 -Repo "$src" -Force ;;
@@ -539,7 +543,7 @@ test_3976_scratch_install() {
     mkdir -p "$work/run"
     cp -R "$target" "$runp"
     rc=0
-    ( run_launcher_in "$runp" "$work" "$shell" "$src" ) > "$work/$shell.log" 2>&1 || rc=$?
+    ( run_update "$runp" "$work" "$shell" "$src" ) > "$work/$shell.log" 2>&1 || rc=$?
     [[ "$rc" == 0 ]] || { cat "$work/$shell.log" >&2; log_fail "TEST-3976: the $shell launcher exited $rc"; }
     mv "$work/run" "$work/out-$shell"
   done

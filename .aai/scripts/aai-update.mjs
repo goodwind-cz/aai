@@ -29,6 +29,8 @@ const SLUG_CASE_FLAGS = 'i';
 const PIN_KEYWORDS = ['source', 'version', 'commit', 'canonical', 'ref'];
 const ANON_CLONE = ['-c', 'credential.helper=', '-c', 'http.https://github.com/.extraheader='];
 const HELPER_REL = '.aai/scripts/update-doctor-report.mjs';
+// The status read is not capped at spawnSync's default 1 MiB, which would read a large tree as no changes.
+const STATUS_MAX_BUFFER = 1024 * 1024 * 1024;
 const runChild = (file, args, opts) => spawnSync(file, args, opts);
 const writeFd = (fd) => (s) => { fs.writeSync(fd, s); };
 
@@ -168,6 +170,8 @@ const NO_STDIO = ['ignore', 'ignore', 'ignore'];
 
 // started(r): whether a child result means the program ran (a result with an error never started it).
 const started = (r) => !(r && r.error);
+// A child that died of a signal ends the fetch (the bash reference exits on the first one): the code is 128 plus the signal number.
+const interrupted = (r, what) => (r && r.signal ? { fail: { code: 128 + (os.constants.signals[r.signal] ?? 1), line: `aai-update: ${what} interrupted by ${r.signal}` } } : null);
 
 // resolveSource({ repo, ref, dryRun }, io, state): { src, desc } or { fail: { code, line } }. A local checkout gets
 // the three best-effort git commands in a real run; anything else is cloned into <temp>/src in three attempts
@@ -182,7 +186,8 @@ export function resolveSource(args, io, state) {
     if (!dryRun) {
       for (const sub of [['fetch', '--depth', '1', 'origin', ref], ['checkout', ref], ['pull', '--ff-only', 'origin', ref]]) {
         try {
-          child('git', ['-C', local, ...sub], { stdio: NO_STDIO, env });
+          const stop = interrupted(child('git', ['-C', local, ...sub], { stdio: NO_STDIO, env }), `git ${sub[0]}`);
+          if (stop) return stop;
         } catch {
           // best effort: a source without git or without a remote is still synced
         }
@@ -206,6 +211,8 @@ export function resolveSource(args, io, state) {
   for (const [file, argv, childEnv] of attempts) {
     wipe();
     const r = child(file, argv, { stdio: NO_STDIO, env: childEnv });
+    const stop = interrupted(r, `fetching ${repo}@${ref}`);
+    if (stop) return stop;
     ran.push(started(r));
     if (r && !r.error && r.status === 0) return { src: srcDir, desc };
   }
@@ -272,7 +279,7 @@ export function renderSyncHeader(desc, target) {
 // failure reads as none.
 export function changedFiles(target, child = runChild, env = process.env) {
   try {
-    const r = child('git', ['-C', target, 'status', '--short'], { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8', env });
+    const r = child('git', ['-C', target, 'status', '--short'], { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8', maxBuffer: STATUS_MAX_BUFFER, env });
     if (!r || r.error || r.status !== 0 || typeof r.stdout !== 'string') return [];
     return r.stdout.split('\n').filter((l) => l !== '');
   } catch {
