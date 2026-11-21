@@ -1025,13 +1025,13 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     const lay = layout('desc-');
     const spawn = fakeSpawn();
     const state = { keepTemp: false, tmp: '', created: null };
-    const r = resolveSource({ repo: 'acme/foo', ref: 'dev', dryRun: true }, { spawn, tmpdir: lay.tmpdir, env: {}, cwd: lay.target, err: () => {} }, state);
+    const r = await resolveSource({ repo: 'acme/foo', ref: 'dev', dryRun: true }, { spawn, tmpdir: lay.tmpdir, env: {}, cwd: lay.target, err: () => {} }, state);
     assert.equal(r.desc, 'https://github.com/acme/foo.git@dev');
     assert.equal(r.fail, undefined);
     assert.deepEqual(spawn.calls, []);
     assert.deepEqual(readdirSync(lay.tmpdir), []);
     assert.equal(state.tmp, '');
-    const l = resolveSource({ repo: lay.source, ref: 'main', dryRun: true }, { spawn, tmpdir: lay.tmpdir, env: {}, cwd: lay.target, err: () => {} }, state);
+    const l = await resolveSource({ repo: lay.source, ref: 'main', dryRun: true }, { spawn, tmpdir: lay.tmpdir, env: {}, cwd: lay.target, err: () => {} }, state);
     assert.equal(l.desc, `local checkout ${lay.source}`);
     assert.equal(l.src, lay.source);
     assert.deepEqual(spawn.calls, []);
@@ -1104,33 +1104,61 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     assert.equal(seen.length, 2);
   });
 
-  test('TEST-3964 a clone attempt killed by a signal stops the chain and the run exits 128 plus the signal number', async () => {
+  test('TEST-3964 a clone attempt killed by a signal the updater did not receive is a failed attempt (twin parity)', async () => {
     const mod = await import(MODULE_URL);
-    for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+    for (const signal of ['SIGINT', 'SIGTERM']) {
       const lay = layout('chain-sig-');
       const seen = [];
-      const o = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([{ status: null, signal }, 'ok', 'ok'], seen) });
-      assert.equal(seen.length, 1, `no second attempt after ${signal}`);
-      assert.equal(o.code, code);
-      assert.equal(o.others.filter(isSync).length, 0, 'no sync after an interrupted fetch');
-      assert.deepEqual(o.temps, [], 'the run temp directory is removed');
+      const o = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([{ status: null, signal }, { status: null, signal }, { status: null, signal }], seen) });
+      assert.equal(seen.length, 3, `all three attempts start after ${signal}`);
+      assert.equal(o.code, 3);
+      assert.match(o.err, /could not fetch acme\/foo@main/);
+      assert.deepEqual(o.temps, []);
     }
-    // a signal on the second attempt stops before the third
+    // a child-only signal on attempt 1 and a success on attempt 2: the sync proceeds
     const lay2 = layout('chain-sig2-');
     const seen2 = [];
-    const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay2, handler: cloneHandler([{ status: 1 }, { status: null, signal: 'SIGINT' }, 'ok'], seen2) });
+    const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay2, handler: cloneHandler([{ status: null, signal: 'SIGTERM' }, 'ok'], seen2) });
     assert.equal(seen2.length, 2);
-    assert.equal(o2.code, 130);
+    assert.equal(o2.code, 0, o2.err);
+    assert.equal(o2.others.filter(isSync).length, 1);
     assert.deepEqual(o2.temps, []);
   });
 
-  test('TEST-3964 a local-checkout git command killed by a signal stops the run before the next command and the sync', async () => {
+  test('TEST-3964 a local-checkout git command killed by a signal the updater did not receive is ignored like any failure', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('local-sig-');
     const o = await runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (c.file === 'git' ? { status: null, signal: 'SIGINT' } : null) });
-    assert.equal(o.code, 130);
-    assert.equal(o.others.filter((c) => c.file === 'git').length, 1);
-    assert.equal(o.others.filter(isSync).length, 0);
+    assert.equal(o.code, 0, o.err);
+    assert.deepEqual(o.others.filter((c) => c.file === 'git' && c.args[1] === lay.source).map((c) => c.args[2]), ['fetch', 'checkout', 'pull'], 'fetch, checkout and pull all start');
+    assert.equal(o.others.filter(isSync).length, 1);
+  });
+
+  // the updater's OWN handler fires (a terminal Ctrl-C reaches the whole process group): a git shim signals its parent
+  // (the module) and itself, and the chain stops there
+  function ownSignalCloneRun(label, signal) {
+    const root = scratch(`real-own-${label}-`);
+    const target = path.join(root, 'target');
+    mkdirSync(target);
+    const env = prepareEnv(root);
+    const realGit = env.PATH.split(path.delimiter).slice(1).map((d) => path.join(d, 'git')).find((f) => existsSync(f));
+    assert.ok(realGit, 'a real git exists');
+    const shim = path.join(root, 'bin', 'git');
+    writeFileSync(shim, `#!/bin/sh\nfor a in "$@"; do\n  if [ "$a" = clone ]; then printf '%s\\n' "$*" >> "${path.join(root, 'clone.log')}"; kill -${signal} "$PPID"; kill -${signal} $$; sleep 2; fi\ndone\nexec "${realGit}" "$@"\n`);
+    chmodSync(shim, 0o755);
+    assert.equal(spawnSync(realGit, ['init', '-q'], { cwd: target, env, encoding: 'utf8' }).status, 0);
+    const r = runUpdate({ args: ['--repo', `file://${path.join(root, 'nowhere')}`], root, cwd: target });
+    return { r, root };
+  }
+
+  test('TEST-3964 the updater own SIGINT or SIGTERM during a clone child stops the chain with 130 or 143, no sync and no temp', () => {
+    for (const [signal, code] of [['INT', 130], ['TERM', 143]]) {
+      const { r, root } = ownSignalCloneRun(signal, signal);
+      assert.equal(r.status, code, `${r.stdout}${r.stderr}`);
+      assert.equal(readFileSync(path.join(root, 'clone.log'), 'utf8').trim().split('\n').length, 1, 'no later attempt after the own signal');
+      assert.doesNotMatch(r.stdout, /syncing/);
+      assert.deepEqual(readdirSync(path.join(root, 'tmp')).filter((n) => n.startsWith('aai-src.')), []);
+    }
   });
 
   test('TEST-3964 all attempts failing exit 3 with the auth line; git that cannot start gives the DR-18 line', async () => {
@@ -1142,7 +1170,6 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     assert.equal(o.out, '');
     assert.equal(o.others.filter(isSync).length, 0, 'no sync after a failed fetch');
     assert.deepEqual(o.temps, []);
-    // a signal-killed attempt is not a failed attempt: it stops the chain (see the signal test above)
     // DR-18: gh and git cannot start
     const lay2 = layout('nogit-');
     const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay: lay2, origin: null, handler: cloneHandler([enoent(), enoent(), enoent()]) });

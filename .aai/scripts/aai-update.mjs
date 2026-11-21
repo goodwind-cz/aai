@@ -170,14 +170,17 @@ const NO_STDIO = ['ignore', 'ignore', 'ignore'];
 
 // started(r): whether a child result means the program ran (a result with an error never started it).
 const started = (r) => !(r && r.error);
-// A child that died of a signal ends the fetch (the bash reference exits on the first one): the code is 128 plus the signal number.
-const interrupted = (r, what) => (r && r.signal ? { fail: { code: 128 + (os.constants.signals[r.signal] ?? 1), line: `aai-update: ${what} interrupted by ${r.signal}` } } : null);
-
-// resolveSource({ repo, ref, dryRun }, io, state): { src, desc } or { fail: { code, line } }. A local checkout gets
+// A child killed by a signal is a failed attempt, exactly as in both twins (a local-checkout git command is best
+// effort and ignored, a clone attempt moves on to the next one). The chain stops only when the updater itself was
+// signalled: the bash reference stops only when the shell itself receives the signal (a terminal Ctrl-C reaches the
+// whole process group), a signal that only the child got does not stop it. spawnSync blocks the event loop, so the
+// module's own handler is dispatched only when the loop turns; after each child the code yields once (signalled)
+// and then reads state.signal; the run exits with it (130 or 143) through its existing path.
+// resolveSource({ repo, ref, dryRun }, io, state): { src, desc } or { fail: { code, line } } (async). A local checkout gets
 // the three best-effort git commands in a real run; anything else is cloned into <temp>/src in three attempts
 // (gh, git, anonymous git), the temp directory being recorded in state before the first attempt so that the
 // caller's cleanup owns it on every path. A dry-run starts nothing and creates nothing.
-export function resolveSource(args, io, state) {
+export async function resolveSource(args, io, state) {
   const { repo, ref, dryRun } = args;
   const child = io.spawn ?? runChild;
   const env = io.env ?? process.env;
@@ -186,11 +189,11 @@ export function resolveSource(args, io, state) {
     if (!dryRun) {
       for (const sub of [['fetch', '--depth', '1', 'origin', ref], ['checkout', ref], ['pull', '--ff-only', 'origin', ref]]) {
         try {
-          const stop = interrupted(child('git', ['-C', local, ...sub], { stdio: NO_STDIO, env }), `git ${sub[0]}`);
-          if (stop) return stop;
+          child('git', ['-C', local, ...sub], { stdio: NO_STDIO, env });
         } catch {
           // best effort: a source without git or without a remote is still synced
         }
+        if (await signalled(state)) return { fail: { code: state.signal, line: '' } };
       }
     }
     return { src: local, desc: `local checkout ${local}` };
@@ -211,8 +214,7 @@ export function resolveSource(args, io, state) {
   for (const [file, argv, childEnv] of attempts) {
     wipe();
     const r = child(file, argv, { stdio: NO_STDIO, env: childEnv });
-    const stop = interrupted(r, `fetching ${repo}@${ref}`);
-    if (stop) return stop;
+    if (await signalled(state)) return { fail: { code: state.signal, line: '' } };
     ran.push(started(r));
     if (r && !r.error && r.status === 0) return { src: srcDir, desc };
   }
@@ -440,7 +442,7 @@ export async function run(argv, io = {}) {
       return EXIT_REFUSED;
     }
     if (await signalled(state)) return state.signal;
-    const source = resolveSource(args, { spawn: child, env, cwd, tmpdir: io.tmpdir, err }, state);
+    const source = await resolveSource(args, { spawn: child, env, cwd, tmpdir: io.tmpdir, err }, state);
     if (await signalled(state)) return state.signal;
     if (source.fail) {
       err(`${source.fail.line}\n`);

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 18d555958388e82a2f4d2b44bf792247b25ef7b9a139dcf709f742e809d40f11
+frozen_sha256: a3d890e107b69b24a160055d3508dd9998980e6ce3da7d9f089fe0c4dbf0ae00
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -302,11 +302,13 @@ work, temp directory or sync.
   ...ANON_CLONE clone --branch <ref> --depth 1 <url> <srcDir>` with
   `GIT_TERMINAL_PROMPT=0` added to that one child's environment only (DR-9).
   An attempt succeeds on exit 0; a child that cannot start (ENOENT) is a
-  failed attempt. A child (clone attempt or local-checkout git command)
-  ended by a signal ends source resolution at once: no later attempt or
-  sync starts, the run exits 130 or 143 when its own handler fired,
-  otherwise stderr `aai-update: <what> interrupted by <SIGNAL>` and exit
-  128 plus the signal number, after D-TEMP cleanup. git and gh calls run with stdin, stdout and stderr all
+  failed attempt, and so is a child killed by a signal the updater itself
+  did not receive (as in both twins; a local-checkout git command killed
+  that way is ignored). After each blocking child the run yields once:
+  when its own SIGINT/SIGTERM handler fired, source resolution ends, no
+  later attempt or sync starts, and the run exits 130 or 143 after D-TEMP
+  cleanup (the bash twin stops the same way when the shell itself gets
+  the signal, e.g. a terminal Ctrl-C to the process group). git and gh calls run with stdin, stdout and stderr all
   `ignore` (DR-20), except the two readers in D-GUARD and D-EVIDENCE whose
   stdout is piped.
 - All three failed: when attempts 2 and 3 both failed to start, stderr
