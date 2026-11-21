@@ -1844,3 +1844,21 @@ suites:
       - tests/skills/aai-bootstrap.Tests.ps1
       - tests/skills/lib/pester-native-capture.ps1
       - tests/skills/lib/pipe-safe.sh
+
+  aai-update-node:
+    globs:
+      - .aai/scripts/aai-update.*
+      - .aai/scripts/update-doctor-report.mjs
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/system/PROFILES.yaml
+      - tests/fixtures/aai-update-reference/**
+      - tests/skills/test-aai-update-node.sh
+      - tests/skills/lib/aai-update.test.mjs
+      - tests/skills/lib/aai-update-fixtures.mjs
+      - tests/skills/lib/update-reference.mjs
+      - tests/skills/lib/install-parity.mjs
+      - tests/skills/lib/install-parity-allowlist.tsv
+      - tests/skills/aai-update.Tests.ps1
+      - tests/skills/lib/pester-native-capture.ps1
+      - tests/skills/lib/pipe-safe.sh
