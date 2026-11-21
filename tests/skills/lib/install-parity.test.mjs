@@ -853,6 +853,12 @@ describe('driver import and CLI', () => {
     assert.equal(cli(['frobnicate']).status, 2);
     assert.equal(cli(['run', '--matrix', 'bogus']).status, 2);
   });
+  test('TEST-3975 a twin selection with no permitted pair for a scenario exits 2 naming it (ps1,node on UP-01)', () => {
+    const r = cli(['run', '--matrix', 'full', '--twins', 'ps1,node', '--scenario', 'UP-01']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /UP-01/);
+    assert.match(r.stderr, /no permitted pair/);
+  });
   test('a missing --bash tool exits 3 naming it', () => {
     const r = cli(['run', '--matrix', 'smoke', '--bash', '/nonexistent/bash-xyz', '--scenario', 'SY-01']);
     assert.equal(r.status, 3);

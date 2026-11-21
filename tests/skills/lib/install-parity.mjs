@@ -884,6 +884,8 @@ async function dispatch(cmd, rest, err) {
   for (const sc of scenarios) {
     const running = twinsFor(twins, sc);
     if (running.length < 2) throw new UsageError(`scenario ${sc.id} (${sc.op}) is run by ${running.length} of the selected twins (${running.map((t) => t.name).join(',') || 'none'}); at least two are needed to compare, so nothing would be proven`);
+    // Two runnable twins are not enough when peers forbid every pair between them (ps1,node on an update scenario).
+    if (!running.some((x, i) => running.slice(i + 1).some((y) => pairAllowed(x, y, sc.op)))) throw new UsageError(`scenario ${sc.id} (${sc.op}) has no permitted pair among the selected twins (${running.map((t) => t.name).join(',')}); a twin's peers exclude every other selected twin, so nothing would be compared`);
   }
   const registered = [...new Set([...Object.keys(TWINS), ...twins.map((t) => t.name)])];
   let rows;

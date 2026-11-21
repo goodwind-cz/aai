@@ -114,9 +114,10 @@ run_node_tests() {
   [[ -f "$REFERENCE_SH" && -f "$REFERENCE_PS1" ]] || log_fail "$id: a frozen reference copy under tests/fixtures/aai-update-reference does not exist"
   [[ -f "$NODE_TEST" ]] || log_fail "$id: tests/skills/lib/aai-update.test.mjs does not exist"
   [[ -f "$file" ]] || log_fail "$id: ${file##*/} does not exist"
-  out="$(env -u AAI_ROLE node --test --test-name-pattern "$id" "$file" 2>&1)" || rc=$?
+  out="$(env -u AAI_ROLE node --test --test-reporter=tap --test-name-pattern "$id" "$file" 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test exited $rc"; }
-  # node 22 reports an unmatched pattern as one passing file, so a passing case named with the id must be seen.
+  # the tap reporter is forced (Node 24 defaults to spec off a TTY); node 22 reports an unmatched pattern as one
+  # passing file, so a passing case named with the id must be seen.
   local named="ok [0-9]+ - $id "
   [[ "$out" =~ pass\ [1-9] && "$out" =~ $named ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test reported no passing test named $id for the pattern"; }
 }
