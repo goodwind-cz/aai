@@ -430,10 +430,20 @@ function refusalOf(cls, repo, token, force) {
 
 // writeSlot(slot, bytes): a temp sibling, created exclusively with mode 0777 minus umask, renamed over the slot.
 export function writeSlot(slot, bytes) {
-  const tmp = `${slot.path}.aai-tmp.${process.pid}`;
+  // a temp name another process or an earlier run left is never touched: the exclusive create takes the next name
+  let tmp;
+  let fd;
+  for (let n = 0; ; n += 1) {
+    tmp = `${slot.path}.aai-tmp.${process.pid}${n === 0 ? '' : `.${n}`}`;
+    try {
+      fd = fs.openSync(tmp, 'wx', 0o777);
+      break;
+    } catch (e) {
+      if (!(e && e.code === 'EEXIST' && n < 100)) throw e;
+    }
+  }
   slot.tmp = tmp;
   try {
-    const fd = fs.openSync(tmp, 'wx', 0o777);
     try {
       fs.writeSync(fd, bytes);
     } finally {

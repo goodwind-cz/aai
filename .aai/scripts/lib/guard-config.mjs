@@ -343,15 +343,21 @@ export function writeRefGuardPolicy(dir, value, opts = {}) {
     fs.mkdirSync(dir, { recursive: true });
   }
   const mode = exists ? fs.statSync(target).mode & 0o777 : 0o666;
-  const tmp = `${target}.aai-tmp.${process.pid}`;
+  let tmp;
   let fd;
-  try {
+  // a temp name this run did not create is never touched or removed: the exclusive create takes the next name
+  for (let n = 0; ; n += 1) {
+    tmp = `${target}.aai-tmp.${process.pid}${n === 0 ? '' : `.${n}`}`;
     try {
       fd = fs.openSync(tmp, 'wx', mode);
+      break;
     } catch (e) {
+      if (e && e.code === 'EEXIST' && n < 100) continue;
       if (e && (e.code === 'EACCES' || e.code === 'EPERM' || e.code === 'EROFS')) throw refusedWrite(cfgPath);
       throw e;
     }
+  }
+  try {
     if (exists) fs.fchmodSync(fd, mode);
     fs.writeSync(fd, next);
     fs.closeSync(fd);

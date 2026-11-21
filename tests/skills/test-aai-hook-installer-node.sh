@@ -21,6 +21,12 @@
 
 set -euo pipefail
 
+# No GIT_ variable of the caller reaches a git child of this suite: GIT_CONFIG_COUNT/KEY_n/VALUE_n, GIT_CONFIG_PARAMETERS,
+# GIT_DIR, GIT_COMMON_DIR ... can each redirect core.hooksPath or the repository, and so land a hook outside the
+# scratch root. The suite sets the two it needs (GIT_CONFIG_NOSYSTEM, GIT_CONFIG_GLOBAL) itself, per run.
+while IFS= read -r _gv; do unset "$_gv"; done < <(compgen -e | /usr/bin/grep '^GIT_' || true)
+unset _gv
+
 TEST_NAME="aai-hook-installer-node"
 TEST_DIR=""
 OWN_PREFIX="aai-hook-installer-node."

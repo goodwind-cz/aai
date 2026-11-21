@@ -50,12 +50,14 @@ const under = (child, parent) => child === parent || child.startsWith(parent.end
 
 // --- the installer invocation helpers (D-SAFETY) -------------------------------------------------------------
 
-// prepareEnv(root, extra): the environment of an installer run: the caller's minus every AAI_ variable, plus no
+// prepareEnv(root, extra): the environment of an installer run: the caller's minus every AAI_ and GIT_ variable, plus no
 // system git config, a global git config that is an empty scratch file (a global core.hooksPath would otherwise
 // redirect the writes) and a per-root TMPDIR.
 export function prepareEnv(root, extra = {}) {
   const env = {};
-  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('AAI_') && k !== 'GIT_DIR' && k !== 'GIT_WORK_TREE') env[k] = v;
+  // every GIT_ variable goes: GIT_CONFIG_COUNT/KEY_n/VALUE_n, GIT_CONFIG_PARAMETERS, GIT_DIR, GIT_COMMON_DIR, ... can each
+  // redirect the hooks path or the repository; the two the run needs are set below
+  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('AAI_') && !k.startsWith('GIT_')) env[k] = v;
   const gitconfig = path.join(root, 'gitconfig');
   const tmp = path.join(root, 'tmp');
   mkdirSync(tmp, { recursive: true });
@@ -137,6 +139,7 @@ function spawnCalls(source) {
   return calls;
 }
 
+const AWAIT_RUN = 'await ' + 'run(';
 // The call name is assembled so that this file holds no literal call text inside its own control strings.
 const SPAWN = 'spawn' + 'Sync';
 const INSTALLER_ENTRY = /\b(MODULE|REFERENCE_SH|REFERENCE_PS1)\b|install-pre-commit-hook\.(mjs|sh|ps1)|refs\.(sh|ps1)/;
@@ -161,6 +164,38 @@ export function invocationProblems(source) {
     if (!/GIT_CONFIG_NOSYSTEM: '1'/.test(prep)) problems.push('prepareEnv does not set GIT_CONFIG_NOSYSTEM to 1');
     if (!/GIT_CONFIG_GLOBAL: gitconfig/.test(prep) || !/writeFileSync\(gitconfig, ''\)/.test(prep)) problems.push('prepareEnv does not set GIT_CONFIG_GLOBAL to an empty file');
   }
+  return problems;
+}
+
+// inProcessRunProblems(source): the in-process rule of D-SAFETY: an awaited call of the module's run() must sit inside
+// runInProcess (which builds the environment with prepareEnv and asserts the hooks path under the scratch root) or
+// carry the recording child seam in its options (nothing real is started then). prepareEnv must scrub every GIT_
+// variable. It checks the calls of a function named run( that is awaited, nothing else.
+export function inProcessRunProblems(source) {
+  const problems = [];
+  const from = source.indexOf('\nasync function runInProcess(');
+  const bodyEnd = from < 0 ? -1 : source.indexOf('\n}\n', from);
+  if (from < 0) problems.push('there is no runInProcess helper');
+  else {
+    const body = source.slice(from, bodyEnd);
+    if (!body.includes('prepareEnv(')) problems.push('runInProcess does not build its environment with prepareEnv');
+    if (!body.includes('assertHooksUnderRoot(')) problems.push('runInProcess does not assert the hooks path against the scratch root');
+  }
+  const re = /\bawait run\(/g;
+  let m;
+  while ((m = re.exec(source)) !== null) {
+    let depth = 0;
+    let i = m.index + m[0].length - 1;
+    for (; i < source.length; i += 1) {
+      if (source[i] === '(') depth += 1;
+      else if (source[i] === ')' && --depth === 0) break;
+    }
+    const text = source.slice(m.index, i + 1);
+    const inside = from >= 0 && m.index > from && m.index < bodyEnd;
+    if (!inside && !/\bspawn\b/.test(text)) problems.push(`an in-process run( call is made outside runInProcess: ${text.slice(0, 70)}`);
+  }
+  const prep = source.slice(source.indexOf('export function prepareEnv('), source.indexOf('export function assertHooksUnderRoot('));
+  if (!/startsWith\('GIT_'\)/.test(prep)) problems.push('prepareEnv does not drop every GIT_ variable');
   return problems;
 }
 
@@ -359,6 +394,16 @@ describe('TEST-3980 scratch safety and the frozen references', () => {
     assert.ok(shellInvocationProblems(suite.replace(' GIT_CONFIG_GLOBAL="$work/gitconfig"', '')).length >= 1, 'GIT_CONFIG_GLOBAL removed');
     assert.ok(shellInvocationProblems(suite.replace(/^ {2}case "\$resolved" in "\$work"\/\*\) ;;.*$/m, '')).length >= 1, 'the scratch-root assertion removed');
     assert.ok(shellInvocationProblems(`${suite}\nbash .aai/scripts/install-pre-commit-hook.sh --uninstall\n`).length >= 1, 'a run outside run_installer');
+  });
+
+  test('TEST-3980 an awaited in-process run( call goes through runInProcess or carries the recording seam, and prepareEnv drops every GIT_ variable', () => {
+    const mine = readFileSync(path.join(HERE, 'install-pre-commit-hook.test.mjs'), 'utf8');
+    assert.deepEqual(inProcessRunProblems(mine), []);
+    // positive controls
+    assert.equal(inProcessRunProblems(mine.replace('  assertHooksUnderRoot(cwd, root, env);\n  const code', '  const code')).length, 1);
+    assert.equal(inProcessRunProblems(mine.replace("!k.startsWith('GIT_')", "k !== 'GIT_DIR'")).length, 1);
+    assert.equal(inProcessRunProblems(`${mine}\nconst c = ${AWAIT_RUN}[], { cwd: repo, env: prepareEnv(root) });\n`).length, 1);
+    assert.equal(inProcessRunProblems(`${mine}\nconst c = ${AWAIT_RUN}[], { spawn, cwd: repo });\n`).length, 0);
   });
 
   test('TEST-3980 prepareEnv builds the isolated git environment and runInstaller refuses a cwd outside the root', () => {
@@ -976,6 +1021,27 @@ describe('TEST-3983 the ref_guard policy writer and the reader', () => {
     noTemp(dir2);
   });
 
+  test('TEST-3983 a temp-named file this run did not create survives the policy write and the slot write', async () => {
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const dir = cfgDir('foreign-tmp-', 'a: 1\nref_guard: armed\n');
+    const foreign = path.join(dir, `${CFG}.aai-tmp.${process.pid}`);
+    writeFileSync(foreign, 'not ours\n');
+    writeRefGuardPolicy(dir, 'declined');
+    assert.equal(readFileSync(foreign, 'utf8'), 'not ours\n', 'the foreign temp file is untouched');
+    assert.equal(cfgText(dir), 'a: 1\nref_guard: declined\n');
+    assert.deepEqual(readdirSync(dir).filter((f) => f.includes('.aai-tmp.')), [path.basename(foreign)], 'only the foreign file remains');
+    const { writeSlot } = await import(MODULE_URL);
+    const root = scratch('foreign-slot-tmp-');
+    const slotPath = path.join(root, 'pre-push');
+    const slotForeign = `${slotPath}.aai-tmp.${process.pid}`;
+    writeFileSync(slotForeign, 'not ours\n');
+    const slot = { path: slotPath, rename: (a, b) => renameSync(a, b) };
+    writeSlot(slot, Buffer.from('hook\n'));
+    assert.equal(readFileSync(slotForeign, 'utf8'), 'not ours\n', 'the foreign slot temp file is untouched');
+    assert.equal(readFileSync(slotPath, 'utf8'), 'hook\n');
+    assert.notEqual(slot.tmp, slotForeign, 'the run used another name');
+  });
+
   test('TEST-3983 a failed rename leaves no temp file and the original bytes; a read-back mismatch throws', async () => {
     const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
     const dir = cfgDir('fail-', 'a: 1\nref_guard: armed\n');
@@ -1392,11 +1458,9 @@ describe('TEST-3985 templates, --print and composition', () => {
     const root = scratch('tpl-missing-run-');
     const repo = gitScratch(root);
     const before = listTree(path.join(repo, '.git', 'hooks'));
-    const { run } = await import(MODULE_URL);
-    const err = [];
-    const code = await run([], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: tree.scriptDir });
-    assert.equal(code, 1);
-    assert.equal(err.join(''), [
+    const first = await runInProcess(root, repo, [], { scriptDir: tree.scriptDir });
+    assert.equal(first.code, 1);
+    assert.equal(first.stderr, [
       `ERROR: AAI hook template missing: ${path.join(tree.dir, 'pre-commit-guard-checks.sh')}`,
       `ERROR: AAI hook template missing: ${path.join(tree.dir, 'reference-transaction.sh')}`,
       `ERROR: AAI hook template missing: ${path.join(tree.dir, 'pre-push.sh')}`,
@@ -1405,14 +1469,14 @@ describe('TEST-3985 templates, --print and composition', () => {
     assert.deepEqual(listTree(path.join(repo, '.git', 'hooks')), before, 'nothing was written');
     // a template the run does not need is not required: uninstall and decline need none
     const bare = templateTree('tpl-none-', (f) => { for (const k of Object.keys(f)) f[k] = null; });
-    const code2 = await run(['--uninstall'], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: bare.scriptDir });
-    assert.equal(code2, 0, err.join(''));
-    const code3 = await run(['--decline-ref-guard'], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: bare.scriptDir });
-    assert.equal(code3, 0, err.join(''));
+    const r2 = await runInProcess(root, repo, ['--uninstall'], { scriptDir: bare.scriptDir });
+    assert.equal(r2.code, 0, r2.stderr);
+    const r3 = await runInProcess(root, repo, ['--decline-ref-guard'], { scriptDir: bare.scriptDir });
+    assert.equal(r3.code, 0, r3.stderr);
     // a decline needs no template, an arm needs the ref-guard one
-    const code4 = await run(['--arm-ref-guard'], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: bare.scriptDir });
-    assert.equal(code4, 1);
-    assert.ok(err.join('').includes(`ERROR: AAI hook template missing: ${path.join(bare.dir, 'reference-transaction.sh')}`));
+    const r4 = await runInProcess(root, repo, ['--arm-ref-guard'], { scriptDir: bare.scriptDir });
+    assert.equal(r4.code, 1);
+    assert.ok(r4.stderr.includes(`ERROR: AAI hook template missing: ${path.join(bare.dir, 'reference-transaction.sh')}`));
   });
 
   test('TEST-3985 a malformed index or guard-checks template is refused per D-TEMPLATE', async () => {
@@ -1504,13 +1568,8 @@ describe('TEST-3985 templates, --print and composition', () => {
       assert.ok(readFileSync(hookOf(repo, 'pre-push')).equals(loaded.templates['pre-push']), `${variant}: pre-push bytes`);
       // and the module itself writes the same bytes from the same templates
       const repo2 = gitScratch(root, 'repo2');
-      const m = await (async () => {
-        const { run } = await import(MODULE_URL);
-        const err = [];
-        const code = await run([], { out: () => {}, err: (s) => err.push(s), cwd: repo2, env: prepareEnv(root), scriptDir: path.join(root, 'ref', '.aai', 'scripts') });
-        return { code, err: err.join('') };
-      })();
-      assert.equal(m.code, 0, m.err);
+      const m = await runInProcess(root, repo2, [], { scriptDir: path.join(root, 'ref', '.aai', 'scripts') });
+      assert.equal(m.code, 0, m.stderr);
       for (const name of ['pre-commit', 'reference-transaction', 'pre-push']) {
         assert.ok(readFileSync(hookOf(repo2, name)).equals(readFileSync(hookOf(repo, name))), `${variant}: the module writes the bash bytes of ${name}`);
       }
@@ -1558,17 +1617,21 @@ async function shippedPreCommit() {
   return composePreCommit(shippedTemplate('index'), shippedTemplate('guard-checks'));
 }
 
-// runMod(root, cwd, argv, extra): the module's run() in this process against a real repository, with the isolated git
-// environment; stdout and stderr are collected.
-async function runMod(root, cwd, argv, extra = {}) {
+// runInProcess(root, cwd, argv, extra): the one way these tests run the module's run() in this process against a real
+// repository: the isolated git environment, the cwd and the hooks path git resolves asserted under the scratch root
+// BEFORE the run, and every hook that exists after it asserted under the root too. stdout and stderr are collected.
+async function runInProcess(root, cwd, argv, extra = {}) {
   const { run } = await import(MODULE_URL);
   const out = [];
   const err = [];
   const env = prepareEnv(root);
-  assert.ok(under(cwd, root), 'the cwd lies under the scratch root');
+  assertHooksUnderRoot(cwd, root, env);
   const code = await run(argv, { out: (x) => out.push(x), err: (x) => err.push(x), cwd, env, ...extra });
+  const hooks = spawnSync('git', ['rev-parse', '--git-path', 'hooks'], { cwd, env, encoding: 'utf8' });
+  if (hooks.status === 0) assert.ok(under(path.resolve(cwd, hooks.stdout.trim()), root), 'the hooks directory lies under the scratch root after the run');
   return { code, stdout: out.join(''), stderr: err.join('') };
 }
+const runMod = runInProcess;
 
 // --- TEST-3986: ---------------------------------------------------------------------------------------------
 
@@ -1593,6 +1656,27 @@ function expectHooksAt(cwd, root, label) {
 }
 
 describe('TEST-3986 slot paths come from git itself', () => {
+  test('TEST-3986 an environment-injected core.hooksPath neither reaches the module nor lands a hook outside the scratch root', async () => {
+    const root = scratch('paths-envinject-');
+    const victim = path.join(root, 'victim');
+    mkdirSync(victim);
+    const saved = {};
+    const inject = { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: victim, GIT_CONFIG_PARAMETERS: `'core.hooksPath=${victim}'`, GIT_COMMON_DIR: victim };
+    for (const k of Object.keys(inject)) saved[k] = process.env[k];
+    Object.assign(process.env, inject);
+    try {
+      const env = prepareEnv(root);
+      for (const k of Object.keys(inject)) assert.ok(!(k in env), `${k} is scrubbed`);
+      const repo = gitScratch(root);
+      const r = await runInProcess(root, repo, []);
+      assert.equal(r.code, 0, r.stderr);
+      assert.deepEqual(listTree(victim), [], 'nothing landed in the injected hooks path');
+      assert.ok(lstatSync(path.join(repo, '.git', 'hooks', 'pre-commit')).isFile(), 'the hook landed in the repository');
+    } finally {
+      for (const k of Object.keys(inject)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    }
+  });
+
   test('TEST-3986 hooksPath unset, relative and not yet existing, absolute: the hooks land where git resolves them', () => {
     const unset = scratch('paths-unset-');
     expectHooksAt(gitScratch(unset), unset, 'unset');
