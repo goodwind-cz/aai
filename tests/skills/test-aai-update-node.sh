@@ -343,11 +343,11 @@ test_3973_rehomed_bash_suites() {
   for id in "SPEC-0124-|0137-TEST-005 and 0137-TEST-009 re-homed" "SPEC-0020-|TEST-010b re-homed" \
     "SPEC-0179-|TEST-470 vacuity floor" "SPEC-0052-|TEST-001 and TEST-002 re-homed"; do
     verdict="$(node -e '
-      const d = JSON.parse(process.argv[1]);
-      const [spec, what] = process.argv[2].split("|");
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const [spec, what] = process.argv[1].split("|");
       const hit = d.items.filter((i) => i.ref_id === "update-on-node" && i.amendment_class === "contract" && i.spec.includes(spec) && i.what.startsWith(what));
       process.stdout.write(hit.length >= 1 ? "found" : "missing");
-    ' "$json" "$id")"
+    ' "$id" <<<"$json")"
     [[ "$verdict" == found ]] || log_fail "TEST-3973: no contract record of ref update-on-node for $id"
   done
   log_pass "TEST-3973: the re-homed bash selectors exit 0 against the launcher, a forced failing copy of test-aai-update.sh removes its own scratch root, and the four contract records of ref update-on-node exist"
@@ -405,12 +405,13 @@ test_3972_ps1_launcher() {
 }
 
 # amend_found <list json> <spec id fragment> <what prefix>: prints found or missing for a contract record of ref update-on-node.
+# The list goes in on stdin: as one argument it outgrows the 128 KiB Linux limit on a single argv string.
 amend_found() {
   node -e '
-    const d = JSON.parse(process.argv[1]);
-    const hit = d.items.filter((i) => i.ref_id === "update-on-node" && i.amendment_class === "contract" && i.spec.includes(process.argv[2]) && i.what.startsWith(process.argv[3]));
+    const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const hit = d.items.filter((i) => i.ref_id === "update-on-node" && i.amendment_class === "contract" && i.spec.includes(process.argv[1]) && i.what.startsWith(process.argv[2]));
     process.stdout.write(hit.length >= 1 ? "found" : "missing");
-  ' "$1" "$2" "$3"
+  ' "$2" "$3" <<<"$1"
 }
 
 test_3974_rehomed_pester() {

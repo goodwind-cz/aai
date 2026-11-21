@@ -83,7 +83,8 @@ export function assertRepoUnderRoot(args, root, cwd = root) {
 // an empty GH_CONFIG_DIR, a per-root TMPDIR and, on POSIX, a gh stub that fails first on PATH.
 export function prepareEnv(root, extra = {}, { gitWrapper = '' } = {}) {
   const env = {};
-  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('AAI_') && !TOKENS.includes(k)) env[k] = v;
+  // GIT_TERMINAL_PROMPT is dropped too: a caller that exports it (the release dry-run sets 0) would mask DR-9.
+  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('AAI_') && !TOKENS.includes(k) && k !== 'GIT_TERMINAL_PROMPT') env[k] = v;
   const gitconfig = path.join(root, 'gitconfig');
   const ghDir = path.join(root, 'gh-config');
   const tmp = path.join(root, 'tmp');
