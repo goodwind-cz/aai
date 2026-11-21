@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 // The driver may not exist yet (RED on the baseline): every case must fail on its own assertion.
 const M = await import('./install-parity.mjs').catch(() => ({}));
+const UPDATE_ALLOWLIST_BASE = 'tests/skills/lib/install-parity-allowlist.tsv';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -586,7 +587,7 @@ describe('TEST-3566 third twin seam', () => {
     assert.ok(p.args.includes('-File'));
     assert.deepEqual(p.args.slice(p.args.indexOf('-File')), ['-File', '/s/.aai/scripts/aai-sync.ps1', '-TargetRoot', '/t', '-Profile', 'core']);
     const up = { op: 'update', profile: null, flags: [] };
-    assert.deepEqual(M.TWINS.sh.argv(up, ctx).args, ['/s/.aai/scripts/aai-update.sh', '--repo', '/s', '--ref', 'main']);
+    assert.deepEqual(M.TWINS.sh.argv(up, { ...ctx, upref: '/u' }).args, ['/u/.aai/scripts/aai-update.sh', '--repo', '/s', '--ref', 'main']);
     const upp = M.TWINS.ps1.argv(up, ctx).args;
     assert.deepEqual(upp.slice(upp.indexOf('-File')), ['-File', '/s/.aai/scripts/aai-update.ps1', '-Repo', '/s', '-Ref', 'main']);
     const hk = { op: 'hooks', profile: null, flags: ['force', 'uninstall', 'decline-ref-guard'] };
@@ -916,5 +917,71 @@ describe('driver refuses a scenario with fewer than two twins', () => {
     const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', 'sh']);
     assert.equal(r.status, 2, r.stderr);
     assert.match(r.stderr, /scenario SY-01 .*1 of the selected twins \(sh\)/);
+  });
+});
+
+// TEST-3975 (spec-update-on-node, Spec-AC-16, D-PARITY): the module is the third twin on update scenarios and is paired only with
+// the bash reference; bootstrap scenarios keep all three pairs.
+describe('TEST-3975 update peers', () => {
+  const upScen = () => scen({ id: 'U-01', op: 'update', steps: [{ op: 'update', profile: null, flags: [], expect: '0' }] });
+  const ok = { 'p.txt': 'same\n' };
+  const withPeers = (t, peers) => ({ ...t, peers });
+  const run3 = (nodeTwin, scenarios = [upScen()]) => runFake([fakeTwin('sh', { files: ok }), fakeTwin('ps1', { files: ok }), nodeTwin], scenarios, [], {
+    ctx: { root: scratch('peers'), src: null, upref: '/unused', bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX },
+  });
+  test('a twin with peers for update is paired only with the twins it lists, on update scenarios only', () => {
+    has('runMatrix');
+    const rep = run3(withPeers(fakeTwin('node', { files: ok }), { update: ['sh'] }));
+    assert.deepEqual(rep.pairs, ['sh:ps1', 'sh:node']);
+    assert.equal(rep.verdict, 'PASS', JSON.stringify(rep.uncovered));
+  });
+  test('a peers entry for update does not narrow a scenario of another operation', () => {
+    has('runMatrix');
+    const rep = run3(withPeers(fakeTwin('node', { files: ok }), { update: ['sh'] }), [scen()]);
+    assert.deepEqual(rep.pairs, ['sh:ps1', 'sh:node', 'ps1:node']);
+  });
+  test('a fake node twin with peers that writes one more byte fails naming sh:node, and no ps1:node pair exists', () => {
+    has('runMatrix');
+    const rep = run3(withPeers(fakeTwin('node', { files: { 'p.txt': 'samex\n' } }), { update: ['sh'] }));
+    assert.equal(rep.verdict, 'FAIL');
+    assert.deepEqual(rep.uncovered.map((d) => d.pair), ['sh:node']);
+    assert.deepEqual(rep.pairs, ['sh:ps1', 'sh:node']);
+  });
+  test('the real registry: the node twin runs update and bootstrap, peers only sh for update, and the update argv of sh and node', () => {
+    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update']);
+    assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
+    assert.equal(M.TWINS.sh.peers, undefined);
+    assert.equal(M.TWINS.ps1.peers, undefined);
+    const ctx = { src: '/s', target: '/t', bash: '/bin/bash', ps: 'pwsh', upref: '/u', bsref: '/b' };
+    const up = { op: 'update', profile: null, flags: [] };
+    const sh = M.TWINS.sh.argv(up, ctx);
+    assert.deepEqual([sh.file, ...sh.args], ['/bin/bash', '/u/.aai/scripts/aai-update.sh', '--repo', '/s', '--ref', 'main']);
+    const nd = M.TWINS.node.argv(up, ctx);
+    assert.equal(nd.file, process.execPath);
+    assert.deepEqual(nd.args, [path.join('/s', '.aai', 'scripts', 'aai-update.mjs'), '--repo', '/s', '--ref', 'main']);
+    assert.equal(nd.cwd, '/t');
+    assert.deepEqual(nd.env, { AAI_UPDATE_SYNC_RUNNER: '/bin/bash' });
+    const bs = M.TWINS.node.argv({ op: 'bootstrap', flags: [] }, ctx);
+    assert.equal(bs.args[0], path.join('/b', '.aai', 'scripts', 'aai-bootstrap.mjs'));
+  });
+  test('the driver source holds the exact node update line and the peers text once each', () => {
+    const src = fs.readFileSync(DRIVER, 'utf8');
+    const line = "      return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-update.mjs'), '--repo', ctx.src, '--ref', 'main'], cwd: ctx.target, env: { AAI_UPDATE_SYNC_RUNNER: ctx.bash } };";
+    assert.equal(src.split(line).length - 1, 1);
+    assert.equal(src.split("peers: { update: ['sh'] }").length - 1, 1);
+  });
+  test('the committed allowlist adds no row, and win-sh-odd-root-dirs is paired sh:ps1,sh:node', () => {
+    has('parseAllowlist');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
+    const odd = rows.filter((r) => r.id === 'win-sh-odd-root-dirs');
+    assert.equal(odd.length, 1);
+    assert.deepEqual(odd[0].pairList, ['sh:ps1', 'sh:node']);
+    assert.ok(rows.every((r) => !r.pairList.includes('ps1:node')));
+    const base = spawnSync('git', ['show', `30c983ef:${UPDATE_ALLOWLIST_BASE}`], { cwd: ROOT, encoding: 'utf8' });
+    if (base.status === 0) {
+      const baseRows = M.parseAllowlist(base.stdout, { twins: ['sh', 'ps1', 'node'] });
+      assert.equal(rows.length, baseRows.length);
+      assert.deepEqual(rows.map((r) => r.id), baseRows.map((r) => r.id));
+    }
   });
 });

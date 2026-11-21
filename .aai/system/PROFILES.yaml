@@ -104,6 +104,7 @@ core:
   - .aai/scripts/aai-run-tests.sh
   - .aai/scripts/aai-sync.ps1
   - .aai/scripts/aai-sync.sh
+  - .aai/scripts/aai-update.mjs
   - .aai/scripts/aai-update.ps1
   - .aai/scripts/aai-update.sh
   - .aai/scripts/aai-win-selftest.ps1

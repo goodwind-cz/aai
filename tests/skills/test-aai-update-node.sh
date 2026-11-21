@@ -108,12 +108,13 @@ setup_fixture() {
 # run_node_tests <TEST id>: the module, its helper and the node test file must exist; cases named with the
 # id must pass; zero passing tests is a failure (a pattern that matches nothing is not a pass).
 run_node_tests() {
-  local id="$1" out rc=0
+  local id="$1" file="${2:-$NODE_TEST}" out rc=0
   [[ -f "$MJS" ]] || log_fail "$id: .aai/scripts/aai-update.mjs does not exist"
   [[ -f "$REF_HELPER" ]] || log_fail "$id: tests/skills/lib/update-reference.mjs does not exist"
   [[ -f "$REFERENCE_SH" && -f "$REFERENCE_PS1" ]] || log_fail "$id: a frozen reference copy under tests/fixtures/aai-update-reference does not exist"
   [[ -f "$NODE_TEST" ]] || log_fail "$id: tests/skills/lib/aai-update.test.mjs does not exist"
-  out="$(env -u AAI_ROLE node --test --test-name-pattern "$id" "$NODE_TEST" 2>&1)" || rc=$?
+  [[ -f "$file" ]] || log_fail "$id: ${file##*/} does not exist"
+  out="$(env -u AAI_ROLE node --test --test-name-pattern "$id" "$file" 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test exited $rc"; }
   # node 22 reports an unmatched pattern as one passing file, so a passing case named with the id must be seen.
   local named="ok [0-9]+ - $id "
@@ -351,6 +352,142 @@ test_3973_rehomed_bash_suites() {
   log_pass "TEST-3973: the re-homed bash selectors exit 0 against the launcher, a forced failing copy of test-aai-update.sh removes its own scratch root, and the four contract records of ref update-on-node exist"
 }
 
+# --- run 6: the ps1 launcher, the Pester re-homes and the parity harness third twin (TEST-3972, 3974, 3975) -----
+PS1_LAUNCHER="$PROJECT_ROOT/.aai/scripts/aai-update.ps1"
+PESTER_FILE="$PROJECT_ROOT/tests/skills/aai-update.Tests.ps1"
+PARITY_DRIVER="$PROJECT_ROOT/tests/skills/lib/install-parity.mjs"
+PARITY_TEST="$PROJECT_ROOT/tests/skills/lib/install-parity.test.mjs"
+
+# ps1_problems <file>: the D-LAUNCH text rules for the ps1 launcher, one problem per line (empty when none).
+ps1_problems() {
+  local f="$1" lines token body
+  lines="$(wc -l < "$f" | tr -d ' ')"
+  [[ "$lines" -le 20 ]] || echo "the launcher has $lines lines, at most 20 allowed"
+  if LC_ALL=C /usr/bin/grep -q '[^ -~	]' "$f"; then echo "the launcher holds a non-ASCII byte"; fi
+  if /usr/bin/grep -qi '^[[:space:]]*param[[:space:]]*(' "$f"; then echo "the launcher holds a param block"; fi
+  body="$(/usr/bin/grep -v '^# Usage:' "$f")"
+  for token in 'git' 'gh ' 'aai-sync' 'REFUSED' 'canonical' '--dry-run' 'exit 2' 'exit 3' 'exit 4'; do
+    [[ "$body" != *"$token"* ]] || echo "the launcher holds the policy token: $token"
+  done
+}
+
+# run_pester <label> <work dir> [<full name filter>]: Invoke-Pester on the update Pester file in the project root;
+# prints "PESTER passed=N skipped=N failed=N containers=N" and fails the test when Pester did not run.
+run_pester() {
+  local label="$1" work="$2" filter="${3:-}" out
+  ( cd "$PROJECT_ROOT" && AAI_PESTER_FILTER="$filter" env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command '
+    Import-Module Pester -MinimumVersion 5.0
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = "tests/skills/aai-update.Tests.ps1"
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "None"
+    if ($env:AAI_PESTER_FILTER) { $cfg.Filter.FullName = $env:AAI_PESTER_FILTER }
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Output ("PESTER passed=" + $r.PassedCount + " skipped=" + $r.SkippedCount + " failed=" + $r.FailedCount + " containers=" + $r.FailedContainersCount)
+  ' ) > "$work/pester.log" 2>&1 || { cat "$work/pester.log" >&2; log_fail "$label: Invoke-Pester did not run"; }
+  out="$(tail -n 1 "$work/pester.log")"
+  [[ "$out" =~ ^PESTER\ passed=([0-9]+)\ skipped=([0-9]+)\ failed=([0-9]+)\ containers=([0-9]+)$ ]] || { cat "$work/pester.log" >&2; log_fail "$label: unreadable Pester summary: $out"; }
+  printf '%s\n' "$out"
+}
+
+test_3972_ps1_launcher() {
+  [[ -f "$PS1_LAUNCHER" ]] || log_fail "TEST-3972: .aai/scripts/aai-update.ps1 does not exist"
+  local problems work counts
+  problems="$(ps1_problems "$PS1_LAUNCHER")"
+  [[ -z "$problems" ]] || log_fail "TEST-3972: $problems"
+  need_tool TEST-3972 pwsh || return 0
+  work="$(new_own_scratch pester-launcher)"
+  counts="$(run_pester TEST-3972 "$work" '*launcher (update-on-node)*')"
+  [[ "$counts" == "PESTER passed=5 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-3972: Pester summary '$counts', expected 5 passed, 0 skipped, 0 failed, 0 failed containers"; }
+  safe_rm_own "$work"
+  log_pass "TEST-3972: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, and the five launcher cases pass under Invoke-Pester with 0 skipped, 0 failed and 0 failed containers"
+}
+
+# amend_found <list json> <spec id fragment> <what prefix>: prints found or missing for a contract record of ref update-on-node.
+amend_found() {
+  node -e '
+    const d = JSON.parse(process.argv[1]);
+    const hit = d.items.filter((i) => i.ref_id === "update-on-node" && i.amendment_class === "contract" && i.spec.includes(process.argv[2]) && i.what.startsWith(process.argv[3]));
+    process.stdout.write(hit.length >= 1 ? "found" : "missing");
+  ' "$1" "$2" "$3"
+}
+
+test_3974_rehomed_pester() {
+  [[ -f "$PESTER_FILE" ]] || log_fail "TEST-3974: tests/skills/aai-update.Tests.ps1 does not exist"
+  local id
+  # the five retired cases are gone by name, the robustness, TEST-009 and TEST-3584 edits are present
+  for id in 'TEST-006:' 'TEST-007:' 'TEST-3587:' 'TEST-3588:' 'TEST-3589:'; do
+    if /usr/bin/grep -qF "'$id" "$PESTER_FILE"; then log_fail "TEST-3974: the Pester file still holds the retired case $id"; fi
+  done
+  /usr/bin/grep -qF "Unknown argument: --bogus" "$PESTER_FILE" || log_fail "TEST-3974: the robustness case does not expect 'Unknown argument: --bogus'"
+  /usr/bin/grep -qF -e "-Filter 'aai-src.*'" "$PESTER_FILE" || log_fail "TEST-3974: TEST-009 does not filter aai-src.*"
+  if /usr/bin/grep -qF "aai-src-" "$PESTER_FILE"; then log_fail "TEST-3974: the Pester file still names the old aai-src- prefix"; fi
+  /usr/bin/grep -qF "TEST-3584: the launcher" "$PESTER_FILE" || log_fail "TEST-3974: TEST-3584 does not check the launcher"
+  # the contract records and the two closed follow-ups
+  local json verdict
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-3974: spec-amend list failed"
+  verdict="$(amend_found "$json" "SPEC-0052-" "TEST-006, TEST-007, TEST-009 and the robustness case re-homed")"
+  [[ "$verdict" == found ]] || log_fail "TEST-3974: no second SPEC-0052 contract record of ref update-on-node"
+  verdict="$(amend_found "$json" "SPEC-0285-" "TEST-3584, TEST-3587, TEST-3588 and TEST-3589 re-homed")"
+  [[ "$verdict" == found ]] || log_fail "TEST-3974: no SPEC-0285 contract record of ref update-on-node"
+  node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status all --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$TEST_DIR/follow-ups.json" || log_fail "TEST-3974: follow-ups list failed"
+  for id in fu-update-test-3589-isolation fu-update-missing-git-msg; do
+    verdict="$(node -e '
+      const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      const f = d.items.find((i) => i.id === process.argv[2]);
+      process.stdout.write(f && f.closed === true ? "closed" : "not closed");
+    ' "$TEST_DIR/follow-ups.json" "$id")"
+    [[ "$verdict" == closed ]] || log_fail "TEST-3974: follow-up $id is $verdict"
+  done
+  need_tool TEST-3974 pwsh || return 0
+  local work counts
+  work="$(new_own_scratch pester-whole)"
+  counts="$(run_pester TEST-3974 "$work")"
+  [[ "$counts" =~ ^PESTER\ passed=([0-9]+)\ skipped=0\ failed=0\ containers=0$ && "${BASH_REMATCH[1]}" -ge 1 ]] || { cat "$work/pester.log" >&2; log_fail "TEST-3974: Pester summary '$counts', expected passes with 0 skipped, 0 failed and 0 failed containers"; }
+  safe_rm_own "$work"
+  log_pass "TEST-3974: aai-update.Tests.ps1 passes whole under Invoke-Pester with 0 skipped, 0 failed and 0 failed containers; the five retired cases are gone, the three edits are present, both contract records exist and both follow-ups are closed"
+}
+
+test_3975_parity_update() {
+  need_tool TEST-3975 pwsh || return 0
+  need_tool TEST-3975 git || return 0
+  local work out rc=0 json verdict
+  work="$(new_own_scratch parity-update)"
+  env -u AAI_ROLE -u AAI_GIT_WRITE node "$PARITY_DRIVER" run --matrix full --twins sh,ps1,node --scenario UP-01 --scenario UP-02 --scenario UP-03 --json "$work/up.json" > "$work/up.out" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/up.out" >&2; log_fail "TEST-3975: the driver run over UP-01 to UP-03 exited $rc"; }
+  verdict="$(node -e '
+    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const bad = [];
+    if (r.verdict !== "PASS") bad.push("verdict " + r.verdict);
+    for (const id of ["UP-01", "UP-02", "UP-03"]) {
+      const s = r.scenarios.find((x) => x.id === id);
+      if (!s) { bad.push(id + " missing"); continue; }
+      const twins = [...new Set(s.steps.map((x) => x.twin))].sort().join(",");
+      if (twins !== "node,ps1,sh") bad.push(id + " ran twins " + twins);
+      const pairs = [...new Set(s.divergences.map((d) => d.pair))].filter((p) => p !== "sh:ps1" && p !== "sh:node");
+      if (pairs.length) bad.push(id + " divergence pairs " + pairs.join(","));
+      if (s.divergences.some((d) => d.pair === "sh:node")) bad.push(id + " has a sh:node divergence");
+    }
+    const up = r.pairs.filter((p) => p.split(":")[0] !== p.split(":")[1]).sort().join(" ");
+    if (up !== "sh:node sh:ps1") bad.push("pairs " + up);
+    process.stdout.write(bad.length ? bad.join("; ") : "ok");
+  ' "$work/up.json")" || log_fail "TEST-3975: cannot read the driver report"
+  [[ "$verdict" == ok ]] || { cat "$work/up.out" >&2; log_fail "TEST-3975: $verdict"; }
+  # node only on update and bootstrap scenarios
+  verdict="$(AAI_PARITY_DRIVER_PATH="$PARITY_DRIVER" node --input-type=module -e '
+    const m = await import(process.env.AAI_PARITY_DRIVER_PATH);
+    const bad = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && s.op !== "update" && s.op !== "bootstrap").map((s) => s.id);
+    process.stdout.write(bad.length ? "node runs " + bad.join(",") : "ok");
+  ')"
+  [[ "$verdict" == ok ]] || log_fail "TEST-3975: $verdict"
+  run_node_tests TEST-3975 "$PARITY_TEST"
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-3975: spec-amend list failed"
+  verdict="$(amend_found "$json" "SPEC-0284-" "D-SEAM gains the twin peers field")"
+  [[ "$verdict" == found ]] || log_fail "TEST-3975: no SPEC-0284 contract record of ref update-on-node"
+  safe_rm_own "$work"
+  log_pass "TEST-3975: the parity driver passes UP-01 to UP-03 with twins sh, ps1 and node on pairs sh:ps1 and sh:node only, without a sh:node divergence; the peers rule, the real-registry argv and the widened row hold; the SPEC-0284 record exists"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3978, grows run by run)"
   check_deps
@@ -368,6 +505,9 @@ main() {
   test_3970_corpus_powershell
   test_3971_sh_launcher
   test_3973_rehomed_bash_suites
+  test_3972_ps1_launcher
+  test_3974_rehomed_pester
+  test_3975_parity_update
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
