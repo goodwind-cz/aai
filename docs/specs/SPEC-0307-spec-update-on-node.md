@@ -1,10 +1,10 @@
 ---
 id: spec-update-on-node
 type: spec
-number: null
-status: implementing
+number: 307
+status: done
 mutation_gate: v1
-frozen_sha256: 772ce7fa0201bdc4fc6b708131953d410ad69b6cced9566f4c9e5aff0edb2c83
+frozen_sha256: d385f12b9fb2a679a53e4c274155376f1cb042d614493c7a271d4332fbe7ecc3
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Run the AAI layer updater as one Node module behind thin launchers](../issues/CHANGE-DRAFT-update-on-node.md).
+- Requirement: [Run the AAI layer updater as one Node module behind thin launchers](../issues/CHANGE-0262-update-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 10 (owner sign-off: yes; merge by the owner). Plan section 4 decision 1
@@ -86,8 +86,8 @@ SPEC-FROZEN: true
   tests/skills/suite-map.yaml tests/skills/suite-weights.tsv
   tests/skills/lib/cd-subshell-leak-baseline.tsv .github/workflows/ps1-quality.yml
   CHANGELOG.md docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
-  docs/ai/decisions.jsonl docs/issues/CHANGE-DRAFT-update-on-node.md
-  docs/specs/SPEC-DRAFT-update-on-node.md docs/INDEX.md
+  docs/ai/decisions.jsonl docs/issues/CHANGE-0262-update-on-node.md
+  docs/specs/SPEC-0307-spec-update-on-node.md docs/INDEX.md
   (decisions.jsonl only for the amendment and follow-up records; the
   allocator renames the two DRAFT files at merge; `aai-update-fixtures.mjs`
   only if the corpus fixtures are split out of the test file.)
@@ -878,7 +878,7 @@ gets one unsigned amendment record (`node .aai/scripts/spec-amend.mjs add
   Node.js missing (the message says which)`. Nothing else changes.
 - RFC-0017 phase 5 row: one sentence after the fourteenth-slice sentence and
   before the remaining-scripts-plan sentence:
-  `The fifteenth slice [moved the layer updater to Node](../issues/CHANGE-DRAFT-update-on-node.md): one module holds the argument, source, sync and report policy behind thin aai-update.sh and aai-update.ps1 launchers, compared with frozen copies of both twins, and each launcher keeps running the sync twin it ran before.`
+  `The fifteenth slice [moved the layer updater to Node](../issues/CHANGE-0262-update-on-node.md): one module holds the argument, source, sync and report policy behind thin aai-update.sh and aai-update.ps1 launchers, compared with frozen copies of both twins, and each launcher keeps running the sync twin it ran before.`
   Status stays `in progress`; frontmatter untouched; the allocator rewrites
   the link at merge (checks match only the suffix `update-on-node.md`).
   The remaining-pairs inventory table loses its `aai-update` row: the pair

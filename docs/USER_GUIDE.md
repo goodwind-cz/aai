@@ -2808,6 +2808,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### The AAI layer updater runs on Node behind thin launchers
+
+`/aai-update` refreshes a project's vendored AAI layer from the canonical repository: it fetches the source (a local checkout, or a clone through gh, git, then an anonymous git clone), runs the source's sync into the project, and prints the changed files, the AAI_PIN lines, the newest conflict report, the doctor field report and the next steps. It now runs as one Node.js module behind two small launchers. The bash and PowerShell copies of the updater used to drift; they now share one behaviour. Each launcher keeps running the sync it ran before (`aai-sync.sh` from the shell launcher, `aai-sync.ps1` from PowerShell). Node.js 22 or later is now required: without it, both launchers refuse, print an install hint and change nothing.
+
+[Product doc](product/update-on-node.md) · [Spec](specs/SPEC-0307-spec-update-on-node.md)
+
 ### Project bootstrap runs on Node, with a native Windows launcher
 
 Bootstrap looks at a project (languages, package manager, task runners, test and build tools, authentication hints) and writes the project's own dynamic skills, such as a ready-made unit-test or build command, plus the local skill indexes and the runtime `.gitignore` block. It now runs as one Node.js module behind two small launchers, a shell one and a new PowerShell one, so Windows users can bootstrap without Git Bash. The files it writes are the same, byte for byte, as the previous bash bootstrap produced, except for a short list of documented corrections (for example, a credential file without a recognized variable name no longer stops the run silently). Node.js 22 or later is now required: without it, both launchers refuse, print an install hint and change nothing.

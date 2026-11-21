@@ -1,5 +1,5 @@
 // aai-update.test.mjs - node:test cases of the update-on-node ride
-// (docs/specs/SPEC-DRAFT-update-on-node.md). Every case name starts with its TEST id; the suite
+// (docs/specs/SPEC-0307-spec-update-on-node.md). Every case name starts with its TEST id; the suite
 // tests/skills/test-aai-update-node.sh selects them with --test-name-pattern.
 //
 // Safety (D-SAFETY): directories are created and removed only through update-reference.mjs (own prefix,

@@ -1,5 +1,5 @@
 // aai-update-fixtures.mjs - the fixture data and builders of the update-on-node ride's differential corpora
-// (docs/specs/SPEC-DRAFT-update-on-node.md, D-CORPUS, cases U01 to U23). No update entry point is started here;
+// (docs/specs/SPEC-0307-spec-update-on-node.md, D-CORPUS, cases U01 to U23). No update entry point is started here;
 // only git is run, in scratch directories the caller created.
 //
 // A source is a scratch git repository (branches main and dev, a fixed identity and fixed dates so that a

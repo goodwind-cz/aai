@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 30c983ef...43bb4017 (main...HEAD on feat/update-on-node), restricted to STATE code_review.scope (34 paths); remediation delta f707b98b..43bb4017 read line by line; docs/ai/EVENTS.jsonl, docs/ai/tests/test-runs.jsonl and docs/ai/reviews/*.md are telemetry/records outside it"
-  spec: docs/specs/SPEC-DRAFT-update-on-node.md (plus the ref update-on-node records in docs/ai/decisions.jsonl via spec-amend list --json; spec-amend list --strict rc 0)
+  spec: docs/specs/SPEC-0307-spec-update-on-node.md (plus the ref update-on-node records in docs/ai/decisions.jsonl via spec-amend list --json; spec-amend list --strict rc 0)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -58,7 +58,7 @@ security_relevant: true
   `git diff f707b98b..HEAD` was read line by line. It touches `.aai/scripts/aai-update.mjs`, `tests/skills/lib/aai-update.test.mjs`,
   `tests/skills/test-aai-update-node.sh`, the spec and `docs/ai/decisions.jsonl`. The other in-scope files are byte-identical
   to round 1, so their round-1 calls stand.
-- Spec: `docs/specs/SPEC-DRAFT-update-on-node.md` (frozen, restamped). It has four new ledger records of ref update-on-node.
+- Spec: `docs/specs/SPEC-0307-spec-update-on-node.md` (frozen, restamped). It has four new ledger records of ref update-on-node.
   The first is the 06:34:31Z D-SOURCE/D-EVIDENCE/TEST-3960 record. The second is the 09:22:39Z D-SOURCE record, which
   supersedes the "interrupted by" clause of the first; that clause no longer appears in the spec or the module (`grep` finds no match).
   The third is the 10:00:47Z D-MODULE measurement record. The fourth is the two P3 follow-ups.

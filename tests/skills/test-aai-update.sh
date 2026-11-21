@@ -2,7 +2,7 @@
 #
 # Test: aai-update temp-dir TOCTOU fix (ISSUE-0012 / SPEC-0052, TEST-001..005).
 #
-# Since update-on-node (SPEC-DRAFT-update-on-node, run 5) .aai/scripts/aai-update.sh is a thin launcher and the
+# Since update-on-node (SPEC-0307-spec-update-on-node, run 5) .aai/scripts/aai-update.sh is a thin launcher and the
 # policy lives in .aai/scripts/aai-update.mjs: TEST-001/002 and 0137-TEST-005/009 read the module's own shape
 # (D-REHOME) and the behavioural cases run through the launcher. The suite keeps one own scratch root
 # (aai-update-suite.*, ownership marker) that TMPDIR points into and removes it from an EXIT trap, also on failure.

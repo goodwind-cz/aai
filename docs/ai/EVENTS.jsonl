@@ -4336,3 +4336,11 @@
 {"v":1,"ts":"2026-11-21T10:24:41Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"update-on-node","payload":{"head":"e47366aef8e1c5bb087f1b8c4c2ae8aa27504bff","clean":true,"flags":0}}
 {"v":1,"ts":"2026-11-21T10:25:54Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"update-on-node","payload":{"role":"validation","head":"e47366aef8e1c5bb087f1b8c4c2ae8aa27504bff","seen":"run_at:2026-11-21T10:25:54Z"}}
 {"v":1,"ts":"2026-11-21T10:25:54Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"update-on-node","payload":{"status":"pass","hash":"f69812c1384394fa216fd03a83728e08fcb27be2f7151482fc6d2c0d64d27dae"}}
+{"v":1,"ts":"2026-11-21T10:26:16Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"update-on-node","payload":{"role":"validation","head":"f84819191d459c5c70b652b12c3392f3bc343caf","seen":"run_at:2026-11-21T10:25:54Z"}}
+{"v":1,"ts":"2026-11-21T10:26:34Z","actor":"ales_holubec.net","event":"check_verdict","ref":"update-on-node","payload":{"role":"validation","head":"e47366aef8e1c5bb087f1b8c4c2ae8aa27504bff","status":"pass","security_relevant":true}}
+{"v":1,"ts":"2026-11-21T10:26:35Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"update-on-node","payload":{"role":"validation","head":"f84819191d459c5c70b652b12c3392f3bc343caf","seen":"run_at:2026-11-21T10:26:34Z"}}
+{"v":1,"ts":"2026-11-21T10:26:35Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"update-on-node","payload":{"status":"pass","hash":"625ccef51edd31c430f80d6e7486e138513878c81fffbc3e44a431353502c6f8"}}
+{"v":1,"ts":"2026-11-21T10:35:14Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"update-on-node","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-21T10:35:14Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"update-on-node","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-21T10:35:14Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-update-on-node","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-21T10:35:14Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-update-on-node","payload":{"validation":"pass","code_review":"pass"}}

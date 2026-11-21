@@ -8,7 +8,7 @@
 #      (--dry-run, --repo, --ref, --force) are accepted, not just -DryRun/-Repo.
 #   4. The canonical-repo guard still refuses (exit 2) without -Force.
 #
-# update-on-node (SPEC-DRAFT-update-on-node, D-REHOME / D-PESTER): aai-update.ps1 is now a thin launcher of
+# update-on-node (SPEC-0307-spec-update-on-node, D-REHOME / D-PESTER): aai-update.ps1 is now a thin launcher of
 # .aai/scripts/aai-update.mjs. The source-shape cases of the old PowerShell twin (TEST-006, TEST-007, TEST-3587,
 # TEST-3588, TEST-3589) are retired; their properties are proven on the module by the node tests of
 # the aai-update-node suite (TEST-3964, TEST-3965). TEST-009 keeps its real clone through the launcher

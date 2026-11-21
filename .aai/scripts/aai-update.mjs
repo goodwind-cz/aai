@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // aai-update.mjs - the AAI layer updater as one Node module behind thin launchers
-// (docs/specs/SPEC-DRAFT-update-on-node.md; RFC-0017 phase 5).
+// (docs/specs/SPEC-0307-spec-update-on-node.md; RFC-0017 phase 5).
 //
 // Usage: node .aai/scripts/aai-update.mjs [--repo <slug|url|path>] [--ref <ref>] [--dry-run] [--keep-temp] [--force] [-h]
 //

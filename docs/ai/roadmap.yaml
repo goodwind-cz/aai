@@ -155,7 +155,7 @@ pairs:
   - capability: bootstrap-on-node
     status: done
   - capability: update-on-node
-    status: planned
+    status: done
   - capability: pre-commit-installer-on-node
     status: planned
   - capability: sync-on-node

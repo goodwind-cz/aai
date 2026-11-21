@@ -1,5 +1,5 @@
 // update-reference.mjs - the frozen updater references and the scratch-safety helpers
-// (docs/specs/SPEC-DRAFT-update-on-node.md, D-REF and D-SAFETY).
+// (docs/specs/SPEC-0307-spec-update-on-node.md, D-REF and D-SAFETY).
 //
 // The two references are byte copies of .aai/scripts/aai-update.sh (blob 6922cbbf) and
 // .aai/scripts/aai-update.ps1 (blob 3d4134e9) at commit 30c983ef, kept outside .aai/ so they are never

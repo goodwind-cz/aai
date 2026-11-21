@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-20T21:45:07.296Z",
+  "generatedAt": "2026-11-21T10:35:23.560Z",
   "project": "aai",
   "counts": {
-    "delivered": 376,
+    "delivered": 377,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 201804637
+    "tokens_total": 205283382
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -209,6 +209,19 @@
   ],
   "delivered": [
     {
+      "ref": "update-on-node",
+      "title": "Run the AAI layer updater as one Node module behind thin launchers",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0262-update-on-node.md",
+      "closed_on": "2026-11-21",
+      "agent_minutes": 299,
+      "token_total": 3478745,
+      "spec": "docs/specs/SPEC-0307-spec-update-on-node.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261121T100429Z-update-on-node.md"
+    },
+    {
       "ref": "test-residue-files-and-processes",
       "title": "Change: test runs remove the temp files and leftover processes they provably created",
       "type": "change",
@@ -232,7 +245,7 @@
       "token_total": 4421160,
       "spec": "docs/specs/SPEC-0306-spec-bootstrap-on-node.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-bootstrap-on-node-20261120T204528Z.md"
+      "review": "docs/ai/reviews/review-bootstrap-on-node-r2-20261120T213946Z.md"
     },
     {
       "ref": "precommit-residual-defects",
@@ -5124,6 +5137,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "update-on-node",
+          "title": "Run the AAI layer updater as one Node module behind thin launchers",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0262-update-on-node.md",
+          "closed_on": "2026-11-21",
+          "agent_minutes": 299,
+          "token_total": 3478745,
+          "spec": "docs/specs/SPEC-0307-spec-update-on-node.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261121T100429Z-update-on-node.md"
+        },
+        {
           "ref": "test-residue-files-and-processes",
           "title": "Change: test runs remove the temp files and leftover processes they provably created",
           "type": "change",
@@ -5147,7 +5173,7 @@
           "token_total": 4421160,
           "spec": "docs/specs/SPEC-0306-spec-bootstrap-on-node.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-bootstrap-on-node-20261120T204528Z.md"
+          "review": "docs/ai/reviews/review-bootstrap-on-node-r2-20261120T213946Z.md"
         },
         {
           "ref": "precommit-residual-defects",

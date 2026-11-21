@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-update-node
-# (docs/specs/SPEC-DRAFT-update-on-node.md, TEST-3960..3978; this file grows run by run)
+# (docs/specs/SPEC-0307-spec-update-on-node.md, TEST-3960..3978; this file grows run by run)
 #
 # The layer updater is one Node module (.aai/scripts/aai-update.mjs) behind thin sh/ps1 launchers,
 # compared against frozen copies of both old twins (tests/fixtures/aai-update-reference/). Every case

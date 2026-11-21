@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 30c983ef...f707b98b (main...HEAD on feat/update-on-node), restricted to STATE code_review.scope (34 paths); docs/ai/EVENTS.jsonl and docs/ai/tests/test-runs.jsonl are append-only telemetry outside it"
-  spec: docs/specs/SPEC-DRAFT-update-on-node.md (plus the 14 ref update-on-node records in docs/ai/decisions.jsonl, read through spec-amend list --json)
+  spec: docs/specs/SPEC-0307-spec-update-on-node.md (plus the 14 ref update-on-node records in docs/ai/decisions.jsonl, read through spec-amend list --json)
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -63,7 +63,7 @@ security_relevant: true
 - Scope: `git diff 30c983ef...HEAD` (HEAD `f707b98b`, branch `feat/update-on-node`, worktree
   `/Users/ales/Projects/aai-worktrees/update-on-node`), restricted to the 34 paths in STATE
   `code_review.scope`. `worktree.user_decision: worktree`, so this is the diff-range mode. `git status --porcelain` was clean.
-- Spec: `docs/specs/SPEC-DRAFT-update-on-node.md` (frozen). Its post-freeze amendments were read with
+- Spec: `docs/specs/SPEC-0307-spec-update-on-node.md` (frozen). Its post-freeze amendments were read with
   `node .aai/scripts/spec-amend.mjs list --json`. There are 14 ref `update-on-node` records: the mutation-cell escapes, the D-DOCS/D-WIRE
   additions, the TEST-3956 re-home, the async `run` and stage-boundary signal handling in D-TEMP, and the eight D-REHOME
   records for SPEC-0052 (two), SPEC-0124, SPEC-0020, SPEC-0179, SPEC-0285, SPEC-0284 and SPEC-0306. The amended D-TEMP text
