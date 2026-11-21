@@ -29,7 +29,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DRIFT_SCRIPT="$PROJECT_ROOT/.aai/scripts/layer-drift.mjs"
 SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
 SYNC_PS1="$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
-UPDATE_SH="$PROJECT_ROOT/.aai/scripts/aai-update.sh"
+UPDATE_MJS="$PROJECT_ROOT/.aai/scripts/aai-update.mjs"
 DOCTOR_PROMPT="$PROJECT_ROOT/.aai/SKILL_DOCTOR.prompt.md"
 DOCTOR_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 
@@ -324,8 +324,13 @@ test_ps1_parity() {
   [[ -f "$SYNC_PS1" ]] || log_fail "aai-sync.ps1 not found: $SYNC_PS1"
   grep -q "Canonical repo: " "$SYNC_PS1" \
     || log_fail "aai-sync.ps1 does not stamp '- Canonical repo:'"
-  grep -q "canonical" "$UPDATE_SH" \
-    || log_fail "aai-update.sh post-sync evidence grep does not surface the Canonical repo line"
+  # TEST-010b re-homed (update-on-node D-REHOME): the post-sync evidence keyword list lives in the Node module
+  grep -qF "const PIN_KEYWORDS = [" "$UPDATE_MJS" \
+    || log_fail "aai-update.mjs does not hold the PIN_KEYWORDS evidence list"
+  local pin_keywords
+  pin_keywords="$(grep -F "const PIN_KEYWORDS = [" "$UPDATE_MJS" || true)"
+  [[ "$pin_keywords" == *"'canonical'"* ]] \
+    || log_fail "aai-update.mjs post-sync evidence keywords do not surface the Canonical repo line"
   log_pass "TEST-010b ps1 stamp + update evidence parity"
 }
 

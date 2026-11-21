@@ -222,6 +222,135 @@ test_3970_corpus_powershell() {
   log_pass "TEST-3970: every PowerShell-side corpus case agrees with the frozen PowerShell reference run under pwsh, with the module on the pwsh runner, after the registered rewrites; the asserted divergences hold"
 }
 
+# --- run 5: the sh launcher and the bash-side re-homes (TEST-3971, TEST-3973) -----------------------------
+SH_LAUNCHER="$PROJECT_ROOT/.aai/scripts/aai-update.sh"
+UPDATE_SUITE="$PROJECT_ROOT/tests/skills/test-aai-update.sh"
+REFUSAL_LINE="aai-update: refused - node not found in PATH or aai-update.mjs missing; nothing was changed. Install Node.js 22 or later (https://nodejs.org/) and re-run."
+
+# write_stub_module <dir>: an aai-update.mjs that prints {argv, runner} as JSON and exits 7.
+write_stub_module() {
+  printf '%s\n' 'console.log(JSON.stringify({ argv: process.argv.slice(2), runner: process.env.AAI_UPDATE_SYNC_RUNNER }));' 'process.exit(7);' > "$1/aai-update.mjs"
+}
+
+# expect_pass_through <label> <shell> <launcher copy> <expected argv...>: runs the copy beside its stub with a preset
+# runner value and requires the argv in order, the runner value bash and exit 7.
+expect_pass_through() {
+  local label="$1" shell="$2" copy="$3" out rc=0 verdict
+  shift 3
+  out="$(AAI_UPDATE_SYNC_RUNNER=preset "$shell" "$copy" "$@" 2>&1)" || rc=$?
+  [[ "$rc" == 7 ]] || log_fail "TEST-3971: $label: expected exit 7 through the launcher, got $rc: $out"
+  verdict="$(node -e '
+    const got = JSON.parse(process.argv[1]);
+    const want = process.argv.slice(2);
+    const same = got.runner === "bash" && got.argv.length === want.length && got.argv.every((a, i) => a === want[i]);
+    process.stdout.write(same ? "same" : "differs: " + process.argv[1]);
+  ' "$out" "$@")" || log_fail "TEST-3971: $label: the stub output is not JSON: $out"
+  [[ "$verdict" == same ]] || log_fail "TEST-3971: $label: $verdict"
+}
+
+# expect_refusal <label> <shell> <copy> <path> <target dir>: runs the launcher in the target with the given PATH and
+# requires exit 1, empty stdout, exactly the refusal line on stderr and an unchanged target.
+expect_refusal() {
+  local label="$1" shell="$2" copy="$3" use_path="$4" target="$5" rc=0 before after
+  before="$(find "$target" | LC_ALL=C sort)"
+  ( cd "$target" && PATH="$use_path" "$shell" "$copy" --dry-run ) > "$target/../refusal.out" 2> "$target/../refusal.err" || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-3971: $label: expected exit 1, got $rc"
+  [[ ! -s "$target/../refusal.out" ]] || log_fail "TEST-3971: $label: stdout must be empty"
+  [[ "$(cat "$target/../refusal.err")" == "$REFUSAL_LINE" ]] || log_fail "TEST-3971: $label: stderr is not the refusal line: $(cat "$target/../refusal.err")"
+  after="$(find "$target" | LC_ALL=C sort)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3971: $label: the target changed"
+}
+
+test_3971_sh_launcher() {
+  [[ -f "$SH_LAUNCHER" ]] || log_fail "TEST-3971: .aai/scripts/aai-update.sh does not exist"
+  local lines mode token
+  lines="$(wc -l < "$SH_LAUNCHER" | tr -d ' ')"
+  [[ "$lines" -le 20 ]] || log_fail "TEST-3971: the launcher has $lines lines, at most 20 allowed"
+  [[ "$(head -n 1 "$SH_LAUNCHER")" == "#!/bin/sh" ]] || log_fail "TEST-3971: the launcher does not start with #!/bin/sh"
+  if LC_ALL=C /usr/bin/grep -q '[^ -~	]' "$SH_LAUNCHER"; then log_fail "TEST-3971: the launcher holds a non-ASCII byte"; fi
+  mode="$(git -C "$PROJECT_ROOT" ls-files -s .aai/scripts/aai-update.sh | cut -c1-6)"
+  [[ "$mode" == 100755 && -x "$SH_LAUNCHER" ]] || log_fail "TEST-3971: the launcher is not mode 100755 (index: $mode)"
+  local body
+  body="$(/usr/bin/grep -v '^# Usage:' "$SH_LAUNCHER")"
+  for token in 'git' 'gh ' 'aai-sync' 'REFUSED' 'canonical' '--dry-run' 'exit 2' 'exit 3' 'exit 4'; do
+    [[ "$body" != *"$token"* ]] || log_fail "TEST-3971: the launcher holds the policy token: $token"
+  done
+
+  local work copy bin shell
+  work="$(new_own_scratch launcher)"
+  mkdir "$work/beside" "$work/alone" "$work/bin" "$work/target"
+  cp "$SH_LAUNCHER" "$work/beside/aai-update.sh"
+  cp "$SH_LAUNCHER" "$work/alone/aai-update.sh"
+  write_stub_module "$work/beside"
+  copy="$work/beside/aai-update.sh"
+  for shell in bash sh dash; do
+    need_tool TEST-3971 "$shell" || continue
+    expect_pass_through "$shell with a spaced value" "$shell" "$copy" --repo "dir with space" --ref dev --dry-run --keep-temp --force -h
+    expect_pass_through "$shell with the = forms" "$shell" "$copy" "--repo=dir with space" --ref=dev --force
+  done
+  # PATH holding only dirname: the module exists but node is not found
+  bin="$work/bin"
+  ln -s "$(command -v dirname)" "$bin/dirname"
+  mkdir "$work/target/inner"
+  for shell in "$(command -v bash)" "$(command -v sh)"; do
+    expect_refusal "no node ($shell)" "$shell" "$copy" "$bin" "$work/target"
+  done
+  # node is on PATH but the module is missing: the launcher copied alone
+  expect_refusal "module missing" "$(command -v sh)" "$work/alone/aai-update.sh" "$PATH" "$work/target"
+  safe_rm_own "$work"
+  log_pass "TEST-3971: the sh launcher is at most 20 ASCII lines, mode 100755, holds no policy token, passes every argument and the exit code through with the runner bash under bash, sh and dash, and refuses with the exact line, exit 1 and an unchanged target without node or without the module"
+}
+
+test_3973_rehomed_bash_suites() {
+  local sel id rc out verdict
+  for sel in test_001_clone_target_is_srcdir test_002_no_midrun_rm_tmp test_003_bash_syntax_check \
+    test_004_dry_run_happy_path test_005_integration_file_fixture_clone test_006_0137_update_writes_field_report \
+    test_008_0137_induced_failure_update_runs test_010_0137_timeout_and_zero_network test_014_0137_ps1_parity_structural; do
+    rc=0
+    out="$(env -u AAI_ROLE bash "$UPDATE_SUITE" "$sel" 2>&1)" || rc=$?
+    [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3973: test-aai-update.sh $sel exited $rc"; }
+  done
+  rc=0
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-layer-drift.sh" test_ps1_parity 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3973: test-aai-layer-drift.sh test_ps1_parity exited $rc"; }
+  rc=0
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh" test_128_shipping_scripts_pipe_safe_at_zero 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3973: test-aai-hygiene-pack.sh test_128 exited $rc"; }
+
+  # a forced failing copy of the suite leaves no own scratch root behind
+  local work copy_root left forced_suite
+  work="$(new_own_scratch forced)"
+  copy_root="$work/copy"
+  mkdir -p "$copy_root/tests/skills/lib" "$copy_root/.aai/scripts" "$work/tmp"
+  cp "$PROJECT_ROOT/tests/skills/lib/pipe-safe.sh" "$copy_root/tests/skills/lib/pipe-safe.sh"
+  cp "$SH_LAUNCHER" "$copy_root/.aai/scripts/aai-update.sh"
+  cp "$MJS" "$copy_root/.aai/scripts/aai-update.mjs"
+  forced_suite="$copy_root/tests/skills/${UPDATE_SUITE##*/}"
+  sed 's/^  check_deps$/  check_deps; log_fail "forced failure"/' "$UPDATE_SUITE" > "$forced_suite"
+  /usr/bin/grep -q 'forced failure' "$forced_suite" || log_fail "TEST-3973: the forced failure was not injected into the copy"
+  rc=0
+  out="$(env -u AAI_ROLE TMPDIR="$work/tmp" bash "$forced_suite" 2>&1)" || rc=$?
+  [[ "$rc" != 0 && "$out" == *"forced failure"* ]] || log_fail "TEST-3973: the forced failing copy did not fail as injected (rc $rc): $out"
+  left="$(find "$work/tmp" -maxdepth 1 -name 'aai-update-suite.*')"
+  [[ -z "$left" ]] || log_fail "TEST-3973: the failing suite left its scratch root behind: $left"
+  safe_rm_own "$work"
+
+  # the contract records of ref update-on-node
+  local json
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-3973: spec-amend list failed"
+  for id in "SPEC-0124-|0137-TEST-005 and 0137-TEST-009 re-homed" "SPEC-0020-|TEST-010b re-homed" \
+    "SPEC-0179-|TEST-470 vacuity floor" "SPEC-0052-|TEST-001 and TEST-002 re-homed"; do
+    verdict="$(node -e '
+      const d = JSON.parse(process.argv[1]);
+      const [spec, what] = process.argv[2].split("|");
+      const hit = d.items.filter((i) => i.ref_id === "update-on-node" && i.amendment_class === "contract" && i.spec.includes(spec) && i.what.startsWith(what));
+      process.stdout.write(hit.length >= 1 ? "found" : "missing");
+    ' "$json" "$id")"
+    [[ "$verdict" == found ]] || log_fail "TEST-3973: no contract record of ref update-on-node for $id"
+  done
+  log_pass "TEST-3973: the re-homed bash selectors exit 0 against the launcher, a forced failing copy of test-aai-update.sh removes its own scratch root, and the four contract records of ref update-on-node exist"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3978, grows run by run)"
   check_deps
@@ -237,6 +366,8 @@ main() {
   test_3968_doctor_postamble
   test_3969_corpus_bash
   test_3970_corpus_powershell
+  test_3971_sh_launcher
+  test_3973_rehomed_bash_suites
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
