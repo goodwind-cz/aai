@@ -400,7 +400,7 @@ test_3972_ps1_launcher() {
   counts="$(run_pester TEST-3972 "$work" '*launcher (update-on-node)*')"
   [[ "$counts" == "PESTER passed=5 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-3972: Pester summary '$counts', expected 5 passed, 0 skipped, 0 failed, 0 failed containers"; }
   safe_rm_own "$work"
-  log_pass "TEST-3972: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, and the five launcher cases pass under Invoke-Pester with 0 skipped, 0 failed and 0 failed containers"
+  log_pass "TEST-3972: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, and the five launcher cases pass under Invoke-Pester with 0 skips, 0 failures and 0 failed containers"
 }
 
 # amend_found <list json> <spec id fragment> <what prefix>: prints found or missing for a contract record of ref update-on-node.
@@ -443,9 +443,9 @@ test_3974_rehomed_pester() {
   local work counts
   work="$(new_own_scratch pester-whole)"
   counts="$(run_pester TEST-3974 "$work")"
-  [[ "$counts" =~ ^PESTER\ passed=([0-9]+)\ skipped=0\ failed=0\ containers=0$ && "${BASH_REMATCH[1]}" -ge 1 ]] || { cat "$work/pester.log" >&2; log_fail "TEST-3974: Pester summary '$counts', expected passes with 0 skipped, 0 failed and 0 failed containers"; }
+  [[ "$counts" =~ ^PESTER\ passed=([0-9]+)\ skipped=0\ failed=0\ containers=0$ && "${BASH_REMATCH[1]}" -ge 1 ]] || { cat "$work/pester.log" >&2; log_fail "TEST-3974: Pester summary '$counts', expected passes with 0 skips, 0 failures and 0 failed containers"; }
   safe_rm_own "$work"
-  log_pass "TEST-3974: aai-update.Tests.ps1 passes whole under Invoke-Pester with 0 skipped, 0 failed and 0 failed containers; the five retired cases are gone, the three edits are present, both contract records exist and both follow-ups are closed"
+  log_pass "TEST-3974: aai-update.Tests.ps1 passes whole under Invoke-Pester with 0 skips, 0 failures and 0 failed containers; the five retired cases are gone, the three edits are present, both contract records exist and both follow-ups are closed"
 }
 
 test_3975_parity_update() {
@@ -488,6 +488,225 @@ test_3975_parity_update() {
   log_pass "TEST-3975: the parity driver passes UP-01 to UP-03 with twins sh, ps1 and node on pairs sh:ps1 and sh:node only, without a sh:node divergence; the peers rule, the real-registry argv and the widened row hold; the SPEC-0284 record exists"
 }
 
+# --- run 7: scratch install, wiring and docs (TEST-3976, TEST-3977, TEST-3978) -----------------------------
+FIXTURES_MOD="$PROJECT_ROOT/tests/skills/lib/aai-update-fixtures.mjs"
+
+# tree_listing <dir>: a sorted listing of every entry below dir (names only), for the unchanged-target checks.
+tree_listing() {
+  find "$1" | LC_ALL=C sort
+}
+
+# run_launcher_in <dir> <work> <shell> <source>: runs one launcher in dir against the fixture source with the
+# closed-network environment of D-SAFETY (file protocol only, empty gh config, no tokens, a failing gh stub first on PATH).
+run_launcher_in() {
+  local dir="$1" work="$2" shell="$3" src="$4"
+  cd "$dir" || return 1
+  case "$shell" in
+    pwsh) set -- pwsh -NoProfile -File .aai/scripts/aai-update.ps1 -Repo "$src" -Force ;;
+    *) set -- "$shell" .aai/scripts/aai-update.sh --repo "$src" --force ;;
+  esac
+  env -u AAI_ROLE -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN \
+    PATH="$work/ghbin:$PATH" GIT_ALLOW_PROTOCOL=file GH_CONFIG_DIR="$work/ghcfg" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" "$@"
+}
+
+test_3976_scratch_install() {
+  need_tool TEST-3976 git || return 0
+  local work target runp src shells shell sh out rc before after fakebin
+  work="$(new_own_scratch install)"
+  target="$work/target"
+  mkdir -p "$target"
+  git -C "$target" init -q
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$target" --profile core > "$work/sync.log" 2>&1 || { cat "$work/sync.log" >&2; log_fail "TEST-3976: aai-sync.sh --profile core failed"; }
+  for out in aai-update.mjs aai-update.ps1 aai-update.sh; do
+    [[ -f "$target/.aai/scripts/$out" ]] || log_fail "TEST-3976: the core sync did not vendor .aai/scripts/$out"
+  done
+  # a fixture source whose two sync stubs write the same files; never this checkout (D-SAFETY)
+  src="$work/source"
+  mkdir -p "$src" "$work/ghbin" "$work/ghcfg"
+  node --input-type=module -e '
+    const m = await import(process.argv[1]);
+    const fs = await import("node:fs");
+    m.buildSource(process.argv[2], { head: "main", helperReal: fs.readFileSync(process.argv[3], "utf8"), env: process.env });
+  ' "file://$FIXTURES_MOD" "$src" "$PROJECT_ROOT/.aai/scripts/update-doctor-report.mjs" || log_fail "TEST-3976: cannot build the fixture source"
+  printf '%s\n' '#!/bin/sh' 'echo "gh stub: the network is closed in this suite" >&2' 'exit 1' > "$work/ghbin/gh"
+  chmod 755 "$work/ghbin/gh"
+  : > "$work/gitconfig"
+  # three fresh copies at one path, one after another; each run's tree is kept for the comparison
+  runp="$work/run/target"
+  shells="bash sh"
+  need_tool TEST-3976 pwsh && shells="$shells pwsh"
+  for shell in $shells; do
+    mkdir -p "$work/run"
+    cp -R "$target" "$runp"
+    rc=0
+    ( run_launcher_in "$runp" "$work" "$shell" "$src" ) > "$work/$shell.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/$shell.log" >&2; log_fail "TEST-3976: the $shell launcher exited $rc"; }
+    mv "$work/run" "$work/out-$shell"
+  done
+  # equal normalized trees
+  out="$(node --input-type=module -e '
+    const m = await import(process.argv[1]);
+    const names = process.argv.slice(3);
+    const base = process.argv[2];
+    const bad = [];
+    for (let i = 1; i < names.length; i += 1) {
+      const d = m.compareTrees(base + "/out-" + names[0] + "/target", base + "/out-" + names[i] + "/target", { pair: names[0] + ":" + names[i] });
+      for (const x of d) bad.push(x.pair + " " + x.kind + " " + x.path + ": " + x.detail);
+    }
+    process.stdout.write(bad.join("\n"));
+  ' "file://$PARITY_DRIVER" "$work" $shells)" || log_fail "TEST-3976: the tree comparison failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-3976: the launcher trees differ: $out"
+  # without node on PATH sh refuses and the target is unchanged
+  fakebin="$work/only-dirname"
+  mkdir -p "$fakebin" "$work/run"
+  ln -s "$(command -v dirname)" "$fakebin/dirname"
+  cp -R "$target" "$runp"
+  sh="$(command -v sh)"
+  before="$(tree_listing "$runp")"
+  rc=0
+  ( cd "$runp" && env PATH="$fakebin" "$sh" .aai/scripts/aai-update.sh --dry-run ) 2> "$work/refuse.err" > /dev/null || rc=$?
+  out="$(cat "$work/refuse.err")"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3976: sh without node exited $rc, expected 1"
+  [[ "$out" == "$REFUSAL_LINE" ]] || log_fail "TEST-3976: sh without node wrote: $out"
+  after="$(tree_listing "$runp")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3976: the target changed after the refusal"
+  safe_rm_own "$work"
+  log_pass "TEST-3976: a core sync vendors the module and both launchers, bash, sh and pwsh runs against a fixture source leave equal trees, sh without node refuses with one line and leaves the tree unchanged"
+}
+
+test_3977_wiring() {
+  local work f out rc sel
+  work="$(new_own_scratch wiring)"
+  # the order keeps a name ending in sh from standing before another updater name (the D-SAFETY line scan)
+  for f in .aai/scripts/aai-update.mjs .aai/scripts/aai-update.ps1 tests/fixtures/aai-update-reference/aai-update.ps1 .aai/scripts/aai-update.sh \
+    tests/skills/lib/aai-update.test.mjs tests/fixtures/aai-update-reference/aai-update.sh tests/skills/aai-update.Tests.ps1; do
+    printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
+    qgrep -q "^SELECTED aai-update-node " < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3977: select-suites does not route $f to aai-update-node"; }
+  done
+  # every suite-map row that names aai-update.sh names aai-update.mjs
+  out="$(node -e '
+    const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+    let row = ""; const rows = {};
+    for (const l of lines) {
+      const m = /^  ([a-z0-9-]+):$/.exec(l);
+      if (m) { row = m[1]; rows[row] = []; }
+      else if (row && /^      - /.test(l)) rows[row].push(l.replace(/^      - /, ""));
+    }
+    const bad = [];
+    for (const [k, v] of Object.entries(rows)) {
+      if (v.includes(".aai/scripts/aai-update.sh") && !v.includes(".aai/scripts/aai-update.mjs")) bad.push(k);
+    }
+    process.stdout.write(bad.join(","));
+  ' "$PROJECT_ROOT/tests/skills/suite-map.yaml")" || log_fail "TEST-3977: cannot read suite-map.yaml"
+  [[ -z "$out" ]] || log_fail "TEST-3977: suite-map rows name aai-update.sh but not aai-update.mjs: $out"
+  # the weights row and its fallback line
+  qgrep -qxF "# sample aai-update-node fallback unsampled (new suite of update-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-3977: the weights fallback line for aai-update-node is missing"
+  qgrep -qxF "$(printf 'aai-update-node\t196')" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3977: the weights row aai-update-node 196 is missing"
+  for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" "test-aai-win-fallback.sh test_034" "test-aai-win-fallback.sh test_035"; do
+    rc=0
+    # shellcheck disable=SC2086
+    env -u AAI_ROLE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-3977: ${sel#* } of ${sel%% *} exited $rc"; }
+  done
+  rc=0
+  node "$SCRIPT_DIR/lib/nested-suite-lint.mjs" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" > "$work/lint.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/lint.log" >&2; log_fail "TEST-3977: nested-suite-lint exited $rc"; }
+  for f in check-cd-subshell-leak.mjs check-vendored-script-deps.mjs; do
+    rc=0
+    node "$PROJECT_ROOT/.aai/scripts/$f" > "$work/chk.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-3977: $f exited $rc"; }
+  done
+  rc=0
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" > "$work/chk.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-3977: check-test-registration.mjs exited $rc"; }
+  qgrep -qxF "$(printf '1\t.aai/scripts/aai-update.sh')" < "$SCRIPT_DIR/lib/cd-subshell-leak-baseline.tsv" || log_fail "TEST-3977: the cd-subshell baseline does not hold 1 for .aai/scripts/aai-update.sh"
+  qgrep -qxF "  - .aai/scripts/aai-update.mjs" < "$PROJECT_ROOT/.aai/system/PROFILES.yaml" || log_fail "TEST-3977: PROFILES.yaml core does not list .aai/scripts/aai-update.mjs"
+  out="$(node -e '
+    const fs = require("fs");
+    const text = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const lists = [];
+    for (const key of ["push:", "pull_request:"]) {
+      const at = text.findIndex((l) => l === "  " + key);
+      if (at < 0) { lists.push(null); continue; }
+      const p = text.findIndex((l, i) => i > at && l === "    paths:");
+      const out = [];
+      for (let i = p + 1; i < text.length && /^      - /.test(text[i]); i += 1) out.push(text[i].replace(/^      - /, "").replace(/^\x27|\x27$/g, ""));
+      lists.push(out);
+    }
+    const bad = [];
+    if (!lists[0] || !lists[1]) bad.push("a path list is missing");
+    else {
+      if (JSON.stringify(lists[0]) !== JSON.stringify(lists[1])) bad.push("the push and pull_request path lists differ");
+      for (const w of [".aai/scripts/aai-update.mjs", "tests/fixtures/aai-update-reference/**", "tests/skills/lib/update-reference.mjs"]) {
+        if (!lists[0].includes(w)) bad.push("the push list lacks " + w);
+        if (!lists[1].includes(w)) bad.push("the pull_request list lacks " + w);
+      }
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$PROJECT_ROOT/.github/workflows/ps1-quality.yml")"
+  [[ -z "$out" ]] || log_fail "TEST-3977: ps1-quality.yml: $out"
+  safe_rm_own "$work"
+  log_pass "TEST-3977: select-suites routes every updater file to the suite, every row naming aai-update.sh names aai-update.mjs, the weights row and fallback line hold, test_090, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1, PROFILES core lists the module, both ps1-quality path lists are identical and hold the D-WIRE entries"
+}
+
+test_3978_docs() {
+  local work out rc sel
+  work="$(new_own_scratch docs)"
+  out="$(node -e '
+    const fs = require("fs");
+    const root = process.argv[1];
+    const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
+    const bad = [];
+    // A release cut rolls "## [unreleased] — " into "## [vYYYY.MM.DD] — ", so the pin accepts both.
+    const head = /^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — feat: the AAI layer updater runs on Node behind sh and ps1 launchers$/;
+    const cl = read("CHANGELOG.md").split("\n");
+    const at = cl.map((l, i) => (head.test(l) ? i : -1)).filter((i) => i >= 0);
+    if (at.length !== 1) bad.push("the CHANGELOG heading appears " + at.length + " times");
+    else {
+      let end = cl.length;
+      for (let i = at[0] + 1; i < cl.length; i += 1) if (cl[i].startsWith("## ")) { end = i; break; }
+      const body = cl.slice(at[0] + 1, end).join("\n");
+      for (const w of ["Node.js 22", "DR-2", "DR-3", "DR-5", "DR-7", "DR-12"]) if (!body.includes(w)) bad.push("the CHANGELOG body lacks " + w);
+      if (body.trim() === "") bad.push("the CHANGELOG body is empty");
+    }
+    const su = read(".aai/SKILL_UPDATE.prompt.md").split("\n");
+    const once = (l) => su.filter((x) => x.trim() === l).length;
+    for (const l of [
+      "Both launchers run .aai/scripts/aai-update.mjs and need Node.js 22 or later.",
+      "- exit 1 = an unknown argument, a missing flag value, or Node.js missing (the message says which)",
+      ".aai/scripts/aai-update.sh            # bash / macOS / Linux",
+      ".aai/scripts/aai-update.ps1           # PowerShell / Windows",
+    ]) {
+      if (once(l) !== 1) bad.push("SKILL_UPDATE holds the line " + JSON.stringify(l) + " " + once(l) + " times");
+    }
+    const rfc = read("docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md").split("\n");
+    const row = rfc.filter((l) => l.startsWith("| 5 |"));
+    if (row.length !== 1) bad.push("the RFC phase 5 row appears " + row.length + " times");
+    else {
+      const r = row[0];
+      if (!r.includes("| in progress |")) bad.push("the RFC phase 5 row is not in progress");
+      // the allocator rewrites the link target at merge; only the suffix update-on-node.md is pinned
+      const sentence = "The fifteenth slice [moved the layer updater to Node](LINK): one module holds the argument, source, sync and report policy behind thin aai-update.sh and aai-update.ps1 launchers, compared with frozen copies of both twins, and each launcher keeps running the sync twin it ran before.";
+      const norm = r.replace(/\(\.\.\/issues\/[A-Za-z0-9-]*update-on-node\.md\)/, "(LINK)");
+      if (norm.split(sentence).length !== 2) bad.push("the RFC row does not hold the D-DOCS sentence once");
+      const a = r.indexOf("The fourteenth slice"); const b = r.indexOf("The fifteenth slice"); const c = r.indexOf("The [remaining-scripts plan]");
+      if (!(a >= 0 && a < b && b < c)) bad.push("the RFC sentence is not between the fourteenth slice and the remaining-scripts plan");
+      if (!/\(\.\.\/issues\/[A-Za-z0-9-]*update-on-node\.md\)/.test(r)) bad.push("the RFC link does not end with update-on-node.md");
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$PROJECT_ROOT")" || log_fail "TEST-3978: the docs check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-3978: $out"
+  for sel in "test-aai-prompt-diet.sh test_012_growth_sum_matches_ledger" "test-aai-pr-preflight.sh test_008" "test-aai-suite-reuse.sh test_3278_canon_wording" "test-aai-expert-fetch.sh test_2624_inventory_matches_tree"; do
+    rc=0
+    # shellcheck disable=SC2086
+    env -u AAI_ROLE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-3978: ${sel#* } of ${sel%% *} exited $rc"; }
+  done
+  safe_rm_own "$work"
+  log_pass "TEST-3978: the CHANGELOG entry, the SKILL_UPDATE sentence and bullet, and the RFC-0017 sentence hold, and the prompt-diet, pr-preflight growth, suite-reuse growth and RFC inventory checks pass"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3978, grows run by run)"
   check_deps
@@ -508,6 +727,9 @@ main() {
   test_3972_ps1_launcher
   test_3974_rehomed_pester
   test_3975_parity_update
+  test_3976_scratch_install
+  test_3977_wiring
+  test_3978_docs
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

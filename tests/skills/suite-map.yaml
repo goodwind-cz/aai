@@ -808,8 +808,11 @@ suites:
       - tests/skills/lib/bootstrap-reference.mjs
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
+      - tests/fixtures/aai-update-reference/**
+      - tests/skills/lib/update-reference.mjs
       - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/templates/git-hooks/**
@@ -879,6 +882,7 @@ suites:
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       - .aai/system/AAI_PIN.md
@@ -951,6 +955,7 @@ suites:
     globs:
       - .aai/scripts/update-check.mjs
       - .aai/scripts/layer-drift.mjs
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       - docs/ai/update-config.yaml
@@ -1523,6 +1528,7 @@ suites:
 
   aai-update:
     globs:
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       # CHANGE-0137: the post-update doctor field report helper is pinned by
@@ -1787,6 +1793,7 @@ suites:
       - .aai/system/PROFILES.yaml
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       - docs/product/consumer-config.md

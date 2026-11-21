@@ -802,7 +802,8 @@ test_3278_canon_wording() {
     # 2026-11-15 effort-direct-append: +56 B (SKILL_LOOP step 4; its ROLE_COMMON share is outside this glob).
     # 2026-11-16 pr-ceremony-friction-fixes: +423 B (SKILL_PR steps 4 and 5b +284, VALIDATION step 6 +139).
     # 2026-11-20 bootstrap-on-node: +222 B (SKILL_BOOTSTRAP Default Path PowerShell launcher lines and the Node.js 22 sentence).
-    was=$((was + 1021 + 56 + 423 + 222))
+    # 2026-11-21 update-on-node: +182 B (SKILL_UPDATE step 1 sentence and step 3 exit 1 bullet).
+    was=$((was + 1021 + 56 + 423 + 222 + 182))
     [[ "$now" -le "$was" ]] || log_fail "TEST-3278: cat .aai/*.prompt.md is $now B, baseline $base is $was B"
   else
     log_info "TEST-3278: baseline commit $base is not available here, size comparison skipped"
