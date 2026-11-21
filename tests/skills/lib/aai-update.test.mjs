@@ -16,6 +16,10 @@ import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { compareSnapshots, snapshotNormalized } from './install-parity.mjs';
+import {
+  EM_DASH, U_CASES, buildSource, buildTarget, git,
+} from './aai-update-fixtures.mjs';
 import {
   OWN_MARKER_FILE, REFERENCE_COMMIT, REFERENCE_PS1, REFERENCE_PS1_SHA256, REFERENCE_SH, REFERENCE_SH_SHA256,
   createOwnScratch, materializeUpdateReference, removeOwnScratch, removeOwnScratchAll, sha256File,
@@ -30,6 +34,7 @@ const NEW_TEST_FILES = [
   path.join(ROOT, 'tests', 'skills', 'test-aai-update-node.sh'),
   path.join(HERE, 'aai-update.test.mjs'),
   path.join(HERE, 'update-reference.mjs'),
+  path.join(HERE, 'aai-update-fixtures.mjs'),
 ];
 
 const scratchDirs = [];
@@ -76,7 +81,7 @@ export function assertRepoUnderRoot(args, root, cwd = root) {
 // prepareEnv(root, extra): the network-free environment of an update run (D-CORPUS): the caller's minus every
 // AAI_ variable and the GitHub tokens, plus a global git config that is an empty file, GIT_ALLOW_PROTOCOL=file,
 // an empty GH_CONFIG_DIR, a per-root TMPDIR and, on POSIX, a gh stub that fails first on PATH.
-export function prepareEnv(root, extra = {}) {
+export function prepareEnv(root, extra = {}, { gitWrapper = '' } = {}) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('AAI_') && !TOKENS.includes(k)) env[k] = v;
   const gitconfig = path.join(root, 'gitconfig');
@@ -89,6 +94,12 @@ export function prepareEnv(root, extra = {}) {
     const stub = path.join(bin, 'gh');
     writeFileSync(stub, `#!/bin/sh\nprintf '%s\\n' "$*" >> "${path.join(root, 'gh.log')}"\nexit 1\n`);
     chmodSync(stub, 0o755);
+    if (gitWrapper) {
+      // U23 only: logs every clone, fails it unless the argv holds credential.helper=, else runs the real git.
+      const wrap = path.join(bin, 'git');
+      writeFileSync(wrap, `#!/bin/sh\nfor a in "$@"; do\n  case "$a" in clone) c=1 ;; credential.helper=) anon=1 ;; esac\ndone\nif [ -n "$c" ]; then\n  printf '%s\\n' "$*" >> "${path.join(root, 'git.log')}"\n  [ -n "$anon" ] || exit 1\nfi\nexec "${gitWrapper}" "$@"\n`);
+      chmodSync(wrap, 0o755);
+    }
     env.PATH = `${bin}${path.delimiter}${env.PATH ?? ''}`;
   }
   return {
@@ -98,8 +109,8 @@ export function prepareEnv(root, extra = {}) {
 
 // runUpdate({ entry, args, root, cwd, env }): the one way these tests start an update entry point: the module
 // (entry 'module'), or a frozen reference materialized under the root (entry 'sh' or 'ps1', through bash or pwsh).
-export function runUpdate({ entry = 'module', args = [], root, cwd = root, env = {}, script = MODULE, stdio = 'pipe' }) {
-  const runEnv = prepareEnv(root, env);
+export function runUpdate({ entry = 'module', args = [], root, cwd = root, env = {}, script = MODULE, stdio = 'pipe', gitWrapper = '' }) {
+  const runEnv = prepareEnv(root, env, { gitWrapper });
   assert.equal(runEnv.GIT_ALLOW_PROTOCOL, 'file');
   assert.ok(path.isAbsolute(runEnv.GH_CONFIG_DIR) && readdirSync(runEnv.GH_CONFIG_DIR).length === 0, 'GH_CONFIG_DIR is an empty scratch directory');
   assertRepoUnderRoot(args, root, cwd);
@@ -110,7 +121,7 @@ export function runUpdate({ entry = 'module', args = [], root, cwd = root, env =
     file = entry === 'sh' ? 'bash' : 'pwsh';
     argv = entry === 'sh' ? [refs.sh, ...args] : ['-NoProfile', '-NonInteractive', '-File', refs.ps1, ...args];
   }
-  return spawnSync(file, argv, { cwd, env: runEnv, encoding: 'utf8', stdio });
+  return spawnSync(file, argv, { cwd, env: runEnv, encoding: 'utf8', stdio, timeout: 240000 });
 }
 
 // --- TEST-3960 ---------------------------------------------------------------------------------
@@ -1668,4 +1679,272 @@ describe('TEST-3968 doctor postamble', () => {
     assert.equal(f.others.filter(isHelper).length, 0);
     assert.ok(!f.out.includes('Doctor field report'));
   });
+});
+
+// --- TEST-3969 and TEST-3970: the differential corpora (D-CORPUS) ------------------------------------
+
+const which = (name) => {
+  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+    if (!dir) continue;
+    const file = path.join(dir, name);
+    try {
+      if (statSync(file).isFile()) return file;
+    } catch {
+      // not in this directory
+    }
+  }
+  return '';
+};
+const BASH_PATH = which('bash');
+const PWSH_PATH = which('pwsh');
+const GIT_PATH = which('git');
+const CORPUS_ROOT_ENTRIES = ['.aai-up-owned', 'bin', 'fx', 'fx.ref-side', 'gh-config', 'gh.log', 'git.log', 'gitconfig', 'ref-ps1', 'ref-sh', 'tmp', 'tmp.ref-side'];
+const DR1_TAIL = [
+  '  powershell -NoProfile -File .aai/scripts/aai-update.ps1 [-Repo X] [-Ref Y] [-DryRun] [-KeepTemp] [-Force]   # the long flags work too',
+  'Requires Node.js 22 or later; both launchers run .aai/scripts/aai-update.mjs.',
+];
+const DRY_NEXT = '- Then check: git status --short, .aai/system/AAI_PIN.md, docs/ai/reports/sync-conflicts-*.md\n- Next: /aai-doctor (and /aai-bootstrap if skills changed)\n';
+
+// The registered DR rewrites: each is applied to the reference's stream and must change at least one byte.
+export const REWRITES = {
+  'DR-1': { stream: 'stdout', fn: (s) => `${s}${DR1_TAIL.join('\n')}\n` },
+  'DR-6': { stream: 'stderr', fn: (s) => s.replace(/^ {2}Pass (?:--force|-Force) to override\.$/m, () => '  Pass --force (or -Force) to override.') },
+  'DR-13': { stream: 'stdout', fn: (s) => s.replace(/^(## aai-update(?: \(dry-run\))?) - /m, (m, head) => `${head} ${EM_DASH} `) },
+  'DR-14': { stream: 'stdout', fn: (s) => s.replace(/^- ! Conflict advisory: (.+?) - review before committing\.$/m, (m, name) => `- ⚠ Conflict advisory: docs/ai/reports/${name} ${EM_DASH} review before committing.`) },
+  'DR-15': {
+    stream: 'stdout',
+    fn: (s) => s.replace(/^- Recommended: \/aai-doctor \(and \/aai-bootstrap if skills\/indexes changed\)$/m,
+      () => (s.includes('- Changed files: none') ? '- Recommended: /aai-doctor' : '- Recommended: /aai-doctor ; /aai-bootstrap if skills/indexes changed')),
+  },
+  'DR-16': { stream: 'stdout', fn: (s) => s.replace(/^- Would run: SOURCE\//m, () => '- Would run: <source>/') },
+  'DR-17': {
+    stream: 'stdout',
+    fn: (s) => {
+      const mark = '- AAI_PIN:\n';
+      const at = s.indexOf(mark);
+      if (at < 0) return s;
+      const lines = s.slice(at + mark.length).split('\n');
+      let n = 0;
+      const pin = [];
+      for (; n < lines.length && lines[n].startsWith('  '); n += 1) pin.push(lines[n].replace(/^ {2}﻿/, () => '  ').replace(/\r$/, ''));
+      return s.slice(0, at + mark.length) + [...pin, ...lines.slice(n)].join('\n');
+    },
+  },
+};
+
+// The rewrites every case gets that are not registered: doctor report names and random temp ids (DR-10: the
+// PowerShell temp prefix aai-src- reads as aai-src.).
+const normText = (s) => s
+  .replace(/doctor-\d{8}T\d{6}Z-[a-z0-9-]+\.md/g, () => 'doctor-<stamp>.md')
+  .replace(/aai-src\.[A-Za-z0-9]+(?:\.[a-z0-9]+)?/g, () => 'aai-src.<id>');
+const readLines = (file) => {
+  try {
+    return readFileSync(file, 'utf8').split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+function referenceDryRun(target, src) {
+  return `## aai-update (dry-run) ${EM_DASH} no files changed\n- Target:   ${target}\n- Upstream: local checkout ${src}\n- Would run: <source>/.aai/scripts/aai-sync.sh "${target}"\n${DRY_NEXT}`;
+}
+
+// The asserted divergences: each returns { skip, rewriteRef } after asserting the expected values on both runs.
+const DIVERGE = {
+  branch: (k, side, ref, mod) => {
+    assert.equal(ref.branch, 'main', 'the reference switches the source to --ref in a dry-run');
+    assert.equal(mod.branch, 'dev', 'the module leaves the source branch alone (DR-7)');
+    assert.notEqual(ref.head, mod.head);
+    return { skip: ['branch', 'head'] };
+  },
+  'not-refused': (k, side, ref, mod) => {
+    assert.equal(ref.code, 0);
+    assert.ok(ref.stdout.startsWith(`## aai-update (dry-run) ${EM_DASH} no files changed\n`), 'the bash twin does not refuse an upper-case origin');
+    assert.equal(mod.code, 2);
+    assert.equal(mod.stdout, '');
+    assert.equal(mod.stderr, `REFUSED: this project (${k.origin}) looks like the canonical AAI repo.\n  /aai-update syncs AAI INTO a target project; update the canonical repo with normal git.\n  Pass --force (or -Force) to override.\n`);
+    return { skip: ['code', 'stdout', 'stderr'] };
+  },
+  warn: (k, side, ref, mod) => {
+    assert.equal(ref.code, 0);
+    assert.equal(ref.stderr, "WARN: ignoring unrecognized argument '--bogus'\n");
+    assert.ok(ref.stdout.startsWith('## aai-update (dry-run) - no files changed\n'), 'the PowerShell twin goes on after the warning');
+    assert.equal(mod.code, 1);
+    assert.equal(mod.stderr, 'Unknown argument: --bogus\n');
+    assert.equal(mod.stdout, expectedHelp());
+    return { skip: ['code', 'stdout', 'stderr'] };
+  },
+  'needs-value': (k, side, ref, mod) => {
+    assert.equal(mod.code, 1);
+    assert.equal(mod.stderr, 'aai-update: --repo needs a value\n');
+    assert.equal(mod.stdout, '');
+    if (side === 'sh') {
+      assert.equal(ref.stdout, '', 'the bash twin does nothing else');
+      assert.ok(ref.stderr.includes('--repo needs a value'));
+    } else {
+      assert.ok(!ref.stdout.includes('## Post-sync evidence'), 'the PowerShell twin does no update either (its own binder stops, exit code not compared)');
+    }
+    return { skip: ['code', 'stdout', 'stderr'] };
+  },
+  'evidence-after-failure': (k, side, ref, mod) => {
+    assert.ok(ref.stdout.includes('## Post-sync evidence'), 'the PowerShell twin goes on to the evidence after a failed sync');
+    assert.ok(!mod.stdout.includes('## Post-sync evidence'));
+    assert.equal(mod.code, 5);
+    assert.ok(![...mod.snap.keys()].some((p) => p.startsWith('docs/ai/reports/doctor-')), 'the module runs no doctor after a failed sync');
+    return { skip: ['code', 'stdout', 'tree'] };
+  },
+  'long-equals-form': (k, side, ref, mod, c) => {
+    assert.equal(ref.code, 1);
+    assert.equal(ref.stderr, `Unknown argument: --repo=${c.src}\n`);
+    assert.equal(mod.code, 0);
+    assert.equal(mod.stderr, '');
+    assert.equal(mod.stdout, referenceDryRun(c.target, c.src));
+    return { skip: ['code', 'stdout', 'stderr'] };
+  },
+  'powershell-names': (k, side, ref, mod, c) => {
+    assert.equal(ref.code, 1);
+    assert.equal(ref.stderr, 'Unknown argument: -Repo\n');
+    assert.equal(mod.code, 0);
+    assert.equal(mod.stderr, '');
+    assert.equal(mod.stdout, referenceDryRun(c.target, c.src));
+    return { skip: ['code', 'stdout', 'stderr'] };
+  },
+  'prompt-setting': (k, side, ref, mod) => {
+    assert.ok(ref.stdout.includes('FX-GTP=0\n'), 'the PowerShell twin leaves the prompt setting on for the sync');
+    assert.ok(mod.stdout.includes('FX-GTP=unset\n'), 'the module sets it for the anonymous clone only');
+    return { skip: [], rewriteRef: (s) => s.replace('FX-GTP=0\n', () => 'FX-GTP=unset\n') };
+  },
+};
+
+// compareRuns(k, side, ref, mod, c): the problems found comparing the reference run with the module run: the
+// registered rewrites (each must change a byte), the asserted divergence, then every compared field.
+export function compareRuns(k, side, ref0, mod, c) {
+  const problems = [];
+  const ref = { ...ref0 };
+  for (const id of k.rw[side] ?? []) {
+    const rule = REWRITES[id];
+    if (!rule) {
+      problems.push(`${k.id} ${side}: unknown rewrite ${id}`);
+      continue;
+    }
+    const before = ref[rule.stream];
+    ref[rule.stream] = rule.fn(before);
+    if (ref[rule.stream] === before) problems.push(`${k.id} ${side}: the registered rewrite ${id} changed nothing`);
+  }
+  let skip = [];
+  const name = k.diverge?.[side];
+  if (name) {
+    const d = DIVERGE[name](k, side, ref, mod, c);
+    skip = d.skip;
+    if (d.rewriteRef) ref.stdout = d.rewriteRef(ref.stdout);
+  }
+  const same = (field, a, b) => {
+    if (skip.includes(field)) return;
+    if (JSON.stringify(a) !== JSON.stringify(b)) problems.push(`${k.id} ${side}: ${field} differs\n--- reference\n${typeof a === 'string' ? a : JSON.stringify(a)}\n--- module\n${typeof b === 'string' ? b : JSON.stringify(b)}`);
+  };
+  same('code', ref.code, mod.code);
+  same('stdout', ref.stdout, mod.stdout);
+  same('stderr', ref.stderr, mod.stderr);
+  same('branch', ref.branch, mod.branch);
+  same('head', ref.head, mod.head);
+  same('tmp', ref.tmp, mod.tmp);
+  same('gh', ref.gh, mod.gh);
+  same('git', ref.git, mod.git);
+  if (!skip.includes('tree')) {
+    for (const d of compareSnapshots(ref.snap, mod.snap, 'reference:module')) problems.push(`${k.id} ${side}: tree ${d.kind} at ${d.path}: ${d.detail}`);
+  }
+  return problems;
+}
+
+// One run of one entry (the reference or the module) on a freshly built fixture; returns its observations.
+function observe(k, side, role, c, runnerValue) {
+  const fxEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: path.join(c.root, 'gitconfig') };
+  writeFileSync(path.join(c.root, 'gitconfig'), '');
+  buildSource(c.src, { head: k.srcHead ?? 'main', omit: k.omit?.[side] ?? '', helperReal: readFileSync(path.join(ROOT, '.aai', 'scripts', 'update-doctor-report.mjs'), 'utf8'), env: fxEnv });
+  buildTarget(c.target, { origin: k.origin ?? undefined, repo: k.targetRepo !== false, env: fxEnv });
+  for (const f of ['gh.log', 'git.log']) writeFileSync(path.join(c.root, f), '');
+  const env = { PWD: c.target, ...(k.env ?? {}), ...(role === 'module' ? { AAI_UPDATE_SYNC_RUNNER: runnerValue } : {}) };
+  const res = runUpdate({ entry: role === 'ref' ? side : 'module', args: k.args(c), root: c.root, cwd: c.target, env, gitWrapper: k.gitWrapper ? GIT_PATH : '' });
+  assert.equal(res.error, undefined, `${k.id} ${side} ${role}: ${res.error}`);
+  assert.equal(res.signal, null, `${k.id} ${side} ${role} ended on a signal`);
+  const norm = (s) => normText(role === 'ref' && side === 'ps1' ? s.replace(/aai-src-/g, () => 'aai-src.') : s);
+  const obs = {
+    code: res.status,
+    stdout: norm(res.stdout),
+    stderr: norm(res.stderr),
+    snap: snapshotNormalized(c.target),
+    branch: git(c.src, ['rev-parse', '--abbrev-ref', 'HEAD'], fxEnv).trim(),
+    head: git(c.src, ['rev-parse', 'HEAD'], fxEnv).trim(),
+    tmp: readdirSync(path.join(c.root, 'tmp'), { recursive: true }).map(String).sort().map(norm),
+    gh: readLines(path.join(c.root, 'gh.log')).map(norm),
+    git: readLines(path.join(c.root, 'git.log')).map(norm),
+  };
+  return obs;
+}
+
+// runCorpusCase(k, side, runnerValue): builds the case's scratch root, runs the reference, then the module, each on
+// a fresh fixture at the same absolute paths (the reference's tree renamed away first), and returns the problems.
+export function runCorpusCase(k, side, runnerValue) {
+  const root = scratch(`corpus-${k.id}-`);
+  const c = { root, src: path.join(root, 'fx', 'src'), target: path.join(root, 'fx', k.targetName ?? 'target') };
+  const problems = [];
+  try {
+    mkdirSync(path.join(root, 'fx'));
+    const ref = observe(k, side, 'ref', c, runnerValue);
+    renameSync(path.join(root, 'fx'), path.join(root, 'fx.ref-side'));
+    renameSync(path.join(root, 'tmp'), path.join(root, 'tmp.ref-side'));
+    mkdirSync(path.join(root, 'fx'));
+    const mod = observe(k, side, 'module', c, runnerValue);
+    problems.push(...compareRuns(k, side, ref, mod, c));
+    for (const [who, o] of [['reference', ref], ['module', mod]]) {
+      if (k.tmp === 'empty' && o.tmp.length !== 0) problems.push(`${k.id} ${side}: the ${who} left ${JSON.stringify(o.tmp)} in TMPDIR`);
+      if (k.tmp === 'one-kept' && JSON.stringify(o.tmp) !== JSON.stringify(['aai-src.<id>'])) problems.push(`${k.id} ${side}: the ${who} should keep exactly one empty temp directory, TMPDIR holds ${JSON.stringify(o.tmp)}`);
+      if (k.gh === 'none' && o.gh.length !== 0) problems.push(`${k.id} ${side}: the ${who} called gh in a dry-run: ${JSON.stringify(o.gh)}`);
+      for (const line of o.gh) if (!line.startsWith('repo clone ')) problems.push(`${k.id} ${side}: the ${who} ran a gh command other than repo clone: ${line}`);
+      for (const line of [...o.gh, ...o.git]) if (line.split(' ').some((w) => /^[a-z][a-z0-9+-]*:\/\//i.test(w) && !w.startsWith('file://'))) problems.push(`${k.id} ${side}: the ${who} reached a non-file URL: ${line}`);
+    }
+    const extra = readdirSync(root).filter((n) => !CORPUS_ROOT_ENTRIES.includes(n));
+    if (extra.length > 0) problems.push(`${k.id} ${side}: the scratch root holds ${JSON.stringify(extra)} beside its fixtures, stubs, logs and marker`);
+  } finally {
+    removeOwnScratch(root);
+    scratchDirs.splice(scratchDirs.indexOf(root), 1);
+  }
+  return problems;
+}
+
+const CORPUS_SKIP = process.platform === 'win32' ? 'the corpora need bash and run on POSIX hosts' : false;
+const ALL_IDS = ['U01', 'U02', 'U03', 'U03k', 'U04', 'U05', 'U06', 'U07', 'U08', 'U09', 'U10', 'U11', 'U12', 'U13', 'U13t', 'U14', 'U15', 'U16', 'U17', 'U18', 'U19', 'U20', 'U21', 'U22', 'U23'];
+
+describe('TEST-3969 bash-side corpus', { skip: CORPUS_SKIP || (BASH_PATH && GIT_PATH ? false : 'bash and git are needed') }, () => {
+  const cases = U_CASES.filter((k) => k.sides.includes('sh'));
+  test('TEST-3969 the corpus holds the bash-side cases of D-CORPUS and only registered rewrites', () => {
+    assert.deepEqual(cases.map((k) => k.id), ALL_IDS.filter((id) => id !== 'U13t'));
+    for (const k of cases) for (const id of k.rw.sh ?? []) assert.ok(['DR-1', 'DR-6', 'DR-17'].includes(id), `${k.id}: ${id} is not a bash-side rewrite`);
+  });
+  test('TEST-3969 a rewrite that changes nothing and a one-byte difference both fail the comparison', () => {
+    const snap = new Map();
+    const run = { code: 0, stdout: 'a\n', stderr: '', snap, branch: 'main', head: 'x', tmp: [], gh: [], git: [] };
+    const k = { id: 'UX', rw: { sh: ['DR-6'] } };
+    assert.ok(compareRuns(k, 'sh', run, run, {}).some((p) => /DR-6 changed nothing/.test(p)));
+    assert.ok(compareRuns({ id: 'UX', rw: { sh: [] } }, 'sh', run, { ...run, stdout: 'a\n\n' }, {}).some((p) => /stdout differs/.test(p)));
+    assert.deepEqual(compareRuns({ id: 'UX', rw: { sh: [] } }, 'sh', run, run, {}), []);
+  });
+  for (const k of cases) {
+    test(`TEST-3969 ${k.id} the module and the bash reference agree`, () => {
+      assert.deepEqual(runCorpusCase(k, 'sh', 'bash'), []);
+    });
+  }
+});
+
+describe('TEST-3970 PowerShell-side corpus', { skip: CORPUS_SKIP || (PWSH_PATH && BASH_PATH && GIT_PATH ? false : 'pwsh, bash and git are needed') }, () => {
+  const cases = U_CASES.filter((k) => k.sides.includes('ps1'));
+  test('TEST-3970 the corpus holds the PowerShell-side cases of D-CORPUS and only registered rewrites', () => {
+    assert.deepEqual(cases.map((k) => k.id), ALL_IDS.filter((id) => id !== 'U09'));
+    for (const k of cases) for (const id of k.rw.ps1 ?? []) assert.ok(['DR-13', 'DR-14', 'DR-15', 'DR-16', 'DR-6'].includes(id), `${k.id}: ${id} is not a PowerShell-side rewrite`);
+  });
+  for (const k of cases) {
+    test(`TEST-3970 ${k.id} the module on the pwsh runner and the PowerShell reference agree`, () => {
+      assert.deepEqual(runCorpusCase(k, 'ps1', PWSH_PATH), []);
+    });
+  }
 });

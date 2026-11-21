@@ -115,7 +115,9 @@ run_node_tests() {
   [[ -f "$NODE_TEST" ]] || log_fail "$id: tests/skills/lib/aai-update.test.mjs does not exist"
   out="$(env -u AAI_ROLE node --test --test-name-pattern "$id" "$NODE_TEST" 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test exited $rc"; }
-  [[ "$out" =~ pass\ [1-9] ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test reported zero passing tests for the pattern"; }
+  # node 22 reports an unmatched pattern as one passing file, so a passing case named with the id must be seen.
+  local named="ok [0-9]+ - $id "
+  [[ "$out" =~ pass\ [1-9] && "$out" =~ $named ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test reported no passing test named $id for the pattern"; }
 }
 
 # need_tool <TEST id> <tool>: 0 when present; fail on CI when absent; named SKIP-CASE otherwise.
@@ -208,6 +210,18 @@ test_3968_doctor_postamble() {
   log_pass "TEST-3968: the doctor postamble prints the missing or crashed line, runs the helper on process.execPath, never changes the exit code and never runs in a dry-run or after a failed sync"
 }
 
+test_3969_corpus_bash() {
+  command -v bash >/dev/null 2>&1 || log_skip "TEST-3969: bash not found"
+  run_node_tests TEST-3969
+  log_pass "TEST-3969: every bash-side corpus case agrees with the frozen bash reference in exit, stdout, stderr, tree, source branch and HEAD, TMPDIR listing and gh log after the registered rewrites; each rewrite changes a byte; the asserted divergences hold"
+}
+
+test_3970_corpus_powershell() {
+  need_tool TEST-3970 pwsh || return 0
+  run_node_tests TEST-3970
+  log_pass "TEST-3970: every PowerShell-side corpus case agrees with the frozen PowerShell reference run under pwsh, with the module on the pwsh runner, after the registered rewrites; the asserted divergences hold"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3978, grows run by run)"
   check_deps
@@ -221,6 +235,8 @@ main() {
   test_3966_runner_and_sync
   test_3967_rendering
   test_3968_doctor_postamble
+  test_3969_corpus_bash
+  test_3970_corpus_powershell
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
