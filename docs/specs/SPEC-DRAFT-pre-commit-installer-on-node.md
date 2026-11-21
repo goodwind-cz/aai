@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 26a40fa3c44b213778d517841d5beb831298b8ebf8c44b06a86f33c64f7bbbc5
+frozen_sha256: ce8aed9311be93b9b7dd2e971a8c7341c582371115558c6d318e68c9c40bcc3e
 ceremony_level: 3
 links:
   requirement: pre-commit-installer-on-node
@@ -333,7 +333,9 @@ discipline).
   (D-SLOT's `planned`), which closes `fu-installer-want-refguard-overloaded`.
 - Base directory (DR-20): the environment's `PWD` when it is absolute and
   names the same device and inode as the process working directory, else
-  `process.cwd()` (the SPEC-0307 D-CLI rule); git children run with that
+  `process.cwd()` (the SPEC-0307 D-CLI rule); the identity check is applied to
+  the very path that is returned (`path.resolve(PWD)`, so a `..` after a symlink,
+  which the OS follows from the link's target, is not trusted); git children run with that
   cwd and relative `--git-path` answers resolve against it.
 - Exit codes: 0 done; 1 refusal, failed write, failed attestation, not a
   repository, git missing, or an internal error (`install-pre-commit-hook:
@@ -567,7 +569,7 @@ discipline).
 | DR-20 | message paths from the logical `$PWD` | `Get-Location` | the PWD rule of D-CLI | the bash bytes on POSIX | TEST-3986, K09 |
 | DR-21 | marker followed by space, end of line, or a CR at the end of the line, via grep | on bytes; a CR followed by more bytes also counts | on bytes; a CR counts only before an LF or the end of the file | ownership is decided on the bytes | TEST-3987 |
 | DR-22 | `-x` checked also under Git Bash | skipped on Windows | skipped on win32 | Git for Windows runs hooks regardless of mode bits | TEST-3988 |
-| DR-23 | decline on a directory at the reference-transaction slot: records `declined`, exit 0 | same | refused as a bad-type slot (exit 1, the bad-type lines, nothing written); a symlinked foreign hook is refused like a regular one, as in bash, and is not a drift | a decline must not leave a slot git cannot run a hook from unexplained; the follows-the-link refusal is parity | TEST-3984, K14d |
+| DR-23 | decline on a directory, a dangling symbolic link or a symbolic link to a directory at the reference-transaction slot: records `declined`, exit 0 | same | refused as a bad-type slot (exit 1, the bad-type lines, nothing written; the conservative refusal, a decline must not record over a slot nothing can run); a symlinked foreign hook is refused like a regular one, as in bash, and is not a drift | a decline must not leave a slot git cannot run a hook from unexplained; the follows-the-link refusal is parity | TEST-3984, K14d |
 
 Kept for parity, pinned as rules and not drifts: `--force` installs a
 declined guard for that run and leaves `ref_guard: declined` recorded (the

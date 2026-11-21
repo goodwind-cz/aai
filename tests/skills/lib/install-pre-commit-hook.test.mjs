@@ -736,6 +736,14 @@ describe('TEST-3982 arguments and the one resolved mode', () => {
     assert.equal(resolveBase({ PWD: `${link}/` }, real), link);
     assert.equal(resolveBase({ PWD: `${link}/sub/..` }, real), link);
     assert.equal(resolveBase({ PWD: real }, real), real);
+    assert.equal(resolveBase({ PWD: `${link}/.` }, real), link);
+    assert.equal(resolveBase({ PWD: `${link}//` }, real), link);
+    // R2-B1: a '..' after a symlink is followed by the OS from the link's target, not lexically; the returned path
+    // must be the one that was checked, so PWD=<other>/lnk/.. with lnk -> <real>/sub names <real>, never <other>
+    symlinkSync(path.join(real, 'sub'), path.join(other, 'lnk'));
+    assert.equal(statSync(`${other}/lnk/..`).ino, statSync(real).ino, 'the OS resolves the link first');
+    assert.equal(resolveBase({ PWD: `${other}/lnk/..` }, real), real);
+    assert.equal(resolveBase({ PWD: `${other}/lnk/../` }, real), real);
     // a stale, relative, missing, empty or absent PWD is ignored
     assert.equal(resolveBase({ PWD: other }, real), real);
     assert.equal(resolveBase({ PWD: path.join(base, 'missing') }, real), real);
@@ -1139,6 +1147,26 @@ describe('TEST-3984 the policy flows', () => {
     assert.match(d.stderr, /is a directory, not a regular file\. Nothing was written/);
     assert.ok(lstatSync(hookOf(dir.repo, 'reference-transaction')).isDirectory());
     assert.ok(!existsSync(dir.cfgPath), 'a refusal writes no declaration');
+
+    // R2-N1 (DR-23): a dangling link and a link to a directory are refused as bad-type slots too, nothing written
+    const dang = policyRepo('decline-dangling-');
+    mkdirSync(path.join(dang.repo, '.git', 'hooks'), { recursive: true });
+    symlinkSync(path.join(dang.root, 'nowhere'), hookOf(dang.repo, 'reference-transaction'));
+    const g = dang.run('--decline-ref-guard');
+    assert.equal(g.status, 1, g.stdout);
+    assert.match(g.stderr, /is a dangling symbolic link\. Nothing was written/);
+    assert.ok(lstatSync(hookOf(dang.repo, 'reference-transaction')).isSymbolicLink());
+    assert.ok(!existsSync(dang.cfgPath), 'a refusal writes no declaration');
+
+    const ldir = policyRepo('decline-link-dir-');
+    mkdirSync(path.join(ldir.repo, '.git', 'hooks'), { recursive: true });
+    mkdirSync(path.join(ldir.root, 'some-dir'));
+    symlinkSync(path.join(ldir.root, 'some-dir'), hookOf(ldir.repo, 'reference-transaction'));
+    const l = ldir.run('--decline-ref-guard');
+    assert.equal(l.status, 1, l.stdout);
+    assert.match(l.stderr, /is a symbolic link to a directory\. Nothing was written/);
+    assert.ok(lstatSync(hookOf(ldir.repo, 'reference-transaction')).isSymbolicLink());
+    assert.ok(!existsSync(ldir.cfgPath), 'a refusal writes no declaration');
   });
 
   test('TEST-3984 decline discloses the creation of the config: SEED from the template, NOTE without one', () => {

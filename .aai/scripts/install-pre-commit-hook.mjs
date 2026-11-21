@@ -210,9 +210,12 @@ const statOrNull = (p) => {
 export function resolveBase(env = process.env, cwd = process.cwd()) {
   const pwd = env.PWD;
   if (typeof pwd === 'string' && path.isAbsolute(pwd)) {
-    const a = statOrNull(pwd);
+    // the identity check applies to the very path that is returned: path.resolve folds '..' lexically while the OS
+    // follows a symlink first, so a PWD whose two readings differ is not trusted and the working directory wins
+    const resolved = path.resolve(pwd);
+    const a = statOrNull(resolved);
     const b = statOrNull(cwd);
-    if (a && b && a.dev === b.dev && a.ino === b.ino) return path.resolve(pwd);
+    if (a && b && a.dev === b.dev && a.ino === b.ino) return resolved;
   }
   return cwd;
 }
