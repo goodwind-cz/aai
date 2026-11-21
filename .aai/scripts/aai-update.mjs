@@ -65,6 +65,13 @@ const SWITCH_FLAGS = { '--dry-run': 'dryRun', '--keep-temp': 'keepTemp', '--forc
 // flagKey(arg): the lookup key of a flag word: a long flag exactly, a single-dash name lower-cased.
 const flagKey = (arg) => (arg.startsWith('--') ? arg : arg.toLowerCase());
 
+// isOption(word): a word this parser recognizes as a flag (help, a switch or a value flag, the equals form
+// included); after a value flag it is a missing value, never the value (--repo --dry-run must not drop the dry-run).
+const isOption = (word) => {
+  const k = flagKey(word.startsWith('--') && word.indexOf('=') > 0 ? word.slice(0, word.indexOf('=')) : word);
+  return word === '-h' || word === '--help' || Object.prototype.hasOwnProperty.call(SWITCH_FLAGS, k) || Object.prototype.hasOwnProperty.call(VALUE_FLAGS, k);
+};
+
 // parseArgs(argv): arguments left to right, a later occurrence of a setting wins. outcome is 'run',
 // 'help' (-h or --help seen), 'unknown' (arg names the first unrecognized argument) or 'value' (arg
 // names the value flag, as given, that came without a value). Parsing stops at the first terminal.
@@ -82,7 +89,7 @@ export function parseArgs(argv) {
       out[SWITCH_FLAGS[key]] = true;
     } else if (Object.prototype.hasOwnProperty.call(VALUE_FLAGS, key)) {
       const value = eq > 0 ? arg.slice(eq + 1) : argv[i + 1];
-      if (value === undefined || value === '') {
+      if (value === undefined || value === '' || (eq < 0 && isOption(value))) {
         out.outcome = 'value';
         out.arg = eq > 0 ? arg.slice(0, eq) : arg;
         return out;

@@ -615,10 +615,11 @@ describe('TEST-3962 arguments, help and base directory', () => {
     assert.equal(parseArgs(['--repo=c/c', '-Repo', 'b/b']).repo, 'b/b');
     assert.equal(parseArgs(['-Repo', 'b/b', '--repo', 'a/a']).repo, 'a/a');
     assert.equal(parseArgs(['--ref=one', '--ref', 'two', '-Ref', 'three']).ref, 'three');
-    // a switch repeated is still on; a value may start with a dash and is taken as the value
+    // a switch repeated is still on; a value may start with a dash, but a recognized option is a missing value (Codex r2)
     assert.equal(parseArgs(['--force', '--force']).force, true);
-    assert.equal(parseArgs(['--repo', '--dry-run']).repo, '--dry-run');
-    assert.equal(parseArgs(['--repo', '--dry-run']).dryRun, false);
+    assert.equal(parseArgs(['--repo', '-x/y']).repo, '-x/y');
+    assert.equal(parseArgs(['--repo', '--dry-run']).outcome, 'value');
+    assert.equal(parseArgs(['--repo=--dry-run']).repo, '--dry-run');
     // a value with an equals sign inside it keeps the rest
     assert.equal(parseArgs(['--repo=a=b/c']).repo, 'a=b/c');
     // negative controls: nothing is set by a flag that was not given
@@ -648,9 +649,9 @@ describe('TEST-3962 arguments, help and base directory', () => {
     assert.equal(parseArgs(['--dry-run', '-h', '--bogus']).outcome, 'help');
     assert.equal(parseArgs(['--repo', 'a/b', '--help', '--repo']).outcome, 'help');
     assert.equal(parseArgs(['--bogus', '-h']).outcome, 'unknown');
-    assert.equal(parseArgs(['--repo', '-h']).outcome, 'run', 'a value that looks like help is a value');
+    assert.equal(parseArgs(['--repo', '-h']).outcome, 'value', 'a recognized option after a value flag is a missing value (Codex r2)');
     assert.equal(parseArgs(['--repo']).outcome, 'value');
-    assert.equal(parseArgs(['--repo', '-h']).repo, '-h');
+    assert.equal(parseArgs(['--repo=-h']).repo, '-h', 'the equals form keeps its literal value');
   });
 
   test('TEST-3962 help text is the bash reference help plus the two DR-1 lines, on stdout, exit 0', async () => {
@@ -713,6 +714,7 @@ describe('TEST-3962 arguments, help and base directory', () => {
     const cases = [
       [['--repo'], '--repo'], [['--ref'], '--ref'], [['--ref', ''], '--ref'], [['--repo', ''], '--repo'], [['--repo='], '--repo'], [['--ref='], '--ref'],
       [['-Repo'], '-Repo'], [['-ref', ''], '-ref'], [['--dry-run', '--repo'], '--repo'], [['--repo', 'a/b', '--ref'], '--ref'], [['-REPO'], '-REPO'],
+      [['--repo', '--dry-run'], '--repo'], [['--ref', '--force'], '--ref'], [['-Repo', '-DryRun'], '-Repo'], [['--repo', '--ref', 'x'], '--repo'], [['--ref', '--keep-temp'], '--ref'], [['--repo', '--help'], '--repo'],
     ];
     for (const [argv, flag] of cases) {
       const c = cap();

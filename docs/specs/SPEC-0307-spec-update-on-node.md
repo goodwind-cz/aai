@@ -4,7 +4,7 @@ type: spec
 number: 307
 status: done
 mutation_gate: v1
-frozen_sha256: 43a6204fd9ebf22f2af7a7fb7e67797b7c8834372392db44ee6c8cfe78ef27b6
+frozen_sha256: fd70ccf8f9830da80adbc83c5dd452692d41c480ee39b8275e2cf6e2502287bf
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -247,7 +247,9 @@ DR table and of D-EVIDENCE occurs once in the module.
   `--ref=<v>`, `--dry-run`, `--keep-temp`, `--force`, `-h`, `--help`
   (case-sensitive), and the PowerShell names `-Repo <v>`, `-Ref <v>`,
   `-DryRun`, `-KeepTemp`, `-Force` (matched case-insensitively, exact names
-  only, no abbreviation). A value flag at the end, or with an empty value,
+  only, no abbreviation). A value flag at the end, with an empty value, or
+  followed by a word the parser recognizes as an option (`--repo --dry-run`;
+  the equals form `--repo=--dry-run` keeps its literal value),
   prints `aai-update: <flag as given> needs a value` to stderr and exits 1
   (DR-3). `-h` or `--help` prints the help text to stdout and exits 0 at that
   position (DR-1). Any other argument prints `Unknown argument: <arg>` to
@@ -438,7 +440,7 @@ the helper runs on the same Node).
 |---|---|---|---|---|---|
 | DR-1 | `-h` prints the usage block | `-h` WARN-ignored, the run proceeds | the bash block plus the PowerShell usage line and the Node line; exit 0 on every entry | help must never run an update; one help names both entries | TEST-3962, corpus U09 |
 | DR-2 | unknown argument: error line, usage, exit 1 | WARN and continue, exit 0 | the bash behaviour | a mistyped `--dry-runn` must not run a real update | TEST-3962, U10 |
-| DR-3 | missing or empty value: shell error, exit 0, nothing done | ignored, the default slug is used | `aai-update: <flag> needs a value`, exit 1 | a usage error must say so and fail; the PowerShell twin could update from the wrong source | TEST-3962, U11 |
+| DR-3 | missing or empty value: shell error, exit 0, nothing done; a following option is taken as the value | ignored, the default slug is used; a following option is taken as the value | `aai-update: <flag> needs a value`, exit 1, also when the next word is a recognized option | a usage error must say so and fail; the PowerShell twin could update from the wrong source | TEST-3962, U11 |
 | DR-4 | long flags only | native parameters with abbreviation and colon forms, `--x=v`, long flags; a long flag overrides a native one regardless of order | long flags, `--x=v`, the five exact PowerShell names on every entry; left to right, last wins | one argument grammar for both launchers | TEST-3962, U20, U21 |
 | DR-5 | case-sensitive `.git` and host, last `github.com` | case-insensitive, first `github.com` | case-insensitive, last `github.com` | hostnames are case-insensitive; the guard is a safety refusal | TEST-3963, U08 |
 | DR-6 | `Pass --force to override.` | `Pass -Force to override.` | `Pass --force (or -Force) to override.` | one text for both entries | TEST-3963, U06 |
