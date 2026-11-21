@@ -643,9 +643,9 @@ test_314_print_flag() {
     log_fail "TEST-314: an actually-unknown flag stopped being rejected (got $rc2, want 2) — --print was wired as a catch-all, not a specific case"; ok=0
   fi
 
-  # The foreign-hook guidance itself must name a flag that now exists.
-  grep -qE -- '--print' "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" \
-    || { log_fail "TEST-314: the installer no longer mentions --print anywhere"; ok=0; }
+  # (pre-commit-installer-on-node, TEST-314 re-homed) The text pin on the .sh is gone - the .sh is a launcher
+  # that names no flag outside its comments. The property it stood for, that the guidance names a flag which
+  # exists, is the behaviour above: --print exits 0 and prints the body, an unknown flag exits 2.
 
   [[ $ok -eq 1 ]] && log_pass "TEST-314 --print emits the real pre-commit hook body read-only (exit 0, no writes), an unknown flag still exits 2" \
     || log_fail "TEST-314 --print flag"
@@ -1559,8 +1559,12 @@ test_632_ps1_policy_reader_fails_closed_static() {
   # literal out of BOTH scripts, not asserted once and trusted for both.
   grep -qF 'ref_guard: $Value' "$INSTALLER_PS1" \
     || { log_fail "TEST-632: .ps1's writer does not spell the key as 'ref_guard: \$Value'"; ok=0; }
-  grep -qF "printf 'ref_guard: %s\\n'" "$INSTALLER" \
-    || { log_fail "TEST-632: .sh's writer no longer spells the key the .ps1 twin mirrors (cross-twin key drift)"; ok=0; }
+  # (pre-commit-installer-on-node: the .sh is a launcher; the key is written by the Node module through
+  # guard-config's writer, so the .sh half reads that writer and the module's import of it.)
+  grep -qF 'ref_guard: ${value}' "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" \
+    || { log_fail "TEST-632: guard-config's writer no longer spells the key the .ps1 twin mirrors (cross-twin key drift)"; ok=0; }
+  grep -qF 'writeRefGuardPolicy' "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs" \
+    || { log_fail "TEST-632: the installer module does not write the key through writeRefGuardPolicy"; ok=0; }
 
   [[ $ok -eq 1 ]] && log_pass "TEST-632 .ps1's Read-RefGuardPolicy defaults to 'armed' (absent file and fall-through alike), recognizes 'declined' only via a column-0-anchored match, and both twins spell the identical ref_guard key" \
     || log_fail "TEST-632 .ps1 policy reader fails closed"

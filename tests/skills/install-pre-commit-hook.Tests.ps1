@@ -28,12 +28,16 @@ Describe 'install-pre-commit-hook.ps1' {
       [void](Invoke-Git $d @('config', 'commit.gpgsign', 'false'))
       return $d
     }
-    # Copy-Installers: vendor both installers and the whole templates directory into <repo>/.aai/.
+    # Copy-Installers: vendor both installers, the Node module with its guard-config import and the whole templates directory into <repo>/.aai/.
     function Copy-Installers {
       param([string]$Repo)
       $s = Join-Path (Join-Path $Repo '.aai') 'scripts'
       $t = Join-Path (Join-Path $Repo '.aai') 'templates'
-      New-Item -ItemType Directory -Force -Path $s, $t | Out-Null
+      $sl = Join-Path $s 'lib'
+      New-Item -ItemType Directory -Force -Path $s, $t, $sl | Out-Null
+      # the module both launchers run, and the one lib it imports (pre-commit-installer-on-node, D-PESTER)
+      Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.mjs') -Destination $s
+      Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'lib') 'guard-config.mjs') -Destination $sl
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.ps1') -Destination $s
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.sh') -Destination $s
       Copy-Item -LiteralPath $script:Tpl -Destination $t -Recurse

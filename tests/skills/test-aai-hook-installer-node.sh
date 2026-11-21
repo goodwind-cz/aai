@@ -341,6 +341,143 @@ test_3990_corpus_powershell() {
   log_pass "TEST-3990: every PowerShell-side corpus case P01 to P20 gives exit and snapshot equal between the frozen PowerShell reference and the module, and the asserted divergences hold"
 }
 
+# --- run 5: the sh launcher and the bash-side re-homes (TEST-3991, TEST-3992) -----------------------------
+SH_LAUNCHER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
+REFUSAL_LINE="install-pre-commit-hook: refused - node not found in PATH or install-pre-commit-hook.mjs missing; nothing was changed. Install Node.js 22 or later (https://nodejs.org/) and re-run."
+
+# write_stub_module <dir>: an install-pre-commit-hook.mjs that prints its argv as JSON and exits 7.
+write_stub_module() {
+  printf '%s\n' 'console.log(JSON.stringify({ argv: process.argv.slice(2) }));' 'process.exit(7);' > "$1/install-pre-commit-hook.mjs"
+}
+
+# expect_pass_through <label> <shell> <launcher copy> <expected argv...>: the copy beside its stub passes the argv
+# in order and exit 7 through.
+expect_pass_through() {
+  local label="$1" shell="$2" copy="$3" out rc=0 verdict
+  shift 3
+  out="$("$shell" "$copy" "$@" 2>&1)" || rc=$?
+  [[ "$rc" == 7 ]] || log_fail "TEST-3991: $label: expected exit 7 through the launcher, got $rc: $out"
+  verdict="$(node -e '
+    const got = JSON.parse(process.argv[1]);
+    const want = process.argv.slice(2);
+    const same = got.argv.length === want.length && got.argv.every((a, i) => a === want[i]);
+    process.stdout.write(same ? "same" : "differs: " + process.argv[1]);
+  ' "$out" "$@")" || log_fail "TEST-3991: $label: the stub output is not JSON: $out"
+  [[ "$verdict" == same ]] || log_fail "TEST-3991: $label: $verdict"
+}
+
+# expect_refusal <label> <shell> <copy> <path> <target dir>: runs the launcher in the target with the given PATH and
+# requires exit 1, empty stdout, exactly the refusal line on stderr and an unchanged target.
+expect_refusal() {
+  local label="$1" shell="$2" copy="$3" use_path="$4" target="$5" rc=0 before after
+  before="$(find "$target" | LC_ALL=C sort)"
+  ( cd "$target" && PATH="$use_path" "$shell" "$copy" --force ) > "$target/../refusal.out" 2> "$target/../refusal.err" || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-3991: $label: expected exit 1, got $rc"
+  [[ ! -s "$target/../refusal.out" ]] || log_fail "TEST-3991: $label: stdout must be empty"
+  [[ "$(cat "$target/../refusal.err")" == "$REFUSAL_LINE" ]] || log_fail "TEST-3991: $label: stderr is not the refusal line: $(cat "$target/../refusal.err")"
+  after="$(find "$target" | LC_ALL=C sort)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3991: $label: the target changed"
+}
+
+test_3991_sh_launcher() {
+  [[ -f "$SH_LAUNCHER" ]] || log_fail "TEST-3991: .aai/scripts/install-pre-commit-hook.sh does not exist"
+  local lines mode token body
+  lines="$(wc -l < "$SH_LAUNCHER" | tr -d ' ')"
+  [[ "$lines" -le 20 ]] || log_fail "TEST-3991: the launcher has $lines lines, at most 20 allowed"
+  [[ "$(head -n 1 "$SH_LAUNCHER")" == "#!/bin/sh" ]] || log_fail "TEST-3991: the launcher does not start with #!/bin/sh"
+  if LC_ALL=C /usr/bin/grep -q '[^ -~	]' "$SH_LAUNCHER"; then log_fail "TEST-3991: the launcher holds a non-ASCII byte"; fi
+  mode="$(git -C "$PROJECT_ROOT" ls-files -s .aai/scripts/install-pre-commit-hook.sh | cut -c1-6)"
+  [[ "$mode" == 100755 && -x "$SH_LAUNCHER" ]] || log_fail "TEST-3991: the launcher is not mode 100755 (index: $mode)"
+  body="$(/usr/bin/grep -v '^#' "$SH_LAUNCHER")"
+  for token in 'git' 'rev-parse' 'ref_guard' 'AAI:' 'docs-audit' 'exit 2' '--force' '--print' '--hooks'; do
+    [[ "$body" != *"$token"* ]] || log_fail "TEST-3991: the launcher holds the policy token: $token"
+  done
+
+  local work copy bin shell
+  work="$(new_own_scratch launcher)"
+  mkdir "$work/beside" "$work/alone" "$work/bin" "$work/target"
+  cp "$SH_LAUNCHER" "$work/beside/launcher-copy.sh"
+  cp "$SH_LAUNCHER" "$work/alone/launcher-copy.sh"
+  write_stub_module "$work/beside"
+  copy="$work/beside/launcher-copy.sh"
+  for shell in bash sh dash; do
+    need_tool TEST-3991 "$shell" || continue
+    expect_pass_through "$shell with a spaced value" "$shell" "$copy" --hooks "index, ref-guard" --force --uninstall --print "a b" --decline-ref-guard --arm-ref-guard -h
+    expect_pass_through "$shell with the bare flags" "$shell" "$copy" --print --hooks=index
+  done
+  # PATH holding only dirname: the module exists but node is not found
+  bin="$work/bin"
+  ln -s "$(command -v dirname)" "$bin/dirname"
+  mkdir "$work/target/inner"
+  for shell in "$(command -v bash)" "$(command -v sh)"; do
+    expect_refusal "no node ($shell)" "$shell" "$copy" "$bin" "$work/target"
+  done
+  # node is on PATH but the module is missing: the launcher copied alone
+  expect_refusal "module missing" "$(command -v sh)" "$work/alone/launcher-copy.sh" "$PATH" "$work/target"
+  safe_rm_own "$work"
+  log_pass "TEST-3991: the sh launcher is at most 20 ASCII lines, mode 100755, holds no policy token, passes every argument and the exit code through under bash, sh and dash, and refuses with the exact line, exit 1 and an unchanged target without node or without the module"
+}
+
+# run_suite_selector <suite file> <selector>: one re-homed or vendored selector must exit 0.
+run_suite_selector() {
+  local suite="$1" sel="$2" rc=0 out
+  [[ -f "$PROJECT_ROOT/tests/skills/$suite" ]] || log_fail "TEST-3992: tests/skills/$suite does not exist"
+  out="$(env -u AAI_ROLE -u AAI_GIT_WRITE bash "$PROJECT_ROOT/tests/skills/$suite" "$sel" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3992: $suite $sel exited $rc"; }
+}
+
+test_3992_rehomed_bash_side() {
+  need_tool TEST-3992 git || return 0
+  local sel pair rc out verdict id
+  for pair in \
+    "test-aai-git-ref-guard.sh test_314_print_flag" \
+    "test-aai-hygiene-pack.sh test_618_ref_guard_grep_conformance" \
+    "test-aai-docs-audit.sh test_spec0011_hook_parity_grep" \
+    "test-aai-docs-audit.sh test_change0007_hook_body_lint" \
+    "test-aai-git-ref-guard.sh test_310_doctor_category" \
+    "test-aai-pre-commit-checks.sh test_3453_large_debug_list" \
+    "test-aai-doctor.sh test_1344_cat17_seam1_installed_hook_passes" \
+    "test-aai-git-hook-templates.sh test_3445_cdpath_relative_install" \
+    "test-aai-tracked-ignored.sh test_1709_real_hook_refuses_commit" \
+    "test-aai-hygiene-pack.sh test_800_installed_hook_reaches_guard"; do
+    run_suite_selector "${pair%% *}" "${pair#* }"
+  done
+  rc=0
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3992: check-vendored-script-deps exited $rc"; }
+  # the helper holds the two copy lines once each, outside its case blocks
+  local helper="$PROJECT_ROOT/tests/skills/lib/vendor-hook-installer.sh" line n
+  for line in '  cp "$src/.aai/scripts/install-pre-commit-hook.mjs" "$root/.aai/scripts/"' '  cp "$src/.aai/scripts/lib/guard-config.mjs" "$root/.aai/scripts/lib/"'; do
+    n="$(/usr/bin/grep -cxF -- "$line" "$helper" || true)"
+    [[ "$n" == 1 ]] || log_fail "TEST-3992: vendor-hook-installer.sh holds the line '$line' $n times, want once"
+  done
+  # PROFILES core lists the module
+  verdict="$(node -e '
+    const fs = require("fs");
+    const t = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const start = t.findIndex((l) => /^core:/.test(l));
+    let found = false;
+    for (let i = start + 1; i < t.length && !/^[A-Za-z]/.test(t[i]); i++) {
+      if (t[i].trim() === "- .aai/scripts/install-pre-commit-hook.mjs") found = true;
+    }
+    process.stdout.write(found ? "found" : "missing");
+  ' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")" || verdict="unreadable"
+  [[ "$verdict" == found ]] || log_fail "TEST-3992: PROFILES core does not list .aai/scripts/install-pre-commit-hook.mjs ($verdict)"
+  # the contract records of ref pre-commit-installer-on-node
+  local json
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-3992: spec-amend list failed"
+  for id in "SPEC-0156-|TEST-314 re-homed" "SPEC-0184-|TEST-618 re-homed" "SPEC-0011-|TEST-013 re-homed" "SPEC-0013-|TEST-008 re-homed"; do
+    verdict="$(node -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const [spec, what] = process.argv[1].split("|");
+      const hit = d.items.filter((i) => i.ref_id === "pre-commit-installer-on-node" && i.amendment_class === "contract" && i.spec.includes(spec) && i.what.startsWith(what));
+      process.stdout.write(hit.length === 1 ? "found" : "count " + hit.length);
+    ' "$id" <<<"$json")"
+    [[ "$verdict" == found ]] || log_fail "TEST-3992: contract record of ref pre-commit-installer-on-node for $id: $verdict"
+  done
+  log_pass "TEST-3992: the re-homed and vendoring selectors of seven suites exit 0 against the launcher, check-vendored-script-deps exits 0, the helper copies module and guard-config once each, PROFILES core lists the module and the four contract records exist"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3997, grows run by run)"
   check_deps
@@ -356,6 +493,8 @@ main() {
   test_3988_writes
   test_3989_corpus_bash
   test_3990_corpus_powershell
+  test_3991_sh_launcher
+  test_3992_rehomed_bash_side
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

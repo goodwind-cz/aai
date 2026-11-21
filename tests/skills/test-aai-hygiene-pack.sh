@@ -4862,29 +4862,31 @@ EOS
 }
 
 test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisclosed TEST-618 / Spec-AC-06
-  log_info "Test: lib/guard-config.mjs readRefGuardPolicy and the installer's thin shell grep agree on the same fixture set (Spec-AC-06)..."
+  # TEST-618 re-homed (pre-commit-installer-on-node): the installer is one Node module that imports the
+  # reader, so there is no shell grep to extract. The variants go through readRefGuardPolicy and through a
+  # plain module install in a scratch repository, which skips the ref-guard exactly when the reader says declined.
+  log_info "Test: lib/guard-config.mjs readRefGuardPolicy and a plain installer run agree on the same fixture set (Spec-AC-06)..."
   local lib="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
-  local installer_sh="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
+  local installer_mjs="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs"
   [[ -f "$lib" ]] || log_fail "missing shared reader $lib"
-  [[ -f "$installer_sh" ]] || log_fail "missing $installer_sh"
+  [[ -f "$installer_mjs" ]] || log_fail "missing $installer_mjs"
   command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
 
-  # Unlike the enforce/report-only dials (test_031), ref_guard's mirror lives
-  # directly in install-pre-commit-hook.sh (D5 — no node import in a script
-  # that ships into targets with no guaranteed node module resolution); the
-  # coupling is still documented at the fork site.
-  grep -qF "lib/guard-config.mjs" "$installer_sh" \
-    || log_fail "TEST-618: install-pre-commit-hook.sh must name lib/guard-config.mjs as the canonical reader it mirrors"
-
-  # Extract the ACTUAL grep -Eq pattern from the installer (drift now fails
-  # this test instead of diverging silently).
-  local rg_pat
-  rg_pat="$(awk -F"'" '/grep -Eq/ && /ref_guard:/ { print $(NF-1); exit }' "$installer_sh")"
-  [[ -n "$rg_pat" ]] || log_fail "TEST-618: could not extract the ref_guard grep pattern from install-pre-commit-hook.sh"
+  # The module reads the policy only through the shared reader: it imports it and holds no ref_guard pattern
+  # (a regular expression literal or RegExp over the key) of its own.
+  grep -qF "readRefGuardPolicy" "$installer_mjs" \
+    || log_fail "TEST-618: install-pre-commit-hook.mjs must import readRefGuardPolicy from lib/guard-config.mjs"
+  grep -qF "./lib/guard-config.mjs" "$installer_mjs" \
+    || log_fail "TEST-618: install-pre-commit-hook.mjs must name lib/guard-config.mjs as the canonical reader"
+  if grep -nE "RegExp\(.*ref_guard|/[^/ ]*ref_guard[^/ ]*/[gimsuy]*[.,;) ]" "$installer_mjs" >/dev/null 2>&1; then
+    log_fail "TEST-618: install-pre-commit-hook.mjs holds a ref_guard pattern of its own; the policy is read only through readRefGuardPolicy"
+  fi
 
   TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
   local d="$TEST_DIR/t618"
   mkdir -p "$d"
+  : > "$d/gitconfig"
 
   reader_verdict_ref_guard() {  # $1 dir -> armed|declined
     (cd "$PROJECT_ROOT" && node --input-type=module -e '
@@ -4893,18 +4895,34 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
     ' "$1")
   }
 
-  check_ref_guard_variant() {  # $1 label, $2 config-content ('' = absent file)
-    local label="$1" content="$2"
-    rm -f "$d/docs-audit.yaml"
-    [[ -n "$content" ]] && printf '%s\n' "$content" > "$d/docs-audit.yaml"
-    local want="armed"
-    if [[ -f "$d/docs-audit.yaml" ]] && grep -Eq "$rg_pat" "$d/docs-audit.yaml" 2>/dev/null; then
-      want="declined"
-    fi
-    local got
-    got="$(reader_verdict_ref_guard "$d")"
+  # installer_verdict_ref_guard <label-dir> -> armed|declined: a plain module install in a scratch repository
+  # whose docs/ai/docs-audit.yaml is the file under <label-dir>; the guard hook present means armed.
+  installer_verdict_ref_guard() {
+    local cfgdir="$1" r="$1/repo" irc=0
+    rm -rf "$r"
+    mkdir -p "$r/docs/ai"
+    ( cd "$r" && git init -q . )
+    [[ -f "$cfgdir/docs-audit.yaml" ]] && cp "$cfgdir/docs-audit.yaml" "$r/docs/ai/docs-audit.yaml"
+    vendor_hook_installer "$r" sh
+    ( cd "$r" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$d/gitconfig" bash .aai/scripts/install-pre-commit-hook.sh ) >/dev/null 2>&1 || irc=$?
+    [[ "$irc" == 0 ]] || log_fail "TEST-618: the plain installer run exited $irc in $r"
+    [[ -f "$r/.git/hooks/pre-commit" ]] || log_fail "TEST-618: the plain installer run wrote no pre-commit hook in $r"
+    if [[ -f "$r/.git/hooks/reference-transaction" ]]; then echo armed; else echo declined; fi
+  }
+
+  check_ref_guard_variant() {  # $1 label, $2 config-content ('' = absent file), $3 optional raw leading bytes
+    local label="$1" content="$2" prefix="${3:-}" vd
+    vd="$d/v-${label// /-}"
+    [[ "$vd" == "$d/v-"?* ]] || log_fail "TEST-618: empty variant directory for '$label'"
+    rm -rf "$vd"
+    mkdir -p "$vd"
+    [[ -n "$content" ]] && { printf '%s%s\n' "$prefix" "$content" > "$vd/docs-audit.yaml"; }
+    local want got
+    want="$(reader_verdict_ref_guard "$vd")"
+    got="$(installer_verdict_ref_guard "$vd")"
     [[ "$got" == "$want" ]] \
-      || log_fail "TEST-618: ref_guard conformance drift on '$label': shell grep says $want, reader says $got"
+      || log_fail "TEST-618: ref_guard conformance drift on '$label': the reader says $want, a plain installer run says $got"
+    echo "$want" > "$vd/verdict"
   }
 
   check_ref_guard_variant "absent file" ""
@@ -4918,8 +4936,12 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
   check_ref_guard_variant "glued comment" "ref_guard: declined# note"
   check_ref_guard_variant "quoted value" 'ref_guard: "declined"'
   check_ref_guard_variant "CRLF line" $'ref_guard: declined\r'
+  check_ref_guard_variant "BOM" "ref_guard: declined" $'\xef\xbb\xbf'
+  # the declined variants really declined and the armed ones armed: the comparison is not vacuous
+  [[ "$(cat "$d/v-declined/verdict")" == declined && "$(cat "$d/v-BOM/verdict")" == declined && "$(cat "$d/v-armed/verdict")" == armed ]] \
+    || log_fail "TEST-618: the declined, BOM and armed variants did not read declined, declined and armed"
 
-  log_pass "readRefGuardPolicy and the installer's thin shell grep agree on all fixture variants (Spec-AC-06, TEST-618)"
+  log_pass "readRefGuardPolicy and a plain installer run agree on all twelve fixture variants including a BOM (Spec-AC-06, TEST-618 re-homed)"
 }
 
 # --- shipped-guards-have-no-downstream-trigger (TEST-800..807, 813..816) ----

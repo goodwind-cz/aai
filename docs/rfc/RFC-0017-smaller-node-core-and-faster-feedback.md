@@ -318,7 +318,6 @@ A pair is `.aai/scripts/<name>.sh` plus `<name>.ps1` with no `<name>.mjs`; the l
 | `aai-run-tests` | 958/942 | phase 5 process adapter | supervises suite processes, timeouts and orphan cleanup |
 | `aai-sync` | 1039/1087 | platform adapter kept on purpose | installs AAI into a target before Node is guaranteed there (bootstrap before Node is installed) |
 | `autonomous-loop` | 488/464 | phase 5 process adapter | retired by the [shell-loop-runner slice](../issues/CHANGE-0246-retire-shell-loop-runner.md); a deprecation launcher for one release naming /aai-loop, deleted in the next |
-| `install-pre-commit-hook` | 1313/1097 | platform adapter kept on purpose | hook installation, file permissions and symlinked configuration |
 | `migrate-yaml-to-jsonl` | 126/151 | later candidate | retired by the [legacy-migrations slice](../issues/CHANGE-0245-retire-legacy-migrations.md); a deprecation launcher for one release, deleted in the next |
 | `pre-commit-checks` | 323/281 | platform adapter kept on purpose | L3 protected surface; the .ps1 was retired by the [pre-commit-checks slice](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md), a deprecation launcher for one release naming pre-commit-checks.sh, deleted in the next; the .sh checks 1 to 7 run without Node |
 
