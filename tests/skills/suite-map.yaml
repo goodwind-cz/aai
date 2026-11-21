@@ -808,8 +808,11 @@ suites:
       - tests/skills/lib/bootstrap-reference.mjs
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
+      - tests/fixtures/aai-update-reference/**
+      - tests/skills/lib/update-reference.mjs
       - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/templates/git-hooks/**
@@ -879,6 +882,7 @@ suites:
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       - .aai/system/AAI_PIN.md
@@ -951,6 +955,7 @@ suites:
     globs:
       - .aai/scripts/update-check.mjs
       - .aai/scripts/layer-drift.mjs
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       - docs/ai/update-config.yaml
@@ -1523,6 +1528,7 @@ suites:
 
   aai-update:
     globs:
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       # CHANGE-0137: the post-update doctor field report helper is pinned by
@@ -1787,6 +1793,7 @@ suites:
       - .aai/system/PROFILES.yaml
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       - docs/product/consumer-config.md
@@ -1844,3 +1851,38 @@ suites:
       - tests/skills/aai-bootstrap.Tests.ps1
       - tests/skills/lib/pester-native-capture.ps1
       - tests/skills/lib/pipe-safe.sh
+
+  aai-update-node:
+    globs:
+      - .aai/scripts/aai-update.*
+      - .aai/scripts/update-doctor-report.mjs
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/system/PROFILES.yaml
+      - tests/fixtures/aai-update-reference/**
+      - tests/skills/test-aai-update-node.sh
+      - tests/skills/lib/aai-update.test.mjs
+      - tests/skills/lib/aai-update-fixtures.mjs
+      - tests/skills/lib/update-reference.mjs
+      - tests/skills/lib/install-parity.mjs
+      - tests/skills/lib/install-parity-allowlist.tsv
+      - tests/skills/lib/install-parity.test.mjs
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/lib/cd-subshell-leak-baseline.tsv
+      - tests/skills/lib/bootstrap-reference.mjs
+      - tests/skills/lib/aai-bootstrap-fixtures.mjs
+      - tests/skills/aai-update.Tests.ps1
+      - tests/skills/lib/pester-native-capture.ps1
+      - tests/skills/lib/pipe-safe.sh
+
+  aai-update-docs:
+    globs:
+      - CHANGELOG.md
+      - .aai/SKILL_UPDATE.prompt.md
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-update-docs.sh
+      - tests/skills/test-aai-prompt-diet.sh
+      - tests/skills/test-aai-pr-preflight.sh
+      - tests/skills/test-aai-suite-reuse.sh
+      - tests/skills/test-aai-expert-fetch.sh

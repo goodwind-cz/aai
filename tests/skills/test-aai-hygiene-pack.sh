@@ -1102,8 +1102,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 138 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 138 (pin moved for the aai-bootstrap-node suite) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 140 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 140 (pin moved for the aai-update-docs suite) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -1823,7 +1823,9 @@ test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
   # nothing", not "scanned nothing".
   local pipefail_scripts
   pipefail_scripts="$("$PGQ_GREP" -l 'pipefail' "$PROJECT_ROOT"/.aai/scripts/*.sh "$PROJECT_ROOT"/.aai/scripts/lib/*.sh 2>/dev/null | "$PGQ_GREP" -c '')" || pipefail_scripts=0
-  [[ "$pipefail_scripts" -gt 5 ]] \
+  # TEST-470 vacuity floor (update-on-node D-REHOME): aai-update.sh became a launcher without pipefail; rides 11 and
+  # 12 remove two more and three stay kept-native, so the floor is 3, not 5.
+  [[ "$pipefail_scripts" -ge 3 ]] \
     || log_fail "test_128: only $pipefail_scripts pipefail-bearing shipping script(s) found — the scanner's target set looks broken, not necessarily the corpus"
 
   # ---- BITE PROOF, on a fixture tree mirroring the shipping layout.

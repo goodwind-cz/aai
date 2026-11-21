@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 #
-# Test: aai-update.sh temp-dir TOCTOU fix (ISSUE-0012 / SPEC-0052, TEST-001..005).
+# Test: aai-update temp-dir TOCTOU fix (ISSUE-0012 / SPEC-0052, TEST-001..005).
 #
-# Covers the security-correctness fix to .aai/scripts/aai-update.sh: the
+# Since update-on-node (SPEC-0307-spec-update-on-node, run 5) .aai/scripts/aai-update.sh is a thin launcher and the
+# policy lives in .aai/scripts/aai-update.mjs: TEST-001/002 and 0137-TEST-005/009 read the module's own shape
+# (D-REHOME) and the behavioural cases run through the launcher. The suite keeps one own scratch root
+# (aai-update-suite.*, ownership marker) that TMPDIR points into and removes it from an EXIT trap, also on failure.
+#
+# Originally this covered the security-correctness fix to the bash updater: the
 # securely-owned `mktemp -d` parent ($TMP) must be retained for the whole run
 # and NEVER `rm -rf`'d-and-recreated mid-run; every clone/retry attempt must
 # target a fresh SUBDIRECTORY of it ($TMP/src, i.e. $SRCDIR); only that
@@ -71,7 +76,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 UPDATE_SH="$PROJECT_ROOT/.aai/scripts/aai-update.sh"
-UPDATE_PS1="$PROJECT_ROOT/.aai/scripts/aai-update.ps1"
+UPDATE_MJS="$PROJECT_ROOT/.aai/scripts/aai-update.mjs"
 HELPER_MJS="$PROJECT_ROOT/.aai/scripts/update-doctor-report.mjs"
 DOCTOR_MJS="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 
@@ -80,66 +85,121 @@ log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; }
 log_info() { echo "INFO: $*"; }
 
+# --- own scratch root (D-SAFETY): created at start, TMPDIR points into it, removed from an EXIT trap -------------
+SUITE_PREFIX="aai-update-suite."
+SUITE_MARKER=".aai-up-owned"
+SUITE_PARENT="${TMPDIR:-/tmp}"
+SUITE_PARENT="${SUITE_PARENT%/}"
+SUITE_ROOT=""
+
+# safe_rm_own <path>: removes only the scratch root this run created. It fails for an empty path, a relative path,
+# a basename without the own prefix, a parent other than the one the root was created in, a link, a missing
+# directory and a directory whose ownership marker (this process id) is absent; the marker is read right before
+# the removal.
+safe_rm_own() {
+  local p="$1" base
+  [[ -n "$p" ]] || log_fail "safe_rm_own: empty path"
+  [[ "$p" == /* ]] || log_fail "safe_rm_own: relative path: $p"
+  base="${p##*/}"
+  [[ "$base" == "$SUITE_PREFIX"* ]] || log_fail "safe_rm_own: basename lacks the own prefix: $p"
+  [[ "${p%/*}" == "$SUITE_PARENT" ]] || log_fail "safe_rm_own: not under the temp directory the root was created in: $p"
+  [[ -d "$p" && ! -L "$p" ]] || log_fail "safe_rm_own: not a real directory: $p"
+  [[ "$(cat "$p/$SUITE_MARKER" 2>/dev/null)" == "$$" ]] || log_fail "safe_rm_own: no ownership marker of this run in $p"
+  rm -rf -- "$p"
+}
+
+suite_cleanup() {
+  if [[ -n "$SUITE_ROOT" && -d "$SUITE_ROOT" ]]; then safe_rm_own "$SUITE_ROOT"; fi
+  return 0
+}
+trap suite_cleanup EXIT
+
+SUITE_ROOT="$(mktemp -d "$SUITE_PARENT/${SUITE_PREFIX}XXXXXX")" || log_fail "mktemp failed for the own scratch root"
+printf '%s\n' "$$" > "$SUITE_ROOT/$SUITE_MARKER"
+# the network-free environment of every update run: file:// clones only, an empty gh configuration, no tokens and
+# a gh stub that always fails first on PATH
+mkdir "$SUITE_ROOT/gh-config" "$SUITE_ROOT/stub-bin"
+printf '#!/bin/sh\nexit 1\n' > "$SUITE_ROOT/stub-bin/gh"
+chmod +x "$SUITE_ROOT/stub-bin/gh"
+export GIT_ALLOW_PROTOCOL=file
+export GH_CONFIG_DIR="$SUITE_ROOT/gh-config"
+export PATH="$SUITE_ROOT/stub-bin:$PATH"
+unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+export TMPDIR="$SUITE_ROOT"
+
 check_deps() {
   log_info "Checking dependencies..."
   [[ -f "$UPDATE_SH" ]] || log_fail "aai-update.sh not found: $UPDATE_SH"
+  [[ -f "$UPDATE_MJS" ]] || log_fail "aai-update.mjs not found: $UPDATE_MJS"
   command -v bash >/dev/null 2>&1 || log_fail "bash not found"
   log_pass "Dependencies checked"
 }
 
-# --- TEST-001 (Spec-AC-01): clone target is $SRCDIR, never bare $TMP -------
+# --- TEST-001 (Spec-AC-01): clone target is the src subdirectory, never the temp parent (re-homed to the module) ---
 
 test_001_clone_target_is_srcdir() {
-  log_info "Test: clone-target argument in all three attempts is \"\$SRCDIR\" (=\"\$TMP/src\"), never bare \"\$TMP\" (TEST-001)..."
+  log_info "Test: the module clones into path.join(state.tmp, SRC_SUBDIR) in all three attempts and names no other clone target (TEST-001, re-homed)..."
 
   local n
-  n=$(grep -cF 'gh repo clone "$REPO" "$SRCDIR"' "$UPDATE_SH" || true)
+  n=$(grep -cF "const SRC_SUBDIR = 'src';" "$UPDATE_MJS" || true)
   [[ "$n" == "1" ]] \
-    || log_fail "TEST-001: expected exactly 1 'gh repo clone \"\$REPO\" \"\$SRCDIR\"' line, got $n"
+    || log_fail "TEST-001: expected exactly 1 SRC_SUBDIR declaration, got $n"
 
-  n=$(grep -cF '"$CLONE_URL" "$SRCDIR"' "$UPDATE_SH" || true)
-  [[ "$n" == "2" ]] \
-    || log_fail "TEST-001: expected exactly 2 '\"\$CLONE_URL\" \"\$SRCDIR\"' lines (plain git + anonymous git), got $n"
-
-  n=$(grep -cF 'gh repo clone "$REPO" "$TMP"' "$UPDATE_SH" || true)
-  [[ "$n" == "0" ]] \
-    || log_fail "TEST-001: 'gh repo clone \"\$REPO\" \"\$TMP\"' (bare TMP target) must be ABSENT, found $n"
-
-  n=$(grep -cF '"$CLONE_URL" "$TMP"' "$UPDATE_SH" || true)
-  [[ "$n" == "0" ]] \
-    || log_fail "TEST-001: '\"\$CLONE_URL\" \"\$TMP\"' (bare TMP target) must be ABSENT, found $n"
-
-  n=$(grep -cF 'SRCDIR="$TMP/src"' "$UPDATE_SH" || true)
+  n=$(grep -cF 'path.join(state.tmp, SRC_SUBDIR)' "$UPDATE_MJS" || true)
   [[ "$n" == "1" ]] \
-    || log_fail "TEST-001: expected exactly 1 'SRCDIR=\"\$TMP/src\"' declaration, got $n"
+    || log_fail "TEST-001: expected exactly 1 path.join(state.tmp, SRC_SUBDIR), got $n"
 
-  n=$(grep -cF 'SRC="$SRCDIR"' "$UPDATE_SH" || true)
+  n=$(grep -cF 'path.join(state.tmp' "$UPDATE_MJS" || true)
   [[ "$n" == "1" ]] \
-    || log_fail "TEST-001: expected exactly 1 'SRC=\"\$SRCDIR\"' assignment (sync must resolve inside the retained parent), got $n"
+    || log_fail "TEST-001: the only join under the temp parent must be the SRC_SUBDIR one, got $n"
 
-  log_pass "Clone target is \$SRCDIR in all three attempts; never bare \$TMP (TEST-001)"
+  n=$(grep -cE "^    \['(gh|git)', .*, srcDir\]|^    \['(gh|git)', .*, srcDir, '--'" "$UPDATE_MJS" || true)
+  [[ "$n" == "3" ]] \
+    || log_fail "TEST-001: expected 3 clone attempts that end in srcDir, got $n"
+
+  n=$(grep -cF 'return { src: srcDir, desc };' "$UPDATE_MJS" || true)
+  [[ "$n" == "1" ]] \
+    || log_fail "TEST-001: the sync must resolve inside the retained parent (src: srcDir), got $n"
+
+  log_pass "Clone target is srcDir (tmp/src) in all three attempts; never the temp parent (TEST-001)"
 }
 
-# --- TEST-002 (Spec-AC-01): no mid-run rm -rf "$TMP" in the clone cascade --
+# --- TEST-002 (Spec-AC-01): the temp parent is never removed mid-run (re-homed to the module) ------------------
 
 test_002_no_midrun_rm_tmp() {
-  log_info "Test: no mid-run 'rm -rf \"\$TMP\"' in the clone cascade; only the exit-trap removes \$TMP; per-attempt wipe targets \$SRCDIR (TEST-002)..."
+  log_info "Test: exactly one mkdtempSync, the srcDir wipe sits inside the attempt loop, the temp parent is removed only through removeOwnTemp (TEST-002, re-homed)..."
 
   local n
-  n=$(grep -cF 'rm -rf "$SRCDIR"' "$UPDATE_SH" || true)
-  [[ "$n" == "3" ]] \
-    || log_fail "TEST-002: expected exactly 3 'rm -rf \"\$SRCDIR\"' per-attempt wipes, got $n"
-
-  n=$(grep -cF 'rm -rf "$TMP"' "$UPDATE_SH" || true)
+  n=$(grep -cF 'mkdtempSync(' "$UPDATE_MJS" || true)
   [[ "$n" == "1" ]] \
-    || log_fail "TEST-002: expected exactly 1 'rm -rf \"\$TMP\"' in the WHOLE file (the exit-trap only), got $n"
+    || log_fail "TEST-002: expected exactly 1 mkdtempSync( call, got $n"
 
-  # That single remaining occurrence must be the cleanup() exit-trap line, not
-  # a clone-cascade wipe.
-  grep -qF -- '-d "$TMP" ]] && rm -rf "$TMP"' "$UPDATE_SH" \
-    || log_fail "TEST-002: the sole 'rm -rf \"\$TMP\"' must be the cleanup() exit-trap guard line"
+  n=$(grep -cF 'fs.rmSync(srcDir,' "$UPDATE_MJS" || true)
+  [[ "$n" == "1" ]] \
+    || log_fail "TEST-002: expected exactly 1 srcDir removal, got $n"
 
-  log_pass "No mid-run 'rm -rf \"\$TMP\"' in the clone cascade; only cleanup() removes \$TMP (TEST-002)"
+  n=$(grep -cF 'wipe();' "$UPDATE_MJS" || true)
+  [[ "$n" == "1" ]] \
+    || log_fail "TEST-002: expected exactly 1 wipe() call, got $n"
+
+  local loop
+  loop="$(grep -A1 -F 'of attempts) {' "$UPDATE_MJS" || true)"
+  [[ "$loop" == *'wipe();'* ]] \
+    || log_fail "TEST-002: the srcDir wipe must be the first statement of the attempt loop, got: $loop"
+
+  # every recursive removal in the module: the srcDir wipe and the one inside removeOwnTemp, nothing on tmp
+  n=$(grep -cF 'rmSync(' "$UPDATE_MJS" || true)
+  [[ "$n" == "2" ]] \
+    || log_fail "TEST-002: expected exactly 2 rmSync( calls (the srcDir wipe and removeOwnTemp), got $n"
+  n=$(grep -cE 'rmSync\((state\.)?tmp[^A-Za-z]' "$UPDATE_MJS" || true)
+  [[ "$n" == "0" ]] \
+    || log_fail "TEST-002: the temp parent must not be removed directly, found $n"
+
+  n=$(grep -cE 'removeOwnTemp\((state|watched)\.tmp, (state|watched)\.created\)' "$UPDATE_MJS" || true)
+  [[ "$n" == "2" ]] \
+    || log_fail "TEST-002: expected the temp parent removed through removeOwnTemp in the 2 end-of-run paths, got $n"
+
+  log_pass "One mkdtempSync; the srcDir wipe is inside the attempt loop; the temp parent goes only through removeOwnTemp (TEST-002)"
 }
 
 # --- TEST-003 (Spec-AC-01): bash -n parses clean ----------------------------
@@ -643,6 +703,12 @@ test_009_0137_config_matrix() {
   log_pass "Config matrix: absent==on, off named, unknown warns+runs, column-0 only, update-check parser unaffected (0137-TEST-004)"
 }
 
+# doctor_report_region: the module's doctor postamble, from its `export function doctorReport(` line up to the next
+# line that starts `export function ` (D-REHOME).
+doctor_report_region() {
+  awk '/^export function doctorReport\(/{f=1; print; next} /^export function /{f=0} f' "$UPDATE_MJS"
+}
+
 # --- 0137-TEST-005 (Spec-AC-03): timeout bound + zero-network scan ----------
 
 test_010_0137_timeout_and_zero_network() {
@@ -667,7 +733,7 @@ test_010_0137_timeout_and_zero_network() {
     || log_fail "0137-TEST-005: timeout arm line wrong: $(cat "$out")"
   [[ "$(count_doctor_reports "$root")" == "0" ]] || log_fail "0137-TEST-005: timeout arm must not write a report"
 
-  # Zero-network pin: the helper and BOTH postamble regions carry no network
+  # Zero-network pin: the helper and the module's doctorReport region carry no network
   # or LLM primitive from the pinned token set, and the helper imports only
   # node built-ins.
   local netre="Invoke-WebRequest|Invoke-RestMethod|curl |wget |git fetch|git ls-remote|git clone|fetch\(|node:https?\b|from ['\"]https?['\"]"
@@ -677,14 +743,11 @@ test_010_0137_timeout_and_zero_network() {
   if grep -E "^import .* from" "$HELPER_MJS" | qgrep -vq "from 'node:"; then
     log_fail "0137-TEST-005: helper imports a non-builtin module: $(grep -E '^import ' "$HELPER_MJS")"
   fi
-  local sh_post ps1_post
-  sh_post="$work/sh-postamble.txt"; ps1_post="$work/ps1-postamble.txt"
-  awk '/Doctor field report/{f=1} /^echo "## Next"$/{f=0} f' "$UPDATE_SH" > "$sh_post"
-  awk '/Doctor field report/{f=1} /Write-Host "## Next"/{f=0} f' "$UPDATE_PS1" > "$ps1_post"
-  [[ -s "$sh_post" ]] || log_fail "0137-TEST-005: sh postamble section not found in aai-update.sh"
-  [[ -s "$ps1_post" ]] || log_fail "0137-TEST-005: ps1 postamble section not found in aai-update.ps1"
-  if grep -qE "$netre" "$sh_post" "$ps1_post"; then
-    log_fail "0137-TEST-005: a postamble references a network primitive: $(grep -nE "$netre" "$sh_post" "$ps1_post" | qhead -3)"
+  local region="$work/doctor-report-region.txt"
+  doctor_report_region > "$region"
+  [[ -s "$region" ]] || log_fail "0137-TEST-005: the doctorReport region was not found in aai-update.mjs"
+  if grep -qE "$netre" "$region"; then
+    log_fail "0137-TEST-005: the doctorReport region references a network primitive: $(grep -nE "$netre" "$region" | qhead -3)"
   fi
 
   rm -rf "$work"
@@ -846,37 +909,33 @@ test_013_0137_retention_cap() {
   log_pass "Retention: cap 10 on the doctor shape only, foreign report files untouched (0137-TEST-008)"
 }
 
-# --- 0137-TEST-009 (Spec-AC-01): ps1 parity structural pin -------------------
+# --- 0137-TEST-009 (Spec-AC-01): postamble structural pin (re-homed to the module) -------------------------
 
 test_014_0137_ps1_parity_structural() {
-  log_info "Test: ps1 postamble structural parity — same helper, try/catch, SKIP fallback, ASCII-only; sh invocation or-guarded (0137-TEST-009)..."
+  log_info "Test: the module's doctorReport region runs the ONE helper, prints the DOCTOR-REPORT SKIP fallbacks and is ASCII-only (0137-TEST-009, re-homed)..."
 
-  [[ -f "$UPDATE_PS1" ]] || log_fail "0137-TEST-009: aai-update.ps1 not found"
+  [[ -f "$UPDATE_MJS" ]] || log_fail "0137-TEST-009: aai-update.mjs not found"
+  grep -qF "const HELPER_REL = '.aai/scripts/update-doctor-report.mjs';" "$UPDATE_MJS" \
+    || log_fail "0137-TEST-009: the module does not name the ONE helper (update-doctor-report.mjs)"
 
-  grep -qF '## Doctor field report' "$UPDATE_PS1" \
-    || log_fail "0137-TEST-009: ps1 missing the Doctor field report section"
-  grep -qF 'update-doctor-report.mjs' "$UPDATE_PS1" \
-    || log_fail "0137-TEST-009: ps1 does not invoke the ONE helper (update-doctor-report.mjs)"
-  grep -qF 'DOCTOR-REPORT SKIP' "$UPDATE_PS1" \
-    || log_fail "0137-TEST-009: ps1 missing the DOCTOR-REPORT SKIP fallback string"
-
-  local work ps1_post
+  local work region
   work="$(mktemp -d "${TMPDIR:-/tmp}/aai-0137-t009.XXXXXX")"
-  ps1_post="$work/ps1-postamble.txt"
-  awk '/Doctor field report/{f=1} /Write-Host "## Next"/{f=0} f' "$UPDATE_PS1" > "$ps1_post"
-  [[ -s "$ps1_post" ]] || log_fail "0137-TEST-009: could not extract the ps1 postamble region"
-  grep -q 'try {' "$ps1_post" || log_fail "0137-TEST-009: ps1 postamble not try-wrapped"
-  grep -q '} catch' "$ps1_post" || log_fail "0137-TEST-009: ps1 postamble has no catch arm"
-  # ASCII-only postamble bytes (0136 field lesson: 5.1 BOM-less ANSI read).
-  if tr -d '\n\r\t' < "$ps1_post" | LC_ALL=C grep -q '[^ -~]'; then
-    log_fail "0137-TEST-009: ps1 postamble carries non-ASCII bytes"
+  region="$work/region.txt"
+  doctor_report_region > "$region"
+  [[ -s "$region" ]] || log_fail "0137-TEST-009: could not extract the doctorReport region"
+  grep -qF '## Doctor field report' "$region" \
+    || log_fail "0137-TEST-009: the region misses the Doctor field report section"
+  grep -qF 'HELPER_REL' "$region" \
+    || log_fail "0137-TEST-009: the region does not invoke the ONE helper (HELPER_REL)"
+  grep -qF 'DOCTOR-REPORT SKIP' "$region" \
+    || log_fail "0137-TEST-009: the region misses the DOCTOR-REPORT SKIP fallback string"
+  # ASCII-only region bytes (0136 field lesson: 5.1 BOM-less ANSI read).
+  if tr -d '\n\r\t' < "$region" | LC_ALL=C grep -q '[^ -~]'; then
+    log_fail "0137-TEST-009: the doctorReport region carries non-ASCII bytes"
   fi
-  # sh arm: helper invocation or-guarded so set -e cannot propagate a crash.
-  grep -qF 'update-doctor-report.mjs" --root "$TARGET" || echo "DOCTOR-REPORT SKIP' "$UPDATE_SH" \
-    || log_fail "0137-TEST-009: sh helper invocation is not or-guarded with the SKIP fallback"
 
   rm -rf "$work"
-  log_pass "ps1 postamble parity: one helper, try/catch, ASCII-only; sh or-guarded (0137-TEST-009)"
+  log_pass "doctorReport region: one helper, SKIP fallbacks, ASCII-only (0137-TEST-009, re-homed)"
 }
 
 # --- 0137-TEST-010 (Spec-AC-04): documentation pins --------------------------

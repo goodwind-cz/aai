@@ -1084,6 +1084,22 @@ ps1f_derive() {
     [[ -n "$f" ]] || continue
     grep -ohE 'lib/[A-Za-z0-9_.-]+' "$f" 2>/dev/null >>"$tok_file"
   done <"$src_file"
+  # one more hop: a lib .mjs module the first pass found, run by PowerShell through a Pester file, loads its
+  # siblings with `from './x.mjs'` (install-parity.mjs and its reference helpers); those are read too.
+  local first_file hop2
+  first_file="$(mktemp "${TMPDIR:-/tmp}/ps1f-first.XXXXXX")"
+  for f in "$libdir"/*.mjs; do
+    [[ -f "$f" ]] || continue
+    b="$(basename "$f")"
+    if grep -qxF "lib/$b" "$tok_file"; then echo "$f" >>"$first_file"; fi
+  done
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    for hop2 in $(grep -ohE "from '\./[A-Za-z0-9_.-]+\.mjs'" "$f" 2>/dev/null | sed -e "s/^from '\.\//lib\//" -e "s/'\$//"); do
+      echo "$hop2" >>"$tok_file"
+    done
+  done <"$first_file"
+  rm -f "$first_file"
   for f in "$libdir"/*; do
     [[ -f "$f" ]] || continue
     b="$(basename "$f")"

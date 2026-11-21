@@ -28,6 +28,8 @@ and do NOT narrate the steps — run the one script and relay its output.
    .aai/scripts/aai-update.ps1           # PowerShell / Windows
    ```
 
+   Both launchers run .aai/scripts/aai-update.mjs and need Node.js 22 or later.
+
    The script handles everything: auth-aware clone of `main` (gh → git fallback),
    the canonical-repo guard, running `aai-sync`, post-sync evidence (changed files,
    AAI_PIN, conflict advisory), and temp cleanup.
@@ -41,6 +43,7 @@ and do NOT narrate the steps — run the one script and relay its output.
    - exit 2 = refused (this looks like the canonical AAI repo; use normal git, or `--force`)
    - exit 3 = upstream fetch failed (auth/network — an access issue, not a missing repo)
    - exit 4 = source is malformed (sync script missing in the fetched source)
+   - exit 1 = an unknown argument, a missing flag value, or Node.js missing (the message says which)
 
 4. (Non-blocking) On a successful, non-dry-run sync, install the AAI git hook
    SET automatically — do NOT ask first:

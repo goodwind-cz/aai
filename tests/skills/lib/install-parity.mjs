@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { HOOKS_TEMPLATE_REL, K01_FILES } from './aai-bootstrap-fixtures.mjs';
 import { materializeBootstrapReference } from './bootstrap-reference.mjs';
+import { materializeUpdateReference } from './update-reference.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '../../..');
@@ -155,7 +156,7 @@ export const TWINS = {
         return { file: ctx.bash, args: [`${src}/.aai/scripts/aai-sync.sh`, target, ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };
       }
       if (step.op === 'update') {
-        return { file: ctx.bash, args: [`${src}/.aai/scripts/aai-update.sh`, '--repo', src, '--ref', 'main'], cwd: ctx.target };
+        return { file: ctx.bash, args: [`${fwd(ctx.upref)}/.aai/scripts/aai-update.sh`, '--repo', src, '--ref', 'main'], cwd: ctx.target };
       }
       return { file: ctx.bash, args: ['.aai/scripts/install-pre-commit-hook.sh', ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };
     },
@@ -174,18 +175,25 @@ export const TWINS = {
       return { file: ctx.ps, args: [...psHead(ctx), '.aai/scripts/install-pre-commit-hook.ps1', ...(step.flags || []).map((f) => PS_FLAG[f])], cwd: ctx.target };
     },
   },
-  // The module twin: it runs only on bootstrap scenarios (ops), straight on the Node module of the reference tree.
+  // The module twin: it runs only on bootstrap and update scenarios (ops). Bootstrap: straight on the Node module of the
+  // reference tree. Update: the module of the scratch source with the bash sync runner, paired only with the bash reference
+  // (peers), because next to the ps1 twin it would repeat every sync divergence of sh:ps1 under a second pair name.
   node: {
     name: 'node',
-    ops: ['bootstrap'],
+    ops: ['bootstrap', 'update'],
+    peers: { update: ['sh'] },
     argv(step, ctx) {
-      return { file: process.execPath, args: [path.join(ctx.bsref, '.aai', 'scripts', 'aai-bootstrap.mjs'), ctx.target, ...bsFlags(step)], cwd: ctx.target };
+      if (step.op === 'bootstrap') return { file: process.execPath, args: [path.join(ctx.bsref, '.aai', 'scripts', 'aai-bootstrap.mjs'), ctx.target, ...bsFlags(step)], cwd: ctx.target };
+      return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-update.mjs'), '--repo', ctx.src, '--ref', 'main'], cwd: ctx.target, env: { AAI_UPDATE_SYNC_RUNNER: ctx.bash } };
     },
   },
 };
 
 // twinsFor(twins, scenario): the twins that run a scenario; a twin with ops runs only the operations it lists.
 export const twinsFor = (twins, scenario) => twins.filter((t) => !t.ops || t.ops.includes(scenario.op));
+
+// pairAllowed(a, b, op): a twin that lists peers for an operation is compared only with the twins it lists; a twin without peers pairs with every twin.
+export const pairAllowed = (a, b, op) => [[a, b], [b, a]].every(([x, y]) => !x.peers || !x.peers[op] || x.peers[op].includes(y.name));
 
 export async function loadTwinModule(name, file, registered) {
   if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`--twin-module name ${name} must match [a-z0-9-]+`);
@@ -751,7 +759,7 @@ function runScenario(scenario, allTwins, ctx) {
     (ctx.setup || defaultSetup)(scenario, targetDir, ctx, twin.name);
     const codes = []; const snaps = [];
     scenario.steps.forEach((step, i) => {
-      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref });
+      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref, upref: ctx.upref });
       const before = oddRootNames(targetDir); const t1 = Date.now();
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
       if (r.timedOut) throw new InfraTimeout(scenario.id, twin.name, i + 1);
@@ -777,6 +785,7 @@ function runScenario(scenario, allTwins, ctx) {
   const divergences = []; const pairs = [];
   for (let i = 0; i < twins.length; i += 1) {
     for (let j = i + 1; j < twins.length; j += 1) {
+      if (!pairAllowed(results[i].twin, results[j].twin, scenario.op)) continue;
       const pair = `${results[i].twin.name}:${results[j].twin.name}`;
       pairs.push(pair);
       divergences.push(...compareExits(pair, results[i].codes, results[j].codes), ...compareSnapshots(results[i].final, results[j].final, pair));
@@ -800,6 +809,8 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   if (!c.src && !c.setup) c.src = buildSource(c);
   // The frozen reference tree (and the module and launchers beside it) for the bootstrap scenarios, built once from the checkout.
   if (!c.bsref && scenarios.some((s) => s.op === 'bootstrap')) { c.bsref = path.join(c.root, 'bsref'); materializeBootstrapReference(REPO_ROOT, c.bsref); }
+  // The frozen updater references for the update scenarios: the bash twin of the sh column runs from here.
+  if (!c.upref && scenarios.some((s) => s.op === 'update')) { c.upref = path.join(c.root, 'upref'); materializeUpdateReference(REPO_ROOT, c.upref); }
   const host = c.host || hostInfo();
   const report = { verdict: 'PASS', host: host.platform, tz: PINNED_TZ, matrix, twins: twins.map((t) => t.name), pairs: [], total_seconds: 0, scenarios: [], uncovered: [], stale: [] };
   const used = new Set(); const usedPairs = new Set(); const pairsByScenario = {}; const pairSet = []; const ran = [];
@@ -873,6 +884,8 @@ async function dispatch(cmd, rest, err) {
   for (const sc of scenarios) {
     const running = twinsFor(twins, sc);
     if (running.length < 2) throw new UsageError(`scenario ${sc.id} (${sc.op}) is run by ${running.length} of the selected twins (${running.map((t) => t.name).join(',') || 'none'}); at least two are needed to compare, so nothing would be proven`);
+    // Two runnable twins are not enough when peers forbid every pair between them (ps1,node on an update scenario).
+    if (!running.some((x, i) => running.slice(i + 1).some((y) => pairAllowed(x, y, sc.op)))) throw new UsageError(`scenario ${sc.id} (${sc.op}) has no permitted pair among the selected twins (${running.map((t) => t.name).join(',')}); a twin's peers exclude every other selected twin, so nothing would be compared`);
   }
   const registered = [...new Set([...Object.keys(TWINS), ...twins.map((t) => t.name)])];
   let rows;

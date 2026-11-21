@@ -300,3 +300,7 @@ aai-project-config	196
 aai-test-residue	196
 # sample aai-bootstrap-node fallback unsampled (new suite of bootstrap-on-node; no successful observation)
 aai-bootstrap-node	196
+# sample aai-update-node fallback unsampled (new suite of update-on-node; no successful observation)
+aai-update-node	196
+# sample aai-update-docs fallback unsampled (new suite split from aai-update-node by update-on-node; no successful observation)
+aai-update-docs	196

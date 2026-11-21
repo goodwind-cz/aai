@@ -8,21 +8,15 @@
 #      (--dry-run, --repo, --ref, --force) are accepted, not just -DryRun/-Repo.
 #   4. The canonical-repo guard still refuses (exit 2) without -Force.
 #
-# ISSUE-0012 / SPEC-0052 additions (temp-dir TOCTOU fix — ps1 parity):
-#   - TEST-006 (Spec-AC-02): static — clone-target in all three attempts is
-#     $SrcDir (=$Tmp/src), never bare $Tmp; $Tmp created once as a directory.
-#     RED on the current (unfixed) script.
-#   - TEST-007 (Spec-AC-02): static — no `Remove-Item ... $Tmp` in the attempt
-#     cascade; per-attempt wipe targets $SrcDir; only the `finally` block
-#     removes $Tmp. RED on the current (unfixed) script.
-#   - TEST-008 (Spec-AC-02): `[Parser]::ParseFile` clean — covered by the
-#     pre-existing "parses with no syntax errors" test below.
-#   - TEST-009 (Spec-AC-03, SEAM-1 parity): integration — a real clone from a
-#     local file:// fixture repo with -KeepTemp: the repo materializes at
-#     $Tmp/src and $Tmp is retained. Skips cleanly if git/pwsh unavailable.
-#   - TEST-010 (Spec-AC-03): the four pre-existing Describe blocks below
-#     (parses / canonical-repo guard / dry-run / bash long-flag / robustness)
-#     are the regression guards proving behavior is unchanged.
+# update-on-node (SPEC-0307-spec-update-on-node, D-REHOME / D-PESTER): aai-update.ps1 is now a thin launcher of
+# .aai/scripts/aai-update.mjs. The source-shape cases of the old PowerShell twin (TEST-006, TEST-007, TEST-3587,
+# TEST-3588, TEST-3589) are retired; their properties are proven on the module by the node tests of
+# the aai-update-node suite (TEST-3964, TEST-3965). TEST-009 keeps its real clone through the launcher
+# (temp directory prefix aai-src.), and the launcher context below runs the launcher itself with the running engine.
+#   - TEST-009 (Spec-AC-03, SEAM-1 parity): integration -- a real clone from a local file:// fixture repo with
+#     -KeepTemp: the repo materializes at $Tmp/src and $Tmp is retained.
+#   - TEST-010 (Spec-AC-03): the Describe blocks below (parses / canonical-repo guard / dry-run / bash long-flag /
+#     robustness) are the regression guards proving behavior is unchanged.
 #
 # Run via: pwsh -NoProfile -Command "Invoke-Pester tests/skills/aai-update.Tests.ps1"
 # (the bash gate tests/skills/test-ps1-quality.sh wraps this and skips if pwsh
@@ -44,6 +38,26 @@ BeforeAll {
     # left `Invoke-NativeCaptured` unresolved inside this very BeforeAll).
     . (Join-Path $PSScriptRoot 'lib/pester-native-capture.ps1')
 
+    # D-SAFETY: every update run here is network-free. Only file:// URLs and local directories are used as sources;
+    # GIT_ALLOW_PROTOCOL=file and an empty GH_CONFIG_DIR keep git and gh off the network, the token variables are
+    # removed, and on POSIX a gh stub that fails sits first on PATH (restored in AfterAll).
+    $script:SavedEnv = @{}
+    foreach ($n in 'GIT_ALLOW_PROTOCOL', 'GH_CONFIG_DIR', 'GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN', 'PATH') {
+        $script:SavedEnv[$n] = [Environment]::GetEnvironmentVariable($n)
+    }
+    $ghConfig = Join-Path $TestDrive 'gh-config'
+    New-Item -ItemType Directory -Path $ghConfig -Force | Out-Null
+    $env:GIT_ALLOW_PROTOCOL = 'file'
+    $env:GH_CONFIG_DIR = $ghConfig
+    foreach ($n in 'GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN') { Remove-Item "Env:\$n" -ErrorAction SilentlyContinue }
+    if ([System.IO.Path]::DirectorySeparatorChar -eq '/') {
+        $stubDir = Join-Path $TestDrive 'gh-stub'
+        New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $stubDir 'gh'), "#!/bin/sh`nexit 1`n")
+        & chmod +x (Join-Path $stubDir 'gh')
+        $env:PATH = $stubDir + [System.IO.Path]::PathSeparator + $env:PATH
+    }
+
     # Invoke the updater in a fresh pwsh and capture stdout/stderr/exit code.
     # NB: the parameter must NOT be named $Args (that is an automatic variable in
     # PowerShell functions; splatting it would forward nothing). Returns
@@ -60,6 +74,10 @@ BeforeAll {
         $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments (@('-NoProfile', '-File', $script:Update) + $ScriptArgs)
         return @{ Out = $r.Out; Err = $r.Err; Code = $r.Code }
     }
+}
+
+AfterAll {
+    foreach ($n in $script:SavedEnv.Keys) { [Environment]::SetEnvironmentVariable($n, $script:SavedEnv[$n]) }
 }
 
 Describe 'aai-update.ps1' {
@@ -144,31 +162,10 @@ Describe 'aai-update.ps1' {
     }
 
     Context 'robustness' {
-        It 'warns but does not crash on an unrecognized argument' {
+        It 'refuses an unrecognized argument with the Unknown argument line and exit 1 (DR-2)' {
             $r = Invoke-Update -ScriptArgs @('--force', '--dry-run', '--bogus', 'xyz')
-            $r.Code | Should -Be 0
-            $r.Err  | Should -Match "ignoring unrecognized argument '--bogus'"
-        }
-    }
-
-    Context 'temp-dir lifecycle (ISSUE-0012 / SPEC-0052 — retain $Tmp, clone into $SrcDir)' {
-        BeforeAll {
-            $script:UpdateContent = Get-Content -Raw $script:Update
-        }
-
-        It 'TEST-006: clone target is $SrcDir (=$Tmp/src) in all three attempts, never bare $Tmp; $Tmp created once as a directory' {
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('gh repo clone $Repo $SrcDir'))).Count | Should -Be 1
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$CloneUrl $SrcDir'))).Count | Should -Be 2
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('gh repo clone $Repo $Tmp'))).Count | Should -Be 0
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$CloneUrl $Tmp'))).Count | Should -Be 0
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('New-Item -ItemType Directory -Path $Tmp -Force'))).Count | Should -Be 1
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$SrcDir = Join-Path $Tmp ''src'''))).Count | Should -Be 1
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$Src = $SrcDir'))).Count | Should -Be 1
-        }
-
-        It 'TEST-007: no Remove-Item ... $Tmp in the attempt cascade; per-attempt wipe targets $SrcDir; only finally removes $Tmp' {
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue'))).Count | Should -Be 3
-            ([regex]::Matches($script:UpdateContent, [regex]::Escape('Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue'))).Count | Should -Be 1
+            $r.Code | Should -Be 1
+            $r.Err  | Should -Match 'Unknown argument: --bogus'
         }
     }
 
@@ -217,7 +214,7 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
 
                 $code | Should -Be 0 -Because "stderr: $errText"
 
-                $foundTmp = Get-ChildItem -Path $fixtureTmpBase -Directory -Filter 'aai-src-*' -ErrorAction SilentlyContinue | Select-Object -First 1
+                $foundTmp = Get-ChildItem -Path $fixtureTmpBase -Directory -Filter 'aai-src.*' -ErrorAction SilentlyContinue | Select-Object -First 1
                 $foundTmp | Should -Not -BeNullOrEmpty
                 (Test-Path (Join-Path $foundTmp.FullName 'src/.git')) | Should -BeTrue
                 (Test-Path (Join-Path $foundTmp.FullName 'src/.aai/scripts/aai-sync.ps1')) | Should -BeTrue
@@ -238,10 +235,8 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
             $script:HostExe = (Get-Process -Id $PID).Path
             $script:BeWrapper = Join-Path $TestDrive 'be-wrapper.ps1'
             @'
-param([string]$UpdatePath, [string]$RepoArg, [string]$NoGitPath = '', [string]$StaleCode = '')
+param([string]$UpdatePath, [string]$RepoArg)
 if ($PSVersionTable.PSVersion -ge [version]'7.3') { $PSNativeCommandUseErrorActionPreference = $true }
-if ($NoGitPath) { $env:PATH = $NoGitPath }
-if ($StaleCode) { $global:LASTEXITCODE = [int]$StaleCode }
 & $UpdatePath -Repo $RepoArg -Ref main
 exit $LASTEXITCODE
 '@ | Set-Content -LiteralPath $script:BeWrapper
@@ -262,17 +257,10 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
             }
 
             function Invoke-BeUpdate {
-                param([string]$Target, [string]$RepoArg, [switch]$NoGit, [string]$StaleCode = '')
-                $extra = @()
-                if ($NoGit) {
-                    $empty = Join-Path $TestDrive 'be-empty-path'
-                    New-Item -ItemType Directory -Path $empty -Force | Out-Null
-                    $extra += @('-NoGitPath', $empty)
-                }
-                if ($StaleCode) { $extra += @('-StaleCode', $StaleCode) }
+                param([string]$Target, [string]$RepoArg)
                 Push-Location $Target
                 try {
-                    $r = Invoke-NativeCaptured -Exe $script:HostExe -Arguments (@('-NoProfile', '-File', $script:BeWrapper, '-UpdatePath', $script:Update, '-RepoArg', $RepoArg) + $extra)
+                    $r = Invoke-NativeCaptured -Exe $script:HostExe -Arguments @('-NoProfile', '-File', $script:BeWrapper, '-UpdatePath', $script:Update, '-RepoArg', $RepoArg)
                 } finally {
                     Pop-Location
                 }
@@ -327,40 +315,115 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
             $r.Out | Should -Match 'Changed files: none \(already up to date\)'
         }
 
-        It 'TEST-3587: with git absent from PATH a local -Repo still syncs and exits 0 (missing executable never terminates)' {
-            $src = New-BeSource -Name 'be-src-5'
-            $target = New-BeGitTarget -Name 'be-target-5'
-            $r = Invoke-BeUpdate -Target $target -RepoArg $src -NoGit
-            $r.Code | Should -Be 0 -Because "stderr: $($r.Err)"
-            (Test-Path (Join-Path $target 'BE_SYNC_MARKER')) | Should -BeTrue
-            $r.Err | Should -Not -Match 'is not recognized'
-        }
-
-        It 'TEST-3588: with git absent from PATH a failing clone exits 3 with the ERROR line, never 1' {
-            $target = New-BeGitTarget -Name 'be-target-6'
-            $missing = [System.Uri]::new((Join-Path $TestDrive 'be-no-such-repo-2')).AbsoluteUri
-            $r = Invoke-BeUpdate -Target $target -RepoArg $missing -NoGit
-            $r.Code | Should -Be 3 -Because "stderr: $($r.Err)"
-            $r.Err | Should -Match 'ERROR: could not fetch'
-        }
-
-        It 'TEST-3589: a stale caller exit code of 0 does not leak into a missing-executable attempt (reset to null before the call)' {
-            $target = New-BeGitTarget -Name 'be-target-7'
-            $missing = [System.Uri]::new((Join-Path $TestDrive 'be-no-such-repo-3')).AbsoluteUri
-            $r = Invoke-BeUpdate -Target $target -RepoArg $missing -NoGit -StaleCode '0'
-            $r.Code | Should -Be 3 -Because "stderr: $($r.Err)"
-            $r.Err | Should -Match 'ERROR: could not fetch'
-        }
-
-        It 'TEST-3584: no line combines a git or gh call with a redirect; the helper carries both tags; the file is ASCII-only' {
+        It 'TEST-3584: the launcher holds no git or gh token and is ASCII only (the native-call class is gone from the update path)' {
             $lines = @(Get-Content -LiteralPath $script:Update)
-            $raw = @($lines | Where-Object { $_ -notmatch '^\s*#' -and $_ -match '\b(git|gh)\b' -and $_ -match '\*>|2>' })
-            $raw | Should -BeNullOrEmpty
-            @($lines | Where-Object { $_ -match "ErrorActionPreference = 'Continue'.*# AAI-BEST-EFFORT-EAP\s*$" }).Count | Should -Be 1
-            @($lines | Where-Object { $_ -match '# AAI-BEST-EFFORT-RC\s*$' }).Count | Should -Be 1
-            @($lines | Where-Object { $_ -match 'PSNativeCommandUseErrorActionPreference = \$false' }).Count | Should -Be 1
+            @($lines | Where-Object { $_ -notmatch '^\s*#' -and $_ -match '\b(git|gh)\b' }).Count | Should -Be 0
             $bytes = [System.IO.File]::ReadAllBytes($script:Update)
             @($bytes | Where-Object { $_ -gt 127 }).Count | Should -Be 0
+        }
+    }
+
+    Context 'launcher (update-on-node)' {
+        # D-PESTER: the launcher runs under the engine running this test ((Get-Process -Id $PID).Path), through
+        # ProcessStartInfo with an explicit PATH; every fixture lives in $TestDrive.
+        BeforeAll {
+            $script:Engine = (Get-Process -Id $PID).Path
+            $script:Refused = 'aai-update: refused - node not found in PATH or aai-update.mjs missing; nothing was changed. Install Node.js 22 or later (https://nodejs.org/) and re-run.'
+
+            function New-LaunchDir {
+                param([string]$Name)
+                $d = Join-Path $TestDrive $Name
+                New-Item -ItemType Directory -Force -Path $d | Out-Null
+                return $d
+            }
+            function Invoke-Engine {
+                param([string]$EngineArgs, [string]$WorkDir, [string]$Path)
+                $psi = New-Object System.Diagnostics.ProcessStartInfo
+                $psi.FileName = $script:Engine
+                $psi.Arguments = $EngineArgs
+                $psi.WorkingDirectory = $WorkDir
+                $psi.UseShellExecute = $false
+                $psi.RedirectStandardOutput = $true
+                $psi.RedirectStandardError = $true
+                $psi.EnvironmentVariables['PATH'] = $Path
+                $psi.EnvironmentVariables['PWD'] = $WorkDir
+                $p = [System.Diagnostics.Process]::Start($psi)
+                $out = $p.StandardOutput.ReadToEnd()
+                $err = $p.StandardError.ReadToEnd()
+                $p.WaitForExit()
+                return [pscustomobject]@{ ExitCode = $p.ExitCode; Stdout = $out; Stderr = $err }
+            }
+            function Invoke-Launcher {
+                param([string]$LauncherPath, [string]$WorkDir, [string]$LauncherArgs, [string]$Path)
+                return (Invoke-Engine -EngineArgs (('-NoProfile -NonInteractive -File "' + $LauncherPath + '" ' + $LauncherArgs).Trim()) -WorkDir $WorkDir -Path $Path)
+            }
+            function Write-StubModule {
+                param([string]$Dir, [string]$Body)
+                [System.IO.File]::WriteAllText((Join-Path $Dir 'aai-update.mjs'), $Body)
+            }
+        }
+
+        It 'passes every argument through in order, hands the module the engine path and keeps its exit code' {
+            $d = New-LaunchDir 'launch-pass'
+            Copy-Item -LiteralPath $script:Update -Destination (Join-Path $d 'aai-update.ps1')
+            Write-StubModule $d "console.log(JSON.stringify({ argv: process.argv.slice(2), runner: process.env.AAI_UPDATE_SYNC_RUNNER }));`nprocess.exit(7);`n"
+            $r = Invoke-Launcher (Join-Path $d 'aai-update.ps1') $d '-Repo "dir with space" --ref dev -DryRun --keep-temp -Force -h' $env:PATH
+            $r.ExitCode | Should -Be 7 -Because "stderr: $($r.Stderr)"
+            $got = $r.Stdout | ConvertFrom-Json
+            @($got.argv) | Should -Be @('-Repo', 'dir with space', '--ref', 'dev', '-DryRun', '--keep-temp', '-Force', '-h')
+            $got.runner | Should -Be $script:Engine
+        }
+
+        It 'restores the caller value of AAI_UPDATE_SYNC_RUNNER afterwards, and leaves it unset when it was unset' {
+            $d = New-LaunchDir 'launch-scope'
+            Copy-Item -LiteralPath $script:Update -Destination (Join-Path $d 'aai-update.ps1')
+            Write-StubModule $d "process.exit(0);`n"
+            $launcher = Join-Path $d 'aai-update.ps1'
+            $preset = Invoke-Engine -EngineArgs ('-NoProfile -NonInteractive -Command "$env:AAI_UPDATE_SYNC_RUNNER = ''preset''; & ''' + $launcher + '''; $env:AAI_UPDATE_SYNC_RUNNER"') -WorkDir $d -Path $env:PATH
+            $preset.Stdout.Trim() | Should -Be 'preset' -Because "stderr: $($preset.Stderr)"
+            $unset = Invoke-Engine -EngineArgs ('-NoProfile -NonInteractive -Command "& ''' + $launcher + '''; $env:AAI_UPDATE_SYNC_RUNNER"') -WorkDir $d -Path $env:PATH
+            $unset.Stdout.Trim() | Should -Be '' -Because "stderr: $($unset.Stderr)"
+        }
+
+        It 'refuses with the one line, prints nothing on stdout and changes nothing when node is not on PATH' {
+            $d = New-LaunchDir 'launch-nonode'
+            $target = New-LaunchDir 'launch-nonode-target'
+            $emptyPath = New-LaunchDir 'launch-empty-path'
+            Copy-Item -LiteralPath $script:Update -Destination (Join-Path $d 'aai-update.ps1')
+            Write-StubModule $d "process.exit(0);`n"
+            $r = Invoke-Launcher (Join-Path $d 'aai-update.ps1') $target '--dry-run' $emptyPath
+            $r.ExitCode | Should -Be 1
+            $r.Stdout | Should -Be ''
+            $r.Stderr.Trim() | Should -Be $script:Refused
+            @(Get-ChildItem -LiteralPath $target -Force).Count | Should -Be 0
+        }
+
+        It 'refuses the same way when the module is missing next to the launcher' {
+            $d = New-LaunchDir 'launch-nomodule'
+            $target = New-LaunchDir 'launch-nomodule-target'
+            Copy-Item -LiteralPath $script:Update -Destination (Join-Path $d 'aai-update.ps1')
+            $r = Invoke-Launcher (Join-Path $d 'aai-update.ps1') $target '--dry-run' $env:PATH
+            $r.ExitCode | Should -Be 1
+            $r.Stdout | Should -Be ''
+            $r.Stderr.Trim() | Should -Be $script:Refused
+            @(Get-ChildItem -LiteralPath $target -Force).Count | Should -Be 0
+        }
+
+        It 'runs the real module: the sync of the source runs under the same engine and the evidence prints' {
+            $src = New-LaunchDir 'launch-src'
+            New-Item -ItemType Directory -Path (Join-Path $src '.aai/scripts') -Force | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $src '.aai/scripts/aai-sync.ps1'), "param([string]`$TargetRoot)`nNew-Item -ItemType Directory -Path `$TargetRoot -Force | Out-Null`n(Get-Process -Id `$PID).Path | Set-Content -Path (Join-Path `$TargetRoot 'SYNC_ENGINE')`n")
+            git -C $src init -q -b main
+            git -C $src -c user.email=test@example.com -c user.name=test add -A
+            git -C $src -c user.email=test@example.com -c user.name=test commit -q -m fixture
+            $target = New-LaunchDir 'launch-real-target'
+            git -C $target init -q
+            git -C $target remote add origin 'https://github.com/acme/foo.git'
+            $r = Invoke-Launcher $script:Update $target ('-Repo "' + $src + '" -Force') $env:PATH
+            $r.ExitCode | Should -Be 0 -Because "stderr: $($r.Stderr)"
+            (Get-Content -LiteralPath (Join-Path $target 'SYNC_ENGINE') -Raw).Trim() | Should -Be $script:Engine
+            $r.Stdout | Should -Match '## Post-sync evidence'
+            $r.Stdout | Should -Match '## Next'
         }
     }
 }
