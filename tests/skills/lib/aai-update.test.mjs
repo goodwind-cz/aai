@@ -638,14 +638,14 @@ describe('TEST-3962 arguments, help and base directory', () => {
     assert.equal(want.split('\n').length, 15 + 2 + 1, '15 reference lines, 2 added, one trailing empty piece');
     for (const flag of ['-h', '--help']) {
       const c = cap();
-      assert.equal(run([flag], c.io), 0);
+      assert.equal(await run([flag], c.io), 0);
       assert.equal(c.out, want);
       assert.equal(c.err, '');
       assert.deepEqual(c.spawned, []);
     }
     // help wins over a later problem and exits 0 with nothing on stderr
     const c = cap();
-    assert.equal(run(['--dry-run', '-h', '--bogus'], c.io), 0);
+    assert.equal(await run(['--dry-run', '-h', '--bogus'], c.io), 0);
     assert.equal(c.out, want);
     assert.equal(c.err, '');
     // against the real reference: its own help, byte for byte, then the two lines (run in its own scratch)
@@ -666,7 +666,7 @@ describe('TEST-3962 arguments, help and base directory', () => {
     const want = expectedHelp();
     for (const [argv, bad] of [[['--bogus'], '--bogus'], [['--dry-runn'], '--dry-runn'], [['--dry-run', '--bogus', '--force'], '--bogus'], [['--repo', 'a/b', 'stray'], 'stray'], [['-Rep', 'x'], '-Rep']]) {
       const c = cap();
-      assert.equal(run(argv, c.io), 1, argv.join(' '));
+      assert.equal(await run(argv, c.io), 1, argv.join(' '));
       assert.equal(c.err, `Unknown argument: ${bad}\n`);
       assert.equal(c.out, want);
       assert.deepEqual(c.spawned, [], 'nothing is started');
@@ -694,7 +694,7 @@ describe('TEST-3962 arguments, help and base directory', () => {
     ];
     for (const [argv, flag] of cases) {
       const c = cap();
-      assert.equal(run(argv, c.io), 1, argv.join(' '));
+      assert.equal(await run(argv, c.io), 1, argv.join(' '));
       assert.equal(c.err, `aai-update: ${flag} needs a value\n`);
       assert.equal(c.out, '');
       assert.deepEqual(c.spawned, []);
@@ -798,14 +798,14 @@ function layout(label) {
 
 // runFake(mod, { argv, lay, origin, handler, platform }): one run of the module with an injected child seam; the
 // guard's git read answers with the origin ('' means no origin), every other child goes to the handler.
-function runFake(mod, { argv, lay, origin = '', handler = () => null, platform = 'linux', env = {} }) {
+async function runFake(mod, { argv, lay, origin = '', handler = () => null, platform = 'linux', env = {} }) {
   const o = { out: '', err: '' };
   const spawn = fakeSpawn((call, i) => {
     if (isGuardRead(call)) return origin === null ? enoent() : { status: origin === '' ? 1 : 0, stdout: origin === '' ? '' : `${origin}\n` };
     return handler(call, i);
   });
   o.spawn = spawn;
-  o.code = mod.run(argv, {
+  o.code = await mod.run(argv, {
     out: (s) => { o.out += s; }, err: (s) => { o.err += s; }, env: { PWD: lay.target, ...env }, cwd: lay.target, spawn, tmpdir: lay.tmpdir, platform,
   });
   o.others = spawn.calls.filter((c) => !isGuardRead(c));
@@ -871,7 +871,7 @@ describe('TEST-3963 canonical repo guard', () => {
       for (const repo of repos) {
         for (const extra of [[], ['--dry-run']]) {
           const lay = layout('refuse-');
-          const o = runFake(mod, { argv: ['--repo', repo, ...extra], lay, origin });
+          const o = await runFake(mod, { argv: ['--repo', repo, ...extra], lay, origin });
           const label = `${origin} against ${repo} ${extra.join(' ')}`;
           assert.equal(o.code, 2, label);
           assert.equal(o.err, REFUSAL(origin), label);
@@ -886,7 +886,7 @@ describe('TEST-3963 canonical repo guard', () => {
   test('TEST-3963 the default repository is guarded too, and the guard reads the origin the documented way', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('default-');
-    const o = runFake(mod, { argv: [], lay, origin: 'https://github.com/goodwind-cz/aai.git' });
+    const o = await runFake(mod, { argv: [], lay, origin: 'https://github.com/goodwind-cz/aai.git' });
     assert.equal(o.code, 2);
     const reads = o.spawn.calls.filter(isGuardRead);
     assert.equal(reads.length, 1);
@@ -901,26 +901,26 @@ describe('TEST-3963 canonical repo guard', () => {
     const refused = (o) => o.code === 2 || o.err.includes('REFUSED');
     for (const flag of ['--force', '-Force', '-force']) {
       const lay = layout('force-');
-      const o = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run', flag], lay, origin: canonical });
+      const o = await runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run', flag], lay, origin: canonical });
       assert.ok(!refused(o), `${flag}: ${o.err}`);
     }
     // a local directory as the repository value
     const lay1 = layout('local-');
-    const o1 = runFake(mod, { argv: ['--repo', lay1.source, '--dry-run'], lay: lay1, origin: canonical });
+    const o1 = await runFake(mod, { argv: ['--repo', lay1.source, '--dry-run'], lay: lay1, origin: canonical });
     assert.ok(!refused(o1), o1.err);
     // another repository
     const lay2 = layout('other-');
-    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay: lay2, origin: canonical });
+    const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay: lay2, origin: canonical });
     assert.ok(!refused(o2), o2.err);
-    const o3 = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('other2-'), origin: 'https://github.com/acme/target.git' });
+    const o3 = await runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('other2-'), origin: 'https://github.com/acme/target.git' });
     assert.ok(!refused(o3), o3.err);
     // no origin (the read fails or prints nothing) and a git that cannot start
-    const o4 = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('noorigin-'), origin: '' });
+    const o4 = await runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('noorigin-'), origin: '' });
     assert.ok(!refused(o4), o4.err);
-    const o5 = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('nogit-'), origin: null });
+    const o5 = await runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('nogit-'), origin: null });
     assert.ok(!refused(o5), o5.err);
     // a repo value that names a path is never a canonical slug, even beside a canonical origin
-    const o6 = runFake(mod, { argv: ['--repo', '/tmp/x/goodwind-cz/aai', '--dry-run'], lay: layout('path-'), origin: canonical });
+    const o6 = await runFake(mod, { argv: ['--repo', '/tmp/x/goodwind-cz/aai', '--dry-run'], lay: layout('path-'), origin: canonical });
     assert.ok(!refused(o6), o6.err);
   });
 
@@ -950,7 +950,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
   test('TEST-3964 a real run on a local checkout runs the three git commands in it, in order, with closed stdio', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('local-real-');
-    const o = runFake(mod, { argv: ['--repo', lay.source, '--ref', 'dev'], lay });
+    const o = await runFake(mod, { argv: ['--repo', lay.source, '--ref', 'dev'], lay });
     assert.equal(o.code, 0, o.err);
     const git = o.others.filter((c) => c.file === 'git' && !isStatus(c));
     assert.deepEqual(git.map((c) => c.args), [
@@ -968,7 +968,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
   test('TEST-3964 a local checkout resolves lexically against the base, and failing git commands are ignored', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('local-rel-');
-    const o = runFake(mod, {
+    const o = await runFake(mod, {
       argv: ['--repo', path.join('..', 'src')], lay,
       handler: (c) => (c.file === 'git' ? { status: 128 } : null),
     });
@@ -977,7 +977,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     assert.ok(isSync(o.others[3]));
     // git missing altogether: the three commands fail to start and the sync still runs, exit 0
     const lay2 = layout('local-nogit-');
-    const o2 = runFake(mod, { argv: ['--repo', lay2.source], lay: lay2, origin: null, handler: (c) => (c.file === 'git' ? enoent() : null) });
+    const o2 = await runFake(mod, { argv: ['--repo', lay2.source], lay: lay2, origin: null, handler: (c) => (c.file === 'git' ? enoent() : null) });
     assert.equal(o2.code, 0, o2.err);
     assert.equal(o2.err, '');
     assert.equal(o2.others.filter(isSync).length, 1);
@@ -986,7 +986,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
   test('TEST-3964 a dry-run on a local checkout starts no command in it', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('local-dry-');
-    const o = runFake(mod, { argv: ['--repo', lay.source, '--ref', 'main', '--dry-run'], lay });
+    const o = await runFake(mod, { argv: ['--repo', lay.source, '--ref', 'main', '--dry-run'], lay });
     assert.equal(o.code, 0, o.err);
     assert.deepEqual(o.others, [], 'no fetch, checkout, pull or sync');
     assert.deepEqual(o.temps, []);
@@ -1015,7 +1015,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     assert.equal(l.src, lay.source);
     assert.deepEqual(spawn.calls, []);
     // a dry-run on a remote URL through run: the description line is Run 3's, but no clone and no temp happen
-    const o = runFake(await import(MODULE_URL), { argv: ['--repo', 'acme/foo', '--ref', 'dev', '--dry-run'], lay });
+    const o = await runFake(await import(MODULE_URL), { argv: ['--repo', 'acme/foo', '--ref', 'dev', '--dry-run'], lay });
     assert.equal(o.code, 0, o.err);
     assert.deepEqual(o.others, []);
     assert.deepEqual(o.temps, []);
@@ -1025,7 +1025,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     const mod = await import(MODULE_URL);
     const lay = layout('clone-');
     const seen = [];
-    const o = runFake(mod, {
+    const o = await runFake(mod, {
       argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay, handler: cloneHandler([{ status: 1 }, { status: 1 }, 'ok'], seen),
     });
     assert.equal(o.code, 0, o.err);
@@ -1055,7 +1055,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     const mod = await import(MODULE_URL);
     const lay = layout('prompt-');
     const seen = [];
-    const o = runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([{ status: 1 }, { status: 1 }, 'ok'], seen) });
+    const o = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([{ status: 1 }, { status: 1 }, 'ok'], seen) });
     assert.equal(o.code, 0, o.err);
     assert.equal(seen[0].call.opts.env.GIT_TERMINAL_PROMPT, undefined);
     assert.equal(seen[1].call.opts.env.GIT_TERMINAL_PROMPT, undefined);
@@ -1071,14 +1071,14 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     for (const [results, count] of [[['ok'], 1], [[{ status: 1 }, 'ok'], 2]]) {
       const lay = layout('chain-');
       const seen = [];
-      const o = runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler(results, seen) });
+      const o = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler(results, seen) });
       assert.equal(o.code, 0, o.err);
       assert.equal(seen.length, count);
     }
     // a gh that cannot start is a failed attempt, not an error
     const lay = layout('chain-nogh-');
     const seen = [];
-    const o = runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([enoent(), 'ok'], seen) });
+    const o = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([enoent(), 'ok'], seen) });
     assert.equal(o.code, 0, o.err);
     assert.equal(seen.length, 2);
   });
@@ -1086,7 +1086,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
   test('TEST-3964 all attempts failing exit 3 with the auth line; git that cannot start gives the DR-18 line', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('fail-');
-    const o = runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay, handler: cloneHandler([{ status: 1 }, { status: 128 }, { status: 128 }]) });
+    const o = await runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay, handler: cloneHandler([{ status: 1 }, { status: 128 }, { status: 128 }]) });
     assert.equal(o.code, 3);
     assert.equal(o.err, 'ERROR: could not fetch acme/foo@dev (auth or network?). Treat as an access issue, not a missing repo.\n');
     assert.equal(o.out, '');
@@ -1094,22 +1094,22 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     assert.deepEqual(o.temps, []);
     // a signal-killed attempt is a failed attempt as well
     const lay1 = layout('fail-sig-');
-    const o1 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay1, handler: cloneHandler([{ status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }]) });
+    const o1 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay1, handler: cloneHandler([{ status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }]) });
     assert.equal(o1.code, 3);
     assert.ok(o1.err.includes('(auth or network?)'));
     // DR-18: gh and git cannot start
     const lay2 = layout('nogit-');
-    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay: lay2, origin: null, handler: cloneHandler([enoent(), enoent(), enoent()]) });
+    const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay: lay2, origin: null, handler: cloneHandler([enoent(), enoent(), enoent()]) });
     assert.equal(o2.code, 3);
     assert.equal(o2.err, 'ERROR: could not fetch acme/foo@dev: git was not found on PATH.\n');
     assert.deepEqual(o2.temps, []);
     // gh present, git missing at attempts 2 and 3 is the same line
     const lay3 = layout('nogit2-');
-    const o3 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay3, handler: cloneHandler([{ status: 1 }, enoent(), enoent()]) });
+    const o3 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay3, handler: cloneHandler([{ status: 1 }, enoent(), enoent()]) });
     assert.equal(o3.err, 'ERROR: could not fetch acme/foo@main: git was not found on PATH.\n');
     // only one of the two git attempts failing to start keeps the access line
     const lay4 = layout('nogit3-');
-    const o4 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay4, handler: cloneHandler([{ status: 1 }, enoent(), { status: 128 }]) });
+    const o4 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay4, handler: cloneHandler([{ status: 1 }, enoent(), { status: 128 }]) });
     assert.ok(o4.err.includes('(auth or network?)'));
   });
 
@@ -1227,18 +1227,18 @@ describe('TEST-3965 temp lifecycle', () => {
     const mod = await import(MODULE_URL);
     // success
     const l1 = layout('end-ok-');
-    const o1 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l1, handler: cloneHandler(['ok']) });
+    const o1 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l1, handler: cloneHandler(['ok']) });
     assert.equal(o1.code, 0, o1.err);
     assert.equal(o1.others.filter(isSync).length, 1);
     assert.deepEqual(o1.temps, []);
     // exit 3
     const l2 = layout('end-3-');
-    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l2, handler: cloneHandler([{ status: 1 }, { status: 1 }, { status: 1 }]) });
+    const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l2, handler: cloneHandler([{ status: 1 }, { status: 1 }, { status: 1 }]) });
     assert.equal(o2.code, 3);
     assert.deepEqual(o2.temps, []);
     // exit 4: the clone has no sync script
     const l3 = layout('end-4-');
-    const o3 = runFake(mod, {
+    const o3 = await runFake(mod, {
       argv: ['--repo', 'acme/foo'], lay: l3,
       handler: (c) => { if (c.file === 'git' && c.args.includes('clone') && !c.args.includes('credential.helper=')) { mkdirSync(c.args[c.args.length - 1], { recursive: true }); return { status: 0 }; } return null; },
     });
@@ -1248,13 +1248,13 @@ describe('TEST-3965 temp lifecycle', () => {
     // a failing sync: its code is passed through
     const l4 = layout('end-sync-');
     const clone = cloneHandler(['ok']);
-    const o4 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l4, handler: (c, i) => (isSync(c) ? { status: 5 } : clone(c, i)) });
+    const o4 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l4, handler: (c, i) => (isSync(c) ? { status: 5 } : clone(c, i)) });
     assert.equal(o4.code, 5);
     assert.deepEqual(o4.temps, []);
     // an internal error: the sync child throws
     const l5 = layout('end-throw-');
     const clone5 = cloneHandler(['ok']);
-    const o5 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l5, handler: (c, i) => { if (isSync(c)) throw new Error('boom'); return clone5(c, i); } });
+    const o5 = await runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l5, handler: (c, i) => { if (isSync(c)) throw new Error('boom'); return clone5(c, i); } });
     assert.equal(o5.code, 1);
     assert.equal(o5.err, 'aai-update: internal error: boom\n');
     assert.deepEqual(o5.temps, []);
@@ -1263,14 +1263,14 @@ describe('TEST-3965 temp lifecycle', () => {
   test('TEST-3965 --keep-temp keeps exactly one directory on every path and prints nothing about it', async () => {
     const mod = await import(MODULE_URL);
     const l1 = layout('keep-ok-');
-    const o1 = runFake(mod, { argv: ['--repo', 'acme/foo', '--keep-temp'], lay: l1, handler: cloneHandler(['ok']) });
+    const o1 = await runFake(mod, { argv: ['--repo', 'acme/foo', '--keep-temp'], lay: l1, handler: cloneHandler(['ok']) });
     assert.equal(o1.code, 0, o1.err);
     assert.equal(o1.temps.length, 1);
     assert.equal(o1.err, '');
     assert.ok(!o1.out.includes('aai-src'));
     assert.ok(existsSync(path.join(l1.tmpdir, o1.temps[0], 'src', '.aai', 'scripts', 'aai-sync.sh')));
     const l2 = layout('keep-3-');
-    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo', '--keep-temp'], lay: l2, handler: cloneHandler([{ status: 1 }, { status: 1 }, { status: 1 }]) });
+    const o2 = await runFake(mod, { argv: ['--repo', 'acme/foo', '--keep-temp'], lay: l2, handler: cloneHandler([{ status: 1 }, { status: 1 }, { status: 1 }]) });
     assert.equal(o2.code, 3);
     assert.equal(o2.temps.length, 1);
     assert.ok(!o2.err.includes('aai-src'), 'the kept directory is not named');
@@ -1283,7 +1283,7 @@ describe('TEST-3965 temp lifecycle', () => {
       [['--repo', 'goodwind-cz/aai'], 2, 'https://github.com/goodwind-cz/aai.git'],
     ]) {
       const lay = layout('none-');
-      const o = runFake(mod, { argv, lay, origin });
+      const o = await runFake(mod, { argv, lay, origin });
       assert.equal(o.code, code, argv.join(' '));
       assert.deepEqual(readdirSync(lay.tmpdir), [], argv.join(' '));
     }
@@ -1294,7 +1294,7 @@ describe('TEST-3965 temp lifecycle', () => {
     const lay = layout('swap-');
     const clone = cloneHandler(['ok']);
     let swapped = '';
-    const o = runFake(mod, {
+    const o = await runFake(mod, {
       argv: ['--repo', 'acme/foo'], lay,
       handler: (c, i) => {
         if (isSync(c)) {
@@ -1341,6 +1341,27 @@ describe('TEST-3965 temp lifecycle', () => {
     const bad = runUpdate({ args: ['--repo', `file://${path.join(root, 'missing')}`], root, cwd: target });
     assert.equal(bad.status, 3);
     assert.equal(readdirSync(tmp).length, 1, 'the failed run removed its own temp and not the kept one');
+  });
+
+  test('TEST-3965 a SIGTERM during the sync child stops the run with 143 after the child returns, with no post-sync output and no temp left', () => {
+    const root = scratch('real-sigterm-');
+    const upstream = path.join(root, 'upstream');
+    const target = path.join(root, 'target');
+    mkdirSync(path.join(upstream, '.aai', 'scripts'), { recursive: true });
+    mkdirSync(target);
+    // the sync child signals its parent (the module) and then lingers, so the signal arrives while spawnSync blocks
+    writeFileSync(path.join(upstream, '.aai', 'scripts', 'aai-sync.sh'), '#!/bin/sh\necho SYNC-START\nkill -TERM "$PPID"\nsleep 1\necho SYNC-END\n');
+    const env = prepareEnv(root);
+    const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: upstream, env, encoding: 'utf8' });
+    assert.equal(git('init', '-q', '-b', 'main').status, 0);
+    assert.equal(git('add', '.').status, 0);
+    assert.equal(git('commit', '-q', '-m', 'x').status, 0);
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: target, env, encoding: 'utf8' }).status, 0);
+    const r = runUpdate({ args: ['--repo', `file://${upstream}`], root, cwd: target });
+    assert.equal(r.status, 143, `${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /SYNC-START/);
+    assert.doesNotMatch(r.stdout, /Post-sync evidence|Recommended/);
+    assert.deepEqual(readdirSync(path.join(root, 'tmp')).filter((n) => n.startsWith('aai-src.')), []);
   });
 });
 
@@ -1401,12 +1422,12 @@ describe('TEST-3966 runner and sync step', () => {
   test('TEST-3966 an invalid runner value exits 1 with the named line before any child starts', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('badrunner-');
-    const o = runFake(mod, { argv: ['--repo', lay.source], lay, env: { [RUNNER_VAR]: 'zsh' } });
+    const o = await runFake(mod, { argv: ['--repo', lay.source], lay, env: { [RUNNER_VAR]: 'zsh' } });
     assert.equal(o.code, 1);
     assert.equal(o.err, "aai-update: AAI_UPDATE_SYNC_RUNNER must be bash or a path to bash, pwsh or powershell, got 'zsh'\n");
     assert.equal(o.out, '');
     assert.equal(o.spawn.calls.length, 0);
-    const d = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay, env: { [RUNNER_VAR]: 'sh' } });
+    const d = await runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay, env: { [RUNNER_VAR]: 'sh' } });
     assert.equal(d.code, 1);
     assert.equal(d.spawn.calls.length, 0);
   });
@@ -1415,21 +1436,21 @@ describe('TEST-3966 runner and sync step', () => {
     const mod = await import(MODULE_URL);
     const lay = layout('nosync-');
     // the source holds only aai-sync.sh: the PowerShell runner misses its own file
-    const ps = runFake(mod, { argv: ['--repo', lay.source], lay, env: { [RUNNER_VAR]: PWSH } });
+    const ps = await runFake(mod, { argv: ['--repo', lay.source], lay, env: { [RUNNER_VAR]: PWSH } });
     assert.equal(ps.code, 4);
     assert.equal(ps.err, `ERROR: sync script missing in source: ${lay.source}/.aai/scripts/aai-sync.ps1\n`);
     assert.equal(ps.others.filter(isSyncAny).length, 0);
     const bashLay = layout('nosync-sh-');
     rmSyncFile(path.join(bashLay.source, '.aai', 'scripts', 'aai-sync.sh'));
     writeFileSync(path.join(bashLay.source, '.aai', 'scripts', 'aai-sync.ps1'), '');
-    const b = runFake(mod, { argv: ['--repo', bashLay.source], lay: bashLay });
+    const b = await runFake(mod, { argv: ['--repo', bashLay.source], lay: bashLay });
     assert.equal(b.code, 4);
     assert.equal(b.err, `ERROR: sync script missing in source: ${bashLay.source}/.aai/scripts/aai-sync.sh\n`);
     // a directory in place of the file is not a regular file
     const dirLay = layout('nosync-dir-');
     rmSyncFile(path.join(dirLay.source, '.aai', 'scripts', 'aai-sync.sh'));
     mkdirSync(path.join(dirLay.source, '.aai', 'scripts', 'aai-sync.sh'));
-    assert.equal(runFake(mod, { argv: ['--repo', dirLay.source], lay: dirLay }).code, 4);
+    assert.equal((await runFake(mod, { argv: ['--repo', dirLay.source], lay: dirLay })).code, 4);
   });
 
   test('TEST-3966 a nonzero sync exit is passed through with no post-sync output and no helper', async () => {
@@ -1438,7 +1459,7 @@ describe('TEST-3966 runner and sync step', () => {
       const lay = layout('syncfail-');
       mkdirSync(path.join(lay.target, '.aai', 'scripts'), { recursive: true });
       writeFileSync(path.join(lay.target, ...HELPER_PATH), '');
-      const o = runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isSyncAny(c) ? result : null) });
+      const o = await runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isSyncAny(c) ? result : null) });
       assert.equal(o.code, code);
       assert.equal(o.out, `## aai-update ${DASH} syncing local checkout ${lay.source} into ${lay.target}\n`);
       assert.equal(o.others.filter(isStatus).length, 0);
@@ -1454,7 +1475,7 @@ describe('TEST-3966 runner and sync step', () => {
     writeFileSync(path.join(lay.target, ...HELPER_PATH), '');
     for (const runner of [undefined, 'bash', PWSH]) {
       const env = runner === undefined ? { KEEP: '1' } : { [RUNNER_VAR]: runner, KEEP: '1' };
-      const o = runFake(mod, { argv: ['--repo', lay.source], lay, env });
+      const o = await runFake(mod, { argv: ['--repo', lay.source], lay, env });
       assert.equal(o.code, 0, o.err);
       const sync = o.others.find(isSyncAny);
       assert.ok(sync, 'the sync child ran');
@@ -1473,11 +1494,11 @@ describe('TEST-3966 runner and sync step', () => {
   test('TEST-3966 the dry-run prints the Would run line of the runner and starts only the guard read', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('dry-');
-    const bash = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay });
+    const bash = await runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay });
     assert.equal(bash.code, 0);
     assert.ok(bash.out.includes(`- Would run: <source>/.aai/scripts/aai-sync.sh "${lay.target}"\n`), bash.out);
     assert.equal(bash.others.length, 0);
-    const ps = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay, env: { [RUNNER_VAR]: PWSH } });
+    const ps = await runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay, env: { [RUNNER_VAR]: PWSH } });
     assert.equal(ps.code, 0);
     assert.ok(ps.out.includes(`- Would run: <source>/.aai/scripts/aai-sync.ps1 -TargetRoot "${lay.target}"\n`), ps.out);
     assert.equal(ps.others.length, 0);
@@ -1588,7 +1609,7 @@ describe('TEST-3967 rendering', () => {
   test('TEST-3967 a real run prints header, evidence, doctor report and next in order', async () => {
     const mod = await import(MODULE_URL);
     const lay = layout('flow-');
-    const o = runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isStatus(c) ? { status: 0, stdout: ' M f\n' } : null) });
+    const o = await runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isStatus(c) ? { status: 0, stdout: ' M f\n' } : null) });
     assert.equal(o.code, 0, o.err);
     assert.equal(
       o.out,
@@ -1598,7 +1619,7 @@ describe('TEST-3967 rendering', () => {
       + '\n## Next\n- Review the diff (git diff), then commit manually (this tool never auto-commits).\n'
       + '- Recommended: /aai-doctor ; /aai-bootstrap if skills/indexes changed\n',
     );
-    const none = runFake(mod, { argv: ['--repo', lay.source], lay });
+    const none = await runFake(mod, { argv: ['--repo', lay.source], lay });
     assert.ok(none.out.includes('- Changed files: none (already up to date)\n'));
     assert.ok(none.out.endsWith('- Recommended: /aai-doctor\n'));
   });
@@ -1661,20 +1682,20 @@ describe('TEST-3968 doctor postamble', () => {
     for (const [result, line] of [[{ status: 0 }, ''], [{ status: 1 }, 'crashed'], [{ status: null, signal: 'SIGTERM' }, 'crashed'], [enoent(), 'crashed']]) {
       const lay = layout('doc-run-code-');
       plantHelper(lay.target);
-      const o = runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isHelper(c) ? result : null) });
+      const o = await runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isHelper(c) ? result : null) });
       assert.equal(o.code, 0, o.err);
       assert.equal(o.out.includes('DOCTOR-REPORT SKIP helper crashed'), line === 'crashed');
       assert.equal(o.others.filter(isHelper).length, 1);
     }
     const dry = layout('doc-dry-');
     plantHelper(dry.target);
-    const d = runFake(mod, { argv: ['--repo', dry.source, '--dry-run'], lay: dry });
+    const d = await runFake(mod, { argv: ['--repo', dry.source, '--dry-run'], lay: dry });
     assert.equal(d.code, 0);
     assert.equal(d.others.filter(isHelper).length, 0);
     assert.ok(!d.out.includes('Doctor field report'));
     const failed = layout('doc-failed-');
     plantHelper(failed.target);
-    const f = runFake(mod, { argv: ['--repo', failed.source], lay: failed, handler: (c) => (isSyncAny(c) ? { status: 7 } : null) });
+    const f = await runFake(mod, { argv: ['--repo', failed.source], lay: failed, handler: (c) => (isSyncAny(c) ? { status: 7 } : null) });
     assert.equal(f.code, 7);
     assert.equal(f.others.filter(isHelper).length, 0);
     assert.ok(!f.out.includes('Doctor field report'));

@@ -1866,6 +1866,12 @@ suites:
       - tests/skills/lib/update-reference.mjs
       - tests/skills/lib/install-parity.mjs
       - tests/skills/lib/install-parity-allowlist.tsv
+      - tests/skills/lib/install-parity.test.mjs
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/lib/cd-subshell-leak-baseline.tsv
+      - tests/skills/lib/bootstrap-reference.mjs
+      - tests/skills/lib/aai-bootstrap-fixtures.mjs
       - tests/skills/aai-update.Tests.ps1
       - tests/skills/lib/pester-native-capture.ps1
       - tests/skills/lib/pipe-safe.sh

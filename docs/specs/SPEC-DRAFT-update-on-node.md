@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4d48818913f2673b397ef401a7f5340708fb9d3dcc6fc29684851b084f339ffa
+frozen_sha256: aaa7cbb909195325ee15f6a51997fe795897343e0323c6d80c1e2e138297a591
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -207,7 +207,8 @@ Exports at least: `parseArgs`, `resolveBase`, `normSlug`,
 `canonicalGuard`, `cloneUrl`, `resolveSource`, `resolveRunner`,
 `syncCommand`, `renderDryRun`, `changedFiles`, `pinLines`,
 `latestConflict`, `renderEvidence`, `doctorReport`, `renderNext`,
-`createOwnTemp`, `removeOwnTemp`, `run`, `main`. `run(argv, io)` takes
+`createOwnTemp`, `removeOwnTemp`, `run`, `main`. `run(argv, io)` and
+`main(argv)` are async and resolve to the exit code; `run` takes
 injectable `out`, `err`, `env`, `cwd`, `spawn`, `tmpdir` and `platform`.
 
 It contains these exact lines, each once, and no comment repeats one (the
@@ -324,8 +325,11 @@ work, temp directory or sync.
   `aai-update: kept <dir>: <reason>`, and the exit code is unchanged.
 - Cleanup runs in a `finally` around everything after `createOwnTemp`, on
   every exit path (success, exit 3, exit 4, a failed sync, an internal
-  error), and from SIGINT and SIGTERM handlers (exit 130 and 143) once a
-  blocking child has returned; `--keep-temp` keeps the directory and prints
+  error), and from SIGINT and SIGTERM handlers: a handler removes the own
+  temp and records 130 or 143, and the run yields once after the guard,
+  after source resolution and after the sync child, and stops there with
+  the recorded code (no later stage runs; a signal during the clone chain
+  stops the run before the sync); `--keep-temp` keeps the directory and prints
   nothing about it. The module creates no other file or directory outside
   the target and the temp directory; there is no self-relocated copy (DR-8).
 

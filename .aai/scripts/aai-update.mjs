@@ -397,7 +397,7 @@ export function removeOwnTemp(dir, created) {
 
 // run(argv, io): returns the exit code. io holds out, err (string sinks), env, cwd, spawn, tmpdir and
 // platform; each defaults to the real thing.
-export function run(argv, io = {}) {
+export async function run(argv, io = {}) {
   const out = io.out ?? writeFd(1);
   const err = io.err ?? writeFd(2);
   const env = io.env ?? process.env;
@@ -423,7 +423,7 @@ export function run(argv, io = {}) {
     return EXIT_USAGE;
   }
   const child = io.spawn ?? runChild;
-  const state = { keepTemp: args.keepTemp, tmp: '', created: null };
+  const state = { keepTemp: args.keepTemp, tmp: '', created: null, signal: 0 };
   if (io.spawn === undefined) watchSignals(state);
   try {
     const target = resolveBase('', env, cwd);
@@ -432,7 +432,9 @@ export function run(argv, io = {}) {
       for (const line of guard.lines) err(`${line}\n`);
       return EXIT_REFUSED;
     }
+    if (await signalled(state)) return state.signal;
     const source = resolveSource(args, { spawn: child, env, cwd, tmpdir: io.tmpdir, err }, state);
+    if (await signalled(state)) return state.signal;
     if (source.fail) {
       err(`${source.fail.line}\n`);
       return source.fail.code;
@@ -441,7 +443,7 @@ export function run(argv, io = {}) {
       out(renderDryRun({ target, desc: source.desc, runner }));
       return 0;
     }
-    return syncStep(source, target, { child, env, err, out, runner, platform });
+    return await syncStep(source, target, { child, env, err, out, runner, platform, state });
   } catch (e) {
     err(`aai-update: internal error: ${e.message}\n`);
     return EXIT_USAGE;
@@ -453,7 +455,7 @@ export function run(argv, io = {}) {
 // syncStep: the real run after the source is resolved: the sync file of the chosen runner must exist (exit 4), the
 // header, the sync child with inherited stdio (a nonzero exit or a signal ends the run before any post-sync output),
 // then the evidence, the doctor report and the next steps.
-function syncStep(source, target, { child, env, err, out, runner, platform }) {
+async function syncStep(source, target, { child, env, err, out, runner, platform, state }) {
   const cmd = syncCommand(runner, source.src, target, platform);
   if (!isFile(cmd.path)) {
     err(`ERROR: sync script missing in source: ${cmd.path}\n`);
@@ -462,6 +464,7 @@ function syncStep(source, target, { child, env, err, out, runner, platform }) {
   out(renderSyncHeader(source.desc, target));
   const r = child(cmd.file, cmd.args, { cwd: target, stdio: 'inherit', env: withoutRunner(env) });
   if (r.error) throw r.error;
+  if (await signalled(state)) return state.signal;
   if (r.status === null) return 128 + (os.constants.signals[r.signal] ?? 1);
   if (r.status !== 0) return r.status;
   const changed = changedFiles(target, child, env);
@@ -471,8 +474,16 @@ function syncStep(source, target, { child, env, err, out, runner, platform }) {
   return 0;
 }
 
+// signalled(state): spawnSync blocks the event loop, so a SIGINT or SIGTERM that arrives during a child is only
+// dispatched once the loop turns; one setImmediate after each blocking stage lets the handler record it, and the
+// run then stops with 128+signal through its finally (which removes the run's own temp directory).
+async function signalled(state) {
+  await new Promise((resolve) => setImmediate(resolve));
+  return state.signal !== 0;
+}
+
 // watchSignals(state): a real run keeps SIGINT and SIGTERM from ending the process in the middle of a blocking
-// child; the handler removes the run's own temp directory and exits 130 or 143.
+// child; the handler removes the run's own temp directory, records 130 or 143, and the run stops at its next stage boundary (see signalled).
 let signalsWatched = false;
 let watched = null;
 function watchSignals(state) {
@@ -481,14 +492,16 @@ function watchSignals(state) {
   signalsWatched = true;
   for (const [name, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
     process.on(name, () => {
-      if (watched && !watched.keepTemp && watched.tmp) removeOwnTemp(watched.tmp, watched.created);
-      process.exit(code);
+      if (!watched) return;
+      if (!watched.keepTemp && watched.tmp) removeOwnTemp(watched.tmp, watched.created);
+      watched.tmp = '';
+      watched.signal = code;
     });
   }
 }
 
-export function main(argv = process.argv.slice(2)) {
-  process.exitCode = run(argv);
+export async function main(argv = process.argv.slice(2)) {
+  process.exitCode = await run(argv);
 }
 
 // The main guard resolves both sides through realpath (a symlinked checkout still runs main), falling back to a plain resolve.
