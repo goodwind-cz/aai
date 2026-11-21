@@ -55,8 +55,6 @@ const HELP_LINES = [
 ];
 export const HELP_TEXT = `${HELP_LINES.join('\n')}\n`;
 
-const notYet = (name) => new Error(`${name} is not implemented yet`);
-
 // The flags that take a value and the switches, by their exact long spelling and by their PowerShell
 // name (matched case-insensitively, no abbreviation).
 const VALUE_FLAGS = { '--repo': 'repo', '--ref': 'ref', '-repo': 'repo', '-ref': 'ref' };
@@ -217,40 +215,157 @@ export function resolveSource(args, io, state) {
   return { fail: { code: EXIT_FETCH, line } };
 }
 
-export function resolveRunner() {
-  throw notYet('resolveRunner');
+// pathBase(p): the last segment of a path written with either separator.
+const pathBase = (p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
+const isAbs = (p) => path.posix.isAbsolute(p) || path.win32.isAbsolute(p);
+
+// resolveRunner(env, platform): which sync twin of the source runs, as { kind, exe } or { error } (D-RUNNER). The
+// value bash, or an absolute path to bash, selects the bash twin; an absolute path to pwsh or powershell selects the
+// PowerShell twin; unset or empty takes bash on POSIX and powershell.exe on win32.
+export function resolveRunner(env = process.env, platform = process.platform) {
+  const value = env[RUNNER_ENV];
+  if (value === undefined || value === '') return platform === 'win32' ? { kind: 'powershell', exe: 'powershell.exe' } : { kind: 'bash', exe: 'bash' };
+  if (value === 'bash') return { kind: 'bash', exe: 'bash' };
+  if (isAbs(value)) {
+    const base = pathBase(value).toLowerCase();
+    if (base === 'bash' || base === 'bash.exe') return { kind: 'bash', exe: value };
+    if (['pwsh', 'pwsh.exe', 'powershell', 'powershell.exe'].includes(base)) return { kind: 'powershell', exe: value };
+  }
+  return { error: `aai-update: ${RUNNER_ENV} must be bash or a path to bash, pwsh or powershell, got '${value}'` };
 }
 
-export function syncCommand() {
-  throw notYet('syncCommand');
+// syncCommand(runner, src, target, platform): { file, args, path } of the sync child; path is the sync file the
+// command runs. The bash twin gets forward slashes on win32 (Git Bash reads C:/...).
+export function syncCommand(runner, src, target, platform = process.platform) {
+  if (runner.kind === 'bash') {
+    const fwd = (p) => (platform === 'win32' ? p.replace(/\\/g, '/') : p);
+    const file = `${fwd(src)}/.aai/scripts/aai-sync.sh`;
+    return { file: runner.exe, args: [file, fwd(target)], path: file };
+  }
+  const file = `${src}/.aai/scripts/aai-sync.ps1`;
+  const policy = platform === 'win32' ? ['-ExecutionPolicy', 'Bypass'] : [];
+  return { file: runner.exe, args: ['-NoProfile', '-NonInteractive', ...policy, '-File', file, '-TargetRoot', target], path: file };
 }
 
-export function renderDryRun() {
-  throw notYet('renderDryRun');
+// renderDryRun({ target, desc, runner }): the dry-run block, nothing else.
+export function renderDryRun({ target, desc, runner }) {
+  const would = runner.kind === 'bash'
+    ? `<source>/.aai/scripts/aai-sync.sh "${target}"`
+    : `<source>/.aai/scripts/aai-sync.ps1 -TargetRoot "${target}"`;
+  return [
+    '## aai-update (dry-run) \u2014 no files changed',
+    `- Target:   ${target}`,
+    `- Upstream: ${desc}`,
+    `- Would run: ${would}`,
+    '- Then check: git status --short, .aai/system/AAI_PIN.md, docs/ai/reports/sync-conflicts-*.md',
+    '- Next: /aai-doctor (and /aai-bootstrap if skills changed)',
+    '',
+  ].join('\n');
 }
 
-export function changedFiles() {
-  throw notYet('changedFiles');
+// renderSyncHeader(desc, target): the line printed before the sync's own output.
+export function renderSyncHeader(desc, target) {
+  return `## aai-update \u2014 syncing ${desc} into ${target}\n`;
 }
 
-export function pinLines() {
-  throw notYet('pinLines');
+// changedFiles(target, spawn, env): the lines of `git status --short` (empty lines dropped, no CR stripping); any
+// failure reads as none.
+export function changedFiles(target, child = runChild, env = process.env) {
+  try {
+    const r = child('git', ['-C', target, 'status', '--short'], { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8', env });
+    if (!r || r.error || r.status !== 0 || typeof r.stdout !== 'string') return [];
+    return r.stdout.split('\n').filter((l) => l !== '');
+  } catch {
+    return [];
+  }
 }
 
-export function latestConflict() {
-  throw notYet('latestConflict');
+const isFile = (p) => {
+  const st = statOrNull(p);
+  return st !== null && st.isFile();
+};
+
+// pinLines(target): the AAI_PIN lines that name a PIN_KEYWORDS word (case-insensitive) without a leading byte order
+// mark or trailing CR; null when the pin is not a regular file.
+export function pinLines(target) {
+  const file = path.join(target, '.aai', 'system', 'AAI_PIN.md');
+  if (!isFile(file)) return null;
+  const words = new RegExp(PIN_KEYWORDS.join('|'), 'i');
+  return fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '').split('\n').map((l) => l.replace(/\r$/, '')).filter((l) => words.test(l));
 }
 
-export function renderEvidence() {
-  throw notYet('renderEvidence');
+// latestConflict(target): the target-relative forward-slash path of the newest sync-conflicts report (mtime in
+// nanoseconds, a tie to the smallest name), or an empty string.
+export function latestConflict(target) {
+  const dir = path.join(target, 'docs', 'ai', 'reports');
+  let names = [];
+  try {
+    names = fs.readdirSync(dir).filter((n) => /^sync-conflicts-.*\.md$/.test(n)).sort();
+  } catch {
+    return '';
+  }
+  let best = '';
+  let bestNs = -1n;
+  for (const name of names) {
+    let st = null;
+    try {
+      st = fs.statSync(path.join(dir, name), { bigint: true });
+    } catch {
+      st = null;
+    }
+    if (st && st.isFile() && st.mtimeNs > bestNs) {
+      best = name;
+      bestNs = st.mtimeNs;
+    }
+  }
+  return best === '' ? '' : `docs/ai/reports/${best}`;
 }
 
-export function doctorReport() {
-  throw notYet('doctorReport');
+// renderEvidence({ changed, pin, conflict }): the post-sync evidence block (starts with an empty line).
+export function renderEvidence({ changed, pin, conflict }) {
+  const lines = ['', '## Post-sync evidence'];
+  if (changed.length > 0) lines.push(`- Changed files (${changed.length}):`, ...changed.map((l) => `  ${l}`));
+  else lines.push('- Changed files: none (already up to date)');
+  if (pin !== null) lines.push('- AAI_PIN:', ...pin.map((l) => `  ${l}`));
+  if (conflict !== '') lines.push(`- \u26a0 Conflict advisory: ${conflict} \u2014 review before committing.`);
+  return `${lines.join('\n')}\n`;
 }
 
-export function renderNext() {
-  throw notYet('renderNext');
+// withoutRunner(env): the caller's environment minus the runner hint, the one the sync and the helper get.
+const withoutRunner = (env) => {
+  const copy = { ...env };
+  delete copy[RUNNER_ENV];
+  return copy;
+};
+
+// doctorReport(target, { out, spawn, env }): the doctor field report postamble. It prints its header, then runs the
+// target's helper on this Node, or prints a named SKIP line; it never throws and has no result.
+export function doctorReport(target, { out, spawn: child = runChild, env = process.env }) {
+  out('\n## Doctor field report\n');
+  let crashed = false;
+  try {
+    const helper = path.join(target, HELPER_REL);
+    if (!isFile(helper)) {
+      out('DOCTOR-REPORT SKIP helper missing - update unaffected\n');
+      return;
+    }
+    const r = child(process.execPath, [helper, '--root', target], { cwd: target, stdio: 'inherit', env: withoutRunner(env) });
+    crashed = !r || Boolean(r.error) || r.status !== 0;
+  } catch {
+    crashed = true;
+  }
+  if (crashed) out('DOCTOR-REPORT SKIP helper crashed - update unaffected\n');
+}
+
+// renderNext(anyChanged): the closing block; the bootstrap clause only when files changed.
+export function renderNext(anyChanged) {
+  return [
+    '',
+    '## Next',
+    '- Review the diff (git diff), then commit manually (this tool never auto-commits).',
+    `- Recommended: /aai-doctor${anyChanged ? ' ; /aai-bootstrap if skills/indexes changed' : ''}`,
+    '',
+  ].join('\n');
 }
 
 // createOwnTemp(tmpdir, err): a fresh aai-src.XXXXXX directory under tmpdir. The record it returns (the path, the
@@ -301,6 +416,12 @@ export function run(argv, io = {}) {
     err(`aai-update: ${args.arg} needs a value\n`);
     return EXIT_USAGE;
   }
+  const platform = io.platform ?? process.platform;
+  const runner = resolveRunner(env, platform);
+  if (runner.error) {
+    err(`${runner.error}\n`);
+    return EXIT_USAGE;
+  }
   const child = io.spawn ?? runChild;
   const state = { keepTemp: args.keepTemp, tmp: '', created: null };
   if (io.spawn === undefined) watchSignals(state);
@@ -316,8 +437,11 @@ export function run(argv, io = {}) {
       err(`${source.fail.line}\n`);
       return source.fail.code;
     }
-    if (args.dryRun) return 0; // run 3 prints the dry-run block here
-    return syncStep(source.src, target, { child, env, err });
+    if (args.dryRun) {
+      out(renderDryRun({ target, desc: source.desc, runner }));
+      return 0;
+    }
+    return syncStep(source, target, { child, env, err, out, runner, platform });
   } catch (e) {
     err(`aai-update: internal error: ${e.message}\n`);
     return EXIT_USAGE;
@@ -326,20 +450,25 @@ export function run(argv, io = {}) {
   }
 }
 
-// syncStep: the stand-in of run 2 for the sync step (run 3 replaces it with resolveRunner, syncCommand, the
-// evidence and the doctor postamble): the missing sync script is exit 4, a nonzero sync exit is passed through.
-function syncStep(src, target, { child, env, err }) {
-  const sync = path.join(src, '.aai', 'scripts', 'aai-sync.sh');
-  const st = statOrNull(sync);
-  if (st === null || !st.isFile()) {
-    err(`ERROR: sync script missing in source: ${sync}\n`);
+// syncStep: the real run after the source is resolved: the sync file of the chosen runner must exist (exit 4), the
+// header, the sync child with inherited stdio (a nonzero exit or a signal ends the run before any post-sync output),
+// then the evidence, the doctor report and the next steps.
+function syncStep(source, target, { child, env, err, out, runner, platform }) {
+  const cmd = syncCommand(runner, source.src, target, platform);
+  if (!isFile(cmd.path)) {
+    err(`ERROR: sync script missing in source: ${cmd.path}\n`);
     return EXIT_MALFORMED;
   }
-  const childEnv = { ...env };
-  delete childEnv[RUNNER_ENV];
-  const r = child('bash', [sync, target], { cwd: target, stdio: 'inherit', env: childEnv });
+  out(renderSyncHeader(source.desc, target));
+  const r = child(cmd.file, cmd.args, { cwd: target, stdio: 'inherit', env: withoutRunner(env) });
   if (r.error) throw r.error;
-  return r.status === null ? 1 : r.status;
+  if (r.status === null) return 128 + (os.constants.signals[r.signal] ?? 1);
+  if (r.status !== 0) return r.status;
+  const changed = changedFiles(target, child, env);
+  out(renderEvidence({ changed, pin: pinLines(target), conflict: latestConflict(target) }));
+  doctorReport(target, { out, spawn: child, env });
+  out(renderNext(changed.length > 0));
+  return 0;
 }
 
 // watchSignals(state): a real run keeps SIGINT and SIGTERM from ending the process in the middle of a blocking

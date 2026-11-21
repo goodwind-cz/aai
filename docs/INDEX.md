@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-update-on-node | specs | implementing | 6 done, 13 planned | docs/specs/SPEC-DRAFT-update-on-node.md |
+| spec-update-on-node | specs | implementing | 9 done, 10 planned | docs/specs/SPEC-DRAFT-update-on-node.md |
 
 ## Canonical layer (0)
 
@@ -790,7 +790,7 @@ _None._
 
 _None._
 
-## Broken references (590)
+## Broken references (592)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -808,6 +808,8 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/lib/aai-bootstrap.test.mjs | docs/other.md | NOT FOUND |
+| tests/skills/lib/aai-update.test.mjs | docs/ai/reports/sync-conflicts-b.md | NOT FOUND |
+| tests/skills/lib/aai-update.test.mjs | docs/ai/reports/sync-conflicts-m.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/base.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185419Z-hosta.md | NOT FOUND |

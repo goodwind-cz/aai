@@ -193,6 +193,21 @@ test_3965_temp_lifecycle() {
   log_pass "TEST-3965: no aai-src. directory remains after success, exit 3, exit 4, a failing sync or an internal error; --keep-temp keeps one; removeOwnTemp refuses and reports a path it did not create"
 }
 
+test_3966_runner_and_sync() {
+  run_node_tests TEST-3966
+  log_pass "TEST-3966: resolveRunner and syncCommand per D-RUNNER, an invalid runner exits 1 before any child, exit 4 names the runner's sync file, a failing sync is passed through with no evidence, the runner variable is stripped, both Would run lines"
+}
+
+test_3967_rendering() {
+  run_node_tests TEST-3967
+  log_pass "TEST-3967: the dry-run block, the sync header, changed files, pin lines, the newest conflict report, the evidence block and both Recommended forms match the bash reference bytes"
+}
+
+test_3968_doctor_postamble() {
+  run_node_tests TEST-3968
+  log_pass "TEST-3968: the doctor postamble prints the missing or crashed line, runs the helper on process.execPath, never changes the exit code and never runs in a dry-run or after a failed sync"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3978, grows run by run)"
   check_deps
@@ -203,6 +218,9 @@ main() {
   test_3963_canonical_guard
   test_3964_source_resolution
   test_3965_temp_lifecycle
+  test_3966_runner_and_sync
+  test_3967_rendering
+  test_3968_doctor_postamble
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

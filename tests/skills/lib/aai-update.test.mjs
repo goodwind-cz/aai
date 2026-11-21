@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync, rmdirSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -787,7 +787,7 @@ function layout(label) {
 
 // runFake(mod, { argv, lay, origin, handler, platform }): one run of the module with an injected child seam; the
 // guard's git read answers with the origin ('' means no origin), every other child goes to the handler.
-function runFake(mod, { argv, lay, origin = '', handler = () => null, platform = 'linux' }) {
+function runFake(mod, { argv, lay, origin = '', handler = () => null, platform = 'linux', env = {} }) {
   const o = { out: '', err: '' };
   const spawn = fakeSpawn((call, i) => {
     if (isGuardRead(call)) return origin === null ? enoent() : { status: origin === '' ? 1 : 0, stdout: origin === '' ? '' : `${origin}\n` };
@@ -795,7 +795,7 @@ function runFake(mod, { argv, lay, origin = '', handler = () => null, platform =
   });
   o.spawn = spawn;
   o.code = mod.run(argv, {
-    out: (s) => { o.out += s; }, err: (s) => { o.err += s; }, env: { PWD: lay.target }, cwd: lay.target, spawn, tmpdir: lay.tmpdir, platform,
+    out: (s) => { o.out += s; }, err: (s) => { o.err += s; }, env: { PWD: lay.target, ...env }, cwd: lay.target, spawn, tmpdir: lay.tmpdir, platform,
   });
   o.others = spawn.calls.filter((c) => !isGuardRead(c));
   o.temps = readdirSync(lay.tmpdir).filter((n) => n.startsWith('aai-src.'));
@@ -941,7 +941,7 @@ describe('TEST-3964 source resolution and the clone chain', () => {
     const lay = layout('local-real-');
     const o = runFake(mod, { argv: ['--repo', lay.source, '--ref', 'dev'], lay });
     assert.equal(o.code, 0, o.err);
-    const git = o.others.filter((c) => c.file === 'git');
+    const git = o.others.filter((c) => c.file === 'git' && !isStatus(c));
     assert.deepEqual(git.map((c) => c.args), [
       ['-C', lay.source, 'fetch', '--depth', '1', 'origin', 'dev'],
       ['-C', lay.source, 'checkout', 'dev'],
@@ -1330,5 +1330,342 @@ describe('TEST-3965 temp lifecycle', () => {
     const bad = runUpdate({ args: ['--repo', `file://${path.join(root, 'missing')}`], root, cwd: target });
     assert.equal(bad.status, 3);
     assert.equal(readdirSync(tmp).length, 1, 'the failed run removed its own temp and not the kept one');
+  });
+});
+
+// --- run 3: the runner, the rendering and the doctor postamble (TEST-3966 to TEST-3968) ---------------------
+
+const RUNNER_VAR = 'AAI_UPDATE_SYNC_RUNNER';
+const isSyncAny = (c) => c.args.some((a) => /aai-sync\.(sh|ps1)$/.test(String(a)));
+const isHelper = (c) => c.file === process.execPath;
+const isStatus = (c) => c.file === 'git' && c.args[0] === '-C' && c.args[2] === 'status';
+const DASH = '\u2014';
+const WARN = '\u26a0';
+const PWSH = '/opt/microsoft/powershell/7/pwsh';
+const HELPER_PATH = ['.aai', 'scripts', 'update-doctor-report.mjs'];
+
+// TEST-3966 -------------------------------------------------------------------------------------------------
+
+describe('TEST-3966 runner and sync step', () => {
+  test('TEST-3966 resolveRunner maps bash, absolute bash, pwsh and powershell paths and the platform defaults', async () => {
+    const { resolveRunner } = await import(MODULE_URL);
+    const r = (value, platform = 'linux') => resolveRunner(value === undefined ? {} : { [RUNNER_VAR]: value }, platform);
+    assert.deepEqual(r('bash'), { kind: 'bash', exe: 'bash' });
+    assert.deepEqual(r('/usr/bin/bash'), { kind: 'bash', exe: '/usr/bin/bash' });
+    assert.deepEqual(r('C:\\Program Files\\Git\\bin\\BASH.EXE', 'win32'), { kind: 'bash', exe: 'C:\\Program Files\\Git\\bin\\BASH.EXE' });
+    assert.deepEqual(r(PWSH), { kind: 'powershell', exe: PWSH });
+    assert.deepEqual(r('C:\\Program Files\\PowerShell\\7\\pwsh.exe', 'win32'), { kind: 'powershell', exe: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' });
+    assert.deepEqual(r('/usr/bin/powershell'), { kind: 'powershell', exe: '/usr/bin/powershell' });
+    assert.deepEqual(r('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\POWERSHELL.exe', 'win32'), { kind: 'powershell', exe: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\POWERSHELL.exe' });
+    assert.deepEqual(r(undefined), { kind: 'bash', exe: 'bash' });
+    assert.deepEqual(r(''), { kind: 'bash', exe: 'bash' });
+    assert.deepEqual(r(undefined, 'win32'), { kind: 'powershell', exe: 'powershell.exe' });
+    assert.deepEqual(r('', 'win32'), { kind: 'powershell', exe: 'powershell.exe' });
+    for (const bad of ['zsh', 'Bash', 'pwsh', 'relative/bash', '/bin/sh', '/usr/bin/bashx', '/usr/bin/pwsh.bak', '  ']) {
+      assert.deepEqual(r(bad), {
+        error: `aai-update: AAI_UPDATE_SYNC_RUNNER must be bash or a path to bash, pwsh or powershell, got '${bad}'`,
+      }, bad);
+    }
+  });
+
+  test('TEST-3966 syncCommand builds the bash and the PowerShell command with forward slashes and Bypass on win32 only', async () => {
+    const { syncCommand } = await import(MODULE_URL);
+    const bash = { kind: 'bash', exe: 'bash' };
+    const ps = { kind: 'powershell', exe: PWSH };
+    assert.deepEqual(syncCommand(bash, '/s', '/t', 'linux'), { file: 'bash', args: ['/s/.aai/scripts/aai-sync.sh', '/t'], path: '/s/.aai/scripts/aai-sync.sh' });
+    assert.deepEqual(syncCommand({ kind: 'bash', exe: 'C:\\Git\\bin\\bash.exe' }, 'C:\\Users\\a b\\src', 'C:\\Users\\a b\\target', 'win32'), {
+      file: 'C:\\Git\\bin\\bash.exe', args: ['C:/Users/a b/src/.aai/scripts/aai-sync.sh', 'C:/Users/a b/target'], path: 'C:/Users/a b/src/.aai/scripts/aai-sync.sh',
+    });
+    assert.deepEqual(syncCommand(ps, '/s', '/t', 'linux'), {
+      file: PWSH, args: ['-NoProfile', '-NonInteractive', '-File', '/s/.aai/scripts/aai-sync.ps1', '-TargetRoot', '/t'], path: '/s/.aai/scripts/aai-sync.ps1',
+    });
+    assert.deepEqual(syncCommand(ps, '/s', '/t', 'darwin').args.includes('Bypass'), false);
+    assert.deepEqual(syncCommand({ kind: 'powershell', exe: 'powershell.exe' }, 'C:\\s', 'C:\\t', 'win32'), {
+      file: 'powershell.exe',
+      args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', 'C:\\s/.aai/scripts/aai-sync.ps1', '-TargetRoot', 'C:\\t'],
+      path: 'C:\\s/.aai/scripts/aai-sync.ps1',
+    });
+  });
+
+  test('TEST-3966 an invalid runner value exits 1 with the named line before any child starts', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('badrunner-');
+    const o = runFake(mod, { argv: ['--repo', lay.source], lay, env: { [RUNNER_VAR]: 'zsh' } });
+    assert.equal(o.code, 1);
+    assert.equal(o.err, "aai-update: AAI_UPDATE_SYNC_RUNNER must be bash or a path to bash, pwsh or powershell, got 'zsh'\n");
+    assert.equal(o.out, '');
+    assert.equal(o.spawn.calls.length, 0);
+    const d = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay, env: { [RUNNER_VAR]: 'sh' } });
+    assert.equal(d.code, 1);
+    assert.equal(d.spawn.calls.length, 0);
+  });
+
+  test('TEST-3966 a missing sync file of the chosen runner is exit 4 naming that file', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('nosync-');
+    // the source holds only aai-sync.sh: the PowerShell runner misses its own file
+    const ps = runFake(mod, { argv: ['--repo', lay.source], lay, env: { [RUNNER_VAR]: PWSH } });
+    assert.equal(ps.code, 4);
+    assert.equal(ps.err, `ERROR: sync script missing in source: ${lay.source}/.aai/scripts/aai-sync.ps1\n`);
+    assert.equal(ps.others.filter(isSyncAny).length, 0);
+    const bashLay = layout('nosync-sh-');
+    rmSyncFile(path.join(bashLay.source, '.aai', 'scripts', 'aai-sync.sh'));
+    writeFileSync(path.join(bashLay.source, '.aai', 'scripts', 'aai-sync.ps1'), '');
+    const b = runFake(mod, { argv: ['--repo', bashLay.source], lay: bashLay });
+    assert.equal(b.code, 4);
+    assert.equal(b.err, `ERROR: sync script missing in source: ${bashLay.source}/.aai/scripts/aai-sync.sh\n`);
+    // a directory in place of the file is not a regular file
+    const dirLay = layout('nosync-dir-');
+    rmSyncFile(path.join(dirLay.source, '.aai', 'scripts', 'aai-sync.sh'));
+    mkdirSync(path.join(dirLay.source, '.aai', 'scripts', 'aai-sync.sh'));
+    assert.equal(runFake(mod, { argv: ['--repo', dirLay.source], lay: dirLay }).code, 4);
+  });
+
+  test('TEST-3966 a nonzero sync exit is passed through with no post-sync output and no helper', async () => {
+    const mod = await import(MODULE_URL);
+    for (const [result, code] of [[{ status: 5 }, 5], [{ status: null, signal: 'SIGTERM' }, 143], [{ status: null, signal: 'SIGINT' }, 130]]) {
+      const lay = layout('syncfail-');
+      mkdirSync(path.join(lay.target, '.aai', 'scripts'), { recursive: true });
+      writeFileSync(path.join(lay.target, ...HELPER_PATH), '');
+      const o = runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isSyncAny(c) ? result : null) });
+      assert.equal(o.code, code);
+      assert.equal(o.out, `## aai-update ${DASH} syncing local checkout ${lay.source} into ${lay.target}\n`);
+      assert.equal(o.others.filter(isStatus).length, 0);
+      assert.equal(o.others.filter(isHelper).length, 0);
+    }
+  });
+
+  test('TEST-3966 the runner variable is absent from the sync and helper environments and the sync runs in the target with inherited stdio', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('env-');
+    writeFileSync(path.join(lay.source, '.aai', 'scripts', 'aai-sync.ps1'), '');
+    mkdirSync(path.join(lay.target, '.aai', 'scripts'), { recursive: true });
+    writeFileSync(path.join(lay.target, ...HELPER_PATH), '');
+    for (const runner of [undefined, 'bash', PWSH]) {
+      const env = runner === undefined ? { KEEP: '1' } : { [RUNNER_VAR]: runner, KEEP: '1' };
+      const o = runFake(mod, { argv: ['--repo', lay.source], lay, env });
+      assert.equal(o.code, 0, o.err);
+      const sync = o.others.find(isSyncAny);
+      assert.ok(sync, 'the sync child ran');
+      assert.equal(sync.file, runner === PWSH ? PWSH : (runner ?? 'bash'));
+      assert.equal(sync.opts.cwd, lay.target);
+      assert.equal(sync.opts.stdio, 'inherit');
+      assert.equal(sync.opts.env.KEEP, '1');
+      assert.ok(!(RUNNER_VAR in sync.opts.env), 'the sync environment has no runner variable');
+      const helper = o.others.find(isHelper);
+      assert.ok(helper, 'the helper ran');
+      assert.ok(!(RUNNER_VAR in helper.opts.env), 'the helper environment has no runner variable');
+      assert.equal(helper.opts.env.KEEP, '1');
+    }
+  });
+
+  test('TEST-3966 the dry-run prints the Would run line of the runner and starts only the guard read', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('dry-');
+    const bash = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay });
+    assert.equal(bash.code, 0);
+    assert.ok(bash.out.includes(`- Would run: <source>/.aai/scripts/aai-sync.sh "${lay.target}"\n`), bash.out);
+    assert.equal(bash.others.length, 0);
+    const ps = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay, env: { [RUNNER_VAR]: PWSH } });
+    assert.equal(ps.code, 0);
+    assert.ok(ps.out.includes(`- Would run: <source>/.aai/scripts/aai-sync.ps1 -TargetRoot "${lay.target}"\n`), ps.out);
+    assert.equal(ps.others.length, 0);
+  });
+});
+
+// rmSyncFile(file): removes one file this test made inside its own scratch layout.
+function rmSyncFile(file) {
+  assert.ok(path.basename(file).startsWith('aai-sync.'), file);
+  assert.ok(existsSync(file) && lstatSync(file).isFile(), file);
+  unlinkSync(file);
+}
+
+// TEST-3967 -------------------------------------------------------------------------------------------------
+
+const BASH_RUNNER = { kind: 'bash', exe: 'bash' };
+const PS_RUNNER = { kind: 'powershell', exe: PWSH };
+
+describe('TEST-3967 rendering', () => {
+  test('TEST-3967 renderDryRun prints the bash reference block for a local and a remote source and both runners', async () => {
+    const { renderDryRun } = await import(MODULE_URL);
+    const head = `## aai-update (dry-run) ${DASH} no files changed\n`;
+    const tail = '- Then check: git status --short, .aai/system/AAI_PIN.md, docs/ai/reports/sync-conflicts-*.md\n'
+      + '- Next: /aai-doctor (and /aai-bootstrap if skills changed)\n';
+    assert.equal(
+      renderDryRun({ target: '/t x', desc: 'local checkout /s', runner: BASH_RUNNER }),
+      `${head}- Target:   /t x\n- Upstream: local checkout /s\n- Would run: <source>/.aai/scripts/aai-sync.sh "/t x"\n${tail}`,
+    );
+    assert.equal(
+      renderDryRun({ target: '/t', desc: 'https://github.com/acme/foo.git@dev', runner: PS_RUNNER }),
+      `${head}- Target:   /t\n- Upstream: https://github.com/acme/foo.git@dev\n- Would run: <source>/.aai/scripts/aai-sync.ps1 -TargetRoot "/t"\n${tail}`,
+    );
+  });
+
+  test('TEST-3967 renderSyncHeader prints the em dash header', async () => {
+    const { renderSyncHeader } = await import(MODULE_URL);
+    assert.equal(renderSyncHeader('local checkout /s', '/t'), `## aai-update ${DASH} syncing local checkout /s into /t\n`);
+  });
+
+  test('TEST-3967 changedFiles splits the git status output on LF, drops empty lines, keeps CR and reads a failure as none', async () => {
+    const { changedFiles } = await import(MODULE_URL);
+    const calls = [];
+    const spawn = (file, args, opts) => { calls.push({ file, args, opts }); return { status: 0, stdout: ' M a.txt\n?? b c\r\n\n\nA  d\n' }; };
+    assert.deepEqual(changedFiles('/t', spawn, { K: '1' }), [' M a.txt', '?? b c\r', 'A  d']);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].file, 'git');
+    assert.deepEqual(calls[0].args, ['-C', '/t', 'status', '--short']);
+    assert.equal(calls[0].opts.stdio[0], 'ignore');
+    assert.equal(calls[0].opts.stdio[1], 'pipe');
+    assert.equal(calls[0].opts.stdio[2], 'ignore');
+    assert.deepEqual(changedFiles('/t', () => ({ status: 128, stdout: 'fatal\n' }), {}), []);
+    assert.deepEqual(changedFiles('/t', () => enoent(), {}), []);
+    assert.deepEqual(changedFiles('/t', () => { throw new Error('x'); }, {}), []);
+    assert.deepEqual(changedFiles('/t', () => ({ status: 0, stdout: '' }), {}), []);
+  });
+
+  test('TEST-3967 pinLines keeps the keyword lines case-insensitively without a byte order mark or a CR, and reads a non-file as null', async () => {
+    const { pinLines } = await import(MODULE_URL);
+    const lay = layout('pin-');
+    assert.equal(pinLines(lay.target), null, 'no pin file');
+    const dir = path.join(lay.target, '.aai', 'system');
+    mkdirSync(path.join(dir, 'AAI_PIN.md'), { recursive: true });
+    assert.equal(pinLines(lay.target), null, 'a directory is not a pin file');
+    rmdirSync(path.join(dir, 'AAI_PIN.md'));
+    writeFileSync(path.join(dir, 'AAI_PIN.md'), '\uFEFFSource: x\r\nunrelated\r\nTEMPLATE_VERSION: 1\r\nCanonical: y\r\nPrefix: z\r\nCOMMIT abc\r\nnothing here\r\n');
+    assert.deepEqual(pinLines(lay.target), ['Source: x', 'TEMPLATE_VERSION: 1', 'Canonical: y', 'Prefix: z', 'COMMIT abc']);
+    writeFileSync(path.join(dir, 'AAI_PIN.md'), 'nothing\n');
+    assert.deepEqual(pinLines(lay.target), []);
+  });
+
+  test('TEST-3967 latestConflict picks the newest regular sync-conflicts report, a tie to the smallest name, and ignores directories', async () => {
+    const { latestConflict } = await import(MODULE_URL);
+    const lay = layout('conf-');
+    assert.equal(latestConflict(lay.target), '', 'no reports directory');
+    const dir = path.join(lay.target, 'docs', 'ai', 'reports');
+    mkdirSync(dir, { recursive: true });
+    assert.equal(latestConflict(lay.target), '', 'an empty directory');
+    const put = (name, secs) => { writeFileSync(path.join(dir, name), 'x'); utimesSync(path.join(dir, name), secs, secs); };
+    put('sync-conflicts-a.md', 100);
+    put('sync-conflicts-b.md', 200);
+    put('other.md', 900);
+    put('sync-conflicts-x.txt', 900);
+    mkdirSync(path.join(dir, 'sync-conflicts-dir.md'));
+    utimesSync(path.join(dir, 'sync-conflicts-dir.md'), 950, 950);
+    assert.equal(latestConflict(lay.target), 'docs/ai/reports/sync-conflicts-b.md');
+    put('sync-conflicts-z.md', 300);
+    put('sync-conflicts-m.md', 300);
+    assert.equal(latestConflict(lay.target), 'docs/ai/reports/sync-conflicts-m.md');
+  });
+
+  test('TEST-3967 renderEvidence prints the changed list with its count, the pin, the conflict advisory and the none line', async () => {
+    const { renderEvidence } = await import(MODULE_URL);
+    assert.equal(
+      renderEvidence({ changed: [' M a', '?? b'], pin: ['Source: x', 'Ref: main'], conflict: 'docs/ai/reports/sync-conflicts-m.md' }),
+      `\n## Post-sync evidence\n- Changed files (2):\n   M a\n  ?? b\n- AAI_PIN:\n  Source: x\n  Ref: main\n- ${WARN} Conflict advisory: docs/ai/reports/sync-conflicts-m.md ${DASH} review before committing.\n`,
+    );
+    assert.equal(renderEvidence({ changed: [], pin: null, conflict: '' }), '\n## Post-sync evidence\n- Changed files: none (already up to date)\n');
+    assert.equal(renderEvidence({ changed: ['A  d'], pin: [], conflict: '' }), '\n## Post-sync evidence\n- Changed files (1):\n  A  d\n- AAI_PIN:\n');
+  });
+
+  test('TEST-3967 renderNext prints the Recommended line with the bootstrap clause only when files changed', async () => {
+    const { renderNext } = await import(MODULE_URL);
+    const base = '\n## Next\n- Review the diff (git diff), then commit manually (this tool never auto-commits).\n';
+    assert.equal(renderNext(true), `${base}- Recommended: /aai-doctor ; /aai-bootstrap if skills/indexes changed\n`);
+    assert.equal(renderNext(false), `${base}- Recommended: /aai-doctor\n`);
+  });
+
+  test('TEST-3967 a real run prints header, evidence, doctor report and next in order', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('flow-');
+    const o = runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isStatus(c) ? { status: 0, stdout: ' M f\n' } : null) });
+    assert.equal(o.code, 0, o.err);
+    assert.equal(
+      o.out,
+      `## aai-update ${DASH} syncing local checkout ${lay.source} into ${lay.target}\n`
+      + '\n## Post-sync evidence\n- Changed files (1):\n   M f\n'
+      + '\n## Doctor field report\nDOCTOR-REPORT SKIP helper missing - update unaffected\n'
+      + '\n## Next\n- Review the diff (git diff), then commit manually (this tool never auto-commits).\n'
+      + '- Recommended: /aai-doctor ; /aai-bootstrap if skills/indexes changed\n',
+    );
+    const none = runFake(mod, { argv: ['--repo', lay.source], lay });
+    assert.ok(none.out.includes('- Changed files: none (already up to date)\n'));
+    assert.ok(none.out.endsWith('- Recommended: /aai-doctor\n'));
+  });
+});
+
+// TEST-3968 -------------------------------------------------------------------------------------------------
+
+const MISSING_LINE = '\n## Doctor field report\nDOCTOR-REPORT SKIP helper missing - update unaffected\n';
+const CRASHED_LINE = '\n## Doctor field report\nDOCTOR-REPORT SKIP helper crashed - update unaffected\n';
+
+describe('TEST-3968 doctor postamble', () => {
+  const plantHelper = (target) => {
+    mkdirSync(path.join(target, '.aai', 'scripts'), { recursive: true });
+    writeFileSync(path.join(target, ...HELPER_PATH), '');
+    return path.join(target, ...HELPER_PATH);
+  };
+  const call = async (target, spawn) => {
+    const { doctorReport } = await import(MODULE_URL);
+    let out = '';
+    const ret = doctorReport(target, { out: (s) => { out += s; }, spawn, env: { K: '1', [RUNNER_VAR]: 'bash' } });
+    return { out, ret };
+  };
+
+  test('TEST-3968 an absent helper and a directory in its place print the missing line and start nothing', async () => {
+    const lay = layout('doc-missing-');
+    const spawn = fakeSpawn();
+    assert.equal((await call(lay.target, spawn)).out, MISSING_LINE);
+    mkdirSync(path.join(lay.target, ...HELPER_PATH), { recursive: true });
+    assert.equal((await call(lay.target, spawn)).out, MISSING_LINE);
+    assert.equal(spawn.calls.length, 0);
+  });
+
+  test('TEST-3968 a present helper runs on process.execPath with --root, the target as cwd and inherited stdio', async () => {
+    const lay = layout('doc-run-');
+    const helper = plantHelper(lay.target);
+    const spawn = fakeSpawn(() => ({ status: 0 }));
+    const r = await call(lay.target, spawn);
+    assert.equal(r.out, '\n## Doctor field report\n');
+    assert.equal(spawn.calls.length, 1);
+    const c = spawn.calls[0];
+    assert.equal(c.file, process.execPath);
+    assert.deepEqual(c.args, [helper, '--root', lay.target]);
+    assert.equal(c.opts.cwd, lay.target);
+    assert.equal(c.opts.stdio, 'inherit');
+    assert.equal(c.opts.env.K, '1');
+    assert.ok(!(RUNNER_VAR in c.opts.env));
+  });
+
+  test('TEST-3968 a nonzero exit, a signal, a start failure and a throwing seam print the crashed line and never throw', async () => {
+    const lay = layout('doc-crash-');
+    plantHelper(lay.target);
+    for (const result of [{ status: 1 }, { status: 2 }, { status: null, signal: 'SIGKILL' }, enoent()]) {
+      assert.equal((await call(lay.target, () => result)).out, CRASHED_LINE);
+    }
+    assert.equal((await call(lay.target, () => { throw new Error('boom'); })).out, CRASHED_LINE);
+  });
+
+  test('TEST-3968 the run keeps exit 0 for every helper outcome and starts no helper in a dry-run or after a failed sync', async () => {
+    const mod = await import(MODULE_URL);
+    for (const [result, line] of [[{ status: 0 }, ''], [{ status: 1 }, 'crashed'], [{ status: null, signal: 'SIGTERM' }, 'crashed'], [enoent(), 'crashed']]) {
+      const lay = layout('doc-run-code-');
+      plantHelper(lay.target);
+      const o = runFake(mod, { argv: ['--repo', lay.source], lay, handler: (c) => (isHelper(c) ? result : null) });
+      assert.equal(o.code, 0, o.err);
+      assert.equal(o.out.includes('DOCTOR-REPORT SKIP helper crashed'), line === 'crashed');
+      assert.equal(o.others.filter(isHelper).length, 1);
+    }
+    const dry = layout('doc-dry-');
+    plantHelper(dry.target);
+    const d = runFake(mod, { argv: ['--repo', dry.source, '--dry-run'], lay: dry });
+    assert.equal(d.code, 0);
+    assert.equal(d.others.filter(isHelper).length, 0);
+    assert.ok(!d.out.includes('Doctor field report'));
+    const failed = layout('doc-failed-');
+    plantHelper(failed.target);
+    const f = runFake(mod, { argv: ['--repo', failed.source], lay: failed, handler: (c) => (isSyncAny(c) ? { status: 7 } : null) });
+    assert.equal(f.code, 7);
+    assert.equal(f.others.filter(isHelper).length, 0);
+    assert.ok(!f.out.includes('Doctor field report'));
   });
 });
