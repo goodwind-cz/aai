@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a3d890e107b69b24a160055d3508dd9998980e6ce3da7d9f089fe0c4dbf0ae00
+frozen_sha256: 772ce7fa0201bdc4fc6b708131953d410ad69b6cced9566f4c9e5aff0edb2c83
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -208,7 +208,8 @@ Exports at least: `parseArgs`, `resolveBase`, `normSlug`,
 `syncCommand`, `renderDryRun`, `changedFiles`, `pinLines`,
 `latestConflict`, `renderEvidence`, `doctorReport`, `renderNext`,
 `createOwnTemp`, `removeOwnTemp`, `run`, `main`. `run(argv, io)` and
-`main(argv)` are async and resolve to the exit code; `run` takes
+`main(argv)` are async and resolve to the exit code, and `resolveSource` is
+async (it yields after each blocking child, D-SOURCE); `run` takes
 injectable `out`, `err`, `env`, `cwd`, `spawn`, `tmpdir` and `platform`.
 
 It contains these exact lines, each once, and no comment repeats one (the
