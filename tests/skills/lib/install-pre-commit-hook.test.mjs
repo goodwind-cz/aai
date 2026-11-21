@@ -76,17 +76,18 @@ export function assertHooksUnderRoot(cwd, root, env) {
 
 // runInstaller({ args, root, cwd, env, script }): the one way these tests start the installer as a process: the
 // module (default), or a frozen reference script materialized under the root.
-export function runInstaller({ args = [], root, cwd = root, env = {}, script = MODULE, umask = '' }) {
+export function runInstaller({ args = [], root, cwd = root, env = {}, script = MODULE, umask = '', encoding = 'utf8' }) {
   const runEnv = prepareEnv(root, env);
   assert.equal(runEnv.GIT_CONFIG_NOSYSTEM, '1');
   assert.equal(readFileSync(runEnv.GIT_CONFIG_GLOBAL, 'utf8'), '', 'GIT_CONFIG_GLOBAL is an empty file');
   assertHooksUnderRoot(cwd, root, runEnv);
-  const file = script.endsWith('.sh') ? 'bash' : process.execPath;
+  const file = script.endsWith('.sh') ? 'bash' : script.endsWith('.ps1') ? 'pwsh' : process.execPath;
+  if (file === 'pwsh') return spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', script, ...args], { cwd, env: runEnv, encoding });
   if (umask !== '') {
     assert.match(umask, /^[0-7]{3}$/, 'the umask is three octal digits');
-    return spawnSync('sh', ['-c', `umask ${umask} && exec "$0" "$@"`, file, script, ...args], { cwd, env: runEnv, encoding: 'utf8' });
+    return spawnSync('sh', ['-c', `umask ${umask} && exec "$0" "$@"`, file, script, ...args], { cwd, env: runEnv, encoding });
   }
-  return spawnSync(file, [script, ...args], { cwd, env: runEnv, encoding: 'utf8' });
+  return spawnSync(file, [script, ...args], { cwd, env: runEnv, encoding });
 }
 
 // --- TEST-3980 ---------------------------------------------------------------------------------------------
@@ -1529,7 +1530,10 @@ function expectHooksAt(cwd, root, label) {
     assert.ok(lstatSync(p).isFile(), `${label}: ${name} landed where git resolves it (${p})`);
     assert.ok(readFileSync(p, 'latin1').includes(S3_MARKER[name]), `${label}: ${name} carries its marker`);
     assert.ok((statSync(p).mode & 0o100) !== 0, `${label}: ${name} is executable`);
-    assert.ok(r.stdout.includes(` at ${p}\n`), `${label}: the Installed line names ${p}`);
+    // the message path is the base directory joined to git's answer without normalising (DR-20, the bash $PWD/$p)
+    const raw = gitOut(cwd, root, 'rev-parse', '--git-path', `hooks/${name}`);
+    const shown = path.isAbsolute(raw) ? raw : `${cwd}/${raw}`;
+    assert.ok(r.stdout.includes(` at ${shown}\n`), `${label}: the Installed line names ${shown}`);
   }
   return r;
 }
@@ -2053,4 +2057,514 @@ describe('TEST-3988 writes, upgrade, modes and attestation', () => {
     assert.ok(!/not implemented yet/.test(src));
     assert.ok(!/throw notYet/.test(src));
   });
+});
+
+// --- TEST-3989 and TEST-3990: the differential corpora (D-CORPUS) -----------------------------------------------
+
+// One case runs once per side at the same absolute path under one own scratch root, the previous side's tree
+// renamed away first, so a path in a message is byte-equal on both sides. The sides: 'ref' (a frozen twin) and 'mod'
+// (the module). A case is { id, title, steps, setup, norepo, cwd, spaced, rewrites, asserted, ps }:
+//   steps      one argument list per run, in order (the PowerShell side uses the PowerShell form)
+//   setup(h)   builds the case over the base repository: h.dir, h.hooks, h.write, h.git, h.F
+//   rewrites   [{ dr, side, text(s) }] registered per case: each must change at least one byte, or the case fails
+//   asserted   (ref, mod, h) replaces the byte comparison with the asserted divergence of the DR it names
+const CORPUS_ENV = { LC_ALL: 'C' };
+const sideLabel = { ref: 'reference', mod: 'module' };
+
+function corpusFixtures() {
+  const guard = shippedGuard().toString('latin1');
+  const index = shippedTemplate('index').toString('latin1');
+  const lines = guard.split('\n');
+  const stale = [lines[0], 'stale interior line', ...lines.slice(2)].join('\n');
+  return {
+    index: index.endsWith('\n') ? index : `${index}\n`,
+    guard,
+    stale,
+    refTpl: shippedTemplate('ref-guard').toString('latin1'),
+    pushTpl: shippedTemplate('pre-push').toString('latin1'),
+  };
+}
+
+// buildCaseDir(root, c, side, F, refs): the case directory at its fixed path, built for one side.
+function buildCaseDir(root, c, side, F, refs) {
+  const dir = path.join(root, c.spaced ? 'case dir' : 'case');
+  mkdirSync(dir, { recursive: true });
+  const env = prepareEnv(root);
+  const git = (...a) => {
+    const r = spawnSync('git', a, { cwd: dir, env, encoding: 'utf8' });
+    assert.equal(r.status, 0, `git ${a.join(' ')}: ${r.stderr}`);
+    return r.stdout.replace(/\n+$/, '');
+  };
+  if (!c.norepo) {
+    git('init', '-q', '-b', 'main');
+    writeFileSync(path.join(dir, 'README.md'), 'case\n');
+    git('add', 'README.md');
+    git('-c', 'user.name=corpus', '-c', 'user.email=corpus@example.invalid', 'commit', '-q', '-m', 'init');
+  }
+  const scripts = path.join(dir, '.aai', 'scripts');
+  if (side === 'mod') {
+    mkdirSync(path.join(scripts, 'lib'), { recursive: true });
+    writeFileSync(path.join(scripts, 'install-pre-commit-hook.mjs'), readFileSync(MODULE));
+    writeFileSync(path.join(scripts, 'lib', 'guard-config.mjs'), readFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'guard-config.mjs')));
+    mkdirSync(path.join(dir, '.aai', 'templates', 'git-hooks'), { recursive: true });
+    for (const name of readdirSync(TEMPLATE_DIR)) writeFileSync(path.join(dir, '.aai', 'templates', 'git-hooks', name), readFileSync(path.join(TEMPLATE_DIR, name)));
+  } else {
+    refs.entries = materializeHookInstallerReference(ROOT, dir);
+  }
+  writeFileSync(path.join(dir, '.aai', 'templates', 'docs-audit.template.yaml'), readFileSync(path.join(ROOT, '.aai', 'templates', 'docs-audit.template.yaml')));
+  const hooks = path.join(dir, '.git', 'hooks');
+  const h = {
+    dir, hooks, F, git,
+    write(rel, content, mode = 0o644) {
+      const p = path.join(dir, rel);
+      mkdirSync(path.dirname(p), { recursive: true });
+      writeFileSync(p, content);
+      chmodSync(p, mode);
+      return p;
+    },
+    hook(name, content, mode = 0o755) { return h.write(path.join('.git', 'hooks', name), content, mode); },
+    cfg(content, mode = 0o644) { return h.write(path.join('docs', 'ai', CFG), content, mode); },
+  };
+  if (c.setup) c.setup(h);
+  return h;
+}
+
+// caseSnapshot(dir): every path under the case directory except .git internals and .aai, each with its type and mode
+// and bytes (a link by its target text); plus the regular non-sample entries of every hooks directory under .git.
+function caseSnapshot(dir, root, env, cwd) {
+  const out = {};
+  const walk = (base, prefix, skipTop, skipSample) => {
+    for (const name of readdirSync(base).sort()) {
+      if (skipTop && (name === '.git' && lstatSync(path.join(base, name)).isDirectory() || name === '.aai')) continue;
+      if (skipSample && name.endsWith('.sample')) continue;
+      const p = path.join(base, name);
+      const key = `${prefix}${name}`;
+      const l = lstatSync(p);
+      if (l.isSymbolicLink()) out[key] = `link:${readlinkSync(p)}`;
+      else if (l.isDirectory()) {
+        out[key] = `dir:${(l.mode & 0o777).toString(8)}`;
+        walk(p, `${key}/`, false, skipSample);
+      } else if (l.isFile()) out[key] = `file:${(l.mode & 0o777).toString(8)}:${JSON.stringify(readFileSync(p).toString('latin1'))}`;
+      else out[key] = `other:${l.mode}`;
+    }
+  };
+  walk(dir, '', true, false);
+  const dirs = new Set([path.join(dir, '.git', 'hooks')]);
+  const r = spawnSync('git', ['rev-parse', '--git-path', 'hooks'], { cwd, env, encoding: 'utf8' });
+  if (r.status === 0) dirs.add(path.resolve(cwd, r.stdout.trim()));
+  for (const d of dirs) {
+    if (!under(d, path.join(dir, '.git'))) continue;
+    const key = `.git-hooks:${path.relative(dir, d)}`;
+    if (lstatSync(d, { throwIfNoEntry: false }) === undefined) out[key] = 'absent';
+    else {
+      out[key] = 'dir';
+      walk(d, `${key}/`, false, true);
+    }
+  }
+  return out;
+}
+
+const textOf = (b) => (Buffer.isBuffer(b) ? b.toString('latin1') : String(b ?? ''));
+
+// runCaseSide(c, side, root, F, refs): builds the case for one side, runs every step, snapshots, renames the tree away.
+function runCaseSide(c, side, root, F, refs, script) {
+  const h = buildCaseDir(root, c, side, F, refs);
+  const cwd = c.cwd ? path.join(h.dir, c.cwd) : h.dir;
+  const tmp = path.join(root, `tmp-${side}`);
+  mkdirSync(tmp);
+  const entry = script(h.dir, side);
+  const steps = [];
+  const env = prepareEnv(root);
+  for (const args of c.steps) {
+    // the resolved hooks path lies under the case directory before the run (checked with git itself)
+    const pre = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-commit'], { cwd, env, encoding: 'utf8' });
+    if (pre.status === 0) assert.ok(under(path.resolve(cwd, pre.stdout.trim()), h.dir), `${c.id}: the hooks path of the run lies outside the case directory`);
+    const r = runInstaller({ args, root, cwd, script: entry, env: { ...CORPUS_ENV, PWD: cwd, TMPDIR: tmp }, encoding: 'buffer' });
+    assert.ok(r.error === undefined, `${c.id} ${side}: ${r.error}`);
+    steps.push({ code: r.status, stdout: textOf(r.stdout), stderr: textOf(r.stderr) });
+  }
+  const result = { steps, snap: caseSnapshot(h.dir, root, env, cwd), tmp: readdirSync(tmp).sort(), h };
+  renameSync(h.dir, path.join(root, `tree-${side}`));
+  return result;
+}
+
+// applyRewrites(c, side, result): applies the registered rewrites of this side; returns the rewrites that changed nothing.
+function applyRewrites(c, side, result) {
+  const idle = [];
+  for (const rw of (c.rewrites ?? []).filter((x) => x.side === side)) {
+    let changed = false;
+    if (rw.snap) {
+      const next = rw.snap(result.snap);
+      changed = JSON.stringify(next) !== JSON.stringify(result.snap);
+      result.snap = next;
+    }
+    for (const st of rw.text ? result.steps : []) {
+      for (const stream of ['stdout', 'stderr']) {
+        const next = rw.text(st[stream]);
+        if (next !== st[stream]) changed = true;
+        st[stream] = next;
+      }
+    }
+    if (!changed) idle.push(rw.dr);
+  }
+  return idle;
+}
+
+const strip = (res, keys) => ({ steps: res.steps.map((s) => Object.fromEntries(keys.map((k) => [k, s[k]]))), snap: res.snap, ...(keys.includes('stdout') ? { tmp: res.tmp } : {}) });
+
+// scratchRootIsClean(root): after a case the root holds only the marker, the global config, the logs, the per-side
+// scratch TMPDIRs and the two renamed-away trees.
+function assertRootClean(root, id) {
+  const allowed = new Set([OWN_MARKER_FILE, 'gitconfig', 'tmp', 'tmp-ref', 'tmp-mod', 'tree-ref', 'tree-mod', 'ref']);
+  for (const name of readdirSync(root)) assert.ok(allowed.has(name), `${id}: unexpected entry ${name} in the case scratch root`);
+}
+
+// runCorpusCase(c, refSide, label, keys): the whole differential run of one case.
+function runCorpusCase(c, refSide, keys, F, script) {
+  const root = scratch(`corpus-${c.id.toLowerCase()}-`);
+  const refs = {};
+  const ref = runCaseSide(c, refSide, root, F, refs, script);
+  const mod = runCaseSide(c, 'mod', root, F, refs, script);
+  const idle = [...applyRewrites(c, 'ref', ref), ...applyRewrites(c, 'mod', mod)];
+  assert.deepEqual(idle, [], `${c.id}: a registered rewrite changed nothing`);
+  if (c.asserted) c.asserted(ref, mod, ref.h);
+  else assert.deepEqual(strip(mod, keys), strip(ref, keys), `${c.id}: the module differs from the frozen ${sideLabel[refSide]} twin`);
+  assertRootClean(root, c.id);
+  return { ref, mod };
+}
+
+const scriptFor = (refKind) => (dir, side) => path.join(dir, '.aai', 'scripts', side === 'mod' ? 'install-pre-commit-hook.mjs' : `install-pre-commit-hook.${refKind}`);
+
+
+// The bash-side cases (K): bashCases(F) builds them over the fixture texts of corpusFixtures().
+function bashCases(F) {
+  const IDX = S3_MARKER['pre-commit'];
+  const preCommit = (extra) => `#!/bin/sh\n${IDX} - x\n${extra}`;
+  const decl = 'ref_guard: declined\n';
+  const k = (id, title, steps, extra = {}) => ({ id, title, steps, ...extra });
+  const cases = [
+    k('K01', 'plain install in an empty repository', [[]]),
+    k('K02', 'the same twice', [[], []]),
+    k('K03', 'a foreign pre-commit', [[]], { setup: (h) => h.hook('pre-commit', '#!/bin/sh\necho foreign\n') }),
+    k('K04', 'a foreign pre-commit with --force', [['--force']], { setup: (h) => h.hook('pre-commit', '#!/bin/sh\necho foreign\n') }),
+    k('K05', 'a pre-guard AAI pre-commit is upgraded by insertion', [[]], { setup: (h) => h.hook('pre-commit', F.index) }),
+    k('K06', 'a stale guard interior is refreshed', [[]], { setup: (h) => h.hook('pre-commit', F.stale + F.index) }),
+  ];
+  const unprovable = {
+    a: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(preCommit('x\n'), 'latin1')]),
+    b: Buffer.from(IDX),
+    c: Buffer.from(`#!/bin/sh\r\n${IDX}\n`),
+    d: Buffer.from(preCommit(`${S3_END}\n`)),
+    e: Buffer.from(`#!/bin/sh\n${IDX}\n${S3_BEGIN}\na\n${S3_END}\n${S3_BEGIN}\nb\n${S3_END}\n`),
+    f: Buffer.from(`#!/bin/sh\n${IDX}\n${S3_END}\n${S3_BEGIN}\n`),
+  };
+  for (const [l, bytes] of Object.entries(unprovable)) cases.push(k(`K07${l}`, `an unprovable pre-commit (${l})`, [[]], { setup: (h) => h.hook('pre-commit', bytes) }));
+  cases.push(
+    k('K08', 'a symlinked pre-commit slot whose target is the K05 body', [[]], {
+      setup: (h) => { h.write('target-hook', F.index, 0o755); symlinkSync(path.join(h.dir, 'target-hook'), path.join(h.hooks, 'pre-commit')); rmSync(path.join(h.hooks, 'pre-commit'), { force: true }); symlinkSync(path.join(h.dir, 'target-hook'), path.join(h.hooks, 'pre-commit')); },
+    }),
+    k('K09a', 'core.hooksPath=.githooks, not yet existing', [[]], { setup: (h) => h.git('config', 'core.hooksPath', '.githooks') }),
+    k('K09b', 'an absolute core.hooksPath under the case', [[]], { setup: (h) => h.git('config', 'core.hooksPath', path.join(h.dir, 'abs-hooks')) }),
+    k('K09c', 'a run from a subdirectory with K09a', [[]], { cwd: 'sub', setup: (h) => { h.git('config', 'core.hooksPath', '.githooks'); mkdirSync(path.join(h.dir, 'sub')); } }),
+    k('K10', 'a linked worktree', [[]], { cwd: 'wt', setup: (h) => h.git('worktree', 'add', '-q', '-b', 'wtbranch', 'wt') }),
+    k('K11a', '--hooks index', [['--hooks', 'index']]),
+    k('K11b', '--hooks ref-guard', [['--hooks', 'ref-guard']]),
+    k('K11c', '--hooks close-gate', [['--hooks', 'close-gate']]),
+    k('K11d', '--hooks index,close-gate', [['--hooks', 'index,close-gate']]),
+    k('K12a', '--hooks bogus', [['--hooks', 'bogus']]),
+    k('K12b', "--hooks ''", [['--hooks', '']]),
+    k('K12c', '--hooks at the end', [['--hooks']]),
+    k('K13a', '--uninstall after K01', [[], ['--uninstall']]),
+    k('K13b', '--uninstall --hooks ref-guard after K01', [[], ['--uninstall', '--hooks', 'ref-guard']]),
+    k('K14a', '--decline-ref-guard with no config', [['--decline-ref-guard']]),
+    k('K14b', '--decline-ref-guard with an existing config', [['--decline-ref-guard']], { setup: (h) => h.cfg('close_gate: report\nref_guard: armed\n') }),
+    k('K14c', '--decline-ref-guard with a foreign reference-transaction hook', [['--decline-ref-guard']], { setup: (h) => h.hook('reference-transaction', '#!/bin/sh\necho foreign\n') }),
+    k('K15', '--arm-ref-guard after K14a', [['--decline-ref-guard'], ['--arm-ref-guard']]),
+    k('K16', 'a declined config and a plain run', [[]], { setup: (h) => h.cfg(decl) }),
+    k('K16f', 'a declined config and a plain run with --force', [['--force']], { setup: (h) => h.cfg(decl) }),
+  );
+  for (const [l, kind] of [['a', 'index'], ['b', 'guard-checks'], ['c', 'ref-guard'], ['d', 'pre-push']]) cases.push(k(`K17${l}`, `--print ${kind} outside a repository`, [['--print', kind]], { norepo: true }));
+  cases.push(
+    k('K18', '-h', [['-h']]),
+    k('K19', '--bogus', [['--bogus']]),
+    k('K20', '--uninstall --decline-ref-guard', [['--uninstall', '--decline-ref-guard']]),
+    k('K21', '--print --force', [['--print', '--force']]),
+    k('K22', '--hooks index,', [['--hooks', 'index,']]),
+    k('K23', 'a declined config and a foreign reference-transaction hook, plain run', [[]], { setup: (h) => { h.cfg(decl); h.hook('reference-transaction', '#!/bin/sh\necho foreign\n'); } }),
+    k('K24', 'a directory at the reference-transaction slot, plain run', [[]], { setup: (h) => mkdirSync(path.join(h.hooks, 'reference-transaction')) }),
+    k('K25', '--decline-ref-guard on a symlinked config', [['--decline-ref-guard']], {
+      setup: (h) => { h.write('real-config.yaml', 'close_gate: report\nref_guard: armed\n'); mkdirSync(path.join(h.dir, 'docs', 'ai'), { recursive: true }); symlinkSync(path.join(h.dir, 'real-config.yaml'), path.join(h.dir, 'docs', 'ai', CFG)); },
+    }),
+    k('K26', '--arm-ref-guard on a CRLF config, mode 0644, with a declined line', [['--arm-ref-guard']], { setup: (h) => h.cfg('close_gate: report\r\nref_guard: declined\r\n', 0o644) }),
+    k('K27a', 'a doubled key under --arm-ref-guard', [['--arm-ref-guard']], { setup: (h) => h.cfg('ref_guard: armed\nref_guard: declined\n') }),
+    k('K27b', 'a doubled key under --decline-ref-guard', [['--decline-ref-guard']], { setup: (h) => h.cfg('ref_guard: armed\nref_guard: declined\n') }),
+    k('K27c', 'a doubled key, plain run', [[]], { setup: (h) => h.cfg('ref_guard: armed\nref_guard: declined\n') }),
+    k('K27d', 'ref_guard with a no-break space before declined, plain run', [[]], { setup: (h) => h.cfg('ref_guard:\u00a0declined\n') }),
+    k('K28', 'not a repository', [[]], { norepo: true }),
+  );
+  for (const [l, name] of [['a', 'pre-commit-index.sh'], ['b', 'pre-commit-guard-checks.sh'], ['c', 'reference-transaction.sh'], ['d', 'pre-push.sh']]) {
+    cases.push(k(`K29${l}`, `the template ${name} is missing`, [[]], { setup: (h) => rmSync(path.join(h.dir, '.aai', 'templates', 'git-hooks', name)) }));
+  }
+  cases.push(
+    k('K30', 'a reference-transaction hook carrying the marker with other bytes', [[]], { setup: (h) => h.hook('reference-transaction', `${F.refTpl}# local\n`) }),
+    k('K31', 'the case directory path holds a space', [[]], { spaced: true }),
+  );
+  return cases;
+}
+
+const BASH_KEYS = ['code', 'stdout', 'stderr'];
+
+const latin1Of = (text) => Buffer.from(text, 'utf8').toString('latin1');
+const BASE_SNAP = { '.git-hooks:.git/hooks': 'dir', 'README.md': `file:644:${JSON.stringify('case\n')}` };
+const CFG_KEY = 'docs/ai/docs-audit.yaml';
+const cfgOf = (snap) => {
+  const m = /^file:([0-7]+):(.*)$/s.exec(snap[CFG_KEY] ?? '');
+  return m ? { mode: m[1], text: JSON.parse(m[2]) } : null;
+};
+const hookKeys = (snap) => Object.keys(snap).filter((k) => k.startsWith('.git-hooks:.git/hooks/')).sort();
+
+// The registered rewrites (D-CORPUS): each names the DR whose text it removes and the side it is applied on.
+const rwWholeRun = { dr: 'DR-12', side: 'mod', text: (t) => t.split(latin1Of('ERROR: refusing the whole run \u2014 nothing was written. Fix the slot(s) named above and re-run.\n')).join('') };
+const rwRearm = { dr: 'DR-10', side: 'mod', text: (t) => t.replace(' (--force installs the hook for this run only; ref_guard: declined stays recorded).', ' (or pass --force).') };
+const rwNote = { dr: 'DR-14', side: 'mod', text: (t) => t.replace(/^NOTE: .* carries # AAI:REF-GUARD but its bytes differ from the shipped body; pass --force to replace it\.\n/m, '') };
+const rwUninstall = { dr: 'DR-18', side: 'mod', text: (t) => t.replace(/^NOTE: docs\/ai\/docs-audit\.yaml still reads ref_guard: armed.*\n/m, '').replace(/^To keep it off, run: .*\n/m, '') };
+const rwMode = { dr: 'DR-15', side: 'ref', snap: (snap) => (snap[CFG_KEY]?.startsWith('file:600:') ? { ...snap, [CFG_KEY]: snap[CFG_KEY].replace('file:600:', 'file:644:') } : snap) };
+
+// The asserted divergences of the bash side, each compared to an expected value instead of byte equality.
+const BASH_ASSERTED = {
+  K18(ref, mod) {
+    const [r, m] = [ref.steps[0], mod.steps[0]];
+    assert.deepEqual([r.code, m.code, r.stderr, m.stderr], [0, 0, '', '']);
+    const rl = r.stdout.split('\n');
+    const ml = m.stdout.split('\n');
+    assert.equal(rl.length - 1, 377, 'the bash -h prints all 377 comment lines');
+    const block = readFileSync(path.join(ROOT, REFERENCE_SH), 'latin1').split('\n').slice(3, 78).map((l) => l.replace(/^# {0,1}/, ''));
+    assert.deepEqual(ml.slice(0, 75), block, 'the module help is the reference lines 4 to 78');
+    const commentOnly = readFileSync(path.join(ROOT, REFERENCE_SH), 'latin1').split('\n').slice(3, 78).filter((l) => l.startsWith('#')).map((l) => l.replace(/^# {0,1}/, ''));
+    assert.deepEqual(rl.slice(1, 1 + commentOnly.length), commentOnly, 'and those lines open the bash help');
+    assert.equal(ml.length - 1, 77, 'plus two lines');
+    assert.ok(ml[75].startsWith('  powershell -NoProfile -File .aai/scripts/install-pre-commit-hook.ps1 ') && ml[76].startsWith('Requires Node.js 22 or later'));
+    assert.deepEqual(mod.snap, ref.snap);
+  },
+  K20(ref, mod) {
+    assert.equal(ref.steps[0].code, 0, 'bash: the first dispatched mode wins');
+    assert.ok(ref.steps[0].stdout.includes('Declined the AAI reference-transaction guard.'));
+    assert.ok(cfgOf(ref.snap)?.text.includes('ref_guard: declined'));
+    assert.deepEqual(mod.steps[0], { code: 2, stdout: '', stderr: 'ERROR: --uninstall and --decline-ref-guard are contradictory.\n' });
+    assert.deepEqual(mod.snap, BASE_SNAP, 'the module did nothing');
+  },
+  K21(ref, mod) {
+    assert.deepEqual([ref.steps[0].code, ref.steps[0].stderr, ref.steps[0].stdout], [0, '', F_INDEX_PRINT(ref)], 'bash ignores --force and prints the template');
+    assert.deepEqual(mod.steps[0], { code: 2, stdout: '', stderr: 'ERROR: --force has no effect with --print.\n' });
+    assert.deepEqual(mod.snap, BASE_SNAP);
+  },
+  K22(ref, mod) {
+    assert.equal(ref.steps[0].code, 0, 'bash accepts a trailing comma');
+    assert.deepEqual(hookKeys(ref.snap), ['.git-hooks:.git/hooks/pre-commit']);
+    assert.deepEqual(mod.steps[0], { code: 2, stdout: '', stderr: "ERROR: unknown --hooks value: '' (closed set: index, ref-guard, close-gate, all)\n" });
+    assert.deepEqual(mod.snap, BASE_SNAP);
+  },
+  K23(ref, mod, h) {
+    assert.equal(ref.steps[0].code, 1, 'bash refuses the whole run over a foreign hook in a declined slot');
+    assert.deepEqual(hookKeys(ref.snap), ['.git-hooks:.git/hooks/reference-transaction']);
+    assert.equal(mod.steps[0].code, 0);
+    assert.equal(mod.steps[0].stderr, '');
+    assert.ok(mod.steps[0].stdout.includes(`Skipped AAI reference-transaction hook (AAI:REF-GUARD): ${h.dir}/docs/ai/docs-audit.yaml declares ref_guard: declined.\n`));
+    assert.deepEqual(hookKeys(mod.snap), ['.git-hooks:.git/hooks/pre-commit', '.git-hooks:.git/hooks/pre-push', '.git-hooks:.git/hooks/reference-transaction']);
+    assert.equal(mod.snap['.git-hooks:.git/hooks/reference-transaction'], ref.snap['.git-hooks:.git/hooks/reference-transaction'], 'the foreign hook is untouched');
+    assert.equal(mod.snap[CFG_KEY], ref.snap[CFG_KEY]);
+  },
+  K24(ref, mod) {
+    assert.equal(ref.steps[0].code, 1);
+    assert.ok(hookKeys(ref.snap).includes('.git-hooks:.git/hooks/pre-commit'), 'bash installed the other hooks before failing');
+    assert.ok(hookKeys(ref.snap).some((k) => /reference-transaction\/reference-transaction\.aai-tmp\./.test(k)), 'bash left a stray temp inside the directory slot');
+    assert.equal(mod.steps[0].code, 1);
+    assert.equal(mod.steps[0].stdout, '');
+    assert.match(mod.steps[0].stderr, /^ERROR: reference-transaction slot .* is a directory, not a regular file\. Nothing was written and the slot is untouched\./);
+    assert.deepEqual(mod.snap, { ...BASE_SNAP, '.git-hooks:.git/hooks/reference-transaction': 'dir:755' }, 'the module wrote nothing');
+  },
+  K25(ref, mod, h) {
+    assert.deepEqual([mod.steps[0].code, mod.steps[0].stdout, mod.steps[0].stderr], [ref.steps[0].code, ref.steps[0].stdout, ref.steps[0].stderr]);
+    assert.ok(ref.snap[CFG_KEY].startsWith('file:600:'), 'bash replaced the link by a 0600 file');
+    assert.equal(ref.snap['real-config.yaml'].includes('armed'), true, 'the link target stayed armed');
+    assert.equal(mod.snap[CFG_KEY], `link:${h.dir}/real-config.yaml`, 'the module kept the link');
+    assert.equal(mod.snap['real-config.yaml'], 'file:644:' + JSON.stringify('close_gate: report\nref_guard: declined\n'));
+  },
+  K26(ref, mod) {
+    assert.deepEqual([mod.steps[0].code, mod.steps[0].stdout, mod.steps[0].stderr], [ref.steps[0].code, ref.steps[0].stdout, ref.steps[0].stderr]);
+    assert.deepEqual(cfgOf(ref.snap), { mode: '600', text: 'close_gate: report\r\nref_guard: armed\n' });
+    assert.deepEqual(cfgOf(mod.snap), { mode: '644', text: 'close_gate: report\r\nref_guard: armed\r\n' });
+    assert.deepEqual(hookKeys(mod.snap), hookKeys(ref.snap));
+  },
+  K27a(ref, mod, h) {
+    assert.equal(ref.steps[0].code, 1);
+    assert.match(ref.steps[0].stderr, /but reading it back gives declined\.\n$/);
+    assert.equal(cfgOf(ref.snap).text, 'ref_guard: armed\nref_guard: declined\n');
+    assert.equal(mod.steps[0].code, 0);
+    assert.equal(mod.steps[0].stderr, '');
+    assert.ok(mod.steps[0].stdout.includes(`Removed 1 duplicate ref_guard: line(s) from ${h.dir}/docs/ai/docs-audit.yaml (lines 2).\n`));
+    assert.deepEqual(cfgOf(mod.snap), { mode: '644', text: 'ref_guard: armed\n' });
+  },
+  K27b(ref, mod, h) {
+    assert.equal(ref.steps[0].code, 0);
+    assert.equal(cfgOf(ref.snap).text, 'ref_guard: declined\nref_guard: declined\n', 'bash leaves both lines');
+    assert.equal(mod.steps[0].code, 0);
+    assert.ok(mod.steps[0].stdout.startsWith(`Removed 1 duplicate ref_guard: line(s) from ${h.dir}/docs/ai/docs-audit.yaml (lines 2).\n`));
+    assert.deepEqual(cfgOf(mod.snap), { mode: '644', text: 'ref_guard: declined\n' });
+  },
+  K27c(ref, mod, h) {
+    assert.equal(ref.steps[0].code, 0);
+    assert.ok(ref.steps[0].stdout.includes('Skipped AAI reference-transaction hook'), 'the bash grep reads the later declined line');
+    assert.ok(!hookKeys(ref.snap).includes('.git-hooks:.git/hooks/reference-transaction'));
+    assert.equal(mod.steps[0].code, 0);
+    assert.ok(mod.steps[0].stdout.includes(`Installed AAI reference-transaction hook (AAI:REF-GUARD) at ${h.dir}/.git/hooks/reference-transaction\n`), 'the first key wins');
+    assert.equal(mod.steps[0].stderr, `WARNING: ${h.dir}/docs/ai/docs-audit.yaml carries 2 ref_guard: lines (lines 1, 2); the first one wins. Repair: bash ${h.dir}/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard (or --decline-ref-guard).\n`);
+    assert.equal(mod.snap[CFG_KEY], ref.snap[CFG_KEY], 'a plain run does not touch the file');
+  },
+  K27d(ref, mod) {
+    assert.equal(ref.steps[0].code, 0);
+    assert.ok(hookKeys(ref.snap).includes('.git-hooks:.git/hooks/reference-transaction'), 'bash under LC_ALL=C read armed');
+    assert.equal(mod.steps[0].code, 0);
+    assert.ok(mod.steps[0].stdout.includes('Skipped AAI reference-transaction hook'), 'the reader reads declined');
+    assert.ok(!hookKeys(mod.snap).includes('.git-hooks:.git/hooks/reference-transaction'));
+    assert.equal(mod.snap[CFG_KEY], ref.snap[CFG_KEY]);
+  },
+};
+const F_INDEX_PRINT = () => corpusFixtures().index;
+
+// Per-case wiring of the rewrites and asserted divergences onto the cases built by bashCases.
+function wireBashCases(cases) {
+  const by = Object.fromEntries(cases.map((c) => [c.id, c]));
+  for (const l of 'abcdef') by[`K07${l}`].rewrites = [rwWholeRun];
+  by.K08.rewrites = [rwWholeRun];
+  by.K13a.rewrites = [rwUninstall];
+  by.K13b.rewrites = [rwUninstall];
+  by.K14b.rewrites = [rwMode];
+  by.K15.rewrites = [rwMode];
+  by.K16.rewrites = [rwRearm];
+  by.K30.rewrites = [rwNote];
+  for (const [id, fn] of Object.entries(BASH_ASSERTED)) by[id].asserted = fn;
+  return cases;
+}
+
+describe('TEST-3989 the bash-side corpus K01 to K31 against the frozen bash reference', { skip: process.platform === 'win32' }, () => {
+  const F = corpusFixtures();
+  const cases = wireBashCases(bashCases(F));
+  test('TEST-3989 the corpus holds K01 to K31 with every lettered case, and no case is filtered away', () => {
+    const ids = cases.map((c) => c.id);
+    assert.equal(new Set(ids).size, ids.length);
+    const want = ['K01', 'K02', 'K03', 'K04', 'K05', 'K06', ...'abcdef'.split('').map((l) => `K07${l}`), 'K08', 'K09a', 'K09b', 'K09c', 'K10',
+      'K11a', 'K11b', 'K11c', 'K11d', 'K12a', 'K12b', 'K12c', 'K13a', 'K13b', 'K14a', 'K14b', 'K14c', 'K15', 'K16', 'K16f',
+      'K17a', 'K17b', 'K17c', 'K17d', 'K18', 'K19', 'K20', 'K21', 'K22', 'K23', 'K24', 'K25', 'K26', 'K27a', 'K27b', 'K27c', 'K27d',
+      'K28', 'K29a', 'K29b', 'K29c', 'K29d', 'K30', 'K31'];
+    assert.deepEqual(ids, want);
+  });
+  for (const c of cases) {
+    test(`TEST-3989 ${c.id} ${c.title}`, () => {
+      runCorpusCase(c, 'ref', BASH_KEYS, F, scriptFor('sh'));
+    });
+  }
+});
+
+// The PowerShell-side cases (P), PowerShell-form arguments; compared on exit code and case snapshot only.
+function psCases(F) {
+  const IDX = S3_MARKER['pre-commit'];
+  const foreign = '#!/bin/sh\necho foreign\n';
+  const p = (id, title, steps, extra = {}) => ({ id, title, steps, ...extra });
+  return [
+    p('P01', 'plain', [[]]),
+    p('P02', 'twice', [[], []]),
+    p('P03', 'a foreign pre-commit and a foreign pre-push', [[]], { setup: (h) => { h.hook('pre-commit', foreign); h.hook('pre-push', foreign); } }),
+    p('P04', '-Force on P03', [['-Force']], { setup: (h) => { h.hook('pre-commit', foreign); h.hook('pre-push', foreign); } }),
+    p('P05', 'a pre-guard AAI pre-commit is upgraded', [[]], { setup: (h) => h.hook('pre-commit', F.index) }),
+    p('P06', 'a stale guard interior is refreshed', [[]], { setup: (h) => h.hook('pre-commit', F.stale + F.index) }),
+    p('P07', 'a BOM pre-commit is unprovable', [[]], { setup: (h) => h.hook('pre-commit', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(`#!/bin/sh\n${IDX} - x\nx\n`, 'latin1')])) }),
+    p('P08', 'core.hooksPath', [[]], { setup: (h) => h.git('config', 'core.hooksPath', '.githooks') }),
+    p('P09', '-Hooks index', [['-Hooks', 'index']]),
+    p('P10', '-Uninstall after P01', [[], ['-Uninstall']]),
+    p('P11', '-Hooks Index', [['-Hooks', 'Index']]),
+    p('P12', '-Hooks at the end', [['-Hooks']]),
+    p('P13', '-DeclineRefGuard then a plain run', [['-DeclineRefGuard'], []]),
+    p('P14', 'declined plus a foreign reference-transaction hook', [[]], { setup: (h) => { h.cfg('ref_guard: declined\n'); h.hook('reference-transaction', foreign); } }),
+    p('P15', 'a directory at the pre-push slot', [[]], { setup: (h) => mkdirSync(path.join(h.hooks, 'pre-push')) }),
+    p('P16', '-ArmRefGuard on a CRLF config with a doubled key', [['-ArmRefGuard']], { setup: (h) => h.cfg('close_gate: report\r\nref_guard: declined\r\nref_guard: declined\r\n') }),
+    p('P17', 'not a repository', [[]], { norepo: true }),
+    p('P18', '-h', [['-h']]),
+    p('P19', '--bogus', [['--bogus']]),
+    p('P20', '-Uninstall -DeclineRefGuard', [['-Uninstall', '-DeclineRefGuard']]),
+  ];
+}
+
+const PS_KEYS = ['code'];
+
+const sameExitAndTree = (ref, mod) => assert.deepEqual(strip(mod, PS_KEYS), strip(ref, PS_KEYS));
+// The asserted divergences of the PowerShell side; the .ps1 messages are not compared (every one is a DR-10 text).
+const PS_ASSERTED = {
+  P03(ref, mod, h) {
+    sameExitAndTree(ref, mod);
+    assert.equal(mod.steps[0].code, 1);
+    for (const slot of ['pre-commit', 'pre-push']) assert.ok(mod.steps[0].stderr.includes(`ERROR: ${h.dir}/.git/hooks/${slot} already exists and is not AAI-managed.`), `the module names the foreign ${slot}`);
+  },
+  P11(ref, mod) {
+    assert.equal(ref.steps[0].code, 0, 'the .ps1 matches Index case-insensitively and installs');
+    assert.ok(hookKeys(ref.snap).includes('.git-hooks:.git/hooks/pre-commit'));
+    assert.deepEqual(mod.steps[0], { code: 2, stdout: '', stderr: "ERROR: unknown --hooks value: 'Index' (closed set: index, ref-guard, close-gate, all)\n" });
+    assert.deepEqual(mod.snap, BASE_SNAP);
+  },
+  P12(ref, mod) {
+    assert.equal(ref.steps[0].code, 1, 'a binding error');
+    assert.deepEqual(ref.snap, BASE_SNAP);
+    assert.deepEqual(mod.steps[0], { code: 2, stdout: '', stderr: 'ERROR: --hooks requires a value (closed set: index, ref-guard, close-gate, all)\n' });
+    assert.deepEqual(mod.snap, BASE_SNAP);
+  },
+  P14(ref, mod, h) {
+    assert.equal(ref.steps[0].code, 1, 'the .ps1 refuses the whole run over a foreign hook in a declined slot');
+    assert.deepEqual(hookKeys(ref.snap), ['.git-hooks:.git/hooks/reference-transaction']);
+    assert.equal(mod.steps[0].code, 0);
+    assert.ok(mod.steps[0].stdout.includes(`Skipped AAI reference-transaction hook (AAI:REF-GUARD): ${h.dir}/docs/ai/docs-audit.yaml declares ref_guard: declined.\n`));
+    assert.deepEqual(hookKeys(mod.snap), ['.git-hooks:.git/hooks/pre-commit', '.git-hooks:.git/hooks/pre-push', '.git-hooks:.git/hooks/reference-transaction']);
+    assert.equal(mod.snap['.git-hooks:.git/hooks/reference-transaction'], ref.snap['.git-hooks:.git/hooks/reference-transaction']);
+  },
+  P16(ref, mod) {
+    assert.equal(ref.steps[0].code, 1, 'the .ps1 fails its read-back over the doubled key');
+    assert.deepEqual(cfgOf(ref.snap), { mode: '644', text: 'close_gate: report\nref_guard: armed\nref_guard: declined\n' }, 'every line ending is rewritten');
+    assert.equal(mod.steps[0].code, 0);
+    assert.deepEqual(cfgOf(mod.snap), { mode: '644', text: 'close_gate: report\r\nref_guard: armed\r\n' });
+  },
+  P17(ref, mod) {
+    assert.equal(ref.steps[0].code, 1);
+    assert.deepEqual(mod.steps[0], { code: 1, stdout: '', stderr: 'ERROR: not inside a git repository.\n' });
+    assert.deepEqual(mod.snap, ref.snap);
+  },
+  P18(ref, mod) {
+    assert.equal(ref.steps[0].code, 1, 'the .ps1 binds -h to -Hooks and fails');
+    assert.equal(mod.steps[0].code, 0);
+    assert.ok(mod.steps[0].stdout.startsWith('Install the AAI git hook SET into the EFFECTIVE hooks directory'));
+    assert.deepEqual(mod.snap, ref.snap);
+  },
+  P19(ref, mod) {
+    assert.equal(ref.steps[0].code, 1, 'a binding error');
+    assert.deepEqual(mod.steps[0], { code: 2, stdout: '', stderr: 'ERROR: unexpected argument: --bogus\n' });
+    assert.deepEqual([mod.snap, ref.snap], [BASE_SNAP, BASE_SNAP]);
+  },
+  P20(ref, mod) {
+    assert.equal(ref.steps[0].code, 0, 'the first dispatched mode wins');
+    assert.ok(cfgOf(ref.snap)?.text.includes('ref_guard: declined'));
+    assert.deepEqual(mod.steps[0], { code: 2, stdout: '', stderr: 'ERROR: --uninstall and --decline-ref-guard are contradictory.\n' });
+    assert.deepEqual(mod.snap, BASE_SNAP);
+  },
+};
+
+describe('TEST-3990 the PowerShell-side corpus P01 to P20 against the frozen PowerShell reference', { skip: process.platform === 'win32' || spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0']).status !== 0 }, () => {
+  const F = corpusFixtures();
+  const cases = psCases(F);
+  for (const c of cases) if (PS_ASSERTED[c.id]) c.asserted = PS_ASSERTED[c.id];
+  test('TEST-3990 the corpus holds P01 to P20 and no case is filtered away', () => {
+    assert.deepEqual(cases.map((c) => c.id), Array.from({ length: 20 }, (_, i) => `P${String(i + 1).padStart(2, '0')}`));
+  });
+  for (const c of cases) {
+    test(`TEST-3990 ${c.id} ${c.title}`, () => {
+      runCorpusCase(c, 'ref', PS_KEYS, F, scriptFor('ps1'));
+    });
+  }
 });

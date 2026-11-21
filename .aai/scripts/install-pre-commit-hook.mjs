@@ -297,12 +297,13 @@ const guardInterior = (bytes) => {
   return bytes.subarray(lines[begins[0]].next, lines[ends[0]].start);
 };
 
-// resolveHookPath(ctx, base, name): where git looks for hooks/<name> (resolved against the base directory when
-// relative), or '' when git cannot say.
+// resolveHookPath(ctx, base, name): where git looks for hooks/<name> (a relative answer is joined to the base
+// directory without normalising, so a message path carries the same bytes as the bash `$PWD/$p`; DR-20), or ''
+// when git cannot say.
 function resolveHookPath(ctx, base, name) {
   const r = ctx.child('git', GIT_PATH_ARGS(name), { cwd: base, env: ctx.env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const p = r.status === 0 ? String(r.stdout).replace(/\n+$/, '') : '';
-  return p === '' ? '' : path.resolve(base, p);
+  return p === '' ? '' : (path.isAbsolute(p) ? p : `${base}${path.sep}${p}`);
 }
 
 // resolveSlots(ctx, base): { root, paths } for the repository around base, the hook path of each slot token, or

@@ -327,6 +327,20 @@ test_3988_writes() {
   log_pass "TEST-3988: temp and rename with the landing check, the upgrade by insertion and interior refresh against the bash reference, the marked-differs NOTE, modes under two umasks, the post-run attestation and the win32 skip"
 }
 
+test_3989_corpus_bash() {
+  need_tool TEST-3989 bash || return 0
+  need_tool TEST-3989 git || return 0
+  run_node_tests TEST-3989
+  log_pass "TEST-3989: every bash-side corpus case K01 to K31 gives exit, stdout, stderr, snapshot and TMPDIR listing byte-equal between the frozen bash reference and the module after the registered rewrites, each rewrite changing a byte, and the asserted divergences hold"
+}
+
+test_3990_corpus_powershell() {
+  need_tool TEST-3990 pwsh || return 0
+  need_tool TEST-3990 git || return 0
+  run_node_tests TEST-3990
+  log_pass "TEST-3990: every PowerShell-side corpus case P01 to P20 gives exit and snapshot equal between the frozen PowerShell reference and the module, and the asserted divergences hold"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3997, grows run by run)"
   check_deps
@@ -340,6 +354,8 @@ main() {
   test_3986_paths
   test_3987_attestation
   test_3988_writes
+  test_3989_corpus_bash
+  test_3990_corpus_powershell
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
