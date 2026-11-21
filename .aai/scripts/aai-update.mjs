@@ -424,7 +424,7 @@ export async function run(argv, io = {}) {
   }
   const child = io.spawn ?? runChild;
   const state = { keepTemp: args.keepTemp, tmp: '', created: null, signal: 0 };
-  if (io.spawn === undefined) watchSignals(state);
+  const unwatch = io.spawn === undefined ? watchSignals(state) : () => {};
   try {
     const target = resolveBase('', env, cwd);
     const guard = canonicalGuard({ repo: args.repo, target, force: args.force, spawn: child, env });
@@ -448,6 +448,7 @@ export async function run(argv, io = {}) {
     err(`aai-update: internal error: ${e.message}\n`);
     return EXIT_USAGE;
   } finally {
+    unwatch();
     if (!state.keepTemp && state.tmp) removeOwnTemp(state.tmp, state.created);
   }
 }
@@ -468,8 +469,10 @@ async function syncStep(source, target, { child, env, err, out, runner, platform
   if (r.status === null) return 128 + (os.constants.signals[r.signal] ?? 1);
   if (r.status !== 0) return r.status;
   const changed = changedFiles(target, child, env);
+  if (await signalled(state)) return state.signal;
   out(renderEvidence({ changed, pin: pinLines(target), conflict: latestConflict(target) }));
   doctorReport(target, { out, spawn: child, env });
+  if (await signalled(state)) return state.signal;
   out(renderNext(changed.length > 0));
   return 0;
 }
@@ -484,20 +487,15 @@ async function signalled(state) {
 
 // watchSignals(state): a real run keeps SIGINT and SIGTERM from ending the process in the middle of a blocking
 // child; the handler removes the run's own temp directory, records 130 or 143, and the run stops at its next stage boundary (see signalled).
-let signalsWatched = false;
-let watched = null;
+// It returns the function that removes the two listeners again; run calls it in its finally, so after a run default signal behaviour is back.
 function watchSignals(state) {
-  watched = state;
-  if (signalsWatched) return;
-  signalsWatched = true;
-  for (const [name, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
-    process.on(name, () => {
-      if (!watched) return;
-      if (!watched.keepTemp && watched.tmp) removeOwnTemp(watched.tmp, watched.created);
-      watched.tmp = '';
-      watched.signal = code;
-    });
-  }
+  const handlers = [['SIGINT', 130], ['SIGTERM', 143]].map(([name, code]) => [name, () => {
+    if (state.tmp && !state.keepTemp) removeOwnTemp(state.tmp, state.created);
+    state.tmp = '';
+    state.signal = code;
+  }]);
+  for (const [name, handler] of handlers) process.on(name, handler);
+  return () => { for (const [name, handler] of handlers) process.removeListener(name, handler); };
 }
 
 export async function main(argv = process.argv.slice(2)) {

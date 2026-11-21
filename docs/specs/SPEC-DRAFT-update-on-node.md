@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: aaa7cbb909195325ee15f6a51997fe795897343e0323c6d80c1e2e138297a591
+frozen_sha256: 2054f716f3a9e7197e0a36ace5e0dd4957b149aadafd488b37e8b06afb8ee6b4
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -327,9 +327,11 @@ work, temp directory or sync.
   every exit path (success, exit 3, exit 4, a failed sync, an internal
   error), and from SIGINT and SIGTERM handlers: a handler removes the own
   temp and records 130 or 143, and the run yields once after the guard,
-  after source resolution and after the sync child, and stops there with
-  the recorded code (no later stage runs; a signal during the clone chain
-  stops the run before the sync); `--keep-temp` keeps the directory and prints
+  after source resolution, after the sync child, after the evidence
+  `git status` and after the doctor helper, and stops there with the
+  recorded code (no later stage runs or prints; a signal during the clone
+  chain stops the run before the sync); `run` removes its listeners in its
+  `finally`, restoring default signal behaviour; `--keep-temp` keeps the directory and prints
   nothing about it. The module creates no other file or directory outside
   the target and the temp directory; there is no self-relocated copy (DR-8).
 

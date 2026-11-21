@@ -1363,6 +1363,73 @@ describe('TEST-3965 temp lifecycle', () => {
     assert.doesNotMatch(r.stdout, /Post-sync evidence|Recommended/);
     assert.deepEqual(readdirSync(path.join(root, 'tmp')).filter((n) => n.startsWith('aai-src.')), []);
   });
+
+  // a post-sync window: the sync child ends cleanly, then the named post-sync child signals the module and lingers
+  function postSyncSignalRun(label, { doctor, gitStatus }) {
+    const root = scratch(`real-sigterm-${label}-`);
+    const upstream = path.join(root, 'upstream');
+    const target = path.join(root, 'target');
+    mkdirSync(path.join(upstream, '.aai', 'scripts'), { recursive: true });
+    mkdirSync(path.join(target, '.aai', 'scripts'), { recursive: true });
+    writeFileSync(path.join(upstream, '.aai', 'scripts', 'aai-sync.sh'), '#!/bin/sh\necho SYNC-START\necho SYNC-END\n');
+    const signalling = 'process.kill(process.ppid, "SIGTERM"); console.log("DOCTOR-START"); setTimeout(() => console.log("DOCTOR-END"), 1000);\n';
+    writeFileSync(path.join(target, '.aai', 'scripts', 'update-doctor-report.mjs'), doctor ? signalling : 'console.log("DOCTOR-REPORT");\n');
+    const env = prepareEnv(root);
+    const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: upstream, env, encoding: 'utf8' });
+    assert.equal(git('init', '-q', '-b', 'main').status, 0);
+    assert.equal(git('add', '.').status, 0);
+    assert.equal(git('commit', '-q', '-m', 'x').status, 0);
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: target, env, encoding: 'utf8' }).status, 0);
+    if (gitStatus) {
+      // a git shim that signals the module while it runs the evidence status call, then lingers and runs the real git
+      const realGit = env.PATH.split(path.delimiter).slice(1).map((d) => path.join(d, 'git')).find((f) => existsSync(f));
+      assert.ok(realGit, 'a real git exists');
+      const shim = path.join(root, 'bin', 'git');
+      writeFileSync(shim, `#!/bin/sh\nfor a in "$@"; do\n  if [ "$a" = status ]; then kill -TERM "$PPID"; sleep 1; fi\ndone\nexec "${realGit}" "$@"\n`);
+      chmodSync(shim, 0o755);
+    }
+    const r = runUpdate({ args: ['--repo', `file://${upstream}`], root, cwd: target });
+    assert.equal(r.status, 143, `${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /SYNC-START/);
+    assert.doesNotMatch(r.stdout, /Recommended|## Next|DOCTOR-REPORT/);
+    assert.deepEqual(readdirSync(path.join(root, 'tmp')).filter((n) => n.startsWith('aai-src.')), []);
+    return r;
+  }
+
+  test('TEST-3965 a SIGTERM during the doctor helper stops the run with 143 and prints no Next block', () => {
+    postSyncSignalRun('doctor', { doctor: true, gitStatus: false });
+  });
+
+  test('TEST-3965 a SIGTERM during the evidence git status stops the run with 143 and prints no doctor report or Next block', () => {
+    postSyncSignalRun('status', { doctor: false, gitStatus: true });
+  });
+
+  test('TEST-3965 a real run uninstalls its SIGINT and SIGTERM listeners when it returns', async () => {
+    const root = scratch('listeners-');
+    const upstream = path.join(root, 'upstream');
+    const target = path.join(root, 'target');
+    mkdirSync(path.join(upstream, '.aai', 'scripts'), { recursive: true });
+    mkdirSync(target);
+    writeFileSync(path.join(upstream, '.aai', 'scripts', 'aai-sync.sh'), '#!/bin/sh\necho SYNC\n');
+    const env = prepareEnv(root);
+    const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: upstream, env, encoding: 'utf8' });
+    assert.equal(git('init', '-q', '-b', 'main').status, 0);
+    assert.equal(git('add', '.').status, 0);
+    assert.equal(git('commit', '-q', '-m', 'x').status, 0);
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: target, env, encoding: 'utf8' }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.name', 't'], { cwd: target, env }).status, 0);
+    const { run } = await import(MODULE_URL);
+    const before = { int: process.listenerCount('SIGINT'), term: process.listenerCount('SIGTERM') };
+    const sink = { out: () => {}, err: () => {} };
+    const errs = [];
+    const code = await run(['--repo', `file://${upstream}`], { ...sink, err: (m) => errs.push(m), env, cwd: target, tmpdir: path.join(root, 'tmp') });
+    assert.equal(code, 0, errs.join(''));
+    assert.equal(process.listenerCount('SIGINT'), before.int);
+    assert.equal(process.listenerCount('SIGTERM'), before.term);
+    const dry = await run(['--dry-run', '--repo', `file://${upstream}`], { ...sink, env, cwd: target, tmpdir: path.join(root, 'tmp') });
+    assert.equal(dry, 0);
+    assert.equal(process.listenerCount('SIGTERM'), before.term);
+  });
 });
 
 // --- run 3: the runner, the rendering and the doctor postamble (TEST-3966 to TEST-3968) ---------------------
