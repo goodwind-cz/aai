@@ -4323,3 +4323,5 @@
 {"v":1,"ts":"2026-11-21T06:09:55Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"update-on-node","payload":{"role":"code_review","head":"c5b9738ef39d035853cf10c9c79ec39404401c9b","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-21T06:09:55Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"update-on-node","payload":{"status":"pass","hash":"420c7ee506c206c0278843860122b562c2ed97b325c3caf42a16c016f60b86ee"}}
 {"v":1,"ts":"2026-11-21T06:58:37Z","actor":"ales_holubec.net","event":"full_sweep","ref":"update-on-node","payload":{"head":"f2c1f31aa54ba758549f21ea993dc598c83962aa","rc":0,"run_id":"test-20261121-063456"}}
+{"v":1,"ts":"2026-11-21T06:58:48Z","actor":"ales_holubec.net","event":"round_reset","ref":"update-on-node","payload":{"block":"last_validation","from":"pass","forced":true}}
+{"v":1,"ts":"2026-11-21T07:06:30Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"update-on-node","payload":{"head":"411f518af1563285b8f02bafae445b6ba5718e01","clean":true,"flags":0}}
