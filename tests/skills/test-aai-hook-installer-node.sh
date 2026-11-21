@@ -256,6 +256,77 @@ test_3985_templates() {
   log_pass "TEST-3985: templates read from the module's own location with every CR removed, each missing one named before any write, malformed index and guard-checks templates refused, --print outside a repository, composePreCommit with a final LF equal to the bash reference bytes"
 }
 
+# git_scratch_repo <work> <name>: a scratch repository under <work> with the isolated git environment; prints its path.
+git_scratch_repo() {
+  local repo="$1/$2"
+  mkdir -p "$repo"
+  ( cd "$repo" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$1/gitconfig" git init -q ) || log_fail "git init failed in $repo"
+  printf '%s\n' "$repo"
+}
+
+test_3986_paths() {
+  need_tool TEST-3986 git || return 0
+  run_node_tests TEST-3986
+  # a real process: core.hooksPath relative and not yet existing, from a subdirectory; then outside a repository
+  local work repo
+  work="$(new_own_scratch paths)"
+  : > "$work/gitconfig"
+  repo="$(git_scratch_repo "$work" repo)"
+  ( cd "$repo" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git config core.hooksPath .custom-hooks ) || log_fail "TEST-3986: git config failed"
+  mkdir -p "$repo/sub"
+  run_installer "$work" "$repo/sub"
+  [[ "$RUN_RC" == 0 ]] || { cat "$work/run.err" >&2; log_fail "TEST-3986: an install from a subdirectory exited $RUN_RC"; }
+  [[ -f "$repo/.custom-hooks/pre-commit" && -f "$repo/.custom-hooks/reference-transaction" && -f "$repo/.custom-hooks/pre-push" ]] || log_fail "TEST-3986: the hooks are not where git resolves them"
+  [[ ! -e "$repo/.git/hooks/pre-commit" && ! -e "$repo/sub/.custom-hooks" ]] || log_fail "TEST-3986: a hook was written to a guessed path"
+  mkdir "$work/plain"
+  run_installer "$work" "$work/plain"
+  [[ "$RUN_RC" == 1 ]] || log_fail "TEST-3986: outside a repository exited $RUN_RC, want 1"
+  [[ "$(cat "$work/run.err")" == "ERROR: not inside a git repository." ]] || log_fail "TEST-3986: the not-a-repository line differs: $(cat "$work/run.err")"
+  safe_rm_own "$work"
+  log_pass "TEST-3986: the slot paths equal git rev-parse --git-path for every hooksPath shape, from a subdirectory and in a linked worktree, the not-a-repository and git-missing lines, PWD message paths"
+}
+
+test_3987_attestation() {
+  need_tool TEST-3987 git || return 0
+  run_node_tests TEST-3987
+  # a real process: a foreign pre-commit and a directory in the pre-push slot refuse the whole run and write nothing
+  local work repo before after
+  work="$(new_own_scratch refuse)"
+  : > "$work/gitconfig"
+  repo="$(git_scratch_repo "$work" repo)"
+  mkdir -p "$repo/.git/hooks/pre-push"
+  printf '#!/bin/sh\necho mine\n' > "$repo/.git/hooks/pre-commit"
+  before="$(find "$repo" -print0 | LC_ALL=C sort -z | xargs -0 ls -ld | cksum)"
+  run_installer "$work" "$repo"
+  [[ "$RUN_RC" == 1 ]] || log_fail "TEST-3987: a refused run exited $RUN_RC, want 1"
+  grep -qF "ERROR: refusing the whole run" "$work/run.err" || log_fail "TEST-3987: the whole-run line is missing"
+  [[ ! -s "$work/run.out" ]] || log_fail "TEST-3987: a refusal wrote to stdout"
+  [[ ! -e "$repo/.git/hooks/reference-transaction" && ! -e "$repo/docs" ]] || log_fail "TEST-3987: a refused run wrote a hook or a policy"
+  after="$(find "$repo" -print0 | LC_ALL=C sort -z | xargs -0 ls -ld | cksum)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3987: a refused run changed the tree"
+  safe_rm_own "$work"
+  log_pass "TEST-3987: every D-SLOT state, the byte marker rule, the declined slot left alone, each refusal kind in each slot with a byte-identical tree, refusals in slot order"
+}
+
+test_3988_writes() {
+  need_tool TEST-3988 git || return 0
+  run_node_tests TEST-3988
+  # a real process under umask 077: new hooks are 0777 minus umask
+  local work repo mode old_umask
+  work="$(new_own_scratch writes)"
+  : > "$work/gitconfig"
+  repo="$(git_scratch_repo "$work" repo)"
+  old_umask="$(umask)"
+  umask 077
+  run_installer "$work" "$repo"
+  umask "$old_umask"
+  [[ "$RUN_RC" == 0 ]] || { cat "$work/run.err" >&2; log_fail "TEST-3988: an install under umask 077 exited $RUN_RC"; }
+  mode="$(node -e 'process.stdout.write((require("fs").statSync(process.argv[1]).mode & 0o777).toString(8))' "$repo/.git/hooks/pre-commit")"
+  [[ "$mode" == 700 ]] || log_fail "TEST-3988: pre-commit mode is $mode under umask 077, want 700"
+  safe_rm_own "$work"
+  log_pass "TEST-3988: temp and rename with the landing check, the upgrade by insertion and interior refresh against the bash reference, the marked-differs NOTE, modes under two umasks, the post-run attestation and the win32 skip"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3997, grows run by run)"
   check_deps
@@ -266,6 +337,9 @@ main() {
   test_3983_policy_writer
   test_3984_policy_flows
   test_3985_templates
+  test_3986_paths
+  test_3987_attestation
+  test_3988_writes
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

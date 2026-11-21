@@ -217,8 +217,6 @@ export function resolveBase(env = process.env, cwd = process.cwd()) {
   return cwd;
 }
 
-const notYet = (what) => new Error(`${what} is not implemented yet`);
-
 const TEMPLATE_FILES = { index: 'pre-commit-index.sh', 'guard-checks': 'pre-commit-guard-checks.sh', 'ref-guard': 'reference-transaction.sh', 'pre-push': 'pre-push.sh' };
 const SLOT_NAMES = { index: 'pre-commit', 'ref-guard': 'reference-transaction', 'close-gate': 'pre-push' };
 const SLOT_MARKERS = { index: '# AAI:INDEX-AUTOGEN', 'ref-guard': '# AAI:REF-GUARD', 'close-gate': '# AAI:CLOSE-GATE' };
@@ -274,13 +272,29 @@ export function hasMarkerLine(bytes, marker) {
   return new RegExp(`(?:^|\\n)${escaped}(?: |\\n|\\r\\n|\\r?$)`).test(Buffer.from(bytes).toString('latin1'));
 }
 
-// The interior between the one BEGIN line and the one END line of a hook, or null for any other shape.
+// The lines of a hook as offsets: end excludes the LF, next starts the following line.
+const scanLines = (bytes) => {
+  const out = [];
+  let start = 0;
+  while (start < bytes.length) {
+    const lf = bytes.indexOf(10, start);
+    if (lf < 0) {
+      out.push({ start, end: bytes.length, next: bytes.length });
+      break;
+    }
+    out.push({ start, end: lf, next: lf + 1 });
+    start = lf + 1;
+  }
+  return out;
+};
+const linesEqual = (bytes, lines, text) => lines.flatMap((l, i) => (l.end - l.start === text.length && bytes.toString('latin1', l.start, l.end) === text ? [i] : []));
+// The bytes between the one BEGIN line and the one END line, or null for any other shape.
 const guardInterior = (bytes) => {
-  const lines = bytes.toString('latin1').split('\n');
-  const begins = lines.flatMap((l, i) => (l === GUARD_BEGIN ? [i] : []));
-  const ends = lines.flatMap((l, i) => (l === GUARD_END ? [i] : []));
+  const lines = scanLines(bytes);
+  const begins = linesEqual(bytes, lines, GUARD_BEGIN);
+  const ends = linesEqual(bytes, lines, GUARD_END);
   if (begins.length !== 1 || ends.length !== 1 || begins[0] > ends[0]) return null;
-  return lines.slice(begins[0] + 1, ends[0]).join('\n');
+  return bytes.subarray(lines[begins[0]].next, lines[ends[0]].start);
 };
 
 // resolveHookPath(ctx, base, name): where git looks for hooks/<name> (resolved against the base directory when
@@ -312,21 +326,103 @@ export function resolveSlots(ctx, base) {
   return { root: String(top.stdout).replace(/\n+$/, ''), paths };
 }
 
-// classifySlot(slotPath, marker): the state of a slot: absent, marked or foreign (a regular file with or without
-// the marker line, bytes included) or other (anything else: refused by a later run of this port).
-export function classifySlot(slotPath, marker) {
-  let l;
-  try {
-    l = fs.lstatSync(slotPath);
-  } catch {
-    return { state: 'absent' };
+// planUpgrade(bytes, guard): what an install does to a pre-commit hook that carries the AAI marker, from its bytes
+// alone (D-WRITE): { refuse, ... } naming the first rule that fails (the bash order), { action: 'none' } for a
+// current guard block, { action: 'insert' | 'refresh', bytes } with every byte outside the guard block kept, or
+// { action: 'pending' } when no shipped guard block (guard null) was given to compare with.
+export function planUpgrade(bytes, guard = null) {
+  const firstLf = bytes.indexOf(10);
+  if (firstLf < 0) return { refuse: 'no-newline' };
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return { refuse: 'bom' };
+  if (firstLf > 0 && bytes[firstLf - 1] === 13) return { refuse: 'cr-first' };
+  const lines = scanLines(bytes);
+  const begins = linesEqual(bytes, lines, GUARD_BEGIN);
+  const ends = linesEqual(bytes, lines, GUARD_END);
+  if (bytes.indexOf(GUARD_BEGIN, 0, 'latin1') < 0) {
+    if (ends.length) return { refuse: 'stray-end', ends: ends.length };
+    if (!guard) return { action: 'pending' };
+    const at = bytes[0] === 0x23 && bytes[1] === 0x21 ? firstLf + 1 : 0;
+    return { action: 'insert', bytes: Buffer.concat([bytes.subarray(0, at), guard, bytes.subarray(at)]) };
   }
-  if (l.isSymbolicLink() || !l.isFile()) return { state: 'other' };
-  const bytes = fs.readFileSync(slotPath);
-  return { state: hasMarkerLine(bytes, marker) ? 'marked' : 'foreign', bytes };
+  if (begins.length !== 1 || ends.length !== 1) return { refuse: 'count', begins: begins.length, ends: ends.length };
+  if (begins[0] > ends[0]) return { refuse: 'inverted', beginLn: begins[0] + 1, endLn: ends[0] + 1 };
+  if (!guard) return { action: 'pending' };
+  const shipped = guardInterior(guard);
+  const open = lines[begins[0]].next;
+  const close = lines[ends[0]].start;
+  if (bytes.subarray(open, close).equals(shipped)) return { action: 'none' };
+  return { action: 'refresh', bytes: Buffer.concat([bytes.subarray(0, open), shipped, bytes.subarray(close)]) };
 }
 
-export function planUpgrade() { throw notYet('planUpgrade'); }
+// classifyBytes(bytes, marker, want): the state of a regular file: foreign (no marker line), unprovable (a
+// pre-commit hook the upgrade refuses), current, older (pre-commit only, with its plan) or marked-differs.
+function classifyBytes(bytes, marker, want) {
+  if (!hasMarkerLine(bytes, marker)) return { state: 'foreign', bytes };
+  if (marker === SLOT_MARKERS.index) {
+    const plan = planUpgrade(bytes, want);
+    if (plan.refuse) return { state: 'unprovable', bytes, plan };
+    return { state: plan.action === 'none' ? 'current' : 'older', bytes, plan };
+  }
+  return { state: want && bytes.equals(want) ? 'current' : 'marked-differs', bytes };
+}
+
+// classifySlot(slotPath, marker, want): the state of a slot (lstat first, then the bytes): absent, foreign, current,
+// older, marked-differs, unprovable, link-file (a link to a regular file; inner holds the state of its target) or
+// bad-type (kind says what it is). want is the shipped guard block for pre-commit and the template otherwise; it
+// may be null when only the ownership and structure matter.
+export function classifySlot(slotPath, marker, want = null) {
+  const l = fs.lstatSync(slotPath, { throwIfNoEntry: false });
+  if (!l) return { state: 'absent' };
+  if (l.isSymbolicLink()) {
+    const st = statOrNull(slotPath);
+    if (!st) return { state: 'bad-type', kind: 'dangling' };
+    if (st.isDirectory()) return { state: 'bad-type', kind: 'link-dir' };
+    if (!st.isFile()) return { state: 'bad-type', kind: 'link-other' };
+    return { state: 'link-file', inner: classifyBytes(fs.readFileSync(slotPath), marker, want) };
+  }
+  if (!l.isFile()) {
+    const kind = l.isDirectory() ? 'a directory' : l.isFIFO() ? 'a named pipe' : l.isSocket() ? 'a socket' : 'not a regular file';
+    return { state: 'bad-type', kind };
+  }
+  return classifyBytes(fs.readFileSync(slotPath), marker, want);
+}
+
+const effective = (cls) => (cls.state === 'link-file' ? cls.inner : cls);
+const isOwned = (cls) => ['current', 'older', 'marked-differs', 'unprovable'].includes(effective(cls).state);
+
+const badTypeLines = (p, label, kind) => {
+  if (kind === 'link-dir') return [`ERROR: ${label} slot ${p} is a symbolic link to a directory. Nothing was written: following it would drop the hook body inside that directory, possibly outside this repository. Replace the link with a regular file, or remove it, then re-run.`];
+  if (kind === 'dangling') return [`ERROR: ${label} slot ${p} is a dangling symbolic link. Nothing was written: following it would create a file at a target this repository does not own. Remove the link, then re-run.`];
+  if (kind === 'link-other') return [`ERROR: ${label} slot ${p} is a symbolic link to something that is not a regular file. Nothing was written. Remove the link, then re-run.`];
+  return [`ERROR: ${label} slot ${p} is ${kind}, not a regular file. Nothing was written and the slot is untouched. Remove or rename it, then re-run.`];
+};
+
+const unprovableLines = (p, plan) => {
+  const B = GUARD_BEGIN;
+  const E = GUARD_END;
+  if (plan.refuse === 'no-newline') return [`ERROR: ${p} has no newline-terminated line; refusing to insert the AAI:GUARD-CHECKS block into it. Pass --force to rewrite the whole slot.`];
+  if (plan.refuse === 'bom') return [`ERROR: ${p} starts with a UTF-8 byte-order mark (EF BB BF); sh cannot start a hook whose first bytes are not '#!', so the AAI:GUARD-CHECKS block is not inserted into it. File left as it was. Strip the BOM, or pass --force to rewrite the whole slot.`];
+  if (plan.refuse === 'cr-first') return [`ERROR: ${p} has a CR-terminated first line (CRLF hook). Refusing to insert an LF block under it \u2014 sh could not start the result. Convert the hook to LF, or pass --force to rewrite the whole slot.`];
+  if (plan.refuse === 'stray-end') return [`ERROR: ${p} carries ${plan.ends} '${E}' line(s) and no '${B}'; refusing to insert a block above a stray END marker. File left as it was. Remove the END line by hand, or pass --force to rewrite the whole slot.`];
+  if (plan.refuse === 'count') return [`ERROR: ${p} carries ${plan.begins} '${B}' and ${plan.ends} '${E}' line(s); refusing to guess which block is the installer's. File left as it was. Remove the extra markers by hand, or pass --force to rewrite the whole slot.`];
+  return [`ERROR: ${p} carries '${E}' (line ${plan.endLn}) BEFORE '${B}' (line ${plan.beginLn}): the markers are inverted, so no interior can be located and a refresh would drop every line after the BEGIN. File left as it was. Move the BEGIN line above the END line by hand, or pass --force to rewrite the whole slot.`];
+};
+
+// refusalOf(cls, repo, token, force): the refusal of one planned slot ({ lines, foreign }) or null. A directory, a
+// dangling link, a pipe or a socket is refused even with --force; a link to a regular file is refused only where
+// a write through the link would be needed.
+function refusalOf(cls, repo, token, force) {
+  const p = repo.paths[token];
+  const eff = effective(cls);
+  if (cls.state === 'bad-type') return { lines: badTypeLines(p, SLOT_NAMES[token], cls.kind), foreign: false };
+  if (eff.state === 'foreign' && !force) return { lines: foreignRefusal(repo, token), foreign: true };
+  if (force) return null;
+  if (cls.state === 'link-file' && (eff.state === 'older' || eff.state === 'unprovable')) {
+    return { lines: [`ERROR: ${p} is a symlink. Refusing to rewrite through a symlink (the target may be outside this repository); replace the link with a regular file, or pass --force.`], foreign: false };
+  }
+  if (eff.state === 'unprovable') return { lines: unprovableLines(p, eff.plan), foreign: false };
+  return null;
+}
 
 // writeSlot(slot, bytes): a temp sibling, created exclusively with mode 0777 minus umask, renamed over the slot.
 export function writeSlot(slot, bytes) {
@@ -354,6 +450,11 @@ const landed = (slot, bytes) => {
 
 const landingFailure = (slot) => {
   fs.rmSync(slot.tmp, { force: true });
+  try {
+    if (fs.lstatSync(slot.path).isDirectory()) fs.rmSync(path.join(slot.path, path.basename(slot.tmp)), { force: true });
+  } catch {
+    // no stray where the slot is not a directory
+  }
   slot.err(`ERROR: the ${slot.label} hook was composed but did not land at ${slot.path} \u2014 the bytes there are not the ones written (the slot may be a link or a directory). No hook was installed; any stray temporary file has been removed.\n`);
   return EXIT_FAIL;
 };
@@ -361,6 +462,7 @@ const landingFailure = (slot) => {
 // refuseWholeRun(refusals): every refusal prints its lines in slot order; nothing was written.
 const refuseWholeRun = (refusals) => {
   for (const r of refusals) for (const line of r.lines) r.err(`${line}\n`);
+  if (refusals.some((r) => !r.foreign)) refusals[0].err('ERROR: refusing the whole run \u2014 nothing was written. Fix the slot(s) named above and re-run.\n');
   return EXIT_FAIL;
 };
 
@@ -417,21 +519,28 @@ const INSTALLED = {
   'close-gate': ['Installed AAI pre-push hook (AAI:CLOSE-GATE) at', () => 'Effect: every push runs close-reconcile.mjs --check over the pushed range (report-only; close_gate: enforce refuses a default-branch push only).'],
 };
 
-// slotFor(ctx, repo, token, cls, want, force): the slot record of one planned hook: keep (already installed, with
-// its lines) or write (its Installed lines after the write).
-function slotFor(ctx, repo, token, cls, want, force) {
-  const slot = { token, label: SLOT_NAMES[token], path: repo.paths[token], err: ctx.err, rename: ctx.rename, keep: false };
-  if (cls.state === 'marked' && !force) {
+// slotFor(ctx, repo, token, cls, bytes, force): the slot record of one planned hook: keep (already installed, with
+// its lines), upgrade (bytes by label gets the upgraded hook) or write (its Installed lines after the write).
+function slotFor(ctx, repo, token, cls, bytes, force) {
+  const label = SLOT_NAMES[token];
+  const slot = { token, label, path: repo.paths[token], err: ctx.err, rename: ctx.rename, keep: false };
+  const eff = effective(cls);
+  if (!force && (eff.state === 'current' || eff.state === 'marked-differs')) {
     slot.keep = true;
-    if (token === 'index' && guardInterior(cls.bytes) === null) throw notYet('planUpgrade');
-    const current = token === 'index' ? guardInterior(cls.bytes) === guardInterior(want) : cls.bytes.equals(want);
     slot.done = () => {
-      ctx.out(`AAI ${slot.label} hook already installed at ${slot.path}. No action taken.\n`);
-      if (!current && token !== 'index') ctx.out(`NOTE: ${slot.path} carries ${SLOT_MARKERS[token]} but its bytes differ from the shipped body; pass --force to replace it.\n`);
+      ctx.out(`AAI ${label} hook already installed at ${slot.path}. No action taken.\n`);
+      if (eff.state === 'marked-differs') ctx.out(`NOTE: ${slot.path} carries ${SLOT_MARKERS[token]} but its bytes differ from the shipped body; pass --force to replace it.\n`);
     };
     return slot;
   }
-  if (cls.state === 'other') throw notYet('a slot that is not a regular file');
+  if (!force && eff.state === 'older') {
+    bytes[label] = eff.plan.bytes;
+    slot.done = () => {
+      if (eff.plan.action === 'insert') ctx.out(`Upgraded AAI pre-commit hook at ${slot.path}: added the AAI:GUARD-CHECKS block (pre-commit-checks.sh now runs on every commit; secrets detection blocks)\n`);
+      else ctx.out(`Refreshed the AAI:GUARD-CHECKS block at ${slot.path} (interior between the markers replaced; every other byte unchanged)\n`);
+    };
+    return slot;
+  }
   slot.done = () => {
     ctx.out(`${INSTALLED[token][0]} ${slot.path}\n`);
     ctx.out(`${INSTALLED[token][1](repo)}\n`);
@@ -480,14 +589,14 @@ function requireTemplates(ctx, kinds) {
 
 function declineMode(ctx, repo) {
   const cls = classifySlot(repo.paths['ref-guard'], SLOT_MARKERS['ref-guard']);
-  if (cls.state === 'other') throw notYet('a slot that is not a regular file');
+  if (cls.state === 'bad-type') return refuseWholeRun([{ lines: badTypeLines(repo.paths['ref-guard'], SLOT_NAMES['ref-guard'], cls.kind), foreign: false, err: ctx.err }]);
   if (cls.state === 'foreign') {
     ctx.err(`ERROR: ${repo.paths['ref-guard']} already exists and is not AAI-managed.\n`);
     ctx.err('       Refusing to remove a foreign hook -- --decline-ref-guard only removes an AAI-managed guard.\n');
     return EXIT_FAIL;
   }
   if (!recordPolicy(ctx, repo, 'declined')) return EXIT_FAIL;
-  if (cls.state === 'marked') {
+  if (isOwned(cls)) {
     fs.unlinkSync(repo.paths['ref-guard']);
     ctx.out(`Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from ${repo.paths['ref-guard']}\n`);
   }
@@ -501,11 +610,12 @@ function declineMode(ctx, repo) {
 function armMode(ctx, repo, mode) {
   const templates = requireTemplates(ctx, ['ref-guard']);
   if (!templates) return EXIT_FAIL;
-  const cls = classifySlot(repo.paths['ref-guard'], SLOT_MARKERS['ref-guard']);
-  if (cls.state === 'foreign' && !mode.force) return refuseWholeRun([{ lines: foreignRefusal(repo, 'ref-guard'), foreign: true, err: ctx.err }]);
+  const cls = classifySlot(repo.paths['ref-guard'], SLOT_MARKERS['ref-guard'], templates['ref-guard']);
+  const refusal = refusalOf(cls, repo, 'ref-guard', mode.force);
+  if (refusal) return refuseWholeRun([{ ...refusal, err: ctx.err }]);
   if (!ensureHooksDir(ctx, repo)) return EXIT_FAIL;
-  const slot = slotFor(ctx, repo, 'ref-guard', cls, templates['ref-guard'], mode.force);
-  const bytes = { [slot.label]: templates['ref-guard'] };
+  const bytes = { [SLOT_NAMES['ref-guard']]: templates['ref-guard'] };
+  const slot = slotFor(ctx, repo, 'ref-guard', cls, bytes, mode.force);
   const code = installSlots([slot], [], bytes);
   if (code !== 0) return code;
   if (!attestSlots(ctx, repo, ['ref-guard'])) return EXIT_FAIL;
@@ -554,16 +664,21 @@ function installMode(ctx, repo, mode) {
   if (wantRef) warnDoubledKey(ctx, repo);
   const skipRef = wantRef && SKIP_DECLINED(mode, policy);
   const planned = want.filter((t) => !(t === 'ref-guard' && skipRef));
+  const kinds = [...(want.includes('index') ? ['index', 'guard-checks'] : []), ...(planned.includes('ref-guard') ? ['ref-guard'] : []), ...(want.includes('close-gate') ? ['pre-push'] : [])];
+  const loaded = kinds.length ? loadTemplates(ctx.scriptDir, kinds) : { templates: {}, errors: [] };
+  const templates = loaded.templates;
+  // every planned slot is classified before anything is written; a refusal writes nothing
   const classes = {};
   const refusals = [];
   for (const token of planned) {
-    classes[token] = classifySlot(repo.paths[token], SLOT_MARKERS[token]);
-    if (classes[token].state === 'foreign' && !mode.force) refusals.push({ lines: foreignRefusal(repo, token), foreign: true, err: ctx.err });
+    const shipped = token === 'index' ? templates['guard-checks'] : templates[token === 'ref-guard' ? 'ref-guard' : 'pre-push'];
+    classes[token] = classifySlot(repo.paths[token], SLOT_MARKERS[token], shipped);
+    const refusal = refusalOf(classes[token], repo, token, mode.force);
+    if (refusal) refusals.push({ ...refusal, err: ctx.err });
   }
-  if (refusals.length > 0) return refuseWholeRun(refusals);
-  const kinds = [...(want.includes('index') ? ['index', 'guard-checks'] : []), ...(planned.includes('ref-guard') ? ['ref-guard'] : []), ...(want.includes('close-gate') ? ['pre-push'] : [])];
-  const templates = kinds.length ? requireTemplates(ctx, kinds) : {};
-  if (!templates) return EXIT_FAIL;
+  if (refusals.length > 0) return installSlots([], refusals, {});
+  for (const line of loaded.errors) ctx.err(`${line}\n`);
+  if (loaded.errors.length) return EXIT_FAIL;
   if (!ensureHooksDir(ctx, repo)) return EXIT_FAIL;
   const bytes = {};
   if (templates.index) bytes['pre-commit'] = composePreCommit(templates.index, templates['guard-checks']);
@@ -577,7 +692,7 @@ function installMode(ctx, repo, mode) {
         ctx.out(`Re-arm with: ${installerCmd(repo.root)} --arm-ref-guard (--force installs the hook for this run only; ref_guard: declined stays recorded).\n`);
       } });
     } else {
-      slots.push(slotFor(ctx, repo, token, classes[token], bytes[SLOT_NAMES[token]], mode.force));
+      slots.push(slotFor(ctx, repo, token, classes[token], bytes, mode.force));
     }
   }
   const code = installSlots(slots, [], bytes);

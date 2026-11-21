@@ -10,8 +10,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, statSync, symlinkSync, utimesSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -75,12 +76,16 @@ export function assertHooksUnderRoot(cwd, root, env) {
 
 // runInstaller({ args, root, cwd, env, script }): the one way these tests start the installer as a process: the
 // module (default), or a frozen reference script materialized under the root.
-export function runInstaller({ args = [], root, cwd = root, env = {}, script = MODULE }) {
+export function runInstaller({ args = [], root, cwd = root, env = {}, script = MODULE, umask = '' }) {
   const runEnv = prepareEnv(root, env);
   assert.equal(runEnv.GIT_CONFIG_NOSYSTEM, '1');
   assert.equal(readFileSync(runEnv.GIT_CONFIG_GLOBAL, 'utf8'), '', 'GIT_CONFIG_GLOBAL is an empty file');
   assertHooksUnderRoot(cwd, root, runEnv);
   const file = script.endsWith('.sh') ? 'bash' : process.execPath;
+  if (umask !== '') {
+    assert.match(umask, /^[0-7]{3}$/, 'the umask is three octal digits');
+    return spawnSync('sh', ['-c', `umask ${umask} && exec "$0" "$@"`, file, script, ...args], { cwd, env: runEnv, encoding: 'utf8' });
+  }
   return spawnSync(file, [script, ...args], { cwd, env: runEnv, encoding: 'utf8' });
 }
 
@@ -1455,5 +1460,597 @@ describe('TEST-3985 templates, --print and composition', () => {
         assert.ok(readFileSync(hookOf(repo2, name)).equals(readFileSync(hookOf(repo, name))), `${variant}: the module writes the bash bytes of ${name}`);
       }
     }
+  });
+});
+
+// --- run 3 helpers: scratch repositories, snapshots and the in-process runner --------------------------------
+
+const S3_NAMES = { index: 'pre-commit', 'ref-guard': 'reference-transaction', 'close-gate': 'pre-push' };
+const S3_SLOTS = ['pre-commit', 'reference-transaction', 'pre-push'];
+const S3_MARKER = { 'pre-commit': '# AAI:INDEX-AUTOGEN', 'reference-transaction': '# AAI:REF-GUARD', 'pre-push': '# AAI:CLOSE-GATE' };
+const S3_BEGIN = '# AAI:GUARD-CHECKS BEGIN';
+const S3_END = '# AAI:GUARD-CHECKS END';
+const WHOLE_RUN = 'ERROR: refusing the whole run — nothing was written. Fix the slot(s) named above and re-run.\n';
+
+const gitOut = (cwd, root, ...args) => {
+  const r = spawnSync('git', args, { cwd, env: prepareEnv(root), encoding: 'utf8' });
+  assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+  return r.stdout.replace(/\n+$/, '');
+};
+const gitSet = (repo, root, key, value) => gitOut(repo, root, 'config', key, value);
+const gitCommit = (repo, root) => gitOut(repo, root, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init');
+
+// snapshot(dir): every path under dir with its type, mode and bytes (links by target), to prove a run changed nothing.
+function snapshot(dir) {
+  const out = {};
+  for (const rel of readdirSync(dir, { recursive: true }).map(String).sort()) {
+    const p = path.join(dir, rel);
+    const l = lstatSync(p);
+    if (l.isSymbolicLink()) out[rel] = `link:${readlinkSync(p)}`;
+    else if (l.isDirectory()) out[rel] = 'dir';
+    else if (l.isFile()) out[rel] = `file:${(l.mode & 0o777).toString(8)}:${readFileSync(p).toString('base64')}`;
+    else out[rel] = `other:${l.mode}`;
+  }
+  return out;
+}
+
+const hooksDirOf = (repo) => path.join(repo, '.git', 'hooks');
+const slotAt = (repo, name) => path.join(hooksDirOf(repo), name);
+const shippedGuard = () => Buffer.from(readFileSync(path.join(TEMPLATE_DIR, 'pre-commit-guard-checks.sh')).filter((b) => b !== 13));
+const shippedTemplate = (kind) => Buffer.from(readFileSync(path.join(TEMPLATE_DIR, TEMPLATE_FILES[kind])).filter((b) => b !== 13));
+async function shippedPreCommit() {
+  const { composePreCommit } = await import(MODULE_URL);
+  return composePreCommit(shippedTemplate('index'), shippedTemplate('guard-checks'));
+}
+
+// runMod(root, cwd, argv, extra): the module's run() in this process against a real repository, with the isolated git
+// environment; stdout and stderr are collected.
+async function runMod(root, cwd, argv, extra = {}) {
+  const { run } = await import(MODULE_URL);
+  const out = [];
+  const err = [];
+  const env = prepareEnv(root);
+  assert.ok(under(cwd, root), 'the cwd lies under the scratch root');
+  const code = await run(argv, { out: (x) => out.push(x), err: (x) => err.push(x), cwd, env, ...extra });
+  return { code, stdout: out.join(''), stderr: err.join('') };
+}
+
+// --- TEST-3986 ---------------------------------------------------------------------------------------------
+
+const lstatOrNull = (p) => lstatSync(p, { throwIfNoEntry: false }) ?? null;
+const gitHookPath = (cwd, root, name) => path.resolve(cwd, gitOut(cwd, root, 'rev-parse', '--git-path', `hooks/${name}`));
+
+function expectHooksAt(cwd, root, label) {
+  const r = runInstaller({ root, cwd });
+  assert.equal(r.status, 0, `${label}: ${r.stderr}`);
+  for (const name of S3_SLOTS) {
+    const p = gitHookPath(cwd, root, name);
+    assert.ok(under(p, root), `${label}: ${name} resolves under the scratch root`);
+    assert.ok(lstatSync(p).isFile(), `${label}: ${name} landed where git resolves it (${p})`);
+    assert.ok(readFileSync(p, 'latin1').includes(S3_MARKER[name]), `${label}: ${name} carries its marker`);
+    assert.ok((statSync(p).mode & 0o100) !== 0, `${label}: ${name} is executable`);
+    assert.ok(r.stdout.includes(` at ${p}\n`), `${label}: the Installed line names ${p}`);
+  }
+  return r;
+}
+
+describe('TEST-3986 slot paths come from git itself', () => {
+  test('TEST-3986 hooksPath unset, relative and not yet existing, absolute: the hooks land where git resolves them', () => {
+    const unset = scratch('paths-unset-');
+    expectHooksAt(gitScratch(unset), unset, 'unset');
+    const rel = scratch('paths-rel-');
+    const relRepo = gitScratch(rel);
+    gitSet(relRepo, rel, 'core.hooksPath', '.custom-hooks');
+    assert.ok(!existsSync(path.join(relRepo, '.custom-hooks')), 'the relative hooks directory does not exist yet');
+    expectHooksAt(relRepo, rel, 'relative and missing');
+    assert.ok(lstatSync(path.join(relRepo, '.custom-hooks', 'pre-commit')).isFile());
+    assert.ok(!existsSync(path.join(relRepo, '.git', 'hooks', 'pre-commit')), 'nothing was written to the default directory');
+    const abs = scratch('paths-abs-');
+    const absRepo = gitScratch(abs);
+    gitSet(absRepo, abs, 'core.hooksPath', path.join(abs, 'elsewhere', 'hooks'));
+    expectHooksAt(absRepo, abs, 'absolute and missing');
+    assert.ok(lstatSync(path.join(abs, 'elsewhere', 'hooks', 'reference-transaction')).isFile());
+  });
+
+  test('TEST-3986 a subdirectory cwd resolves a relative answer against the base directory', () => {
+    const root = scratch('paths-sub-');
+    const repo = gitScratch(root);
+    gitSet(repo, root, 'core.hooksPath', '.custom-hooks');
+    const sub = path.join(repo, 'a', 'b');
+    mkdirSync(sub, { recursive: true });
+    expectHooksAt(sub, root, 'subdirectory with relative hooksPath');
+    assert.ok(lstatSync(path.join(repo, '.custom-hooks', 'pre-push')).isFile(), 'the hooks sit at the root of the repository');
+    assert.ok(!existsSync(path.join(sub, '.custom-hooks')), 'nothing was written below the subdirectory');
+    const root2 = scratch('paths-sub2-');
+    const repo2 = gitScratch(root2);
+    const sub2 = path.join(repo2, 'x');
+    mkdirSync(sub2);
+    expectHooksAt(sub2, root2, 'subdirectory with the default path');
+  });
+
+  test('TEST-3986 a linked worktree installs into the shared git directory, or a per-worktree hooksPath', () => {
+    const root = scratch('paths-wt-');
+    const repo = gitScratch(root);
+    gitCommit(repo, root);
+    const wt = path.join(root, 'wt');
+    gitOut(repo, root, 'worktree', 'add', '-q', wt, '-b', 'other');
+    assert.ok(lstatSync(path.join(wt, '.git')).isFile(), 'a linked worktree has a .git file');
+    expectHooksAt(wt, root, 'linked worktree');
+    assert.ok(lstatSync(path.join(repo, '.git', 'hooks', 'pre-commit')).isFile(), 'the hooks sit in the common git directory');
+    const root2 = scratch('paths-wt2-');
+    const repo2 = gitScratch(root2);
+    gitCommit(repo2, root2);
+    gitSet(repo2, root2, 'core.hooksPath', '.c');
+    const wt2 = path.join(root2, 'wt');
+    gitOut(repo2, root2, 'worktree', 'add', '-q', wt2, '-b', 'other');
+    expectHooksAt(wt2, root2, 'linked worktree with a relative hooksPath');
+  });
+
+  test('TEST-3986 outside a repository the bash line and exit 1; with git unable to start the DR-8 line and exit 1', async () => {
+    const root = scratch('paths-none-');
+    const plain = path.join(root, 'plain');
+    mkdirSync(plain);
+    const before = snapshot(root);
+    const r = runInstaller({ root, cwd: plain });
+    assert.equal(r.status, 1);
+    assert.equal(r.stderr, 'ERROR: not inside a git repository.\n');
+    assert.equal(r.stdout, '');
+    const noGit = runInstaller({ root, cwd: plain, env: { PATH: path.join(root, 'no-such-bin') } });
+    assert.equal(noGit.status, 1);
+    assert.equal(noGit.stderr, 'ERROR: git was not found on PATH.\n');
+    const repo = gitScratch(root);
+    const calls = [];
+    const injected = await runMod(root, repo, [], { spawn: (file, args) => { calls.push([file, args]); return { error: new Error('spawn git ENOENT'), status: null, stdout: '', stderr: '' }; } });
+    assert.equal(injected.code, 1);
+    assert.equal(injected.stderr, 'ERROR: git was not found on PATH.\n');
+    assert.deepEqual(calls.map((c) => c[0]), ['git'], 'git is asked once');
+    assert.ok(!existsSync(path.join(repo, '.git', 'hooks', 'pre-commit')));
+    // the files of the plain directory and the injected run are unchanged
+    assert.deepEqual(Object.keys(before).filter((k) => k.startsWith('plain')), ['plain']);
+  });
+
+  test('TEST-3986 a failing git-path answer for a slot refuses with the bash three lines and writes nothing', async () => {
+    const root = scratch('paths-fail-');
+    const repo = gitScratch(root);
+    const before = snapshot(repo);
+    const wants = {
+      'pre-commit': ['ERROR: could not resolve the effective git hooks path for pre-commit', '       (git rev-parse --git-path failed). Refusing to install: a hook', '       written to a guessed path would report success while git never runs it.'],
+      'reference-transaction': ['ERROR: could not resolve the effective git hooks path for reference-transaction', '       (git rev-parse --git-path failed). Refusing to install: a guard', '       written to a guessed path would report success while git never runs it.'],
+      'pre-push': ['ERROR: could not resolve the effective git hooks path for pre-push', '       (git rev-parse --git-path failed). Refusing to install: a guard', '       written to a guessed path would report success while git never runs it.'],
+    };
+    for (const name of S3_SLOTS) {
+      const spawn = (file, args, opts) => (args.includes('--git-path') && args.includes(`hooks/${name}`) ? { status: 128, stdout: '', stderr: 'fatal' } : spawnSync(file, args, opts));
+      const r = await runMod(root, repo, [], { spawn });
+      assert.equal(r.code, 1, name);
+      assert.equal(r.stderr, `${wants[name].join('\n')}\n`, name);
+      assert.equal(r.stdout, '');
+      assert.deepEqual(snapshot(repo), before, `${name}: nothing was written`);
+    }
+    const empty = (file, args, opts) => (args.includes('--git-path') ? { status: 0, stdout: '\n', stderr: '' } : spawnSync(file, args, opts));
+    const e = await runMod(root, repo, [], { spawn: empty });
+    assert.equal(e.code, 1);
+    assert.ok(e.stderr.startsWith(wants['pre-commit'][0]), 'an empty answer is a failure too');
+  });
+
+  test('TEST-3986 message paths are built from PWD when it names the working directory', () => {
+    const root = scratch('paths-pwd-');
+    const repo = gitScratch(root);
+    const link = path.join(root, 'link');
+    symlinkSync(repo, link);
+    const r = runInstaller({ root, cwd: link, env: { PWD: link } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(r.stdout.includes(`Installed AAI pre-commit hook at ${link}/.git/hooks/pre-commit\n`), r.stdout);
+    assert.ok(readFileSync(path.join(repo, '.git', 'hooks', 'pre-commit')).length > 0, 'the hook is in the real repository');
+    const other = scratch('paths-pwd2-');
+    const repo2 = gitScratch(other);
+    const r2 = runInstaller({ root: other, cwd: repo2, env: { PWD: root } });
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.ok(r2.stdout.includes(`Installed AAI pre-commit hook at ${repo2}/.git/hooks/pre-commit\n`), 'a PWD that is not the cwd is ignored');
+  });
+});
+
+// --- TEST-3987 ---------------------------------------------------------------------------------------------
+
+function s3File(root, name, content) {
+  const p = path.join(root, name);
+  writeFileSync(p, content);
+  return p;
+}
+
+describe('TEST-3987 slot states and the whole-run refusal', () => {
+  test('TEST-3987 the marker rule works on bytes: a column-0 marker followed by a space, LF, the end or a CR before LF or the end', async () => {
+    const { hasMarkerLine } = await import(MODULE_URL);
+    const M = '# AAI:REF-GUARD';
+    const yes = [`${M}\n`, `${M} — x\n`, `x\n${M}`, `${M}\r\n`, `${M}\r`, `#!/bin/sh\n${M}\nrest\n`];
+    const no = [`echo "${M}"\n`, `  ${M}\n`, `# see ${M}\n`, `${M}x\n`, `${M}\r x\n`, `${M}\rx\n`, `${M.toLowerCase()}\n`, `${M.slice(0, -1)}\n`];
+    for (const t of yes) assert.equal(hasMarkerLine(Buffer.from(t), M), true, JSON.stringify(t));
+    for (const t of no) assert.equal(hasMarkerLine(Buffer.from(t), M), false, JSON.stringify(t));
+  });
+
+  test('TEST-3987 classifySlot gives every D-SLOT state for crafted slots', async (t) => {
+    const { classifySlot } = await import(MODULE_URL);
+    const root = scratch('classify-');
+    const guard = shippedGuard();
+    const refTpl = shippedTemplate('ref-guard');
+    const at = (n) => path.join(root, n);
+    const IDX = S3_MARKER['pre-commit'];
+    const preCommit = (extra) => Buffer.from(`#!/bin/sh\n${IDX} — x\n${extra}`, 'utf8');
+    assert.deepEqual(classifySlot(at('missing'), IDX, guard), { state: 'absent' });
+    // foreign: no marker line, a marker only in a comment, a marker followed by CR and a space
+    assert.equal(classifySlot(s3File(root, 'f1', '#!/bin/sh\necho hi\n'), IDX, guard).state, 'foreign');
+    assert.equal(classifySlot(s3File(root, 'f2', `#!/bin/sh\n# note: ${IDX}\n`), IDX, guard).state, 'foreign');
+    assert.equal(classifySlot(s3File(root, 'f3', `${S3_MARKER['reference-transaction']}\r x\n`), S3_MARKER['reference-transaction'], refTpl).state, 'foreign');
+    // reference-transaction and pre-push: current or marked-differs
+    assert.equal(classifySlot(s3File(root, 'r1', refTpl), S3_MARKER['reference-transaction'], refTpl).state, 'current');
+    assert.equal(classifySlot(s3File(root, 'r2', Buffer.concat([refTpl, Buffer.from('# local\n')])), S3_MARKER['reference-transaction'], refTpl).state, 'marked-differs');
+    assert.equal(classifySlot(s3File(root, 'r3', `${S3_MARKER['pre-push']} — hand merged\n`), S3_MARKER['pre-push'], shippedTemplate('pre-push')).state, 'marked-differs');
+    // pre-commit: current, older (insert and refresh), unprovable
+    assert.equal(classifySlot(s3File(root, 'p1', await shippedPreCommit()), IDX, guard).state, 'current');
+    assert.equal(classifySlot(s3File(root, 'p2', preCommit('echo old\n')), IDX, guard).state, 'older');
+    const stale = Buffer.from(`#!/bin/sh\n${S3_BEGIN}\nold interior\n${S3_END}\n${IDX}\n`);
+    assert.equal(classifySlot(s3File(root, 'p3', stale), IDX, guard).state, 'older');
+    const unprovable = {
+      bom: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), preCommit('x\n')]),
+      'no-newline': Buffer.from(IDX),
+      'cr-first': Buffer.from(`#!/bin/sh\r\n${IDX}\n`),
+      'stray-end': preCommit(`${S3_END}\n`),
+      count: Buffer.from(`#!/bin/sh\n${IDX}\n${S3_BEGIN}\na\n${S3_END}\n${S3_BEGIN}\nb\n${S3_END}\n`),
+      inverted: Buffer.from(`#!/bin/sh\n${IDX}\n${S3_END}\n${S3_BEGIN}\n`),
+    };
+    for (const [why, bytes] of Object.entries(unprovable)) {
+      const c = classifySlot(s3File(root, `u-${why}`, bytes), IDX, guard);
+      assert.equal(c.state, 'unprovable', why);
+      assert.equal(c.plan.refuse, why, why);
+    }
+    // link-file: classified by the target, never written through
+    symlinkSync(at('r1'), at('l1'));
+    const l1 = classifySlot(at('l1'), S3_MARKER['reference-transaction'], refTpl);
+    assert.equal(l1.state, 'link-file');
+    assert.equal(l1.inner.state, 'current');
+    symlinkSync(at('p2'), at('l2'));
+    assert.equal(classifySlot(at('l2'), IDX, guard).inner.state, 'older');
+    symlinkSync(at('f1'), at('l3'));
+    assert.equal(classifySlot(at('l3'), IDX, guard).inner.state, 'foreign');
+    // bad-type: a directory, a dangling link, a link to a directory, a pipe, a socket
+    mkdirSync(at('d1'));
+    assert.deepEqual(classifySlot(at('d1'), IDX, guard), { state: 'bad-type', kind: 'a directory' });
+    symlinkSync(at('nowhere'), at('l4'));
+    assert.deepEqual(classifySlot(at('l4'), IDX, guard), { state: 'bad-type', kind: 'dangling' });
+    symlinkSync(at('d1'), at('l5'));
+    assert.deepEqual(classifySlot(at('l5'), IDX, guard), { state: 'bad-type', kind: 'link-dir' });
+    if (process.platform !== 'win32') {
+      assert.equal(spawnSync('mkfifo', [at('q1')]).status, 0);
+      assert.deepEqual(classifySlot(at('q1'), IDX, guard), { state: 'bad-type', kind: 'a named pipe' });
+      const sock = path.join(root, 's');
+      const server = net.createServer();
+      try {
+        await new Promise((resolve, reject) => { server.once('error', reject); server.listen(sock, resolve); });
+        assert.deepEqual(classifySlot(sock, IDX, guard), { state: 'bad-type', kind: 'a socket' });
+      } catch (e) {
+        if (e.code !== 'ENAMETOOLONG' && e.code !== 'EINVAL') throw e;
+        t.diagnostic(`socket case skipped: ${e.code}`);
+      } finally {
+        server.close();
+      }
+    }
+  });
+
+  test('TEST-3987 a declined unforced reference-transaction slot is neither classified nor written; the other slots install', () => {
+    const kinds = ['foreign', 'dir', 'dangling'];
+    for (const kind of kinds) {
+      const root = scratch(`declined-${kind}-`);
+      const repo = gitScratch(root);
+      mkdirSync(path.join(repo, 'docs', 'ai'), { recursive: true });
+      writeFileSync(path.join(repo, 'docs', 'ai', 'docs-audit.yaml'), 'ref_guard: declined\n');
+      mkdirSync(hooksDirOf(repo), { recursive: true });
+      const slot = slotAt(repo, 'reference-transaction');
+      if (kind === 'foreign') writeFileSync(slot, '#!/bin/sh\necho mine\n');
+      else if (kind === 'dir') mkdirSync(slot);
+      else symlinkSync(path.join(root, 'nowhere'), slot);
+      const before = snapshot(slot === '' ? repo : path.dirname(slot));
+      const r = runInstaller({ root, cwd: repo });
+      assert.equal(r.status, 0, `${kind}: ${r.stderr}`);
+      assert.ok(r.stdout.includes('Skipped AAI reference-transaction hook (AAI:REF-GUARD)'), kind);
+      assert.ok(lstatSync(slotAt(repo, 'pre-commit')).isFile() && lstatSync(slotAt(repo, 'pre-push')).isFile(), `${kind}: the other two slots install`);
+      const after = snapshot(path.dirname(slot));
+      for (const [k, v] of Object.entries(before)) assert.equal(after[k], v, `${kind}: ${k} is unchanged`);
+    }
+  });
+
+  // The expected refusal lines of one slot, written out from the bash reference.
+  const foreignLines = (name, p, repo) => {
+    if (name === 'pre-commit') {
+      return [`ERROR: ${p} already exists and is not AAI-managed.`, '       Pass --force to overwrite, or merge the snippets manually:',
+        `       ${repo}/.aai/scripts/install-pre-commit-hook.sh --print               # the AAI:INDEX-AUTOGEN body`,
+        `       ${repo}/.aai/scripts/install-pre-commit-hook.sh --print guard-checks  # the AAI:GUARD-CHECKS block (put it first)`];
+    }
+    const [marker, kind] = name === 'reference-transaction' ? ['AAI:REF-GUARD', 'ref-guard'] : ['AAI:CLOSE-GATE', 'pre-push'];
+    return [`ERROR: ${p} already exists and is not AAI-managed.`, `       Pass --force to overwrite, or merge the ${marker} body with: ${repo}/.aai/scripts/install-pre-commit-hook.sh --print ${kind}`];
+  };
+  const badLines = (name, p, kind) => {
+    if (kind === 'linkdir') return [`ERROR: ${name} slot ${p} is a symbolic link to a directory. Nothing was written: following it would drop the hook body inside that directory, possibly outside this repository. Replace the link with a regular file, or remove it, then re-run.`];
+    if (kind === 'dangling') return [`ERROR: ${name} slot ${p} is a dangling symbolic link. Nothing was written: following it would create a file at a target this repository does not own. Remove the link, then re-run.`];
+    const what = { dir: 'a directory', fifo: 'a named pipe' }[kind];
+    return [`ERROR: ${name} slot ${p} is ${what}, not a regular file. Nothing was written and the slot is untouched. Remove or rename it, then re-run.`];
+  };
+  const IDXM = S3_MARKER['pre-commit'];
+  const unprovableCases = {
+    bom: [Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(`#!/bin/sh\n${IDXM}\n`)]), (p) => `ERROR: ${p} starts with a UTF-8 byte-order mark (EF BB BF); sh cannot start a hook whose first bytes are not '#!', so the AAI:GUARD-CHECKS block is not inserted into it. File left as it was. Strip the BOM, or pass --force to rewrite the whole slot.`],
+    'no-newline': [Buffer.from(IDXM), (p) => `ERROR: ${p} has no newline-terminated line; refusing to insert the AAI:GUARD-CHECKS block into it. Pass --force to rewrite the whole slot.`],
+    'cr-first': [Buffer.from(`#!/bin/sh\r\n${IDXM}\n`), (p) => `ERROR: ${p} has a CR-terminated first line (CRLF hook). Refusing to insert an LF block under it — sh could not start the result. Convert the hook to LF, or pass --force to rewrite the whole slot.`],
+    'stray-end': [Buffer.from(`#!/bin/sh\n${IDXM}\n${S3_END}\n`), (p) => `ERROR: ${p} carries 1 '${S3_END}' line(s) and no '${S3_BEGIN}'; refusing to insert a block above a stray END marker. File left as it was. Remove the END line by hand, or pass --force to rewrite the whole slot.`],
+    count: [Buffer.from(`#!/bin/sh\n${IDXM}\n${S3_BEGIN}\n${S3_BEGIN}\n${S3_END}\n`), (p) => `ERROR: ${p} carries 2 '${S3_BEGIN}' and 1 '${S3_END}' line(s); refusing to guess which block is the installer's. File left as it was. Remove the extra markers by hand, or pass --force to rewrite the whole slot.`],
+    inverted: [Buffer.from(`#!/bin/sh\n${IDXM}\n${S3_END}\n${S3_BEGIN}\n`), (p) => `ERROR: ${p} carries '${S3_END}' (line 3) BEFORE '${S3_BEGIN}' (line 4): the markers are inverted, so no interior can be located and a refresh would drop every line after the BEGIN. File left as it was. Move the BEGIN line above the END line by hand, or pass --force to rewrite the whole slot.`],
+  };
+
+  // place(repo, root, name, kind): the crafted slot; returns false when the kind cannot be made here.
+  function place(repo, root, name, kind) {
+    mkdirSync(hooksDirOf(repo), { recursive: true });
+    const p = slotAt(repo, name);
+    if (kind === 'foreign') writeFileSync(p, '#!/bin/sh\necho mine\n');
+    else if (kind === 'dir') mkdirSync(p);
+    else if (kind === 'dangling') symlinkSync(path.join(root, 'nowhere'), p);
+    else if (kind === 'linkdir') { mkdirSync(path.join(root, 'tgt')); symlinkSync(path.join(root, 'tgt'), p); }
+    else if (kind === 'fifo') { if (process.platform === 'win32' || spawnSync('mkfifo', [p]).status !== 0) return false; }
+    else if (kind === 'link-older') { const t = path.join(root, 'older-target'); writeFileSync(t, `#!/bin/sh\n${IDXM}\n`); symlinkSync(t, p); }
+    else writeFileSync(p, unprovableCases[kind][0]);
+    return true;
+  }
+  const expectedFor = (name, kind, p, repo) => {
+    if (kind === 'foreign') return { lines: foreignLines(name, p, repo), foreign: true };
+    if (kind === 'link-older') return { lines: [`ERROR: ${p} is a symlink. Refusing to rewrite through a symlink (the target may be outside this repository); replace the link with a regular file, or pass --force.`], foreign: false };
+    if (unprovableCases[kind]) return { lines: [unprovableCases[kind][1](p)], foreign: false };
+    return { lines: badLines(name, p, kind), foreign: false };
+  };
+
+  test('TEST-3987 each refusal kind in each slot prints its bash lines, exits 1 and leaves the tree byte-identical', () => {
+    const all = ['foreign', 'dir', 'dangling', 'linkdir', 'fifo'];
+    for (const name of S3_SLOTS) {
+      const kinds = name === 'pre-commit' ? [...all, ...Object.keys(unprovableCases), 'link-older'] : all;
+      for (const kind of kinds) {
+        const root = scratch(`refuse-${kind}-`);
+        const repo = gitScratch(root);
+        if (!place(repo, root, name, kind)) continue;
+        const before = snapshot(root);
+        const r = runInstaller({ root, cwd: repo });
+        const want = expectedFor(name, kind, slotAt(repo, name), repo);
+        assert.equal(r.status, 1, `${name} ${kind}`);
+        assert.equal(r.stdout, '', `${name} ${kind}: nothing on stdout`);
+        assert.equal(r.stderr, `${want.lines.join('\n')}\n${want.foreign ? '' : WHOLE_RUN}`, `${name} ${kind}`);
+        assert.deepEqual(snapshot(root), before, `${name} ${kind}: the tree is byte-identical`);
+        assert.ok(!existsSync(path.join(repo, 'docs')), `${name} ${kind}: no policy line or config created`);
+      }
+    }
+  });
+
+  test('TEST-3987 two and three refusals at once print in slot order pre-commit, reference-transaction, pre-push', () => {
+    const root = scratch('refuse-many-');
+    const repo = gitScratch(root);
+    place(repo, root, 'pre-commit', 'foreign');
+    place(repo, root, 'pre-push', 'dir');
+    const before = snapshot(root);
+    const r = runInstaller({ root, cwd: repo });
+    assert.equal(r.status, 1);
+    const want = [...foreignLines('pre-commit', slotAt(repo, 'pre-commit'), repo), ...badLines('pre-push', slotAt(repo, 'pre-push'), 'dir')];
+    assert.equal(r.stderr, `${want.join('\n')}\n${WHOLE_RUN}`);
+    assert.deepEqual(snapshot(root), before);
+    const root3 = scratch('refuse-three-');
+    const repo3 = gitScratch(root3);
+    place(repo3, root3, 'pre-commit', 'bom');
+    place(repo3, root3, 'reference-transaction', 'foreign');
+    place(repo3, root3, 'pre-push', 'dangling');
+    const before3 = snapshot(root3);
+    const r3 = runInstaller({ root: root3, cwd: repo3 });
+    const want3 = [unprovableCases.bom[1](slotAt(repo3, 'pre-commit')), ...foreignLines('reference-transaction', slotAt(repo3, 'reference-transaction'), repo3), ...badLines('pre-push', slotAt(repo3, 'pre-push'), 'dangling')];
+    assert.equal(r3.status, 1);
+    assert.equal(r3.stderr, `${want3.join('\n')}\n${WHOLE_RUN}`);
+    assert.deepEqual(snapshot(root3), before3);
+    // all foreign: every refusal, and no whole-run line
+    const root4 = scratch('refuse-foreign-');
+    const repo4 = gitScratch(root4);
+    for (const name of S3_SLOTS) place(repo4, root4, name, 'foreign');
+    const r4 = runInstaller({ root: root4, cwd: repo4 });
+    assert.equal(r4.status, 1);
+    assert.equal(r4.stderr, `${S3_SLOTS.flatMap((n) => foreignLines(n, slotAt(repo4, n), repo4)).join('\n')}\n`);
+  });
+
+  test('TEST-3987 --force replaces a foreign hook and a link, but never a directory, a dangling link or a pipe', () => {
+    const root = scratch('refuse-force-');
+    const repo = gitScratch(root);
+    place(repo, root, 'pre-commit', 'foreign');
+    place(repo, root, 'pre-push', 'link-older');
+    const target = path.join(root, 'older-target');
+    const targetBefore = readFileSync(target);
+    const r = runInstaller({ root, cwd: repo, args: ['--force'] });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(lstatSync(slotAt(repo, 'pre-push')).isFile(), 'the link itself was replaced by a regular file');
+    assert.ok(readFileSync(target).equals(targetBefore), 'the link target was not written through');
+    for (const kind of ['dir', 'dangling', 'fifo']) {
+      const root2 = scratch(`refuse-force-${kind}-`);
+      const repo2 = gitScratch(root2);
+      if (!place(repo2, root2, 'reference-transaction', kind)) continue;
+      const before = snapshot(root2);
+      const r2 = runInstaller({ root: root2, cwd: repo2, args: ['--force'] });
+      assert.equal(r2.status, 1, kind);
+      assert.ok(r2.stderr.endsWith(WHOLE_RUN), kind);
+      assert.deepEqual(snapshot(root2), before, `${kind}: untouched even with --force`);
+    }
+  });
+
+  test('TEST-3987 a link to an installed hook that needs no write stays a link', async () => {
+    const root = scratch('refuse-linkok-');
+    const repo = gitScratch(root);
+    mkdirSync(hooksDirOf(repo), { recursive: true });
+    const real = path.join(root, 'shared-pre-commit');
+    writeFileSync(real, await shippedPreCommit());
+    chmodSync(real, 0o755);
+    symlinkSync(real, slotAt(repo, 'pre-commit'));
+    const r = runInstaller({ root, cwd: repo });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(lstatSync(slotAt(repo, 'pre-commit')).isSymbolicLink(), 'the link is kept');
+    assert.ok(r.stdout.includes(`AAI pre-commit hook already installed at ${slotAt(repo, 'pre-commit')}. No action taken.\n`));
+  });
+});
+
+// --- TEST-3988 ---------------------------------------------------------------------------------------------
+
+const landingLine = (name, p) => `ERROR: the ${name} hook was composed but did not land at ${p} — the bytes there are not the ones written (the slot may be a link or a directory). No hook was installed; any stray temporary file has been removed.\n`;
+const strays = (dir) => readdirSync(dir, { recursive: true }).map(String).filter((f) => f.includes('.aai-tmp.'));
+
+describe('TEST-3988 writes, upgrade, modes and attestation', () => {
+  test('TEST-3988 a rename that lands the temp inside a directory, writes other bytes or leaves a link fails with the landing line and no temp or stray', async () => {
+    const renames = {
+      directory: (from, to) => { mkdirSync(to); renameSync(from, path.join(to, path.basename(from))); },
+      'other bytes': (from, to) => { writeFileSync(to, 'something else\n'); rmSync(from); },
+      link: (from, to) => { symlinkSync(from, to); },
+    };
+    for (const [label, rename] of Object.entries(renames)) {
+      for (const failing of ['pre-commit', 'pre-push']) {
+        const root = scratch('landing-');
+        const repo = gitScratch(root);
+        const calls = [];
+        const r = await runMod(root, repo, [], { rename: (from, to) => { calls.push(to); return path.basename(to) === failing ? rename(from, to) : renameSync(from, to); } });
+        const p = slotAt(repo, failing);
+        assert.equal(r.code, 1, `${label} ${failing}`);
+        assert.ok(r.stderr.includes(landingLine(failing, p)), `${label} ${failing}: ${r.stderr}`);
+        assert.ok(calls.some((c) => c === p), 'the write went through io.rename');
+        assert.deepEqual(strays(hooksDirOf(repo)), [], `${label} ${failing}: no temp or stray is left`);
+        if (label === 'directory') assert.deepEqual(readdirSync(p), [], 'the directory holds no stray');
+        assert.ok(!r.stdout.includes(`Installed AAI ${failing}`) && !r.stdout.includes('Uninstall with:'), `${label} ${failing}: no success line`);
+      }
+    }
+  });
+
+  test('TEST-3988 planUpgrade inserts after a shebang or at the top, refreshes only the interior and leaves a current hook', async () => {
+    const { planUpgrade } = await import(MODULE_URL);
+    const guard = shippedGuard();
+    const IDX = `${S3_MARKER['pre-commit']} — x\n`;
+    const sheb = Buffer.from(`#!/bin/sh\n${IDX}echo old\nno final lf`);
+    const a = planUpgrade(sheb, guard);
+    assert.equal(a.action, 'insert');
+    assert.ok(a.bytes.equals(Buffer.concat([Buffer.from('#!/bin/sh\n'), guard, Buffer.from(`${IDX}echo old\nno final lf`)])));
+    const bare = Buffer.from(`${IDX}echo old\n`);
+    const b = planUpgrade(bare, guard);
+    assert.equal(b.action, 'insert');
+    assert.ok(b.bytes.equals(Buffer.concat([guard, bare])));
+    const stale = Buffer.from(`#!/bin/sh\nlead\r\n${S3_BEGIN}\nold\n\n${S3_END}\n${IDX}tail without lf`);
+    const c = planUpgrade(stale, guard);
+    assert.equal(c.action, 'refresh');
+    const interior = guard.toString('latin1').split('\n').slice(1, -2).join('\n') + '\n';
+    assert.ok(c.bytes.equals(Buffer.from(`#!/bin/sh\nlead\r\n${S3_BEGIN}\n${interior}${S3_END}\n${IDX}tail without lf`)), 'only the interior changed');
+    assert.deepEqual(planUpgrade(c.bytes, guard), { action: 'none' });
+    assert.equal(planUpgrade(Buffer.from('#!/bin/sh\nx'), guard).refuse, undefined, 'a file with one newline is provable');
+    assert.equal(planUpgrade(Buffer.from('x'), guard).refuse, 'no-newline');
+    assert.equal(planUpgrade(Buffer.from(`${S3_BEGIN} extra\n`), guard).refuse, 'count', 'a BEGIN substring without an exact line counts as no block line');
+  });
+
+  test('TEST-3988 an upgrade of an older pre-commit hook equals the bash reference byte for byte and line for line', async () => {
+    const guardBytes = shippedGuard().toString('latin1');
+    const IDX = `${S3_MARKER['pre-commit']} — x\n`;
+    const interior = guardBytes.split('\n').slice(1, -2).join('\n') + '\n';
+    const cases = {
+      'insert after shebang': `#!/bin/sh\n${IDX}echo old\n`,
+      'insert at the top': `${IDX}echo old\n`,
+      refresh: `#!/bin/sh\n${S3_BEGIN}\nstale\n${S3_END}\n${IDX}echo tail`,
+      current: `#!/bin/sh\n${S3_BEGIN}\n${interior}${S3_END}\n${IDX}`,
+      'current without final lf': `#!/bin/sh\n${S3_BEGIN}\n${interior}${S3_END}\n${IDX}echo x`,
+      'stray end': `#!/bin/sh\n${IDX}${S3_END}\n`,
+      inverted: `#!/bin/sh\n${IDX}${S3_END}\n${S3_BEGIN}\n`,
+    };
+    for (const [label, content] of Object.entries(cases)) {
+      const root = scratch('upgrade-ref-');
+      const dests = materializeHookInstallerReference(ROOT, path.join(root, 'ref'));
+      const ours = gitScratch(root, 'ours');
+      const theirs = gitScratch(root, 'theirs');
+      for (const repo of [ours, theirs]) {
+        mkdirSync(hooksDirOf(repo), { recursive: true });
+        writeFileSync(slotAt(repo, 'pre-commit'), content);
+        chmodSync(slotAt(repo, 'pre-commit'), 0o755);
+      }
+      const mine = runInstaller({ root, cwd: ours, args: ['--hooks', 'index'] });
+      const bash = runInstaller({ root, cwd: theirs, script: dests.sh, args: ['--hooks', 'index'] });
+      const norm = (txt, repo) => txt.split(repo).join('<R>');
+      assert.equal(mine.status, bash.status, `${label}: exit code`);
+      assert.equal(norm(mine.stdout, ours), norm(bash.stdout, theirs), `${label}: stdout`);
+      // the module adds the whole-run line to a refusal that is not a foreign one (D-SLOT)
+      assert.equal(norm(mine.stderr, ours).replace(WHOLE_RUN, ''), norm(bash.stderr, theirs), `${label}: stderr`);
+      assert.ok(readFileSync(slotAt(ours, 'pre-commit')).equals(readFileSync(slotAt(theirs, 'pre-commit'))), `${label}: the hook bytes`);
+    }
+  });
+
+  test('TEST-3988 a marked hook that differs is left unwritten with the NOTE line and replaced under --force', () => {
+    for (const name of ['reference-transaction', 'pre-push']) {
+      const root = scratch('differs-');
+      const repo = gitScratch(root);
+      const r0 = runInstaller({ root, cwd: repo });
+      assert.equal(r0.status, 0, r0.stderr);
+      const p = slotAt(repo, name);
+      const shipped = readFileSync(p);
+      const edited = Buffer.concat([shipped, Buffer.from('# hand merged\n')]);
+      writeFileSync(p, edited);
+      const r1 = runInstaller({ root, cwd: repo });
+      assert.equal(r1.status, 0, r1.stderr);
+      assert.ok(readFileSync(p).equals(edited), `${name}: not written`);
+      const marker = S3_MARKER[name];
+      const lines = r1.stdout.split('\n');
+      const at = lines.indexOf(`AAI ${name} hook already installed at ${p}. No action taken.`);
+      assert.ok(at >= 0, `${name}: the already installed line`);
+      assert.equal(lines[at + 1], `NOTE: ${p} carries ${marker} but its bytes differ from the shipped body; pass --force to replace it.`);
+      assert.ok(!r1.stdout.includes(`AAI pre-commit hook already installed at ${slotAt(repo, 'pre-commit')}. No action taken.\nNOTE`), 'a current hook gets no NOTE');
+      const r2 = runInstaller({ root, cwd: repo, args: ['--force'] });
+      assert.equal(r2.status, 0, r2.stderr);
+      assert.ok(readFileSync(p).equals(shipped), `${name}: replaced under --force`);
+    }
+  });
+
+  test('TEST-3988 new hooks get mode 0777 minus umask under umask 022 and 077', { skip: process.platform === 'win32' }, () => {
+    for (const [umask, want] of [['022', 0o755], ['077', 0o700]]) {
+      const root = scratch('mode-');
+      const repo = gitScratch(root);
+      const r = runInstaller({ root, cwd: repo, umask });
+      assert.equal(r.status, 0, r.stderr);
+      for (const name of S3_SLOTS) assert.equal(statSync(slotAt(repo, name)).mode & 0o777, want, `${name} under umask ${umask}`);
+      assert.deepEqual(strays(repo), []);
+    }
+  });
+
+  test('TEST-3988 a hook made non-executable after the write fails the post-run attestation on posix and passes with platform win32', async () => {
+    const strip = (from, to) => { renameSync(from, to); chmodSync(to, 0o644); };
+    const root = scratch('attest-');
+    const repo = gitScratch(root);
+    const posix = await runMod(root, repo, [], { rename: strip, platform: 'linux' });
+    assert.equal(posix.code, 1);
+    for (const name of S3_SLOTS) assert.ok(posix.stderr.includes(`ERROR: the ${name} hook git would run (${slotAt(repo, name)}) is not executable — git skips it silently.\n`), name);
+    assert.ok(posix.stderr.endsWith("ERROR: installation did NOT leave an active hook at the path git resolves.\n       Check 'git config core.hooksPath' and 'git rev-parse --git-path hooks/reference-transaction'.\n"));
+    assert.ok(!posix.stdout.includes('Uninstall with:'));
+    const root2 = scratch('attest-win-');
+    const repo2 = gitScratch(root2);
+    const win = await runMod(root2, repo2, [], { rename: strip, platform: 'win32' });
+    assert.equal(win.code, 0, win.stderr);
+    assert.ok(win.stdout.endsWith('Uninstall with: bash .aai/scripts/install-pre-commit-hook.sh --uninstall\n'));
+  });
+
+  test('TEST-3988 the attestation re-asks git and names a hook it can no longer resolve', async () => {
+    const root = scratch('attest-resolve-');
+    const repo = gitScratch(root);
+    let gitPaths = 0;
+    const spawn = (file, args, opts) => {
+      if (args.includes('--git-path')) {
+        gitPaths += 1;
+        if (gitPaths > 3) return { status: 1, stdout: '', stderr: '' };
+      }
+      return spawnSync(file, args, opts);
+    };
+    const r = await runMod(root, repo, ['--hooks', 'index'], { spawn });
+    assert.equal(gitPaths > 1, true);
+    assert.equal(r.code, 1);
+    assert.ok(r.stderr.includes('ERROR: installed pre-commit but can no longer resolve the effective hooks path.\n'), r.stderr);
+    assert.ok(r.stderr.includes('ERROR: installation did NOT leave an active hook at the path git resolves.\n'));
+  });
+
+  test('TEST-3988 the module has no placeholder for the upgrade left', () => {
+    const src = readFileSync(MODULE, 'utf8');
+    assert.ok(!/not implemented yet/.test(src));
+    assert.ok(!/throw notYet/.test(src));
   });
 });
