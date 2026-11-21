@@ -4291,3 +4291,4 @@
 {"v":1,"ts":"2026-11-20T21:44:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-bootstrap-on-node","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-20T21:46:25Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":770,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-20T22:50:38Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"bootstrap-on-node","payload":{"pr":575,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"4bf07ac39523b2bb81f87871260d064c8c0f9885"}}
+{"v":1,"ts":"2026-11-21T01:13:59Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-update-on-node","payload":{"from":"draft","to":"implementing"}}
