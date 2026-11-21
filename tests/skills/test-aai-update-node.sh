@@ -178,6 +178,21 @@ test_3962_cli_and_base() {
   log_pass "TEST-3962: every accepted form in any order with the last wins rule, help per DR-1, DR-2 for an unknown argument, DR-3 for a missing value, base directory per DR-21"
 }
 
+test_3963_canonical_guard() {
+  run_node_tests TEST-3963
+  log_pass "TEST-3963: normSlug reduces every accepted form, a canonical target is refused with the three DR-6 lines and exit 2 before any temp or sync, and no refusal happens with force, a local directory, another repository or no origin"
+}
+
+test_3964_source_resolution() {
+  run_node_tests TEST-3964
+  log_pass "TEST-3964: the local checkout commands run in a real run only, cloneUrl per DR-22, three clone attempts into tmp/src with the stdio closed and the prompt setting on the third only, exit 3 with the auth or DR-18 line"
+}
+
+test_3965_temp_lifecycle() {
+  run_node_tests TEST-3965
+  log_pass "TEST-3965: no aai-src. directory remains after success, exit 3, exit 4, a failing sync or an internal error; --keep-temp keeps one; removeOwnTemp refuses and reports a path it did not create"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3978, grows run by run)"
   check_deps
@@ -185,6 +200,9 @@ main() {
   test_3960_scratch_safety
   test_3961_module_shape
   test_3962_cli_and_base
+  test_3963_canonical_guard
+  test_3964_source_resolution
+  test_3965_temp_lifecycle
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

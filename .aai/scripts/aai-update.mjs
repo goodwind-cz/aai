@@ -12,6 +12,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -122,20 +123,98 @@ export function resolveBase(rel = '', env = process.env, cwd = process.cwd()) {
   return rel === '' ? base : path.resolve(base, rel);
 }
 
-export function normSlug() {
-  throw notYet('normSlug');
+// normSlug(s): "owner/repo" lower-cased from a slug, an https or ssh URL (a trailing .git and everything up to
+// the LAST github.com: or github.com/ dropped, both case per SLUG_CASE_FLAGS); empty for anything else.
+export function normSlug(s) {
+  if (!s) return '';
+  const v = String(s)
+    .replace(new RegExp('\\.git$', SLUG_CASE_FLAGS), '')
+    .replace(new RegExp('^[\\s\\S]*github\\.com[:/]', SLUG_CASE_FLAGS), '');
+  return /^[^/]+\/[^/]+$/.test(v) ? v.toLowerCase() : '';
 }
 
-export function canonicalGuard() {
-  throw notYet('canonicalGuard');
+const REFUSAL_LINES = (origin) => [
+  `REFUSED: this project (${origin}) looks like the canonical AAI repo.`,
+  '  /aai-update syncs AAI INTO a target project; update the canonical repo with normal git.',
+  '  Pass --force (or -Force) to override.',
+];
+
+// canonicalGuard({ repo, target, force, spawn, env }): { refused, origin, lines }. The target's origin is read
+// with git (stdout only, any failure reads as empty); the guard refuses unless force when the repo value and the
+// origin name the same owner and repository. No git is started when the repo value names no slug or force is on.
+export function canonicalGuard({ repo, target, force = false, spawn: child = runChild, env = process.env }) {
+  const want = normSlug(repo);
+  if (want === '' || force) return { refused: false, origin: '', lines: [] };
+  let origin = '';
+  try {
+    const r = child('git', ['-C', target, 'config', '--get', 'remote.origin.url'], { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8', env });
+    if (r && !r.error && r.status === 0 && typeof r.stdout === 'string') origin = r.stdout.replace(/\n+$/, '');
+  } catch {
+    origin = '';
+  }
+  if (normSlug(origin) !== want) return { refused: false, origin, lines: [] };
+  return { refused: true, origin, lines: REFUSAL_LINES(origin) };
 }
 
-export function cloneUrl() {
-  throw notYet('cloneUrl');
+// cloneUrl(repo): the value as given when it holds :// or an @ followed later by a colon, else the https form.
+export function cloneUrl(repo) {
+  return repo.includes('://') || /@[\s\S]*:/.test(repo) ? repo : `https://github.com/${repo}.git`;
 }
 
-export function resolveSource() {
-  throw notYet('resolveSource');
+const isDir = (p) => {
+  const st = statOrNull(p);
+  return st !== null && st.isDirectory();
+};
+
+const NO_STDIO = ['ignore', 'ignore', 'ignore'];
+
+// started(r): whether a child result means the program ran (a result with an error never started it).
+const started = (r) => !(r && r.error);
+
+// resolveSource({ repo, ref, dryRun }, io, state): { src, desc } or { fail: { code, line } }. A local checkout gets
+// the three best-effort git commands in a real run; anything else is cloned into <temp>/src in three attempts
+// (gh, git, anonymous git), the temp directory being recorded in state before the first attempt so that the
+// caller's cleanup owns it on every path. A dry-run starts nothing and creates nothing.
+export function resolveSource(args, io, state) {
+  const { repo, ref, dryRun } = args;
+  const child = io.spawn ?? runChild;
+  const env = io.env ?? process.env;
+  const local = resolveBase(repo, env, io.cwd ?? process.cwd());
+  if (isDir(local)) {
+    if (!dryRun) {
+      for (const sub of [['fetch', '--depth', '1', 'origin', ref], ['checkout', ref], ['pull', '--ff-only', 'origin', ref]]) {
+        try {
+          child('git', ['-C', local, ...sub], { stdio: NO_STDIO, env });
+        } catch {
+          // best effort: a source without git or without a remote is still synced
+        }
+      }
+    }
+    return { src: local, desc: `local checkout ${local}` };
+  }
+  const url = cloneUrl(repo);
+  const desc = `${url}@${ref}`;
+  if (dryRun) return { src: '', desc };
+  state.created = createOwnTemp(io.tmpdir ?? os.tmpdir(), io.err);
+  state.tmp = state.created.path;
+  const srcDir = path.join(state.tmp, SRC_SUBDIR);
+  const wipe = () => fs.rmSync(srcDir, { recursive: true, force: true });
+  const attempts = [
+    ['gh', ['repo', 'clone', repo, srcDir, '--', '--branch', ref, '--depth', '1'], env],
+    ['git', ['clone', '--branch', ref, '--depth', '1', url, srcDir], env],
+    ['git', [...ANON_CLONE, 'clone', '--branch', ref, '--depth', '1', url, srcDir], { ...env, GIT_TERMINAL_PROMPT: '0' }],
+  ];
+  const ran = [];
+  for (const [file, argv, childEnv] of attempts) {
+    wipe();
+    const r = child(file, argv, { stdio: NO_STDIO, env: childEnv });
+    ran.push(started(r));
+    if (r && !r.error && r.status === 0) return { src: srcDir, desc };
+  }
+  const line = !ran[1] && !ran[2]
+    ? `ERROR: could not fetch ${repo}@${ref}: git was not found on PATH.`
+    : `ERROR: could not fetch ${repo}@${ref} (auth or network?). Treat as an access issue, not a missing repo.`;
+  return { fail: { code: EXIT_FETCH, line } };
 }
 
 export function resolveRunner() {
@@ -174,12 +253,31 @@ export function renderNext() {
   throw notYet('renderNext');
 }
 
-export function createOwnTemp() {
-  throw notYet('createOwnTemp');
+// createOwnTemp(tmpdir, err): a fresh aai-src.XXXXXX directory under tmpdir. The record it returns (the path, the
+// realpath of the parent and the stderr sink the kept line goes to) is what removeOwnTemp checks against.
+export function createOwnTemp(tmpdir, err = writeFd(2)) {
+  const dir = fs.mkdtempSync(path.join(tmpdir, TMP_PREFIX));
+  return { path: dir, parentReal: fs.realpathSync(tmpdir), err };
 }
 
-export function removeOwnTemp() {
-  throw notYet('removeOwnTemp');
+// removeOwnTemp(dir, created): removes dir recursively only when it is the recorded path, carries the prefix, is a
+// real directory (not a link) and its parent still resolves to the recorded parent; each check is made right
+// before the removal. Otherwise nothing is removed and one kept line goes to stderr; it never throws.
+export function removeOwnTemp(dir, created) {
+  const say = (created && created.err) || writeFd(2);
+  const keep = (reason) => { try { say(`aai-update: kept ${dir}: ${reason}\n`); } catch { /* nothing left to report to */ } };
+  try {
+    if (typeof dir !== 'string' || dir === '' || !path.isAbsolute(dir)) return keep('not an absolute path');
+    if (!created || dir !== created.path) return keep('not the directory this run created');
+    if (!path.basename(dir).startsWith(TMP_PREFIX)) return keep('name lacks the temp prefix');
+    const st = fs.lstatSync(dir);
+    if (st.isSymbolicLink() || !st.isDirectory()) return keep('not a real directory');
+    if (fs.realpathSync(path.dirname(dir)) !== created.parentReal) return keep('its parent is not the one it was created in');
+    fs.rmSync(dir, { recursive: true, force: true });
+    return undefined;
+  } catch (e) {
+    return keep(e.message);
+  }
 }
 
 // run(argv, io): returns the exit code. io holds out, err (string sinks), env, cwd, spawn, tmpdir and
@@ -203,15 +301,60 @@ export function run(argv, io = {}) {
     err(`aai-update: ${args.arg} needs a value\n`);
     return EXIT_USAGE;
   }
+  const child = io.spawn ?? runChild;
   const state = { keepTemp: args.keepTemp, tmp: '', created: null };
+  if (io.spawn === undefined) watchSignals(state);
   try {
-    resolveBase('', env, cwd);
-    throw notYet('the update flow');
+    const target = resolveBase('', env, cwd);
+    const guard = canonicalGuard({ repo: args.repo, target, force: args.force, spawn: child, env });
+    if (guard.refused) {
+      for (const line of guard.lines) err(`${line}\n`);
+      return EXIT_REFUSED;
+    }
+    const source = resolveSource(args, { spawn: child, env, cwd, tmpdir: io.tmpdir, err }, state);
+    if (source.fail) {
+      err(`${source.fail.line}\n`);
+      return source.fail.code;
+    }
+    if (args.dryRun) return 0; // run 3 prints the dry-run block here
+    return syncStep(source.src, target, { child, env, err });
   } catch (e) {
     err(`aai-update: internal error: ${e.message}\n`);
     return EXIT_USAGE;
   } finally {
     if (!state.keepTemp && state.tmp) removeOwnTemp(state.tmp, state.created);
+  }
+}
+
+// syncStep: the stand-in of run 2 for the sync step (run 3 replaces it with resolveRunner, syncCommand, the
+// evidence and the doctor postamble): the missing sync script is exit 4, a nonzero sync exit is passed through.
+function syncStep(src, target, { child, env, err }) {
+  const sync = path.join(src, '.aai', 'scripts', 'aai-sync.sh');
+  const st = statOrNull(sync);
+  if (st === null || !st.isFile()) {
+    err(`ERROR: sync script missing in source: ${sync}\n`);
+    return EXIT_MALFORMED;
+  }
+  const childEnv = { ...env };
+  delete childEnv[RUNNER_ENV];
+  const r = child('bash', [sync, target], { cwd: target, stdio: 'inherit', env: childEnv });
+  if (r.error) throw r.error;
+  return r.status === null ? 1 : r.status;
+}
+
+// watchSignals(state): a real run keeps SIGINT and SIGTERM from ending the process in the middle of a blocking
+// child; the handler removes the run's own temp directory and exits 130 or 143.
+let signalsWatched = false;
+let watched = null;
+function watchSignals(state) {
+  watched = state;
+  if (signalsWatched) return;
+  signalsWatched = true;
+  for (const [name, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+    process.on(name, () => {
+      if (watched && !watched.keepTemp && watched.tmp) removeOwnTemp(watched.tmp, watched.created);
+      process.exit(code);
+    });
   }
 }
 

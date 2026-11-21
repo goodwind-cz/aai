@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -748,5 +748,587 @@ describe('TEST-3962 arguments, help and base directory', () => {
     assert.equal(resolveBase('proj', env, here), path.join(here, 'proj'));
     assert.equal(resolveBase('', env, here), here);
     assert.ok(!existsSync(path.join(here, 'proj')), 'the CDPATH directory was not entered or created');
+  });
+});
+
+// --- run 2: the guard, the source and the temp lifecycle (TEST-3963 to TEST-3965) ----------------------------
+
+// fakeSpawn(handler): the injected child seam. Every call is recorded; the handler returns the spawnSync-shaped
+// result (status, error, stdout), or nothing for a plain success. The real module starts nothing through it.
+function fakeSpawn(handler = () => null) {
+  const calls = [];
+  const spawn = (file, args, opts) => {
+    const call = { file, args, opts };
+    calls.push(call);
+    return handler(call, calls.length - 1) ?? { status: 0, stdout: '' };
+  };
+  spawn.calls = calls;
+  return spawn;
+}
+
+const isGuardRead = (c) => c.file === 'git' && c.args[0] === '-C' && c.args[2] === 'config';
+const isSync = (c) => c.file === 'bash' && c.args[0].endsWith(`${path.sep}aai-sync.sh`);
+const enoent = () => ({ status: null, error: Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }) });
+const IGNORE3 = ['ignore', 'ignore', 'ignore'];
+
+// A scratch layout of one run: a target directory (the working directory), a temp directory and a source directory
+// holding a stub sync script.
+function layout(label) {
+  const root = scratch(label);
+  const target = path.join(root, 'target');
+  const tmpdir = path.join(root, 'tmp');
+  const source = path.join(root, 'src');
+  mkdirSync(target);
+  mkdirSync(tmpdir);
+  mkdirSync(path.join(source, '.aai', 'scripts'), { recursive: true });
+  writeFileSync(path.join(source, '.aai', 'scripts', 'aai-sync.sh'), '#!/bin/sh\nexit 0\n');
+  return { root, target, tmpdir, source };
+}
+
+// runFake(mod, { argv, lay, origin, handler, platform }): one run of the module with an injected child seam; the
+// guard's git read answers with the origin ('' means no origin), every other child goes to the handler.
+function runFake(mod, { argv, lay, origin = '', handler = () => null, platform = 'linux' }) {
+  const o = { out: '', err: '' };
+  const spawn = fakeSpawn((call, i) => {
+    if (isGuardRead(call)) return origin === null ? enoent() : { status: origin === '' ? 1 : 0, stdout: origin === '' ? '' : `${origin}\n` };
+    return handler(call, i);
+  });
+  o.spawn = spawn;
+  o.code = mod.run(argv, {
+    out: (s) => { o.out += s; }, err: (s) => { o.err += s; }, env: { PWD: lay.target }, cwd: lay.target, spawn, tmpdir: lay.tmpdir, platform,
+  });
+  o.others = spawn.calls.filter((c) => !isGuardRead(c));
+  o.temps = readdirSync(lay.tmpdir).filter((n) => n.startsWith('aai-src.'));
+  return o;
+}
+
+// A clone handler: the attempts fail with the given results in order, the one that returns 'ok' plants a source
+// holding the sync script at the destination it was given.
+function cloneHandler(results, seen = []) {
+  let attempt = 0;
+  return (call) => {
+    const isClone = (call.file === 'gh' && call.args[0] === 'repo') || (call.file === 'git' && call.args.includes('clone'));
+    if (!isClone) return null;
+    const dest = call.args.includes('--') ? call.args[3] : call.args[call.args.length - 1];
+    const tmp = path.dirname(dest);
+    seen.push({ call, dest, existed: existsSync(dest), tmpIno: statSync(tmp).ino, tmpEntries: readdirSync(tmp) });
+    const r = results[attempt];
+    attempt += 1;
+    if (r === 'ok') {
+      mkdirSync(path.join(dest, '.aai', 'scripts'), { recursive: true });
+      writeFileSync(path.join(dest, '.aai', 'scripts', 'aai-sync.sh'), '#!/bin/sh\nexit 0\n');
+      return { status: 0 };
+    }
+    mkdirSync(path.join(dest, 'partial'), { recursive: true });
+    writeFileSync(path.join(dest, 'partial', 'pack'), 'x');
+    return r;
+  };
+}
+
+// --- TEST-3963 ---------------------------------------------------------------------------------
+
+const REFUSAL = (origin) => `REFUSED: this project (${origin}) looks like the canonical AAI repo.\n`
+  + '  /aai-update syncs AAI INTO a target project; update the canonical repo with normal git.\n'
+  + '  Pass --force (or -Force) to override.\n';
+
+describe('TEST-3963 canonical repo guard', () => {
+  test('TEST-3963 normSlug reduces a slug, an https or ssh URL, an upper-case host or suffix and a doubled host', async () => {
+    const { normSlug } = await import(MODULE_URL);
+    const same = 'goodwind-cz/aai';
+    for (const v of [
+      'goodwind-cz/aai', 'Goodwind-CZ/AAI', 'https://github.com/goodwind-cz/aai', 'https://github.com/goodwind-cz/aai.git',
+      'https://github.com/Goodwind-CZ/AAI.git', 'git@github.com:Goodwind-CZ/AAI.git', 'ssh://git@github.com/goodwind-cz/aai.git',
+      'https://GITHUB.COM/goodwind-cz/aai.GIT', 'git@GitHub.com:goodwind-cz/aai.Git', 'https://github.com/github.com/goodwind-cz/aai',
+      'https://github.com/github.com:goodwind-cz/aai.git', 'GITHUB.COM:Goodwind-CZ/AAI',
+    ]) assert.equal(normSlug(v), same, v);
+    assert.equal(normSlug('acme/foo.git'), 'acme/foo');
+    assert.equal(normSlug('Acme/Foo'), 'acme/foo');
+  });
+
+  test('TEST-3963 normSlug is empty for a path, an empty value and anything that is not owner/repo', async () => {
+    const { normSlug } = await import(MODULE_URL);
+    for (const v of ['', undefined, null, '/tmp/x/src', '/abs/dir', 'a/b/c', 'solo', 'https://example.com/a/b', 'https://github.com/a/b/c', 'https://github.com/', 'github.com/', 'git@github.com:', '.git']) {
+      assert.equal(normSlug(v), '', String(v));
+    }
+  });
+
+  test('TEST-3963 a canonical target is refused with the three lines and exit 2 before any temp or sync', async () => {
+    const mod = await import(MODULE_URL);
+    const origins = ['https://github.com/goodwind-cz/aai.git', 'git@github.com:Goodwind-CZ/AAI.git', 'https://GITHUB.COM/goodwind-cz/aai.GIT', 'https://github.com/github.com/goodwind-cz/aai'];
+    const repos = ['goodwind-cz/aai', 'Goodwind-CZ/AAI', 'https://github.com/goodwind-cz/aai', 'git@github.com:goodwind-cz/aai.git', 'HTTPS://GITHUB.COM/GOODWIND-CZ/AAI.GIT'];
+    for (const origin of origins) {
+      for (const repo of repos) {
+        for (const extra of [[], ['--dry-run']]) {
+          const lay = layout('refuse-');
+          const o = runFake(mod, { argv: ['--repo', repo, ...extra], lay, origin });
+          const label = `${origin} against ${repo} ${extra.join(' ')}`;
+          assert.equal(o.code, 2, label);
+          assert.equal(o.err, REFUSAL(origin), label);
+          assert.equal(o.out, '', label);
+          assert.deepEqual(o.others, [], `${label}: no clone, no sync, no source command`);
+          assert.deepEqual(readdirSync(lay.tmpdir), [], `${label}: no temp directory`);
+        }
+      }
+    }
+  });
+
+  test('TEST-3963 the default repository is guarded too, and the guard reads the origin the documented way', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('default-');
+    const o = runFake(mod, { argv: [], lay, origin: 'https://github.com/goodwind-cz/aai.git' });
+    assert.equal(o.code, 2);
+    const reads = o.spawn.calls.filter(isGuardRead);
+    assert.equal(reads.length, 1);
+    assert.equal(reads[0].file, 'git');
+    assert.deepEqual(reads[0].args, ['-C', lay.target, 'config', '--get', 'remote.origin.url']);
+    assert.deepEqual(reads[0].opts.stdio, ['ignore', 'pipe', 'ignore']);
+  });
+
+  test('TEST-3963 no refusal with --force, with a local directory, with another repository, without an origin or when the read fails', async () => {
+    const mod = await import(MODULE_URL);
+    const canonical = 'https://github.com/goodwind-cz/aai.git';
+    const refused = (o) => o.code === 2 || o.err.includes('REFUSED');
+    for (const flag of ['--force', '-Force', '-force']) {
+      const lay = layout('force-');
+      const o = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run', flag], lay, origin: canonical });
+      assert.ok(!refused(o), `${flag}: ${o.err}`);
+    }
+    // a local directory as the repository value
+    const lay1 = layout('local-');
+    const o1 = runFake(mod, { argv: ['--repo', lay1.source, '--dry-run'], lay: lay1, origin: canonical });
+    assert.ok(!refused(o1), o1.err);
+    // another repository
+    const lay2 = layout('other-');
+    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo', '--dry-run'], lay: lay2, origin: canonical });
+    assert.ok(!refused(o2), o2.err);
+    const o3 = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('other2-'), origin: 'https://github.com/acme/target.git' });
+    assert.ok(!refused(o3), o3.err);
+    // no origin (the read fails or prints nothing) and a git that cannot start
+    const o4 = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('noorigin-'), origin: '' });
+    assert.ok(!refused(o4), o4.err);
+    const o5 = runFake(mod, { argv: ['--repo', 'goodwind-cz/aai', '--dry-run'], lay: layout('nogit-'), origin: null });
+    assert.ok(!refused(o5), o5.err);
+    // a repo value that names a path is never a canonical slug, even beside a canonical origin
+    const o6 = runFake(mod, { argv: ['--repo', '/tmp/x/goodwind-cz/aai', '--dry-run'], lay: layout('path-'), origin: canonical });
+    assert.ok(!refused(o6), o6.err);
+  });
+
+  test('TEST-3963 the refusal is real through the entry point: exit 2, the three lines, target unchanged, nothing left in TMPDIR', () => {
+    const root = scratch('guard-real-');
+    const target = path.join(root, 'target');
+    mkdirSync(target);
+    const git = (...a) => spawnSync('git', a, { cwd: target, env: prepareEnv(root), encoding: 'utf8' });
+    assert.equal(git('init', '-q').status, 0);
+    assert.equal(git('remote', 'add', 'origin', 'https://GITHUB.COM/goodwind-cz/aai.GIT').status, 0);
+    const before = listTree(target);
+    const r = runUpdate({ args: ['--repo', 'goodwind-cz/aai', '--dry-run'], root, cwd: target });
+    assert.equal(r.status, 2, r.stderr);
+    assert.equal(r.stderr, REFUSAL('https://GITHUB.COM/goodwind-cz/aai.GIT'));
+    assert.equal(r.stdout, '');
+    assert.deepEqual(listTree(target), before);
+    assert.deepEqual(readdirSync(path.join(root, 'tmp')), []);
+    // --force lifts it
+    const forced = runUpdate({ args: ['--repo', 'goodwind-cz/aai', '--dry-run', '--force'], root, cwd: target });
+    assert.notEqual(forced.status, 2);
+  });
+});
+
+// --- TEST-3964 ---------------------------------------------------------------------------------
+
+describe('TEST-3964 source resolution and the clone chain', () => {
+  test('TEST-3964 a real run on a local checkout runs the three git commands in it, in order, with closed stdio', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('local-real-');
+    const o = runFake(mod, { argv: ['--repo', lay.source, '--ref', 'dev'], lay });
+    assert.equal(o.code, 0, o.err);
+    const git = o.others.filter((c) => c.file === 'git');
+    assert.deepEqual(git.map((c) => c.args), [
+      ['-C', lay.source, 'fetch', '--depth', '1', 'origin', 'dev'],
+      ['-C', lay.source, 'checkout', 'dev'],
+      ['-C', lay.source, 'pull', '--ff-only', 'origin', 'dev'],
+    ]);
+    for (const c of git) assert.deepEqual(c.opts.stdio, IGNORE3);
+    assert.equal(o.others.filter((c) => c.file === 'gh').length, 0, 'gh is not asked for a local checkout');
+    assert.deepEqual(o.temps, [], 'a local checkout needs no temp directory');
+    // the sync runs after the three commands
+    assert.equal(o.others.findIndex(isSync), 3);
+  });
+
+  test('TEST-3964 a local checkout resolves lexically against the base, and failing git commands are ignored', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('local-rel-');
+    const o = runFake(mod, {
+      argv: ['--repo', path.join('..', 'src')], lay,
+      handler: (c) => (c.file === 'git' ? { status: 128 } : null),
+    });
+    assert.equal(o.code, 0, o.err);
+    assert.deepEqual(o.others[0].args, ['-C', lay.source, 'fetch', '--depth', '1', 'origin', 'main']);
+    assert.ok(isSync(o.others[3]));
+    // git missing altogether: the three commands fail to start and the sync still runs, exit 0
+    const lay2 = layout('local-nogit-');
+    const o2 = runFake(mod, { argv: ['--repo', lay2.source], lay: lay2, origin: null, handler: (c) => (c.file === 'git' ? enoent() : null) });
+    assert.equal(o2.code, 0, o2.err);
+    assert.equal(o2.err, '');
+    assert.equal(o2.others.filter(isSync).length, 1);
+  });
+
+  test('TEST-3964 a dry-run on a local checkout starts no command in it', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('local-dry-');
+    const o = runFake(mod, { argv: ['--repo', lay.source, '--ref', 'main', '--dry-run'], lay });
+    assert.equal(o.code, 0, o.err);
+    assert.deepEqual(o.others, [], 'no fetch, checkout, pull or sync');
+    assert.deepEqual(o.temps, []);
+  });
+
+  test('TEST-3964 cloneUrl keeps a URL and builds the https form for a slug (DR-22)', async () => {
+    const { cloneUrl } = await import(MODULE_URL);
+    const as = ['https://example.com/a/b.git', 'file:///x/y', 'ssh://git@host/a/b', 'git@github.com:a/b.git', 'user@host:path', '@:', 'x@y:z', 'x@:'];
+    for (const v of as) assert.equal(cloneUrl(v), v, v);
+    for (const v of ['acme/foo', 'goodwind-cz/aai', 'a:b@c', 'foo@bar', 'a@b', 'host:path']) assert.equal(cloneUrl(v), `https://github.com/${v}.git`, v);
+  });
+
+  test('TEST-3964 resolveSource describes a slug as url@ref and starts nothing in a dry-run', async () => {
+    const { resolveSource } = await import(MODULE_URL);
+    const lay = layout('desc-');
+    const spawn = fakeSpawn();
+    const state = { keepTemp: false, tmp: '', created: null };
+    const r = resolveSource({ repo: 'acme/foo', ref: 'dev', dryRun: true }, { spawn, tmpdir: lay.tmpdir, env: {}, cwd: lay.target, err: () => {} }, state);
+    assert.equal(r.desc, 'https://github.com/acme/foo.git@dev');
+    assert.equal(r.fail, undefined);
+    assert.deepEqual(spawn.calls, []);
+    assert.deepEqual(readdirSync(lay.tmpdir), []);
+    assert.equal(state.tmp, '');
+    const l = resolveSource({ repo: lay.source, ref: 'main', dryRun: true }, { spawn, tmpdir: lay.tmpdir, env: {}, cwd: lay.target, err: () => {} }, state);
+    assert.equal(l.desc, `local checkout ${lay.source}`);
+    assert.equal(l.src, lay.source);
+    assert.deepEqual(spawn.calls, []);
+    // a dry-run on a remote URL through run: the description line is Run 3's, but no clone and no temp happen
+    const o = runFake(await import(MODULE_URL), { argv: ['--repo', 'acme/foo', '--ref', 'dev', '--dry-run'], lay });
+    assert.equal(o.code, 0, o.err);
+    assert.deepEqual(o.others, []);
+    assert.deepEqual(o.temps, []);
+  });
+
+  test('TEST-3964 three clone attempts run in order into tmp/src, each after the source directory was emptied', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('clone-');
+    const seen = [];
+    const o = runFake(mod, {
+      argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay, handler: cloneHandler([{ status: 1 }, { status: 1 }, 'ok'], seen),
+    });
+    assert.equal(o.code, 0, o.err);
+    assert.equal(seen.length, 3);
+    const dest = seen[0].dest;
+    assert.equal(path.basename(dest), 'src');
+    const tmp = path.dirname(dest);
+    assert.equal(path.dirname(tmp), lay.tmpdir);
+    assert.ok(path.basename(tmp).startsWith('aai-src.'));
+    assert.equal(path.basename(tmp).length, 'aai-src.'.length + 6);
+    for (const s of seen) assert.equal(s.dest, dest);
+    assert.deepEqual(seen[0].call.file, 'gh');
+    assert.deepEqual(seen[0].call.args, ['repo', 'clone', 'acme/foo', dest, '--', '--branch', 'dev', '--depth', '1']);
+    assert.equal(seen[1].call.file, 'git');
+    assert.deepEqual(seen[1].call.args, ['clone', '--branch', 'dev', '--depth', '1', 'https://github.com/acme/foo.git', dest]);
+    assert.equal(seen[2].call.file, 'git');
+    assert.deepEqual(seen[2].call.args, ['-c', 'credential.helper=', '-c', 'http.https://github.com/.extraheader=', 'clone', '--branch', 'dev', '--depth', '1', 'https://github.com/acme/foo.git', dest]);
+    // the partial clone of attempt 1 and 2 is gone before the next attempt; the first attempt starts clean
+    assert.deepEqual(seen.map((s) => s.existed), [false, false, false]);
+    // the temp directory is never replaced: one inode throughout, and src was the only thing removed
+    assert.equal(new Set(seen.map((s) => s.tmpIno)).size, 1);
+    // every git and gh child has all three stdio streams closed
+    for (const s of seen) assert.deepEqual(s.call.opts.stdio, IGNORE3);
+  });
+
+  test('TEST-3964 GIT_TERMINAL_PROMPT=0 is set for the third attempt only', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('prompt-');
+    const seen = [];
+    const o = runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([{ status: 1 }, { status: 1 }, 'ok'], seen) });
+    assert.equal(o.code, 0, o.err);
+    assert.equal(seen[0].call.opts.env.GIT_TERMINAL_PROMPT, undefined);
+    assert.equal(seen[1].call.opts.env.GIT_TERMINAL_PROMPT, undefined);
+    assert.equal(seen[2].call.opts.env.GIT_TERMINAL_PROMPT, '0');
+    // the sync child does not inherit it
+    const sync = o.others.find(isSync);
+    assert.ok(sync);
+    assert.equal(sync.opts.env.GIT_TERMINAL_PROMPT, undefined);
+  });
+
+  test('TEST-3964 the first attempt that succeeds ends the chain', async () => {
+    const mod = await import(MODULE_URL);
+    for (const [results, count] of [[['ok'], 1], [[{ status: 1 }, 'ok'], 2]]) {
+      const lay = layout('chain-');
+      const seen = [];
+      const o = runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler(results, seen) });
+      assert.equal(o.code, 0, o.err);
+      assert.equal(seen.length, count);
+    }
+    // a gh that cannot start is a failed attempt, not an error
+    const lay = layout('chain-nogh-');
+    const seen = [];
+    const o = runFake(mod, { argv: ['--repo', 'acme/foo'], lay, handler: cloneHandler([enoent(), 'ok'], seen) });
+    assert.equal(o.code, 0, o.err);
+    assert.equal(seen.length, 2);
+  });
+
+  test('TEST-3964 all attempts failing exit 3 with the auth line; git that cannot start gives the DR-18 line', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('fail-');
+    const o = runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay, handler: cloneHandler([{ status: 1 }, { status: 128 }, { status: 128 }]) });
+    assert.equal(o.code, 3);
+    assert.equal(o.err, 'ERROR: could not fetch acme/foo@dev (auth or network?). Treat as an access issue, not a missing repo.\n');
+    assert.equal(o.out, '');
+    assert.equal(o.others.filter(isSync).length, 0, 'no sync after a failed fetch');
+    assert.deepEqual(o.temps, []);
+    // a signal-killed attempt is a failed attempt as well
+    const lay1 = layout('fail-sig-');
+    const o1 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay1, handler: cloneHandler([{ status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }, { status: null, signal: 'SIGTERM' }]) });
+    assert.equal(o1.code, 3);
+    assert.ok(o1.err.includes('(auth or network?)'));
+    // DR-18: gh and git cannot start
+    const lay2 = layout('nogit-');
+    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo', '--ref', 'dev'], lay: lay2, origin: null, handler: cloneHandler([enoent(), enoent(), enoent()]) });
+    assert.equal(o2.code, 3);
+    assert.equal(o2.err, 'ERROR: could not fetch acme/foo@dev: git was not found on PATH.\n');
+    assert.deepEqual(o2.temps, []);
+    // gh present, git missing at attempts 2 and 3 is the same line
+    const lay3 = layout('nogit2-');
+    const o3 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay3, handler: cloneHandler([{ status: 1 }, enoent(), enoent()]) });
+    assert.equal(o3.err, 'ERROR: could not fetch acme/foo@main: git was not found on PATH.\n');
+    // only one of the two git attempts failing to start keeps the access line
+    const lay4 = layout('nogit3-');
+    const o4 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: lay4, handler: cloneHandler([{ status: 1 }, enoent(), { status: 128 }]) });
+    assert.ok(o4.err.includes('(auth or network?)'));
+  });
+
+  test('TEST-3964 the clone reaches a real source through file:// with the real git and a failing gh stub', () => {
+    const root = scratch('clone-real-');
+    const upstream = path.join(root, 'upstream');
+    const target = path.join(root, 'target');
+    mkdirSync(path.join(upstream, '.aai', 'scripts'), { recursive: true });
+    mkdirSync(target);
+    writeFileSync(path.join(upstream, '.aai', 'scripts', 'aai-sync.sh'), '#!/bin/sh\necho "FX-SYNC target=$1"\n');
+    const env = prepareEnv(root);
+    const git = (cwd, ...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd, env, encoding: 'utf8' });
+    assert.equal(git(upstream, 'init', '-q', '-b', 'main').status, 0);
+    assert.equal(git(upstream, 'add', '.').status, 0);
+    assert.equal(git(upstream, 'commit', '-q', '-m', 'x').status, 0);
+    const r = runUpdate({ args: ['--repo', `file://${upstream}`, '--ref', 'main'], root, cwd: target });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(r.stdout.includes(`FX-SYNC target=${target}`), r.stdout);
+    const ghLog = readFileSync(path.join(root, 'gh.log'), 'utf8');
+    assert.match(ghLog, new RegExp(`^repo clone file://${upstream.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\S+/aai-src\\.\\w{6}/src -- --branch main --depth 1\n$`));
+    assert.deepEqual(readdirSync(path.join(root, 'tmp')), []);
+  });
+});
+
+// --- TEST-3965 ---------------------------------------------------------------------------------
+
+describe('TEST-3965 temp lifecycle', () => {
+  test('TEST-3965 createOwnTemp makes aai-src.XXXXXX under the temp directory and records its parent', async () => {
+    const { createOwnTemp } = await import(MODULE_URL);
+    const lay = layout('create-');
+    const created = createOwnTemp(lay.tmpdir);
+    assert.equal(path.dirname(created.path), lay.tmpdir);
+    assert.match(path.basename(created.path), /^aai-src\.[A-Za-z0-9]{6}$/);
+    assert.ok(lstatSync(created.path).isDirectory());
+    assert.equal(created.parentReal, realpathSync(lay.tmpdir));
+    const second = createOwnTemp(lay.tmpdir);
+    assert.notEqual(second.path, created.path);
+  });
+
+  test('TEST-3965 removeOwnTemp removes the created directory with its content', async () => {
+    const { createOwnTemp, removeOwnTemp } = await import(MODULE_URL);
+    const lay = layout('remove-');
+    let err = '';
+    const created = createOwnTemp(lay.tmpdir, (s) => { err += s; });
+    mkdirSync(path.join(created.path, 'src', 'deep'), { recursive: true });
+    writeFileSync(path.join(created.path, 'src', 'deep', 'f'), 'x');
+    removeOwnTemp(created.path, created);
+    assert.ok(!existsSync(created.path));
+    assert.equal(err, '');
+    assert.ok(existsSync(lay.tmpdir), 'the parent stays');
+  });
+
+  test('TEST-3965 removeOwnTemp keeps and reports a different path, a foreign prefix, a symbolic link, a moved parent and an unusable value', async () => {
+    const { createOwnTemp, removeOwnTemp } = await import(MODULE_URL);
+    const lay = layout('keep-');
+    const keptLine = (dir) => new RegExp(`^aai-update: kept ${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: .+\\n$`);
+    const attempt = (dir, created) => {
+      let err = '';
+      const rec = { ...created, err: (s) => { err += s; } };
+      removeOwnTemp(dir, rec);
+      return err;
+    };
+    const created = createOwnTemp(lay.tmpdir);
+    // a different path that carries the prefix
+    const other = path.join(lay.tmpdir, 'aai-src.other1');
+    mkdirSync(other);
+    writeFileSync(path.join(other, 'keep'), 'x');
+    assert.match(attempt(other, created), keptLine(other));
+    assert.ok(existsSync(path.join(other, 'keep')));
+    // a foreign prefix, even when it is the recorded path
+    const foreign = path.join(lay.tmpdir, 'something-else');
+    mkdirSync(foreign);
+    assert.match(attempt(foreign, { path: foreign, parentReal: realpathSync(lay.tmpdir) }), keptLine(foreign));
+    assert.ok(existsSync(foreign));
+    // a symbolic link with the prefix, recorded as the path
+    const real = path.join(lay.tmpdir, 'real-dir');
+    mkdirSync(real);
+    writeFileSync(path.join(real, 'keep'), 'x');
+    const link = path.join(lay.tmpdir, 'aai-src.link01');
+    symlinkSync(real, link);
+    assert.match(attempt(link, { path: link, parentReal: realpathSync(lay.tmpdir) }), keptLine(link));
+    assert.ok(existsSync(path.join(real, 'keep')));
+    assert.ok(lstatSync(link).isSymbolicLink());
+    // a parent whose realpath differs from the recorded one
+    const elsewhere = path.join(lay.root, 'elsewhere');
+    mkdirSync(elsewhere);
+    const moved = path.join(elsewhere, 'aai-src.moved1');
+    mkdirSync(moved);
+    assert.match(attempt(moved, { path: moved, parentReal: realpathSync(lay.tmpdir) }), keptLine(moved));
+    assert.ok(existsSync(moved));
+    // a path that is a regular file
+    const file = path.join(lay.tmpdir, 'aai-src.file01');
+    writeFileSync(file, 'x');
+    assert.match(attempt(file, { path: file, parentReal: realpathSync(lay.tmpdir) }), keptLine(file));
+    assert.ok(existsSync(file));
+    // an empty, a relative and a missing record
+    for (const bad of ['', 'aai-src.rel001', undefined]) {
+      let err = '';
+      removeOwnTemp(bad, { path: bad, parentReal: realpathSync(lay.tmpdir), err: (s) => { err += s; } });
+      assert.match(err, /^aai-update: kept .*: .+\n$/, String(bad));
+    }
+    let err = '';
+    removeOwnTemp(created.path, { ...created, path: '', err: (s) => { err += s; } });
+    assert.match(err, /^aai-update: kept /);
+    assert.ok(existsSync(created.path));
+    err = '';
+    removeOwnTemp(created.path, null);
+    assert.ok(existsSync(created.path), 'no record: nothing is removed');
+    // the directory itself was never removed by any refusal, and the recorded one still can be
+    removeOwnTemp(created.path, created);
+    assert.ok(!existsSync(created.path));
+  });
+
+  test('TEST-3965 a real run leaves no aai-src. entry after success, exit 3, exit 4, a failing sync and an internal error', async () => {
+    const mod = await import(MODULE_URL);
+    // success
+    const l1 = layout('end-ok-');
+    const o1 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l1, handler: cloneHandler(['ok']) });
+    assert.equal(o1.code, 0, o1.err);
+    assert.equal(o1.others.filter(isSync).length, 1);
+    assert.deepEqual(o1.temps, []);
+    // exit 3
+    const l2 = layout('end-3-');
+    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l2, handler: cloneHandler([{ status: 1 }, { status: 1 }, { status: 1 }]) });
+    assert.equal(o2.code, 3);
+    assert.deepEqual(o2.temps, []);
+    // exit 4: the clone has no sync script
+    const l3 = layout('end-4-');
+    const o3 = runFake(mod, {
+      argv: ['--repo', 'acme/foo'], lay: l3,
+      handler: (c) => { if (c.file === 'git' && c.args.includes('clone') && !c.args.includes('credential.helper=')) { mkdirSync(c.args[c.args.length - 1], { recursive: true }); return { status: 0 }; } return null; },
+    });
+    assert.equal(o3.code, 4);
+    assert.match(o3.err, /^ERROR: sync script missing in source: .+aai-sync\.sh\n$/);
+    assert.deepEqual(o3.temps, []);
+    // a failing sync: its code is passed through
+    const l4 = layout('end-sync-');
+    const clone = cloneHandler(['ok']);
+    const o4 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l4, handler: (c, i) => (isSync(c) ? { status: 5 } : clone(c, i)) });
+    assert.equal(o4.code, 5);
+    assert.deepEqual(o4.temps, []);
+    // an internal error: the sync child throws
+    const l5 = layout('end-throw-');
+    const clone5 = cloneHandler(['ok']);
+    const o5 = runFake(mod, { argv: ['--repo', 'acme/foo'], lay: l5, handler: (c, i) => { if (isSync(c)) throw new Error('boom'); return clone5(c, i); } });
+    assert.equal(o5.code, 1);
+    assert.equal(o5.err, 'aai-update: internal error: boom\n');
+    assert.deepEqual(o5.temps, []);
+  });
+
+  test('TEST-3965 --keep-temp keeps exactly one directory on every path and prints nothing about it', async () => {
+    const mod = await import(MODULE_URL);
+    const l1 = layout('keep-ok-');
+    const o1 = runFake(mod, { argv: ['--repo', 'acme/foo', '--keep-temp'], lay: l1, handler: cloneHandler(['ok']) });
+    assert.equal(o1.code, 0, o1.err);
+    assert.equal(o1.temps.length, 1);
+    assert.equal(o1.err, '');
+    assert.ok(!o1.out.includes('aai-src'));
+    assert.ok(existsSync(path.join(l1.tmpdir, o1.temps[0], 'src', '.aai', 'scripts', 'aai-sync.sh')));
+    const l2 = layout('keep-3-');
+    const o2 = runFake(mod, { argv: ['--repo', 'acme/foo', '--keep-temp'], lay: l2, handler: cloneHandler([{ status: 1 }, { status: 1 }, { status: 1 }]) });
+    assert.equal(o2.code, 3);
+    assert.equal(o2.temps.length, 1);
+    assert.ok(!o2.err.includes('aai-src'), 'the kept directory is not named');
+  });
+
+  test('TEST-3965 a dry-run, a usage error and a refusal create no temp directory', async () => {
+    const mod = await import(MODULE_URL);
+    for (const [argv, code, origin] of [
+      [['--repo', 'acme/foo', '--dry-run'], 0, ''], [['--dry-run', '--bogus'], 1, ''], [['--repo'], 1, ''], [['-h'], 0, ''],
+      [['--repo', 'goodwind-cz/aai'], 2, 'https://github.com/goodwind-cz/aai.git'],
+    ]) {
+      const lay = layout('none-');
+      const o = runFake(mod, { argv, lay, origin });
+      assert.equal(o.code, code, argv.join(' '));
+      assert.deepEqual(readdirSync(lay.tmpdir), [], argv.join(' '));
+    }
+  });
+
+  test('TEST-3965 a cleanup that refuses keeps the directory, reports it, and leaves the exit code unchanged', async () => {
+    const mod = await import(MODULE_URL);
+    const lay = layout('swap-');
+    const clone = cloneHandler(['ok']);
+    let swapped = '';
+    const o = runFake(mod, {
+      argv: ['--repo', 'acme/foo'], lay,
+      handler: (c, i) => {
+        if (isSync(c)) {
+          // during the sync, the temp directory is replaced by a symbolic link to a directory of the test
+          const tmp = path.dirname(path.dirname(path.dirname(path.dirname(c.args[0]))));
+          const decoy = path.join(lay.root, 'decoy');
+          mkdirSync(decoy);
+          writeFileSync(path.join(decoy, 'precious'), 'x');
+          renameSync(tmp, path.join(lay.root, 'moved-away'));
+          symlinkSync(decoy, tmp);
+          swapped = tmp;
+          return { status: 0 };
+        }
+        return clone(c, i);
+      },
+    });
+    assert.equal(o.code, 0, 'the exit code is the sync result, not the cleanup result');
+    assert.ok(swapped.length > 0);
+    assert.match(o.err, new RegExp(`^aai-update: kept ${swapped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: .+\\n$`));
+    assert.ok(existsSync(path.join(lay.root, 'decoy', 'precious')), 'the link target was not touched');
+  });
+
+  test('TEST-3965 the real entry point removes its temp on success and keeps it with --keep-temp', () => {
+    const root = scratch('real-temp-');
+    const upstream = path.join(root, 'upstream');
+    const target = path.join(root, 'target');
+    mkdirSync(path.join(upstream, '.aai', 'scripts'), { recursive: true });
+    mkdirSync(target);
+    writeFileSync(path.join(upstream, '.aai', 'scripts', 'aai-sync.sh'), '#!/bin/sh\nexit 0\n');
+    const env = prepareEnv(root);
+    const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: upstream, env, encoding: 'utf8' });
+    assert.equal(git('init', '-q', '-b', 'main').status, 0);
+    assert.equal(git('add', '.').status, 0);
+    assert.equal(git('commit', '-q', '-m', 'x').status, 0);
+    const tmp = path.join(root, 'tmp');
+    const ok = runUpdate({ args: ['--repo', `file://${upstream}`], root, cwd: target });
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.deepEqual(readdirSync(tmp), []);
+    const keep = runUpdate({ args: ['--repo', `file://${upstream}`, '--keep-temp'], root, cwd: target });
+    assert.equal(keep.status, 0, keep.stderr);
+    const kept = readdirSync(tmp);
+    assert.equal(kept.length, 1);
+    assert.match(kept[0], /^aai-src\./);
+    const bad = runUpdate({ args: ['--repo', `file://${path.join(root, 'missing')}`], root, cwd: target });
+    assert.equal(bad.status, 3);
+    assert.equal(readdirSync(tmp).length, 1, 'the failed run removed its own temp and not the kept one');
   });
 });
