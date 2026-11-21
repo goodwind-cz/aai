@@ -1741,9 +1741,10 @@ describe('TEST-3956 parity harness bootstrap pieces', () => {
     assert.ok(PARITY.SCENARIOS.filter((x) => x.op === 'bootstrap').every((x) => x.id.startsWith('BS-')));
   });
 
-  test('TEST-3956 the twin registry holds the node twin restricted to bootstrap and the argv lines follow D-PARITY', () => {
+  test('TEST-3956 the twin registry holds the node twin restricted to bootstrap and update and the argv lines follow D-PARITY', () => {
     assert.deepEqual(Object.keys(PARITY.TWINS), ['sh', 'ps1', 'node']);
-    assert.deepEqual(PARITY.TWINS.node.ops, ['bootstrap']);
+    assert.deepEqual(PARITY.TWINS.node.ops, ['bootstrap', 'update']);
+    assert.equal(PARITY.TWINS.node.peers?.bootstrap, undefined);
     assert.equal(PARITY.TWINS.sh.ops, undefined);
     const ctx = { src: '/s', target: '/t', bash: 'bash', ps: 'pwsh', bsref: '/r' };
     const step = { op: 'bootstrap', profile: null, flags: ['force', 'dry-run', 'with-claude-hooks'] };

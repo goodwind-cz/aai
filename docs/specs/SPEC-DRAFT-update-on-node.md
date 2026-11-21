@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 34c9b45f564d21ebb6d7c347524cd592ef98aac976456fe830f1aaf6a1447833
+frozen_sha256: 4d48818913f2673b397ef401a7f5340708fb9d3dcc6fc29684851b084f339ffa
 ceremony_level: 2
 links:
   requirement: update-on-node
@@ -80,7 +80,7 @@ SPEC-FROZEN: true
   tests/skills/test-aai-layer-drift.sh tests/skills/test-aai-hygiene-pack.sh
   tests/skills/test-aai-win-fallback.sh
   tests/skills/lib/install-parity.mjs tests/skills/lib/install-parity.test.mjs
-  tests/skills/lib/install-parity-allowlist.tsv
+  tests/skills/lib/install-parity-allowlist.tsv tests/skills/lib/aai-bootstrap.test.mjs
   tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh
   tests/skills/test-aai-pr-preflight.sh tests/skills/test-aai-suite-reuse.sh
   tests/skills/suite-map.yaml tests/skills/suite-weights.tsv
@@ -783,6 +783,11 @@ gets one unsigned amendment record (`node .aai/scripts/spec-amend.mjs add
   (sh `[<upref>/.aai/scripts/aai-update.sh, --repo, /s, --ref, main]`, node
   as D-PARITY); the `win-sh-odd-root-dirs` pairs widen. Record for SPEC-0284,
   what begins `D-SEAM gains the twin peers field`.
+- `tests/skills/lib/aai-bootstrap.test.mjs` TEST-3956 (SPEC-0306
+  Spec-AC-17): the registry assertion on the node twin's operations becomes
+  `['bootstrap', 'update']`, with no `peers` entry for bootstrap (its three
+  bootstrap pairs unchanged). Record for SPEC-0306, what begins
+  `TEST-3956 node twin operations`.
 - Unchanged and passing: `test-aai-update-check.sh` (runs the real `.sh`
   launcher for TEST-003 and TEST-004), `test-aai-install-parity.sh`
   (TEST-3565 now runs three twins on UP-01; TEST-3569's bounds unchanged),
