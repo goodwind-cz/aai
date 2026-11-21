@@ -50,15 +50,20 @@ and do NOT narrate the steps — run the one script and relay its output.
    ```bash
    bash .aai/scripts/install-pre-commit-hook.sh        # .ps1 on Windows
    ```
-   This installs BOTH hooks by default: the docs-index pre-commit hook, and a
-   reference-transaction hook (AAI:REF-GUARD) that refuses any refs/heads/main
-   update in this repository unless AAI_GIT_WRITE=1 is set on that command.
-   This is safe by design: the installer is idempotent per hook (no-op if the
-   AAI hook is already present) and WITHOUT `--force` it refuses to overwrite
-   a foreign hook in EITHER slot, never a partial install. Therefore:
-   - installed / already present → report one line naming both hooks: "AAI git
-     hooks installed (docs-index pre-commit, AAI:REF-GUARD reference-
-     transaction). Decline the ref-guard: install-pre-commit-hook.sh --decline-ref-guard."
+   Both launchers run .aai/scripts/install-pre-commit-hook.mjs and need Node.js 22 or later.
+   It installs THREE hooks into the directory git resolves: the docs-index
+   pre-commit hook (AAI:INDEX-AUTOGEN), a reference-transaction hook
+   (AAI:REF-GUARD) that refuses any refs/heads/main update in this
+   repository unless AAI_GIT_WRITE=1 is set on that command, and a pre-push
+   hook (AAI:CLOSE-GATE). A recorded `ref_guard: declined` in
+   docs/ai/docs-audit.yaml is honoured: the ref-guard is skipped, not
+   re-armed. The installer is idempotent per hook, checks every slot before
+   writing any, and WITHOUT `--force` refuses to overwrite a foreign hook
+   in any slot, so a refusal installs nothing. Therefore:
+   - installed / already present → report one line naming the hooks: "AAI
+     git hooks installed (docs-index pre-commit, AAI:REF-GUARD reference-
+     transaction, AAI:CLOSE-GATE pre-push). Decline the ref-guard:
+     install-pre-commit-hook.sh --decline-ref-guard."
    - non-zero exit (a foreign hook exists in a slot) → treat as NON-FATAL; do
      not pass `--force`, do not clobber. Report once, naming the slot(s):
      "Existing non-AAI hook left untouched — merge manually or re-run with --force."

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-installer-node
-# (docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md, TEST-3980..3999; this file grows run by run
+# (docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md, TEST-3980..3999; this file holds TEST-3980..3997
 # (TEST-3998 and TEST-3999 live in test-aai-hook-installer-docs.sh))
 #
 # The git hook installer is one Node module (.aai/scripts/install-pre-commit-hook.mjs) behind thin sh/ps1
@@ -496,7 +496,7 @@ ps1_problems() {
   for token in 'rev-parse' 'ref_guard' 'AAI:' 'docs-audit' 'exit 2' '-Force' '-Print' '-Hooks' '-Uninstall' 'DeclineRefGuard' 'ArmRefGuard'; do
     [[ "$body" != *"$token"* ]] || echo "the launcher holds the policy token: $token"
   done
-  if printf '%s\n' "$body" | /usr/bin/grep -qE '(^|[^A-Za-z-])git([^A-Za-z-]|$)'; then echo "the launcher names git"; fi
+  if printf '%s\n' "$body" | qgrep -qE '(^|[^A-Za-z-])git([^A-Za-z-]|$)'; then echo "the launcher names git"; fi
 }
 
 # run_pester <label> <work dir> [<full name filter>]: Invoke-Pester on the hook installer Pester file in the project root;
@@ -653,8 +653,249 @@ test_3995_parity_hooks() {
   log_pass "TEST-3995: the parity driver passes HK-01 to HK-10 with twins sh, ps1 and node on all three pairs, the sh and ps1 twins run the frozen references, the node twin runs only update, bootstrap and hooks scenarios, the unit tests and TEST-3956 hold, and the SPEC-0284 and SPEC-0306 records exist"
 }
 
+# --- run 7: scratch install, the /aai-update order and wiring (TEST-3996, TEST-3997) ---------------------------------
+HOOK_FILES="pre-commit reference-transaction pre-push"
+
+# install_env_run <work> <dir> <shell> <args...>: runs one installer launcher in dir under the D-SAFETY git environment
+# (no system config, an empty global one, hooks path under the run's own scratch root, checked before the run).
+install_env_run() {
+  local work="$1" dir="$2" shell="$3" resolved
+  shift 3
+  case "$work" in */"$OWN_PREFIX"*) ;; *) log_fail "install_env_run: scratch root without the own prefix: $work" ;; esac
+  [[ -f "$work/$OWN_MARKER" ]] || log_fail "install_env_run: scratch root without the ownership marker: $work"
+  case "$dir" in "$work"/*) ;; *) log_fail "install_env_run: dir outside the scratch root: $dir" ;; esac
+  resolved="$(GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git -C "$dir" rev-parse --git-path hooks/pre-commit 2>/dev/null)" || resolved="$dir/none"
+  case "$resolved" in /*) ;; *) resolved="$dir/$resolved" ;; esac
+  case "$resolved" in "$work"/*) ;; *) log_fail "install_env_run: the hooks path $resolved lies outside $work" ;; esac
+  case "$shell" in
+    pwsh) set -- pwsh -NoProfile -File .aai/scripts/install-pre-commit-hook.ps1 "$@" ;;
+    *) set -- "$shell" .aai/scripts/install-pre-commit-hook.sh "$@" ;;
+  esac
+  ( cd "$dir" && env -u AAI_ROLE -u AAI_GIT_WRITE GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" "$@" )
+}
+
+# hooks_attested <label> <git dir hooks path>: the three hooks exist, are executable and carry their marker.
+hooks_attested() {
+  local label="$1" hooks="$2" h
+  for h in $HOOK_FILES; do
+    [[ -f "$hooks/$h" && -x "$hooks/$h" ]] || log_fail "TEST-3996: $label: the $h hook is missing or not executable"
+  done
+  qgrep -qF "AAI:INDEX-AUTOGEN" < "$hooks/pre-commit" || log_fail "TEST-3996: $label: pre-commit lacks AAI:INDEX-AUTOGEN"
+  qgrep -qF "AAI:REF-GUARD" < "$hooks/reference-transaction" || log_fail "TEST-3996: $label: reference-transaction lacks AAI:REF-GUARD"
+  qgrep -qF "AAI:CLOSE-GATE" < "$hooks/pre-push" || log_fail "TEST-3996: $label: pre-push lacks AAI:CLOSE-GATE"
+}
+
+test_3996_scratch_install() {
+  need_tool TEST-3996 git || return 0
+  local work target runp shells shell f h rc fakebin before after src cp_log old
+  work="$(new_own_scratch install)"
+  target="$work/target"
+  : > "$work/gitconfig"
+  mkdir -p "$target"
+  GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git -C "$target" init -q
+  env -u AAI_ROLE -u AAI_GIT_WRITE GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$target" --profile core > "$work/sync.log" 2>&1 \
+    || { cat "$work/sync.log" >&2; log_fail "TEST-3996: aai-sync.sh --profile core failed"; }
+  for f in lib/guard-config.mjs install-pre-commit-hook.mjs install-pre-commit-hook.ps1 install-pre-commit-hook.sh; do
+    [[ -f "$target/.aai/scripts/$f" ]] || log_fail "TEST-3996: the core sync did not vendor .aai/scripts/$f"
+  done
+  for f in pre-commit-index.sh pre-commit-guard-checks.sh reference-transaction.sh pre-push.sh; do
+    [[ -f "$target/.aai/templates/git-hooks/$f" ]] || log_fail "TEST-3996: the core sync did not vendor the template $f"
+  done
+  # three fresh copies at one path, one after another; each run's hooks are kept for the comparison
+  runp="$work/run/target"
+  shells="bash sh"
+  need_tool TEST-3996 pwsh && shells="$shells pwsh"
+  for shell in $shells; do
+    mkdir -p "$work/run"
+    cp -R "$target" "$runp"
+    rc=0
+    install_env_run "$work" "$runp" "$shell" > "$work/$shell.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/$shell.log" >&2; log_fail "TEST-3996: the $shell launcher exited $rc"; }
+    hooks_attested "$shell launcher" "$runp/.git/hooks"
+    mv "$work/run" "$work/out-$shell"
+  done
+  for shell in $shells; do
+    for h in $HOOK_FILES; do
+      cmp -s "$work/out-bash/target/.git/hooks/$h" "$work/out-$shell/target/.git/hooks/$h" || log_fail "TEST-3996: the $h hook written by $shell differs from the one written by bash"
+    done
+  done
+  # without node on PATH sh refuses with the launcher line and writes no hook
+  fakebin="$work/only-dirname"
+  mkdir -p "$fakebin" "$work/run"
+  ln -s "$(command -v dirname)" "$fakebin/dirname"
+  cp -R "$target" "$runp"
+  before="$(find "$runp/.git/hooks" | LC_ALL=C sort)"
+  rc=0
+  ( cd "$runp" && env PATH="$fakebin" "$(command -v sh)" .aai/scripts/install-pre-commit-hook.sh ) > "$work/refuse.out" 2> "$work/refuse.err" || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-3996: sh without node exited $rc, expected 1"
+  [[ "$(cat "$work/refuse.err")" == "$REFUSAL_LINE" ]] || log_fail "TEST-3996: sh without node wrote: $(cat "$work/refuse.err")"
+  after="$(find "$runp/.git/hooks" | LC_ALL=C sort)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3996: the refusal changed the hooks directory"
+  for h in $HOOK_FILES; do
+    [[ ! -e "$runp/.git/hooks/$h" ]] || log_fail "TEST-3996: the refusal left a $h hook"
+  done
+  mv "$work/run" "$work/out-refusal"
+  # the /aai-update order: an older layer (the frozen bash installer, no module) updated from a committed scratch copy of
+  # this checkout's tracked files, never from this checkout; the plain launcher run then finds the module vendored
+  src="$work/source"
+  mkdir -p "$src" "$work/ghbin" "$work/ghcfg"
+  node -e '
+    const fs = require("fs");
+    const path = require("path");
+    const { execFileSync } = require("child_process");
+    const root = process.argv[1];
+    const dest = process.argv[2];
+    const list = execFileSync("git", ["-C", root, "ls-files", "-z"], { maxBuffer: 1 << 28 }).toString("utf8").split("\0").filter(Boolean);
+    for (const rel of list) {
+      const from = path.join(root, rel);
+      let st;
+      try { st = fs.lstatSync(from); } catch { continue; }
+      const to = path.join(dest, rel);
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      if (st.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(from), to);
+      else if (st.isFile()) fs.copyFileSync(from, to);
+    }
+  ' "$PROJECT_ROOT" "$src" || log_fail "TEST-3996: cannot copy the tracked files into the scratch source"
+  GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git -C "$src" init -q
+  cp_log="$work/source-commit.log"
+  ( GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git -C "$src" add -A \
+    && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git -C "$src" -c user.email=t@example.invalid -c user.name=t -c commit.gpgsign=false commit -q -m source ) > "$cp_log" 2>&1 \
+    || { cat "$cp_log" >&2; log_fail "TEST-3996: cannot commit the scratch source"; }
+  printf '%s\n' '#!/bin/sh' 'echo "gh stub: the network is closed in this suite" >&2' 'exit 1' > "$work/ghbin/gh"
+  chmod 755 "$work/ghbin/gh"
+  old="$work/old/target"
+  mkdir -p "$work/old"
+  cp -R "$target" "$old"
+  rm -f "$old/.aai/scripts/install-pre-commit-hook.mjs"
+  # the older layer holds the frozen twins (a deliberate old state, not a vendored installer, so not vendor_hook_installer)
+  cp "$REFERENCE_SH" "$old/.aai/scripts/${REFERENCE_SH##*/}"
+  cp "$REFERENCE_PS1" "$old/.aai/scripts/${REFERENCE_PS1##*/}"
+  [[ ! -e "$old/.aai/scripts/install-pre-commit-hook.mjs" ]] || log_fail "TEST-3996: the older layer still holds the module"
+  [[ -d "$work/ghcfg" && -z "$(ls -A "$work/ghcfg")" ]] || log_fail "TEST-3996: GH_CONFIG_DIR is missing or not empty"
+  case "$src" in "$work"/*) ;; *) log_fail "TEST-3996: the update source lies outside the scratch root" ;; esac
+  rc=0
+  ( cd "$old" && env -u AAI_ROLE -u AAI_GIT_WRITE -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN \
+    PATH="$work/ghbin:$PATH" GIT_ALLOW_PROTOCOL=file GH_CONFIG_DIR="$work/ghcfg" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" \
+    bash .aai/scripts/aai-update.sh --repo "$src" --force ) > "$work/update.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { tail -40 "$work/update.log" >&2; log_fail "TEST-3996: aai-update.sh from the scratch source exited $rc"; }
+  [[ -f "$old/.aai/scripts/install-pre-commit-hook.mjs" ]] || log_fail "TEST-3996: the update did not vendor the module into the older layer"
+  cmp -s "$SH_LAUNCHER" "$old/.aai/scripts/install-pre-commit-hook.sh" || log_fail "TEST-3996: the update did not replace the frozen installer with the launcher"
+  rc=0
+  install_env_run "$work" "$old" bash > "$work/after-update.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/after-update.log" >&2; log_fail "TEST-3996: the SKILL_UPDATE step 4 command exited $rc after the update"; }
+  hooks_attested "after the update" "$old/.git/hooks"
+  safe_rm_own "$work"
+  log_pass "TEST-3996: a core sync vendors the module, both launchers, guard-config and the templates; bash, sh and pwsh runs write byte-equal hooks; sh without node refuses with the launcher line and writes no hook; an older layer updated from a committed scratch source gets the module before the launcher runs and the plain run attests the three hooks"
+}
+
+# suite_map_rows <suite-map.yaml>: prints "row<TAB>glob" lines.
+suite_map_rows() {
+  node -e '
+    const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+    let row = "";
+    for (const l of lines) {
+      const m = /^  ([a-z0-9-]+):$/.exec(l);
+      if (m) row = m[1];
+      else if (row && /^      - /.test(l)) process.stdout.write(row + "\t" + l.replace(/^      - /, "") + "\n");
+    }
+  ' "$1"
+}
+
+test_3997_wiring() {
+  local work f out rc sel rows
+  work="$(new_own_scratch wiring)"
+  # the order keeps a name ending in sh from standing before another installer name (the D-SAFETY line scan)
+  for f in .aai/scripts/install-pre-commit-hook.mjs .aai/scripts/install-pre-commit-hook.ps1 \
+    tests/fixtures/hook-installer-reference/install-pre-commit-hook.ps1 .aai/scripts/install-pre-commit-hook.sh \
+    tests/fixtures/hook-installer-reference/install-pre-commit-hook.sh tests/skills/lib/hook-installer-reference.mjs \
+    tests/skills/lib/install-pre-commit-hook.test.mjs tests/skills/install-pre-commit-hook.Tests.ps1 tests/skills/lib/vendor-hook-installer.sh; do
+    printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
+    qgrep -q "^SELECTED aai-hook-installer-node " < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not route $f to aai-hook-installer-node"; }
+  done
+  # guard-config.mjs lives under .aai/scripts/lib/, a shared-lib glob: a change to it escalates straight to FULL_RUN,
+  # which runs every suite and so this one; the row also lists it for a suite-only selection
+  printf '%s\n' .aai/scripts/lib/guard-config.mjs | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
+  qgrep -q "^FULL_RUN reason=shared-lib path=.aai/scripts/lib/guard-config.mjs" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate guard-config.mjs to FULL_RUN"; }
+  rows="$(suite_map_rows "$PROJECT_ROOT/tests/skills/suite-map.yaml")" || log_fail "TEST-3997: cannot read suite-map.yaml"
+  # every suite-map row that names install-pre-commit-hook.sh names install-pre-commit-hook.mjs
+  out="$(printf '%s\n' "$rows" | node -e '
+    const rows = {};
+    for (const l of require("fs").readFileSync(0, "utf8").split("\n")) {
+      if (!l) continue;
+      const [k, v] = l.split("\t");
+      (rows[k] = rows[k] || []).push(v);
+    }
+    const bad = [];
+    for (const [k, v] of Object.entries(rows)) {
+      if (v.includes(".aai/scripts/install-pre-commit-hook.sh") && !v.includes(".aai/scripts/install-pre-commit-hook.mjs")) bad.push(k);
+    }
+    process.stdout.write(bad.join(","));
+  ')" || log_fail "TEST-3997: the row check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-3997: suite-map rows name install-pre-commit-hook.sh but not install-pre-commit-hook.mjs: $out"
+  # the suites that run the installer through vendor-hook-installer.sh route its module as well
+  for sel in aai-doctor aai-pre-commit-checks aai-tracked-ignored aai-install-parity; do
+    printf '%s\n' "$rows" | qgrep -qxF "$(printf '%s\t.aai/scripts/install-pre-commit-hook.mjs' "$sel")" || log_fail "TEST-3997: the row $sel does not list .aai/scripts/install-pre-commit-hook.mjs"
+  done
+  for sel in "tests/fixtures/hook-installer-reference/**" "tests/skills/lib/hook-installer-reference.mjs"; do
+    printf '%s\n' "$rows" | qgrep -qxF "$(printf 'aai-install-parity\t%s' "$sel")" || log_fail "TEST-3997: the row aai-install-parity does not list $sel"
+  done
+  printf '%s\n' "$rows" | qgrep -qxF "$(printf 'aai-hook-installer-docs\ttests/skills/test-aai-hook-installer-docs.sh')" || log_fail "TEST-3997: the row aai-hook-installer-docs does not list its own file"
+  qgrep -qxF "# sample aai-hook-installer-node fallback unsampled (new suite of pre-commit-installer-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-3997: the weights fallback line for aai-hook-installer-node is missing"
+  for sel in aai-hook-installer-node aai-hook-installer-docs; do
+    qgrep -qxF "$(printf '%s\t196' "$sel")" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3997: the weights row $sel 196 is missing"
+  done
+  qgrep -qxF "# sample aai-hook-installer-docs fallback unsampled (split from aai-hook-installer-node by pre-commit-installer-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-3997: the weights fallback line for aai-hook-installer-docs is missing"
+  for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" "test-aai-win-fallback.sh test_034" "test-aai-win-fallback.sh test_035"; do
+    rc=0
+    # shellcheck disable=SC2086
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-3997: ${sel#* } of ${sel%% *} exited $rc"; }
+  done
+  rc=0
+  node "$SCRIPT_DIR/lib/nested-suite-lint.mjs" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" > "$work/lint.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/lint.log" >&2; log_fail "TEST-3997: nested-suite-lint exited $rc"; }
+  for f in check-cd-subshell-leak.mjs check-vendored-script-deps.mjs; do
+    rc=0
+    node "$PROJECT_ROOT/.aai/scripts/$f" > "$work/chk.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-3997: $f exited $rc"; }
+  done
+  rc=0
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" > "$work/chk.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-3997: check-test-registration.mjs exited $rc"; }
+  qgrep -qxF "$(printf '1\t.aai/scripts/install-pre-commit-hook.sh')" < "$SCRIPT_DIR/lib/cd-subshell-leak-baseline.tsv" || log_fail "TEST-3997: the cd-subshell baseline does not hold 1 for .aai/scripts/install-pre-commit-hook.sh"
+  qgrep -qxF "  - .aai/scripts/install-pre-commit-hook.mjs" < "$PROJECT_ROOT/.aai/system/PROFILES.yaml" || log_fail "TEST-3997: PROFILES.yaml core does not list .aai/scripts/install-pre-commit-hook.mjs"
+  out="$(node -e '
+    const fs = require("fs");
+    const text = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const lists = [];
+    for (const key of ["push:", "pull_request:"]) {
+      const at = text.findIndex((l) => l === "  " + key);
+      if (at < 0) { lists.push(null); continue; }
+      const p = text.findIndex((l, i) => i > at && l === "    paths:");
+      const out = [];
+      for (let i = p + 1; i < text.length && /^      - /.test(text[i]); i += 1) out.push(text[i].replace(/^      - /, "").replace(/^\x27|\x27$/g, ""));
+      lists.push(out);
+    }
+    const bad = [];
+    if (!lists[0] || !lists[1]) bad.push("a path list is missing");
+    else {
+      if (JSON.stringify(lists[0]) !== JSON.stringify(lists[1])) bad.push("the push and pull_request path lists differ");
+      for (const w of [".aai/scripts/install-pre-commit-hook.mjs", ".aai/scripts/lib/guard-config.mjs", "tests/fixtures/hook-installer-reference/**", "tests/skills/lib/hook-installer-reference.mjs"]) {
+        if (!lists[0].includes(w)) bad.push("the push list lacks " + w);
+        if (!lists[1].includes(w)) bad.push("the pull_request list lacks " + w);
+      }
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$PROJECT_ROOT/.github/workflows/ps1-quality.yml")"
+  [[ -z "$out" ]] || log_fail "TEST-3997: ps1-quality.yml: $out"
+  safe_rm_own "$work"
+  log_pass "TEST-3997: select-suites routes every installer file to the suite, every row naming install-pre-commit-hook.sh names the module, the weights rows and fallback lines hold, test_090, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1, PROFILES core lists the module, both ps1-quality path lists are identical and hold the D-WIRE entries"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3995, grows run by run)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3997)"
   check_deps
   setup_fixture
   test_3980_scratch_safety
@@ -673,6 +914,8 @@ main() {
   test_3993_ps1_launcher
   test_3994_rehomed_ps1_side
   test_3995_parity_hooks
+  test_3996_scratch_install
+  test_3997_wiring
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

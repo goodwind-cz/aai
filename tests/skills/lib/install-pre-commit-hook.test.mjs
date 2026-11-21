@@ -30,6 +30,7 @@ const TEMPLATE_DIR = path.join(ROOT, '.aai', 'templates', 'git-hooks');
 // Every test file of this ride that exists; a file that a later run adds is listed here by that run.
 const NEW_TEST_FILES = [
   path.join(ROOT, 'tests', 'skills', 'test-aai-hook-installer-node.sh'),
+  path.join(ROOT, 'tests', 'skills', 'test-aai-hook-installer-docs.sh'),
   path.join(HERE, 'install-pre-commit-hook.test.mjs'),
   path.join(HERE, 'hook-installer-reference.mjs'),
 ];
@@ -329,7 +330,9 @@ describe('TEST-3980 scratch safety and the frozen references', () => {
   test('TEST-3980 every installer invocation sets the git environment and asserts the hooks path under the scratch root', () => {
     for (const file of NEW_TEST_FILES) {
       const src = readFileSync(file, 'utf8');
-      const problems = file.endsWith('.sh') ? shellInvocationProblems(src) : invocationProblems(src);
+      let problems = file.endsWith('.sh') ? shellInvocationProblems(src) : invocationProblems(src);
+      // the docs suite starts no installer at all: it needs no run_installer, and any entry point it ran would still be flagged
+      if (file.endsWith('test-aai-hook-installer-docs.sh')) problems = problems.filter((p) => p !== 'the suite has no run_installer function');
       assert.deepEqual(problems, [], path.basename(file));
     }
     const mine = readFileSync(path.join(HERE, 'install-pre-commit-hook.test.mjs'), 'utf8');
@@ -385,7 +388,7 @@ describe('TEST-3980 scratch safety and the frozen references', () => {
   });
 });
 
-// --- TEST-3981 ---------------------------------------------------------------------------------------------
+// --- TEST-3981: ---------------------------------------------------------------------------------------------
 
 const EXPORTS = [
   'parseArgs', 'resolveMode', 'resolveBase', 'loadTemplates', 'composePreCommit', 'hasMarkerLine', 'resolveSlots',
@@ -510,7 +513,7 @@ describe('TEST-3981 module shape', () => {
   });
 });
 
-// --- TEST-3982 ---------------------------------------------------------------------------------------------
+// --- TEST-3982: ---------------------------------------------------------------------------------------------
 
 // runModule(argv, extra): run() with captured output and a recording child seam; nothing real is started.
 async function runModule(argv, extra = {}) {
@@ -757,7 +760,7 @@ describe('TEST-3982 arguments and the one resolved mode', () => {
   });
 });
 
-// --- TEST-3983 ---------------------------------------------------------------------------------------------
+// --- TEST-3983: ---------------------------------------------------------------------------------------------
 
 const GUARD_CONFIG_URL = pathToFileURL(path.join(ROOT, '.aai', 'scripts', 'lib', 'guard-config.mjs')).href;
 const DOCTOR = path.join(ROOT, '.aai', 'scripts', 'aai-doctor.mjs');
@@ -1024,7 +1027,7 @@ describe('TEST-3983 the ref_guard policy writer and the reader', () => {
   });
 });
 
-// --- TEST-3984 ---------------------------------------------------------------------------------------------
+// --- TEST-3984: ---------------------------------------------------------------------------------------------
 
 const hookOf = (repo, name) => path.join(repo, '.git', 'hooks', name);
 const CFG_REL = path.join('docs', 'ai', CFG);
@@ -1274,7 +1277,7 @@ describe('TEST-3984 the policy flows', () => {
   });
 });
 
-// --- TEST-3985 ---------------------------------------------------------------------------------------------
+// --- TEST-3985: ---------------------------------------------------------------------------------------------
 
 const TEMPLATE_FILES = { index: 'pre-commit-index.sh', 'guard-checks': 'pre-commit-guard-checks.sh', 'ref-guard': 'reference-transaction.sh', 'pre-push': 'pre-push.sh' };
 const stripCr = (buf) => Buffer.from(buf.filter((b) => b !== 13));
@@ -1516,7 +1519,7 @@ async function runMod(root, cwd, argv, extra = {}) {
   return { code, stdout: out.join(''), stderr: err.join('') };
 }
 
-// --- TEST-3986 ---------------------------------------------------------------------------------------------
+// --- TEST-3986: ---------------------------------------------------------------------------------------------
 
 const lstatOrNull = (p) => lstatSync(p, { throwIfNoEntry: false }) ?? null;
 const gitHookPath = (cwd, root, name) => path.resolve(cwd, gitOut(cwd, root, 'rev-parse', '--git-path', `hooks/${name}`));
@@ -1653,7 +1656,7 @@ describe('TEST-3986 slot paths come from git itself', () => {
   });
 });
 
-// --- TEST-3987 ---------------------------------------------------------------------------------------------
+// --- TEST-3987: ---------------------------------------------------------------------------------------------
 
 function s3File(root, name, content) {
   const p = path.join(root, name);

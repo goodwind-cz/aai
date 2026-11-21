@@ -439,6 +439,7 @@ suites:
       - aai-suite-select
     globs:
       - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/scripts/install-pre-commit-hook.mjs
       - .aai/templates/git-hooks/**
       - .aai/scripts/aai-doctor.mjs
       - .aai/scripts/lib/project-config.mjs
@@ -816,6 +817,8 @@ suites:
       - .aai/scripts/aai-update.ps1
       - tests/fixtures/aai-update-reference/**
       - tests/skills/lib/update-reference.mjs
+      - tests/fixtures/hook-installer-reference/**
+      - tests/skills/lib/hook-installer-reference.mjs
       - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/install-pre-commit-hook.mjs
       - .aai/scripts/install-pre-commit-hook.ps1
@@ -1431,6 +1434,7 @@ suites:
       - tests/skills/pre-commit-checks-retired.Tests.ps1
       - tests/skills/lib/pipe-grep-q-ratchet.sh
       - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/scripts/install-pre-commit-hook.mjs
       - .aai/templates/git-hooks/**
       - .aai/system/PROFILES.yaml
       # hook-gate-staged-content TEST-3868 reads this product doc; CHANGELOG.md
@@ -1716,6 +1720,7 @@ suites:
   aai-tracked-ignored:
     globs:
       - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/scripts/install-pre-commit-hook.mjs
       - .aai/templates/git-hooks/**
       - .aai/scripts/tracked-ignored.mjs
       - .aai/scripts/check-committed-scope.mjs
@@ -1890,3 +1895,55 @@ suites:
       - tests/skills/test-aai-pr-preflight.sh
       - tests/skills/test-aai-suite-reuse.sh
       - tests/skills/test-aai-expert-fetch.sh
+
+  aai-hook-installer-node:
+    globs:
+      - .aai/scripts/install-pre-commit-hook.*
+      - .aai/scripts/lib/guard-config.mjs
+      - .aai/templates/git-hooks/**
+      - .aai/templates/docs-audit.template.yaml
+      - .aai/system/PROFILES.yaml
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-update.*
+      - .aai/scripts/update-doctor-report.mjs
+      - tests/fixtures/hook-installer-reference/**
+      - tests/skills/test-aai-hook-installer-node.sh
+      - tests/skills/lib/install-pre-commit-hook.test.mjs
+      - tests/skills/lib/install-pre-commit-hook-fixtures.mjs
+      - tests/skills/lib/hook-installer-reference.mjs
+      - tests/skills/lib/install-parity.mjs
+      - tests/skills/lib/install-parity-allowlist.tsv
+      - tests/skills/lib/install-parity.test.mjs
+      - tests/skills/lib/vendor-hook-installer.sh
+      - tests/skills/install-pre-commit-hook.Tests.ps1
+      - tests/skills/lib/pester-native-capture.ps1
+      - tests/skills/lib/pipe-safe.sh
+      - tests/skills/lib/aai-bootstrap.test.mjs
+      - tests/skills/lib/aai-bootstrap-fixtures.mjs
+      - tests/skills/lib/bootstrap-reference.mjs
+      - tests/skills/lib/update-reference.mjs
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/lib/cd-subshell-leak-baseline.tsv
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
+      - tests/skills/test-aai-git-ref-guard.sh
+      - tests/skills/test-aai-hygiene-pack.sh
+      - tests/skills/test-aai-docs-audit.sh
+      - tests/skills/test-aai-win-fallback.sh
+      - .github/workflows/ps1-quality.yml
+
+  aai-hook-installer-docs:
+    globs:
+      - CHANGELOG.md
+      - .aai/SKILL_UPDATE.prompt.md
+      - docs/USER_GUIDE.md
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-hook-installer-docs.sh
+      - tests/skills/test-aai-prompt-diet.sh
+      - tests/skills/test-aai-pr-preflight.sh
+      - tests/skills/test-aai-suite-reuse.sh
+      - tests/skills/test-aai-git-ref-guard.sh
+      - tests/skills/test-aai-expert-fetch.sh
+      - tests/skills/lib/prompt-diet-ledger.sh
+      - tests/skills/lib/pipe-safe.sh

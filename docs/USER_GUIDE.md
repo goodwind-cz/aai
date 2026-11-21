@@ -1819,9 +1819,10 @@ to install it manually (e.g. before your first update) or to remove it.
 bash .aai/scripts/install-pre-commit-hook.sh            # install (idempotent)
 bash .aai/scripts/install-pre-commit-hook.sh --force    # overwrite an existing hook
 bash .aai/scripts/install-pre-commit-hook.sh --uninstall # remove the AAI hook
-# Windows: .aai/scripts/install-pre-commit-hook.ps1
+# Windows: .aai/scripts/install-pre-commit-hook.ps1 (a launcher of the same Node module)
 ```
-It refuses to overwrite a non-AAI `pre-commit` hook unless you pass `--force`.
+Both files are launchers of one Node module, `.aai/scripts/install-pre-commit-hook.mjs`, and need Node.js 22 or later; without it they refuse and change nothing.
+It refuses to overwrite a non-AAI `pre-commit` hook unless you pass `--force`. The `--uninstall` of the ref-guard is undone by the next plain install unless the guard is declined.
 
 #### The `main` ref-guard (installed by the same command)
 
@@ -2376,7 +2377,8 @@ You want a reminder when maintenance is piling up, but never a refusal:
 
 ## Git hooks the installer writes (and what they invoke)
 
-`bash .aai/scripts/install-pre-commit-hook.sh` (or the `.ps1` twin) writes
+`bash .aai/scripts/install-pre-commit-hook.sh` (or the `.ps1` launcher; both run
+the Node module `install-pre-commit-hook.mjs` and need Node.js 22 or later) writes
 three hooks into the directory git itself resolves (`git rev-parse --git-path
 hooks/<name>`, so `core.hooksPath` and linked worktrees are honoured). Each is
 recognised by its own marker — a marker counts only when it opens a line
