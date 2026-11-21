@@ -252,3 +252,9 @@ export function coupledGroupFor(groups, prefix) {
   }
   return [p];
 }
+
+// writeRefGuardPolicy: placeholder until the policy-writer run of the hook installer port; the installer
+// module imports it by name, so the export must exist before its body does.
+export function writeRefGuardPolicy() {
+  throw new Error('writeRefGuardPolicy is not implemented yet');
+}
