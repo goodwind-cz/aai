@@ -2808,6 +2808,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Project bootstrap runs on Node, with a native Windows launcher
+
+Bootstrap looks at a project (languages, package manager, task runners, test and build tools, authentication hints) and writes the project's own dynamic skills, such as a ready-made unit-test or build command, plus the local skill indexes and the runtime `.gitignore` block. It now runs as one Node.js module behind two small launchers, a shell one and a new PowerShell one, so Windows users can bootstrap without Git Bash. The files it writes are the same, byte for byte, as the previous bash bootstrap produced, except for a short list of documented corrections (for example, a credential file without a recognized variable name no longer stops the run silently). Node.js 22 or later is now required: without it, both launchers refuse, print an install hint and change nothing.
+
+[Product doc](product/bootstrap-on-node.md) · [Spec](specs/SPEC-0306-spec-bootstrap-on-node.md)
+
 ### Docs close gate
 
 Before a governed doc (an issue, change, debt, requirement, RFC, release or spec) is flipped to `status: done`, the close gate checks that its acceptance criteria are reconciled: every row terminal, every done row evidenced, every Review-By valid. A spec is checked against its own `## Acceptance Criteria Status` table. An intake doc (an issue, change or other non-spec doc) that has no AC table of its own is checked through its linked spec instead, because that is where its acceptance table lives: every linked spec must pass, and the output names the spec that decided. An intake doc with neither its own table nor a linked spec fails and says what is missing.

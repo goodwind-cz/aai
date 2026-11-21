@@ -1,7 +1,7 @@
 # AAI runtime-sidecar gitignore patterns — SINGLE SOURCE OF TRUTH.
-# Consumed by: aai-bootstrap.sh ensure_gitignore (fresh installs) and
-# aai-sync.sh's gitignore section (every update) — both via the shared
-# .aai/scripts/lib/gitignore-block.sh reconcile — and aai-sync.ps1's
+# Consumed by: aai-bootstrap.mjs ensureGitignore (fresh installs), aai-sync.sh's
+# gitignore section (every update, via the shared
+# .aai/scripts/lib/gitignore-block.sh reconcile) and aai-sync.ps1's
 # PowerShell reconcile (fresh installs and updates on Windows). One pattern
 # per line; '#' comments ignored; '!' negation lines keep the .gitkeep
 # placeholders tracked.

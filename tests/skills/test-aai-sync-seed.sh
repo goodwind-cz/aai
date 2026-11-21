@@ -41,7 +41,7 @@ LIVE_AUDIT_CONFIG="$PROJECT_ROOT/docs/ai/docs-audit.yaml"
 LANE_GATE="$PROJECT_ROOT/.aai/scripts/lane-gate.mjs"
 RUNTIME_LIST="$PROJECT_ROOT/.aai/system/RUNTIME_IGNORE.list"
 GITIGNORE_LIB="$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh"
-BOOTSTRAP_SH="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.sh"
+BOOTSTRAP_MJS="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.mjs"
 
 TMP_ROOT=""
 # Canonical fixture source (built once per run, lazily; see _sync_fixture_canon).
@@ -519,8 +519,8 @@ test_marker_prefix_pinned_across_call_sites() {
   grep -qF "(?m)^${canonical}" "$SYNC_PS1" \
     || log_fail "TEST-020: aai-sync.ps1's detection regex does not start with the canonical prefix '$canonical'"
   # 3-5. the three caller marker TEXTS actually written to .gitignore.
-  grep -qF "\"${canonical} (seeded by aai-bootstrap;" "$BOOTSTRAP_SH" \
-    || log_fail "TEST-020: aai-bootstrap.sh's marker text does not start with the canonical prefix '$canonical'"
+  grep -qF "'${canonical} (seeded by aai-bootstrap;" "$BOOTSTRAP_MJS" \
+    || log_fail "TEST-020: aai-bootstrap.mjs's marker text does not start with the canonical prefix '$canonical'"
   grep -qF "\"${canonical} (seeded from" "$SYNC_SH" \
     || log_fail "TEST-020: aai-sync.sh's marker text does not start with the canonical prefix '$canonical'"
   grep -qF "\"${canonical} (seeded by aai-sync.ps1;" "$SYNC_PS1" \
@@ -530,7 +530,7 @@ test_marker_prefix_pinned_across_call_sites() {
 
 # --- TEST-011 — one bash reader, sourced (not reimplemented) by both callers (Spec-AC-04) ---
 test_single_bash_reader_and_sourcing() {
-  log_info "TEST-011: exactly one bash reader loops over the runtime list; aai-bootstrap.sh and aai-sync.sh each source it, not reimplement it..."
+  log_info "TEST-011: exactly one bash reader loops over the runtime list; aai-sync.sh sources it, not reimplements it (bootstrap is a Node module with its own reconcile)..."
   [[ -f "$GITIGNORE_LIB" ]] || log_fail "TEST-011: shared library missing: $GITIGNORE_LIB"
 
   # Semantic population Spec-AC-04 bounds: every .sh file under .aai/scripts
@@ -543,8 +543,8 @@ test_single_bash_reader_and_sourcing() {
   referencers="$(find "$PROJECT_ROOT/.aai/scripts" -name '*.sh' -print0 \
     | xargs -0 grep -lF 'RUNTIME_IGNORE' 2>/dev/null | sort || true)"
   n_referencers="$(grep -c . <<< "$referencers" || true)"
-  [[ "$n_referencers" -eq 3 ]] \
-    || log_fail "TEST-011: expected exactly 3 .aai/scripts/**.sh files to reference RUNTIME_IGNORE (bootstrap, sync, library), found $n_referencers: $referencers"
+  [[ "$n_referencers" -eq 2 ]] \
+    || log_fail "TEST-011: expected exactly 2 .aai/scripts/**.sh files to reference RUNTIME_IGNORE (sync, library), found $n_referencers: $referencers"
 
   # Of that set, exactly one file -- the shared library -- may loop-and-append
   # over the list: a `while ... read ...; done < "$<var named after the
@@ -561,16 +561,12 @@ test_single_bash_reader_and_sourcing() {
     || log_fail "TEST-011: expected exactly one RUNTIME_IGNORE-referencing file to loop-and-append over the list (the shared library), found $loopers"
   grep -qE "$loop_regex" "$GITIGNORE_LIB" \
     || log_fail "TEST-011: the shared library itself does not contain the runtime-list read-loop"
-  grep -qE "$loop_regex" "$BOOTSTRAP_SH" \
-    && log_fail "TEST-011: aai-bootstrap.sh reimplements a read-loop over the runtime list instead of sourcing the shared library"
   grep -qE "$loop_regex" "$SYNC_SH" \
     && log_fail "TEST-011: aai-sync.sh reimplements a read-loop over the runtime list instead of sourcing the shared library"
 
-  grep -qE 'source[[:space:]]+"\$GITIGNORE_BLOCK_LIB"' "$BOOTSTRAP_SH" \
-    || log_fail "TEST-011: aai-bootstrap.sh does not source the shared library"
   grep -qE 'source[[:space:]]+"\$GITIGNORE_BLOCK_LIB"' "$SYNC_SH" \
     || log_fail "TEST-011: aai-sync.sh does not source the shared library"
-  log_pass "TEST-011 one bash reader of the runtime list (the shared library), sourced by both bash callers, structurally verified"
+  log_pass "TEST-011 one bash reader of the runtime list (the shared library), sourced by the bash sync, structurally verified"
 }
 
 # --- TEST-012 — shared library classified in PROFILES.yaml core (Spec-AC-06) ---
@@ -623,25 +619,29 @@ test_library_missing_list_skips_with_note() {
 
 # --- TEST-019 — library-absent branch degrades with a named note, exit 0 (Spec-AC-07 second half) ---
 test_bootstrap_survives_missing_library() {
-  log_info "TEST-019: aai-bootstrap.sh degrades with a named skip note (not a crash) when the shared gitignore library itself is absent..."
-  # Simulates a project vendored before this scope: aai-bootstrap.sh is
-  # present but .aai/scripts/lib/gitignore-block.sh is not (e.g. a stale
-  # vendored copy, or a hand-pruned target). Realized by syncing a full
-  # target then deleting only the library -- the exact shape of that legacy
-  # case -- and running bootstrap from the target's own copy (never the real
-  # repo's library, which is left untouched).
-  local dst="$TMP_ROOT/lib-absent-bootstrap" out
+  log_info "TEST-019: aai-bootstrap.sh still exits 0 and seeds the runtime patterns when the shared gitignore library is absent (DR-4: the module does not depend on it)..."
+  # Simulates a project vendored before this scope: the shared library is not
+  # present (a stale vendored copy, or a hand-pruned target). Realized by
+  # syncing a full target then deleting only the library, and running
+  # bootstrap from the target's own copy (never the real repo's library).
+  local dst="$TMP_ROOT/lib-absent-bootstrap" out pattern want=0 got=0
   _sync_cached sh "$PROJECT_ROOT" "$dst" git
   [[ -f "$dst/.aai/scripts/lib/gitignore-block.sh" ]] \
     || log_fail "TEST-019: bad fixture -- sync did not vendor the shared library into $dst"
   rm -f "$dst/.aai/scripts/lib/gitignore-block.sh"
   out="$(bash "$dst/.aai/scripts/aai-bootstrap.sh" "$dst" 2>&1)" \
     || log_fail "TEST-019: aai-bootstrap.sh exited nonzero with the shared library missing:"$'\n'"$out"
-  grep -qF "skipped runtime-sidecar gitignore seed" <<< "$out" \
-    || log_fail "TEST-019: bootstrap did not print the named skip note for the missing library:"$'\n'"$out"
-  grep -qF "gitignore-block.sh" <<< "$out" \
-    || log_fail "TEST-019: bootstrap's skip note does not name the missing library path:"$'\n'"$out"
-  log_pass "TEST-019 aai-bootstrap.sh degrades with a named skip note (exit 0) when the shared library is absent"
+  if grep -qF "skipped runtime-sidecar gitignore seed" <<< "$out"; then
+    log_fail "TEST-019: bootstrap printed the skip note although it no longer needs the library:"$'\n'"$out"
+  fi
+  while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+    [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+    want=$((want + 1))
+    if grep -qxF "$pattern" "$dst/.gitignore"; then got=$((got + 1)); fi
+  done < "$RUNTIME_LIST"
+  [[ "$want" -eq 30 ]] || log_fail "TEST-019: the runtime list holds $want patterns, expected 30"
+  [[ "$got" -eq "$want" ]] || log_fail "TEST-019: bootstrap seeded $got of $want runtime patterns with the library absent"
+  log_pass "TEST-019 aai-bootstrap.sh exits 0 and seeds all $want runtime patterns when the shared library is absent"
 }
 
 # --- TEST-015 — git status sees zero runtime-sidecar paths on both engines (Spec-AC-08) ---
@@ -680,7 +680,7 @@ test_git_status_clean_after_spool_creation() {
 test_runtime_ignore_header_consumer_accuracy() {
   log_info "TEST-016: every script named in RUNTIME_IGNORE.list's header references the list; every referencing script is named there..."
   local header named=(
-    ".aai/scripts/aai-bootstrap.sh"
+    ".aai/scripts/aai-bootstrap.mjs"
     ".aai/scripts/aai-sync.sh"
     ".aai/scripts/aai-sync.ps1"
     ".aai/scripts/lib/gitignore-block.sh"

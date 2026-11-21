@@ -62,26 +62,29 @@ const runFake = (twins, scenarios, rows = [], extra = {}) => {
 };
 
 describe('TEST-3560 matrix tiers', () => {
-  const specPath = () => {
+  const specPath = (id) => {
     const dir = path.join(ROOT, 'docs/specs');
     for (const f of fs.readdirSync(dir)) {
       if (!f.endsWith('.md')) continue;
       const t = fs.readFileSync(path.join(dir, f), 'utf8');
-      if (/^id: spec-install-path-parity-harness$/m.test(t)) return path.join(dir, f);
+      if (new RegExp(`^id: ${id}$`, 'm').test(t)) return path.join(dir, f);
     }
-    throw new Error('spec spec-install-path-parity-harness not found');
+    throw new Error(`spec ${id} not found`);
   };
+  // The matrix tables of both specs: SPEC-0284's rows first, then the bootstrap-on-node rows.
   const specRows = () => {
     const rows = [];
-    for (const l of fs.readFileSync(specPath(), 'utf8').split('\n')) {
-      const m = /^\| ((?:SY|UP|HK)-\d\d) \| (smoke|default|full) \|/.exec(l);
-      if (m) rows.push({ id: m[1], tier: m[2] });
+    for (const [id, prefix] of [['spec-install-path-parity-harness', 'SY|UP|HK'], ['spec-bootstrap-on-node', 'BS']]) {
+      for (const l of fs.readFileSync(specPath(id), 'utf8').split('\n')) {
+        const m = new RegExp(`^\\| ((?:${prefix})-\\d\\d) \\| (smoke|default|full) \\|`).exec(l);
+        if (m) rows.push({ id: m[1], tier: m[2] });
+      }
     }
     return rows;
   };
   const rank = { smoke: 0, default: 1, full: 2 };
-  for (const [tier, n] of [['smoke', 7], ['default', 15], ['full', 20]]) {
-    test(`list --matrix ${tier} prints the ${n} ids of the D-MATRIX table in order`, () => {
+  for (const [tier, n] of [['smoke', 9], ['default', 21], ['full', 29]]) {
+    test(`list --matrix ${tier} prints the ${n} ids of the matrix tables in order`, () => {
       const want = specRows().filter((r) => rank[r.tier] <= rank[tier]).map((r) => r.id);
       assert.equal(want.length, n);
       const r = cli(['list', '--matrix', tier, '--json']);
@@ -173,8 +176,8 @@ describe('TEST-3562 normalizations', () => {
     return M.snapshotNormalized(d, opts);
   };
   const text = (snap, p) => snap.get(p).data.toString('utf8');
-  test('the closed list holds exactly N1 N2 N3 N4 E1 E2 with reasons', () => {
-    assert.deepEqual(M.NORMALIZATIONS.map((n) => n.id), ['N1', 'N2', 'N3', 'N4', 'E1', 'E2']);
+  test('the closed list holds exactly N1 N2 N3 N4 N5 E1 E2 with reasons', () => {
+    assert.deepEqual(M.NORMALIZATIONS.map((n) => n.id), ['N1', 'N2', 'N3', 'N4', 'N5', 'E1', 'E2']);
     for (const n of M.NORMALIZATIONS) assert.ok(typeof n.reason === 'string' && n.reason.length > 0, n.id);
     assert.equal(M.NAME_MUST_MATCH_STAMP, true);
   });
@@ -334,7 +337,7 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(apply([div({ onlyA: ['- V:  v1.2'], onlyB: ['- V: v1.2', '- other'] })], paired).uncovered.length, 1);
   });
   test('the committed pin row excuses the spacing and nothing else about the version', () => {
-    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] });
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
     const pin = rows.filter((r) => r.id === 'pin-template-version-spacing');
     const d = (a, b) => ({ pair: 'sh:ps1', path: '.aai/system/AAI_PIN.md', kind: 'lines', detail: 'd', onlyA: [a], onlyB: [b] });
     const run = (x) => M.applyAllowlist([x], pin, { scenario: 'SY-01', host: { ...HOST_POSIX, bsdSed: true } }).uncovered.length;
@@ -343,7 +346,7 @@ describe('TEST-3563 allowlist', () => {
   });
   test('the committed Windows rows excuse the path spelling, the CR and the byte order mark, plus (disclosed in their reasons) a Source path naming another aai-parity directory or present on one side only', () => {
     has('probePs5');
-    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id.startsWith('win-') && r.id !== 'win-sh-odd-root-dirs');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] }).filter((r) => r.id.startsWith('win-') && r.id !== 'win-sh-odd-root-dirs' && r.id !== 'win-bootstrap-target-root');
     assert.equal(rows.length, 5);
     const win = { platform: 'win32', utc: true, ps5: true };
     const d = (path_, a, b) => ({ pair: 'sh:ps1', path: path_, kind: 'lines', detail: 'd', onlyA: a, onlyB: b });
@@ -363,7 +366,7 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(M.probePs5('definitely-not-a-shell'), false);
   });
   test('a root directory with a mangled name is reported at <odd-root-name> and covered by its own Windows row only', () => {
-    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] });
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
     const a = new Map([['翿ৠ', { kind: 'dir' }], ['keep', { kind: 'dir' }]]);
     const b = new Map([['keep', { kind: 'dir' }]]);
     const ds = M.compareSnapshots(a, b, 'sh:ps1');
@@ -385,7 +388,7 @@ describe('TEST-3563 allowlist', () => {
   };
   test('the win-source-path rows excuse only the two spellings of a scratch fx/src path', () => {
     has('applyAllowlist');
-    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id === 'win-source-path-pin');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] }).filter((r) => r.id === 'win-source-path-pin');
     const win = { platform: 'win32', utc: true, ps5: false };
     const d = (a, b) => ({ pair: 'sh:ps1', path: '.aai/system/AAI_PIN.md', kind: 'lines', detail: 'd', onlyA: [`- Source path: ${a}`], onlyB: [`- Source path: ${b}\r`] });
     const go = (a, b) => M.applyAllowlist([d(a, b)], rows, { scenario: 'SY-01', host: win }).uncovered.length;
@@ -400,7 +403,7 @@ describe('TEST-3563 allowlist', () => {
     assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1'], { host: { ...HOST_POSIX, bsdSed: true } }), ['r1'], 'a dead row stays caught where the divergence exists');
     assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1'], { host: { ...HOST_POSIX, bsdSed: true }, used: ['r1'] }), []);
     assert.equal(typeof M.probeBsdSed(), 'boolean');
-    const pin = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id === 'pin-template-version-spacing');
+    const pin = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] }).filter((r) => r.id === 'pin-template-version-spacing');
     const d = { pair: 'sh:ps1', path: '.aai/system/AAI_PIN.md', kind: 'lines', detail: 'd', onlyA: ['- Template version:  v1'], onlyB: ['- Template version: v1'] };
     assert.equal(M.applyAllowlist([d], pin, { scenario: 'SY-01', host: { ...HOST_POSIX, bsdSed: true } }).uncovered.length, 0);
     assert.equal(M.applyAllowlist([d], pin, { scenario: 'SY-01', host: { ...HOST_POSIX, bsdSed: false } }).uncovered.length, 1, 'on a GNU-sed host the spacing divergence is a real failure');
@@ -572,7 +575,7 @@ describe('TEST-3566 third twin seam', () => {
   });
   test('the real registry holds sh and ps1 with the documented argv shapes', () => {
     assert.equal(M.REFERENCE_TWIN, 'sh');
-    assert.deepEqual(Object.keys(M.TWINS), ['sh', 'ps1']);
+    assert.deepEqual(Object.keys(M.TWINS), ['sh', 'ps1', 'node']);
     const ctx = { src: '/s', target: '/t', bash: 'bash', ps: 'pwsh' };
     const sy = { op: 'sync', profile: 'core', flags: [] };
     const a = M.TWINS.sh.argv(sy, ctx);
@@ -606,7 +609,7 @@ describe('TEST-3566 third twin seam', () => {
     };
     const rows = M.parseAllowlist(
       fs.readFileSync(ALLOWLIST, 'utf8').split('\n').map((l) => (l.startsWith('#') || !l.trim() ? l : l.split('\t').map((f, i) => (i === 1 ? f.split(',').flatMap((p) => (p === 'sh:ps1' ? ['sh:ps1', 'ps1:mirror'] : [p])).join(',') : f)).join('\t'))).join('\n'),
-      { twins: ['sh', 'ps1', 'mirror', 'skew'] });
+      { twins: ['sh', 'ps1', 'mirror', 'skew', 'node'] });
     const base = (third) => M.runMatrix({
       scenarios: M.SCENARIOS.filter((s) => s.id === 'SY-01'), twins: [M.TWINS.sh, M.TWINS.ps1, third], rows, matrix: 'smoke', filtered: true,
       ctx: { root: path.join(d, third.name), src: null, bash: 'bash', ps: 'pwsh', host: M.hostInfo() },
@@ -686,7 +689,7 @@ describe('TEST-3567 pinned environment', () => {
     try {
       rep = M.runMatrix({
         scenarios: M.SCENARIOS.filter((s) => s.id === 'HK-01'), twins: [M.TWINS.sh, M.TWINS.ps1],
-        rows: M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }), matrix: 'smoke', filtered: true,
+        rows: M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] }), matrix: 'smoke', filtered: true,
         ctx: { root: path.join(outside, 'run'), src: null, bash: 'bash', ps: 'pwsh', host: M.hostInfo() },
       });
     } finally { if (saved === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = saved; }
@@ -828,8 +831,9 @@ describe('TEST-3566b step bound from the environment and timeouts as infrastruct
       put(d, `${name}.mjs`, `export default { argv(step, ctx) { return { file: process.execPath, args: ['-e', 'setTimeout(function () {}, 60000)'], cwd: ctx.target }; } };\n`);
     };
     hang('hang');
+    hang('hang2'); // two twins: a scenario run by fewer than two is refused before it runs
     put(d, 'none.tsv', '# none\n');
-    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', '', '--twin-module', `hang=${path.join(d, 'hang.mjs')}`, '--allowlist', path.join(d, 'none.tsv')], { env: { ...process.env, AAI_PARITY_STEP_TIMEOUT: '1' } });
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', '', '--twin-module', `hang=${path.join(d, 'hang.mjs')}`, '--twin-module', `hang2=${path.join(d, 'hang2.mjs')}`, '--allowlist', path.join(d, 'none.tsv')], { env: { ...process.env, AAI_PARITY_STEP_TIMEOUT: '1' } });
     assert.equal(r.status, 4, r.stdout + r.stderr);
     assert.match(r.stdout, /^INFRA timeout SY-01 hang 1$/m);
     assert.doesNotMatch(r.stdout, /UNCOVERED|STALE|verdict/);
@@ -897,5 +901,20 @@ describe('TEST-3934 an unreadable odd root name does not crash the snapshot', ()
     try {
       assert.throws(() => M.snapshot(d), /ENOENT/);
     } finally { fs.lstatSync = real; }
+  });
+});
+
+describe('driver refuses a scenario with fewer than two twins', () => {
+  test('--twins node on SY-01 exits 2 naming the scenario, never a crash or a pass', () => {
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', 'node']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /scenario SY-01 .*0 of the selected twins/);
+    assert.doesNotMatch(r.stderr + r.stdout, /TypeError/);
+    assert.doesNotMatch(r.stdout, /verdict PASS/);
+  });
+  test('a single selected twin on a scenario it runs is refused too', () => {
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', 'sh']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /scenario SY-01 .*1 of the selected twins \(sh\)/);
   });
 });

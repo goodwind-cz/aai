@@ -298,3 +298,5 @@ aai-model-effort	196
 aai-project-config	196
 # sample aai-test-residue fallback unsampled (new suite of test-residue-safe-cleanup; no successful observation)
 aai-test-residue	196
+# sample aai-bootstrap-node fallback unsampled (new suite of bootstrap-on-node; no successful observation)
+aai-bootstrap-node	196

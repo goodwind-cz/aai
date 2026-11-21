@@ -153,7 +153,7 @@ pairs:
   - capability: install-path-parity-harness
     status: done
   - capability: bootstrap-on-node
-    status: planned
+    status: done
   - capability: update-on-node
     status: planned
   - capability: pre-commit-installer-on-node

@@ -1038,7 +1038,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 66523 -> 66791: archive-ledger-check (+268 B: SKILL_WORKTREE Cleanup step 2 metrics-flush --recover-archives --include-focus line, its pull-main-first comment and the Safety bullet naming it; credited 1:1).
   # Then 66791 -> 67057: effort-direct-append (+266 B: ROLE_COMMON direct-append --effort-applied direct and --requested-effort, SKILL_LOOP step 4 direct value and its precedence; credited 1:1).
   # Then 67057 -> 67480: pr-ceremony-friction-fixes (+423 B: SKILL_PR steps 4 and 5b --sync-ready wiring +284 B, VALIDATION step 6 evidence-name sentence +139 B; credited 1:1).
-  local want_growth=67480
+  # Then 67480 -> 67702: bootstrap-on-node (+222 B: SKILL_BOOTSTRAP Default Path gains the two PowerShell launcher lines and the Node.js 22 sentence; measured against 34fad51b; credited 1:1).
+  local want_growth=67702
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

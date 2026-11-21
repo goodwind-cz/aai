@@ -84,6 +84,8 @@ core:
   - .aai/knowledge/PATTERNS_UNIVERSAL.md
   - .aai/roles/ROLES.md
   - .aai/scripts/aai-bootstrap.sh
+  - .aai/scripts/aai-bootstrap.mjs
+  - .aai/scripts/aai-bootstrap.ps1
   - .aai/scripts/aai-doctor.mjs
   - .aai/scripts/table-freshness.mjs
   - .aai/scripts/aai-reap-tests.mjs

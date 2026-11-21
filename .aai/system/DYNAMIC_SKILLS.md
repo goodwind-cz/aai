@@ -25,7 +25,7 @@ Running `/aai-bootstrap` generates:
 - `.gemini/skills.local/README.md` (Gemini discovery)
 - `.gitignore` cache-path hygiene entries
 
-The default implementation is `.aai/scripts/aai-bootstrap.sh`.
+The default implementation is `.aai/scripts/aai-bootstrap.mjs`, run through `aai-bootstrap.sh` or `aai-bootstrap.ps1`.
 Run it with `--dry-run` first to preview generated commands and file writes.
 
 ## Leak-safe test routing (SPEC-0009)

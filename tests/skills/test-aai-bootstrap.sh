@@ -15,6 +15,7 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BOOTSTRAP_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.sh"
+BOOTSTRAP_MODULE="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.mjs"
 
 cleanup() {
   if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
@@ -248,7 +249,8 @@ test_gitignore_seed_uses_shared_library() {
   log_info "TEST-017: bootstrap's gitignore reconcile is backed by the shared library; marker count 1 and pre-existing entries survive extraction..."
   local lib="$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh"
   assert_file "$lib"
-  assert_contains "$BOOTSTRAP_SCRIPT" "gitignore-block.sh"
+  assert_contains "$BOOTSTRAP_MODULE" "RUNTIME_IGNORE.list"
+  assert_not_contains "$BOOTSTRAP_MODULE" "gitignore-block.sh"
 
   local dir="$TEST_DIR/test-017-fixture"
   mkdir -p "$dir"
@@ -264,7 +266,7 @@ test_gitignore_seed_uses_shared_library() {
   [[ "$n_marker" -eq 1 ]] || log_fail "TEST-017: marker comment count is $n_marker after extraction, expected 1"
   assert_contains "$dir/.gitignore" "node_modules/"
 
-  log_pass "TEST-017 shared library sourced; marker count 1 and pre-existing entries survive the extraction"
+  log_pass "TEST-017 the module reads the runtime list itself; marker count 1 and pre-existing entries survive the extraction"
 }
 
 test_managed_skill_is_stable() {

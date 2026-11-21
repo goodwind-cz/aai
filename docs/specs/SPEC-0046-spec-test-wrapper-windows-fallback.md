@@ -201,6 +201,22 @@ fail fast, documented degraded mode). 5 — additive: new .ps1 entry points; the
 .sh edits are inert on macOS/Linux (Spec-AC-06). 6 — STATE only via state.mjs.
 7 — PR ceremony unchanged, operator merges.)
 
+## Amendment (post-freeze, 2026-11-20 — owner decision on an overdue deferral)
+
+This is a shipped spec, amended and disclosed here rather than edited silently.
+No delivered criterion changed.
+
+Spec-AC-10 carried `deferred` with a `Review-By` of 2026-11-17 (extended once
+on 2026-10-18; on 2026-11-07 the owner chose to run MV-1..MV-3 manually by
+that date). The date passed with the checks not run, and `VALIDATION.prompt.md`
+Rule 3 then blocked every PASS verdict in the repository. Of the three
+remedies Rule 3 offers (extend, mark done, reject), the owner answered "3"
+(reject) on 2026-11-20: the manual Windows checks MV-1..MV-3 are dropped.
+The Manual verification protocol section and residual risk RR-1 below stay
+as written: the Windows-host process-cleanup semantics of the fallback are
+documented, not verified by this repository. Decision record:
+docs/decisions/DECISION-spec-test-wrapper-windows-fallback-ac10-reject.md.
+
 ## Acceptance Criteria Status
 
 | Spec-AC    | Description                                        | Status   | Evidence | Review-By | Notes |
@@ -214,7 +230,7 @@ fail fast, documented degraded mode). 5 — additive: new .ps1 entry points; the
 | Spec-AC-07 | 5-row platform matrix in headers + TECHNOLOGY.md   | done     | TEST-009 green; tests/skills/test-aai-win-fallback.sh | —         | — |
 | Spec-AC-08 | BOM strip in tdd-evidence-check.mjs (NB-1)         | done     | TEST-010/011 green; docs/ai/tdd/green-20260717T154550Z-test010-011-bom-foldin.log | — | — |
 | Spec-AC-09 | ps1 parse/analyzer/Pester gate wiring              | done     | TEST-012 green; tests/skills/test-ps1-quality.sh (local pwsh; CI is authoritative) | — | — |
-| Spec-AC-10 | Manual Windows protocol documented + residual risk | deferred | TEST-013 doc-presence green; tests/skills/test-aai-win-fallback.sh | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
+| Spec-AC-10 | Manual Windows protocol documented + residual risk | rejected | TEST-013 doc-presence green; tests/skills/test-aai-win-fallback.sh | — | REJECTED 2026-11-20 (owner decision, see Amendment below): the manual Windows checks MV-1..MV-3 are dropped and will not be run; the protocol section and residual risk RR-1 stay recorded in this spec, so the Windows-host process-cleanup semantics remain documented, not verified by this repository |
 
 ## Implementation plan
 

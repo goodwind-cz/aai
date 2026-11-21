@@ -15,7 +15,7 @@
 # substitution followed by an unguarded top-level `git` shortly after
 # fails whether or not this file mentions it.
 #
-3	.aai/scripts/aai-bootstrap.sh
+1	.aai/scripts/aai-bootstrap.sh
 1	.aai/scripts/aai-live.sh
 1	.aai/scripts/aai-reap-tests.sh
 11	.aai/scripts/aai-run-tests.sh

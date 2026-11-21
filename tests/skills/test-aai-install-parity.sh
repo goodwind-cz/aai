@@ -100,11 +100,11 @@ parity_matrix() {
 # driver <args...>: runs the driver with the suite's environment (no AAI_ role or write leak).
 driver() { env -u AAI_ROLE -u AAI_GIT_WRITE node "$DRIVER" "$@"; }
 
-# spec_file: the spec with the frozen id, wherever the allocator has put it.
+# spec_file [id]: the spec with the frozen id (default SPEC_ID), wherever the allocator has put it.
 spec_file() {
-  local f
+  local f want="${1:-$SPEC_ID}"
   for f in "$PROJECT_ROOT"/docs/specs/*.md; do
-    if [[ "$(sed -n '2p' "$f")" == "id: $SPEC_ID" ]]; then printf '%s\n' "$f"; return 0; fi
+    if [[ "$(sed -n '2p' "$f")" == "id: $want" ]]; then printf '%s\n' "$f"; return 0; fi
   done
   return 1
 }
@@ -146,19 +146,20 @@ json_check() {
 
 test_3560_matrix_tiers() {
   need_tool TEST-3560 node || return 0
-  local spec tier got want
+  local spec spec2 tier got want
   spec="$(spec_file)" || log_fail "TEST-3560: no spec with id $SPEC_ID under docs/specs"
+  spec2="$(spec_file spec-bootstrap-on-node)" || log_fail "TEST-3560: no spec with id spec-bootstrap-on-node under docs/specs"
   for tier in smoke default full; do
-    want="$(tier_ids "$spec" "$tier")"
+    want="$(tier_ids "$spec" "$tier")"$'\n'"$(tier_ids "$spec2" "$tier")"
     got="$(driver list --matrix "$tier" --json)" || log_fail "TEST-3560: list --matrix $tier failed"
     got="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).join("\n") + "\n")' "$got")"
-    [[ -n "$want" ]] || log_fail "TEST-3560: the spec's D-MATRIX table holds no $tier rows"
+    [[ -n "$want" ]] || log_fail "TEST-3560: the specs' matrix tables hold no $tier rows"
     [[ "$got" == "${want%$'\n'}" ]] || log_fail "TEST-3560: list --matrix $tier gives [$got], the spec table gives [${want%$'\n'}]"
   done
   local rc=0
   driver list --matrix bogus >/dev/null 2>&1 || rc=$?
   [[ "$rc" == 2 ]] || log_fail "TEST-3560: list --matrix bogus exited $rc, expected 2"
-  log_pass "TEST-3560: list --matrix gives the D-MATRIX ids of each tier in table order; an unknown tier exits 2"
+  log_pass "TEST-3560: list --matrix gives the ids of each tier in table order, SPEC-0284 rows first and the bootstrap rows after; an unknown tier exits 2"
 }
 
 test_3561_compare_kinds() {
@@ -173,7 +174,7 @@ test_3934_odd_name_does_not_crash() {
 
 test_3562_normalizations() {
   run_node_tests TEST-3562
-  log_pass "TEST-3562: the normalization table is exactly N1 to N4 and E1, E2 with their rules"
+  log_pass "TEST-3562: the normalization table is exactly N1 to N5 and E1, E2 with their rules"
 }
 
 test_3563_allowlist() {

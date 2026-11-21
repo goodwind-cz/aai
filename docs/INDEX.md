@@ -2,11 +2,9 @@
 
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
-## Overdue reviews (1)
+## Overdue reviews (0)
 
-| Doc | AC | Status | Was Due | Notes |
-|---|---|---|---|---|
-| SPEC-0046 | Spec-AC-10 | deferred | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
+_None._
 
 ## Active (implementing) (2)
 
@@ -19,7 +17,7 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Product (43)
+## Product (44)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -30,6 +28,7 @@ _None._
 | aai-update | aai-update | 7 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
+| bootstrap-on-node | bootstrap-on-node | 1 | docs/product/bootstrap-on-node.md |
 | ci-test-impact-selection | ci-test-impact-selection | 4 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 2 | docs/product/configurable-merge-policy-lanes.md |
 | consumer-config | consumer-config | 1 | docs/product/consumer-config.md |
@@ -67,7 +66,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (683)
+## Done (685)
 
 | ID | Type | Path |
 |---|---|---|
@@ -326,6 +325,7 @@ _None._
 | CHANGE-0258 | issues | docs/issues/CHANGE-0258-delegated-requester-approval.md |
 | CHANGE-0259 | issues | docs/issues/CHANGE-0259-test-residue-safe-cleanup.md |
 | CHANGE-0260 | issues | docs/issues/CHANGE-0260-test-residue-files-and-processes.md |
+| CHANGE-0261 | issues | docs/issues/CHANGE-0261-bootstrap-on-node.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -752,6 +752,7 @@ _None._
 | SPEC-0303 | specs | docs/specs/SPEC-0303-spec-test-residue-safe-cleanup.md |
 | SPEC-0304 | specs | docs/specs/SPEC-0304-spec-precommit-residual-defects.md |
 | SPEC-0305 | specs | docs/specs/SPEC-0305-spec-test-residue-files-and-processes.md |
+| SPEC-0306 | specs | docs/specs/SPEC-0306-spec-bootstrap-on-node.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -777,18 +778,17 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (1)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 | SPEC-0255 | Spec-AC-09 | 2026-11-30 | Post-merge live acceptance; verified by the orchestrator before close, not by pre-merge Validation. |
 
 ## Blocked items (per-AC, across all specs) (0)
 
 _None._
 
-## Broken references (589)
+## Broken references (590)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -805,6 +805,7 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
+| tests/skills/lib/aai-bootstrap.test.mjs | docs/other.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/base.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185419Z-hosta.md | NOT FOUND |

@@ -13,13 +13,17 @@ Use the deterministic generator first:
 
 ```bash
 ./.aai/scripts/aai-bootstrap.sh . --dry-run
+powershell -NoProfile -File .aai/scripts/aai-bootstrap.ps1 . --dry-run
 ```
 
 Review the dry-run summary. If it is acceptable and there are no conflicts:
 
 ```bash
 ./.aai/scripts/aai-bootstrap.sh .
+powershell -NoProfile -File .aai/scripts/aai-bootstrap.ps1 .
 ```
+
+Both launchers run one Node module and need Node.js 22 or later; they refuse without it.
 
 If `.aai/scripts/aai-bootstrap.sh` is missing, stop and report:
 "aai-bootstrap generator not found - expected .aai/scripts/aai-bootstrap.sh. Run aai-sync/update first."
