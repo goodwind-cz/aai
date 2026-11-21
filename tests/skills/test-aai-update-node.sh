@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-update-node
-# (docs/specs/SPEC-0307-spec-update-on-node.md, TEST-3960..3978; this file grows run by run)
+# (docs/specs/SPEC-0307-spec-update-on-node.md, TEST-3960..3977; this file grows run by run (TEST-3978 lives in test-aai-update-docs.sh))
 #
 # The layer updater is one Node module (.aai/scripts/aai-update.mjs) behind thin sh/ps1 launchers,
 # compared against frozen copies of both old twins (tests/fixtures/aai-update-reference/). Every case
@@ -490,7 +490,7 @@ test_3975_parity_update() {
   log_pass "TEST-3975: the parity driver passes UP-01 to UP-03 with twins sh, ps1 and node on pairs sh:ps1 and sh:node only, without a sh:node divergence; the peers rule, the real-registry argv and the widened row hold; the SPEC-0284 record exists"
 }
 
-# --- run 7: scratch install, wiring and docs (TEST-3976, TEST-3977, TEST-3978) -----------------------------
+# --- run 7: scratch install, wiring and docs (TEST-3976, TEST-3977) -----------------------------
 FIXTURES_MOD="$PROJECT_ROOT/tests/skills/lib/aai-update-fixtures.mjs"
 
 # tree_listing <dir>: a sorted listing of every entry below dir (names only), for the unchanged-target checks.
@@ -656,65 +656,8 @@ test_3977_wiring() {
   log_pass "TEST-3977: select-suites routes every updater file to the suite, every row naming aai-update.sh names aai-update.mjs, the weights row and fallback line hold, test_090, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1, PROFILES core lists the module, both ps1-quality path lists are identical and hold the D-WIRE entries"
 }
 
-test_3978_docs() {
-  local work out rc sel
-  work="$(new_own_scratch docs)"
-  out="$(node -e '
-    const fs = require("fs");
-    const root = process.argv[1];
-    const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
-    const bad = [];
-    // A release cut rolls "## [unreleased] — " into "## [vYYYY.MM.DD] — ", so the pin accepts both.
-    const head = /^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — feat: the AAI layer updater runs on Node behind sh and ps1 launchers$/;
-    const cl = read("CHANGELOG.md").split("\n");
-    const at = cl.map((l, i) => (head.test(l) ? i : -1)).filter((i) => i >= 0);
-    if (at.length !== 1) bad.push("the CHANGELOG heading appears " + at.length + " times");
-    else {
-      let end = cl.length;
-      for (let i = at[0] + 1; i < cl.length; i += 1) if (cl[i].startsWith("## ")) { end = i; break; }
-      const body = cl.slice(at[0] + 1, end).join("\n");
-      for (const w of ["Node.js 22", "DR-2", "DR-3", "DR-5", "DR-7", "DR-12"]) if (!body.includes(w)) bad.push("the CHANGELOG body lacks " + w);
-      if (body.trim() === "") bad.push("the CHANGELOG body is empty");
-    }
-    const su = read(".aai/SKILL_UPDATE.prompt.md").split("\n");
-    const once = (l) => su.filter((x) => x.trim() === l).length;
-    for (const l of [
-      "Both launchers run .aai/scripts/aai-update.mjs and need Node.js 22 or later.",
-      "- exit 1 = an unknown argument, a missing flag value, or Node.js missing (the message says which)",
-      ".aai/scripts/aai-update.sh            # bash / macOS / Linux",
-      ".aai/scripts/aai-update.ps1           # PowerShell / Windows",
-    ]) {
-      if (once(l) !== 1) bad.push("SKILL_UPDATE holds the line " + JSON.stringify(l) + " " + once(l) + " times");
-    }
-    const rfc = read("docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md").split("\n");
-    const row = rfc.filter((l) => l.startsWith("| 5 |"));
-    if (row.length !== 1) bad.push("the RFC phase 5 row appears " + row.length + " times");
-    else {
-      const r = row[0];
-      if (!r.includes("| in progress |")) bad.push("the RFC phase 5 row is not in progress");
-      // the allocator rewrites the link target at merge; only the suffix update-on-node.md is pinned
-      const sentence = "The fifteenth slice [moved the layer updater to Node](LINK): one module holds the argument, source, sync and report policy behind thin aai-update.sh and aai-update.ps1 launchers, compared with frozen copies of both twins, and each launcher keeps running the sync twin it ran before.";
-      const norm = r.replace(/\(\.\.\/issues\/[A-Za-z0-9-]*update-on-node\.md\)/, "(LINK)");
-      if (norm.split(sentence).length !== 2) bad.push("the RFC row does not hold the D-DOCS sentence once");
-      const a = r.indexOf("The fourteenth slice"); const b = r.indexOf("The fifteenth slice"); const c = r.indexOf("The [remaining-scripts plan]");
-      if (!(a >= 0 && a < b && b < c)) bad.push("the RFC sentence is not between the fourteenth slice and the remaining-scripts plan");
-      if (!/\(\.\.\/issues\/[A-Za-z0-9-]*update-on-node\.md\)/.test(r)) bad.push("the RFC link does not end with update-on-node.md");
-    }
-    process.stdout.write(bad.join("; "));
-  ' "$PROJECT_ROOT")" || log_fail "TEST-3978: the docs check failed to run"
-  [[ -z "$out" ]] || log_fail "TEST-3978: $out"
-  for sel in "test-aai-prompt-diet.sh test_012_growth_sum_matches_ledger" "test-aai-pr-preflight.sh test_008" "test-aai-suite-reuse.sh test_3278_canon_wording" "test-aai-expert-fetch.sh test_2624_inventory_matches_tree"; do
-    rc=0
-    # shellcheck disable=SC2086
-    env -u AAI_ROLE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
-    [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-3978: ${sel#* } of ${sel%% *} exited $rc"; }
-  done
-  safe_rm_own "$work"
-  log_pass "TEST-3978: the CHANGELOG entry, the SKILL_UPDATE sentence and bullet, and the RFC-0017 sentence hold, and the prompt-diet, pr-preflight growth, suite-reuse growth and RFC inventory checks pass"
-}
-
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3978, grows run by run)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3960..3977, grows run by run)"
   check_deps
   setup_fixture
   test_3960_scratch_safety
@@ -735,7 +678,6 @@ main() {
   test_3975_parity_update
   test_3976_scratch_install
   test_3977_wiring
-  test_3978_docs
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

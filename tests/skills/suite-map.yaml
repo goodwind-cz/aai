@@ -1875,3 +1875,14 @@ suites:
       - tests/skills/aai-update.Tests.ps1
       - tests/skills/lib/pester-native-capture.ps1
       - tests/skills/lib/pipe-safe.sh
+
+  aai-update-docs:
+    globs:
+      - CHANGELOG.md
+      - .aai/SKILL_UPDATE.prompt.md
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-update-docs.sh
+      - tests/skills/test-aai-prompt-diet.sh
+      - tests/skills/test-aai-pr-preflight.sh
+      - tests/skills/test-aai-suite-reuse.sh
+      - tests/skills/test-aai-expert-fetch.sh
