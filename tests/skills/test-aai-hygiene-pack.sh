@@ -4974,7 +4974,6 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
 #                               raw e9/ff fe bytes and a missing final newline
 
 SG_INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
-SG_INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
 
 sg_tmp() { TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"; }
 
@@ -5461,19 +5460,17 @@ test_807_default_branch_resolution_and_notes() {  # TEST-807 / Spec-AC-04
 
 test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
   log_info "Test: both installers write the close-gate, reference-transaction and guard block bytes from one set of templates (TEST-813)..."
-  [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-813: missing $SG_INSTALLER_PS1"
+  # pre-commit-installer-on-node (D-REHOME run 6): the .ps1 is a launcher of the Node module, so no assertion reads its text;
+  # the closed set is exercised through the launcher under pwsh and the template names are read from the module.
   sg_tmp
-  local d="$TEST_DIR/t813" tpl="$PROJECT_ROOT/.aai/templates/git-hooks" t
+  local d="$TEST_DIR/t813" tpl="$PROJECT_ROOT/.aai/templates/git-hooks" t mod="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs"
   rm -rf "$d"; mkdir -p "$d"
-  grep -qF "'close-gate'" "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 -Hooks closed set does not declare close-gate"
-  grep -qF 'closed set: index, ref-guard, close-gate, all' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 closed-set message does not read index, ref-guard, close-gate, all"
-  # The bodies are templates (spec-git-hook-bodies-single-source): neither installer embeds one, and
-  # both name the same template files.
+  [[ -f "$mod" ]] || log_fail "TEST-813: missing $mod"
+  # The bodies are templates (spec-git-hook-bodies-single-source): the module embeds none and names the four template files.
   for t in pre-push.sh pre-commit-index.sh pre-commit-guard-checks.sh reference-transaction.sh; do
     [[ -f "$tpl/$t" ]] || log_fail "TEST-813: missing template $t"
-    grep -qF "$t" "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 does not name the template $t"
+    grep -qF "$t" "$mod" || log_fail "TEST-813: the module does not name the template $t"
   done
-  grep -qF '$prePushBody = @' "$SG_INSTALLER_PS1" && log_fail "TEST-813: the .ps1 still carries a \$prePushBody here-string"
   grep -qF '# AAI:CLOSE-GATE' "$tpl/pre-push.sh" || log_fail "TEST-813: the pre-push template carries no # AAI:CLOSE-GATE marker"
   grep -qF '# AAI:GUARD-CHECKS BEGIN' "$tpl/pre-commit-guard-checks.sh" || log_fail "TEST-813: the guard template carries no guard block"
 
@@ -5484,9 +5481,18 @@ test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
   bash "$SG_INSTALLER" --print pre-push > "$d/prepush.sh"
   cmp -s "$d/prepush.sh" "$tpl/pre-push.sh" || log_fail "TEST-813: --print pre-push differs from the pre-push template"
 
-  # behavioural arm (pwsh only): the .ps1 upgrade inserts the block and keeps every other byte
+  # behavioural arm (pwsh only): the launcher's closed set, and the upgrade inserts the block and keeps every other byte
   if command -v pwsh >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
-    local r hp
+    local r hp r2 cout crc=0
+    r2="$(sg_repo t813closed)"
+    vendor_hook_installer "$r2" ps1
+    cout="$(sg_install_ps1 "$r2" -Hooks close-gate 2>&1)" || crc=$?
+    [[ $crc -eq 0 ]] || log_fail "TEST-813 pwsh: -Hooks close-gate exited $crc: $cout"
+    [[ -f "$(sg_hook "$r2" pre-push)" ]] || log_fail "TEST-813 pwsh: -Hooks close-gate wrote no pre-push hook"
+    [[ ! -e "$(sg_hook "$r2" pre-commit)" && ! -e "$(sg_hook "$r2" reference-transaction)" ]] || log_fail "TEST-813 pwsh: -Hooks close-gate wrote a hook besides pre-push"
+    crc=0; cout="$(sg_install_ps1 "$r2" -Hooks bogus 2>&1)" || crc=$?
+    [[ $crc -eq 2 ]] || log_fail "TEST-813 pwsh: -Hooks bogus must exit 2, got $crc: $cout"
+    assert_payload_contains "$cout" 'closed set: index, ref-guard, close-gate, all' "TEST-813 pwsh: the -Hooks refusal must name the closed set with close-gate"
     r="$(sg_repo t813pwsh)"
     vendor_hook_installer "$r" ps1
     hp="$(sg_hook "$r" pre-commit)"
@@ -5503,9 +5509,9 @@ test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
     cp "$hp" "$r/after"
     sg_install_ps1 "$r" -Hooks index >/dev/null 2>&1 || log_fail "TEST-813 pwsh: second run exited non-zero"
     cmp -s "$r/after" "$hp" || log_fail "TEST-813 pwsh: second run changed the hook"
-    log_pass "TEST-813 both installers read the same templates (guard block, pre-push body); pwsh upgrade inserts once, other bytes untouched"
+    log_pass "TEST-813 the module names the four templates both installers read (guard block, pre-push body); the launcher's -Hooks close-gate writes pre-push only and -Hooks bogus names the closed set; pwsh upgrade inserts once, other bytes untouched"
   else
-    log_pass "TEST-813 both installers read the same templates (guard block, pre-push body); SKIP: pwsh behavioural arm (pwsh not installed)"
+    log_pass "TEST-813 the module names the four templates both installers read (guard block, pre-push body); SKIP: pwsh behavioural arm (pwsh not installed)"
   fi
 }
 
@@ -5773,21 +5779,12 @@ test_819_nonregular_slot_is_refused_before_any_write() {  # TEST-819 / Spec-AC-1
 }
 
 test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-13
-  log_info "Test: the .ps1 twin checks marker order before any write and refreshes on bytes (static; behavioural under pwsh) (TEST-818)..."
-  [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-818: missing $SG_INSTALLER_PS1"
+  log_info "Test: the .ps1 launcher's upgrade checks marker order before any write and refreshes on bytes (behavioural under pwsh) (TEST-818)..."
+  # pre-commit-installer-on-node (D-REHOME run 6): the three text pins on the .ps1 are gone with its body; the behaviour arms
+  # below stay and now run the launcher and the module.
   sg_tmp
-  # static: the order comparison, the byte-level marker scan, and no
-  # decode-split-join-re-encode round-trip anywhere in the twin.
-  grep -qF '$beginLn -gt $endLn' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no BEGIN-before-END line-number check (\$beginLn -gt \$endLn)"
-  grep -qF 'function Find-MarkerLines' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Find-MarkerLines"
-  grep -qF 'function Test-MarkerOwned' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Test-MarkerOwned"
-  if grep -qF 'UTF8.GetString(' "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still decodes the hook as UTF-8 text (UTF8.GetString) — a refresh on decoded text re-encodes bytes outside the markers"; fi
-  local esc
-  for esc in '[regex]::Escape($marker)' '[regex]::Escape($Marker)'; do
-    if grep -qF "$esc" "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still tests ownership on decoded text ($esc)"; fi
-  done
   if ! command -v pwsh >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
-    log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); SKIP: behavioural arm (pwsh not installed)"
+    log_pass "TEST-818 .ps1 launcher checks marker order and scans markers on bytes; SKIP: behavioural arm (pwsh not installed)"
     return 0
   fi
   local d hp out rc body
@@ -5842,7 +5839,7 @@ test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-1
   rc=0; out="$(sg_install_ps1 "$d" -Uninstall -Hooks index 2>&1)" || rc=$?
   [[ $rc -eq 0 && -f "$hp" ]] || log_fail "TEST-818 pwsh (e): -Uninstall must exit 0 and leave a foreign hook in place (rc=$rc): $out"
   cmp -s "$d/orig-e" "$hp" || log_fail "TEST-818 pwsh (e): -Uninstall changed the foreign hook"
-  log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); under pwsh inverted markers, a stray END, a BOM, a UTF-16 hook and a merely-mentioned marker are refused byte-identical and the refresh keeps every byte outside the interior"
+  log_pass "TEST-818 .ps1 launcher checks marker order and scans markers on bytes; under pwsh inverted markers, a stray END, a BOM, a UTF-16 hook and a merely-mentioned marker are refused byte-identical and the refresh keeps every byte outside the interior"
 }
 
 # ---- nested-suite-reruns-duplicate-sweep-time, D6/D7/D8 (TEST-033/034/036) ---

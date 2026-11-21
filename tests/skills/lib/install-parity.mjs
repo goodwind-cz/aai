@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { HOOKS_TEMPLATE_REL, K01_FILES } from './aai-bootstrap-fixtures.mjs';
 import { materializeBootstrapReference } from './bootstrap-reference.mjs';
 import { materializeUpdateReference } from './update-reference.mjs';
+import { materializeHookInstallerReference } from './hook-installer-reference.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '../../..');
@@ -158,7 +159,7 @@ export const TWINS = {
       if (step.op === 'update') {
         return { file: ctx.bash, args: [`${fwd(ctx.upref)}/.aai/scripts/aai-update.sh`, '--repo', src, '--ref', 'main'], cwd: ctx.target };
       }
-      return { file: ctx.bash, args: ['.aai/scripts/install-pre-commit-hook.sh', ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };
+      return { file: ctx.bash, args: [`${fwd(ctx.hkref)}/.aai/scripts/install-pre-commit-hook.sh`, ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };
     },
   },
   ps1: {
@@ -172,7 +173,7 @@ export const TWINS = {
       if (step.op === 'update') {
         return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-update.ps1`, '-Repo', ctx.src, '-Ref', 'main'], cwd: ctx.target };
       }
-      return { file: ctx.ps, args: [...psHead(ctx), '.aai/scripts/install-pre-commit-hook.ps1', ...(step.flags || []).map((f) => PS_FLAG[f])], cwd: ctx.target };
+      return { file: ctx.ps, args: [...psHead(ctx), `${fwd(ctx.hkref)}/.aai/scripts/install-pre-commit-hook.ps1`, ...(step.flags || []).map((f) => PS_FLAG[f])], cwd: ctx.target };
     },
   },
   // The module twin: it runs only on bootstrap and update scenarios (ops). Bootstrap: straight on the Node module of the
@@ -180,10 +181,11 @@ export const TWINS = {
   // (peers), because next to the ps1 twin it would repeat every sync divergence of sh:ps1 under a second pair name.
   node: {
     name: 'node',
-    ops: ['bootstrap', 'update'],
+    ops: ['bootstrap', 'update', 'hooks'],
     peers: { update: ['sh'] },
     argv(step, ctx) {
       if (step.op === 'bootstrap') return { file: process.execPath, args: [path.join(ctx.bsref, '.aai', 'scripts', 'aai-bootstrap.mjs'), ctx.target, ...bsFlags(step)], cwd: ctx.target };
+      if (step.op === 'hooks') return { file: process.execPath, args: [path.join(ctx.target, '.aai', 'scripts', 'install-pre-commit-hook.mjs'), ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };
       return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-update.mjs'), '--repo', ctx.src, '--ref', 'main'], cwd: ctx.target, env: { AAI_UPDATE_SYNC_RUNNER: ctx.bash } };
     },
   },
@@ -759,7 +761,7 @@ function runScenario(scenario, allTwins, ctx) {
     (ctx.setup || defaultSetup)(scenario, targetDir, ctx, twin.name);
     const codes = []; const snaps = [];
     scenario.steps.forEach((step, i) => {
-      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref, upref: ctx.upref });
+      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref, upref: ctx.upref, hkref: ctx.hkref });
       const before = oddRootNames(targetDir); const t1 = Date.now();
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
       if (r.timedOut) throw new InfraTimeout(scenario.id, twin.name, i + 1);
@@ -811,6 +813,8 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   if (!c.bsref && scenarios.some((s) => s.op === 'bootstrap')) { c.bsref = path.join(c.root, 'bsref'); materializeBootstrapReference(REPO_ROOT, c.bsref); }
   // The frozen updater references for the update scenarios: the bash twin of the sh column runs from here.
   if (!c.upref && scenarios.some((s) => s.op === 'update')) { c.upref = path.join(c.root, 'upref'); materializeUpdateReference(REPO_ROOT, c.upref); }
+  // The frozen hook installer references (and the current templates beside them) for the hook scenarios: the sh and ps1 columns run from here.
+  if (!c.hkref && scenarios.some((s) => s.op === 'hooks')) { c.hkref = path.join(c.root, 'hkref'); materializeHookInstallerReference(REPO_ROOT, c.hkref); }
   const host = c.host || hostInfo();
   const report = { verdict: 'PASS', host: host.platform, tz: PINNED_TZ, matrix, twins: twins.map((t) => t.name), pairs: [], total_seconds: 0, scenarios: [], uncovered: [], stale: [] };
   const used = new Set(); const usedPairs = new Set(); const pairsByScenario = {}; const pairSet = []; const ran = [];

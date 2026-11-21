@@ -591,9 +591,10 @@ describe('TEST-3566 third twin seam', () => {
     const upp = M.TWINS.ps1.argv(up, ctx).args;
     assert.deepEqual(upp.slice(upp.indexOf('-File')), ['-File', '/s/.aai/scripts/aai-update.ps1', '-Repo', '/s', '-Ref', 'main']);
     const hk = { op: 'hooks', profile: null, flags: ['force', 'uninstall', 'decline-ref-guard'] };
-    assert.deepEqual(M.TWINS.sh.argv(hk, ctx).args, ['.aai/scripts/install-pre-commit-hook.sh', '--force', '--uninstall', '--decline-ref-guard']);
-    const hp = M.TWINS.ps1.argv(hk, ctx).args;
-    assert.deepEqual(hp.slice(hp.indexOf('-File')), ['-File', '.aai/scripts/install-pre-commit-hook.ps1', '-Force', '-Uninstall', '-DeclineRefGuard']);
+    const hctx = { ...ctx, hkref: '/hk' };
+    assert.deepEqual(M.TWINS.sh.argv(hk, hctx).args, ['/hk/.aai/scripts/install-pre-commit-hook.sh', '--force', '--uninstall', '--decline-ref-guard']);
+    const hp = M.TWINS.ps1.argv(hk, hctx).args;
+    assert.deepEqual(hp.slice(hp.indexOf('-File')), ['-File', '/hk/.aai/scripts/install-pre-commit-hook.ps1', '-Force', '-Uninstall', '-DeclineRefGuard']);
   });
   test('real twins: a mirror module twin passes, a one-byte skew fails naming sh:skew and ps1:skew', async () => {
     has('runMatrix');
@@ -953,8 +954,8 @@ describe('TEST-3975 update peers', () => {
     assert.deepEqual(rep.uncovered.map((d) => d.pair), ['sh:node']);
     assert.deepEqual(rep.pairs, ['sh:ps1', 'sh:node']);
   });
-  test('the real registry: the node twin runs update and bootstrap, peers only sh for update, and the update argv of sh and node', () => {
-    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update']);
+  test('the real registry: the node twin runs bootstrap, update and hooks, peers only sh for update, and the update argv of sh and node', () => {
+    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks']);
     assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
     assert.equal(M.TWINS.sh.peers, undefined);
     assert.equal(M.TWINS.ps1.peers, undefined);
@@ -987,6 +988,83 @@ describe('TEST-3975 update peers', () => {
     if (base.status === 0) {
       const baseRows = M.parseAllowlist(base.stdout, { twins: ['sh', 'ps1', 'node'] });
       assert.equal(rows.length, baseRows.length);
+      assert.deepEqual(rows.map((r) => r.id), baseRows.map((r) => r.id));
+    }
+  });
+});
+
+// TEST-3995 (pre-commit-installer-on-node, Spec-AC-16, D-PARITY): the module is the third twin on hook scenarios, all three
+// pairs are compared, the sh and ps1 twins run the frozen references from ctx.hkref, and the uninstall row is widened.
+describe('TEST-3995 hook twins', () => {
+  const hkScen = (over = {}) => scen({ id: 'HK-T1', op: 'hooks', setup: 'empty', steps: [{ op: 'hooks', profile: null, flags: [], expect: '0' }], probes: ['.git/hooks/pre-commit'], ...over });
+  const hook = (body) => ({ '.git/hooks/pre-commit': body });
+  const same = '#!/bin/sh\necho hook\n';
+  const run3 = (nodeFiles, extra = {}) => runFake([fakeTwin('sh', { files: hook(same) }), fakeTwin('ps1', { files: hook(same) }), fakeTwin('node', { files: nodeFiles })], [hkScen()], [], {
+    ctx: { root: scratch('hk'), src: null, hkref: '/unused', bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX },
+    ...extra,
+  });
+  test('a hook scenario compares all three pairs and passes when the three hooks are equal', () => {
+    has('runMatrix');
+    const rep = run3(hook(same));
+    assert.deepEqual(rep.pairs, ['sh:ps1', 'sh:node', 'ps1:node']);
+    assert.equal(rep.verdict, 'PASS', JSON.stringify(rep.uncovered));
+  });
+  test('a fake node twin that writes one more byte into a hook fails naming sh:node', () => {
+    has('runMatrix');
+    const rep = run3(hook(`${same}x`));
+    assert.equal(rep.verdict, 'FAIL');
+    assert.ok(rep.uncovered.some((d) => d.pair === 'sh:node'), JSON.stringify(rep.uncovered));
+  });
+  test('runMatrix builds hkref once for a hook scenario, hands it to every twin, and builds none for another operation', () => {
+    has('runMatrix');
+    const seen = [];
+    const spy = (name, files) => ({ name, argv(step, ctx) { seen.push([name, ctx.hkref]); return fakeTwin(name, { files }).argv(step, ctx); } });
+    const root = scratch('hkref');
+    M.runMatrix({
+      scenarios: [hkScen()], twins: [spy('sh', hook(same)), spy('ps1', hook(same)), spy('node', hook(same))], rows: [], matrix: 'smoke', filtered: false,
+      ctx: { root, src: root, bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX },
+    });
+    assert.equal(seen.length, 3);
+    const refs = new Set(seen.map((x) => x[1]));
+    assert.equal(refs.size, 1);
+    const [ref] = refs;
+    assert.ok(fs.existsSync(path.join(ref, '.aai', 'scripts', 'install-pre-commit-hook.sh')), 'the frozen bash reference is there');
+    assert.ok(fs.existsSync(path.join(ref, '.aai', 'scripts', 'install-pre-commit-hook.ps1')), 'the frozen PowerShell reference is there');
+    const other = [];
+    M.runMatrix({
+      scenarios: [scen()], twins: [{ name: 'sh', argv(step, ctx) { other.push(ctx.hkref); return fakeTwin('sh', { files: { 'p.txt': 'a\n' } }).argv(step, ctx); } }, fakeTwin('ps1', { files: { 'p.txt': 'a\n' } })], rows: [], matrix: 'smoke', filtered: false,
+      ctx: { root: scratch('nohkref'), src: root, bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX },
+    });
+    assert.deepEqual(other, [undefined]);
+  });
+  test('the real registry: the node twin runs bootstrap, update and hooks with peers for update only, and the hooks argv of the three twins', () => {
+    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks']);
+    assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
+    const ctx = { src: '/s', target: '/t', bash: '/bin/bash', ps: 'pwsh', hkref: '/hk' };
+    const hk = { op: 'hooks', profile: null, flags: ['force', 'uninstall', 'decline-ref-guard'] };
+    const sh = M.TWINS.sh.argv(hk, ctx);
+    assert.deepEqual([sh.file, ...sh.args], ['/bin/bash', '/hk/.aai/scripts/install-pre-commit-hook.sh', '--force', '--uninstall', '--decline-ref-guard']);
+    assert.equal(sh.cwd, '/t');
+    const ps = M.TWINS.ps1.argv(hk, ctx);
+    assert.deepEqual(ps.args.slice(ps.args.indexOf('-File')), ['-File', '/hk/.aai/scripts/install-pre-commit-hook.ps1', '-Force', '-Uninstall', '-DeclineRefGuard']);
+    const nd = M.TWINS.node.argv(hk, ctx);
+    assert.equal(nd.file, process.execPath);
+    assert.deepEqual(nd.args, [path.join('/t', '.aai', 'scripts', 'install-pre-commit-hook.mjs'), '--force', '--uninstall', '--decline-ref-guard']);
+    assert.equal(nd.cwd, '/t');
+    const src = fs.readFileSync(DRIVER, 'utf8');
+    const line = "      if (step.op === 'hooks') return { file: process.execPath, args: [path.join(ctx.target, '.aai', 'scripts', 'install-pre-commit-hook.mjs'), ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };";
+    assert.equal(src.split(line).length - 1, 1);
+  });
+  test('the widened hk-uninstall-removes-hooks row pairs sh:sh,ps1:ps1,node:node, and no other row is added', () => {
+    has('parseAllowlist');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
+    const row = rows.filter((r) => r.id === 'hk-uninstall-removes-hooks');
+    assert.equal(row.length, 1);
+    assert.equal(row[0].pairs, 'sh:sh,ps1:ps1,node:node');
+    assert.match(row[0].reason, /the module twin's uninstall step removes what its install step wrote, as the twins do$/);
+    const base = spawnSync('git', ['show', `52152cdb:${UPDATE_ALLOWLIST_BASE}`], { cwd: ROOT, encoding: 'utf8' });
+    if (base.status === 0) {
+      const baseRows = M.parseAllowlist(base.stdout, { twins: ['sh', 'ps1', 'node'] });
       assert.deepEqual(rows.map((r) => r.id), baseRows.map((r) => r.id));
     }
   });

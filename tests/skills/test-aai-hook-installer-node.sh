@@ -478,8 +478,183 @@ test_3992_rehomed_bash_side() {
   log_pass "TEST-3992: the re-homed and vendoring selectors of seven suites exit 0 against the launcher, check-vendored-script-deps exits 0, the helper copies module and guard-config once each, PROFILES core lists the module and the four contract records exist"
 }
 
+# --- run 6: the ps1 launcher, the PowerShell-side re-homes and the parity third twin (TEST-3993 to TEST-3995) ---------
+PS1_LAUNCHER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
+PESTER_FILE="$PROJECT_ROOT/tests/skills/install-pre-commit-hook.Tests.ps1"
+PARITY_DRIVER="$PROJECT_ROOT/tests/skills/lib/install-parity.mjs"
+PARITY_TEST="$PROJECT_ROOT/tests/skills/lib/install-parity.test.mjs"
+BOOTSTRAP_TEST="$PROJECT_ROOT/tests/skills/lib/aai-bootstrap.test.mjs"
+
+# ps1_problems <file>: prints one line per way the launcher text breaks D-LAUNCH.
+ps1_problems() {
+  local f="$1" lines body token
+  lines="$(wc -l < "$f" | tr -d ' ')"
+  [[ "$lines" -le 20 ]] || echo "the launcher has $lines lines, at most 20 allowed"
+  if LC_ALL=C /usr/bin/grep -q '[^ -~	]' "$f"; then echo "the launcher holds a non-ASCII byte"; fi
+  if /usr/bin/grep -qi '^[[:space:]]*param[[:space:]]*(' "$f"; then echo "the launcher holds a param block"; fi
+  body="$(/usr/bin/grep -v '^#' "$f")"
+  for token in 'rev-parse' 'ref_guard' 'AAI:' 'docs-audit' 'exit 2' '-Force' '-Print' '-Hooks' '-Uninstall' 'DeclineRefGuard' 'ArmRefGuard'; do
+    [[ "$body" != *"$token"* ]] || echo "the launcher holds the policy token: $token"
+  done
+  if printf '%s\n' "$body" | /usr/bin/grep -qE '(^|[^A-Za-z-])git([^A-Za-z-]|$)'; then echo "the launcher names git"; fi
+}
+
+# run_pester <label> <work dir> [<full name filter>]: Invoke-Pester on the hook installer Pester file in the project root;
+# prints "PESTER passed=N skipped=N failed=N containers=N" and fails the test when Pester did not run.
+run_pester() {
+  local label="$1" work="$2" filter="${3:-}" out
+  ( cd "$PROJECT_ROOT" && AAI_PESTER_FILTER="$filter" env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command '
+    Import-Module Pester -MinimumVersion 5.0
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = "tests/skills/install-pre-commit-hook.Tests.ps1"
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "None"
+    if ($env:AAI_PESTER_FILTER) { $cfg.Filter.FullName = $env:AAI_PESTER_FILTER }
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Output ("PESTER passed=" + $r.PassedCount + " skipped=" + $r.SkippedCount + " failed=" + $r.FailedCount + " containers=" + $r.FailedContainersCount)
+  ' ) > "$work/pester.log" 2>&1 || { cat "$work/pester.log" >&2; log_fail "$label: Invoke-Pester did not run"; }
+  out="$(tail -n 1 "$work/pester.log")"
+  [[ "$out" =~ ^PESTER\ passed=([0-9]+)\ skipped=([0-9]+)\ failed=([0-9]+)\ containers=([0-9]+)$ ]] || { cat "$work/pester.log" >&2; log_fail "$label: unreadable Pester summary: $out"; }
+  printf '%s\n' "$out"
+}
+
+# need_pester <TEST id>: 0 when pwsh has Pester 5 or later; fail on CI when it has not; named SKIP-CASE otherwise.
+need_pester() {
+  need_tool "$1" pwsh || return 1
+  if env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -ge 5 }) { exit 0 } else { exit 1 }' >/dev/null 2>&1; then return 0; fi
+  [[ -z "${CI:-}" ]] || log_fail "$1: Pester 5 is required on CI but pwsh has none"
+  echo "SKIP-CASE: $1 needs Pester 5, which pwsh here does not have"
+  return 1
+}
+
+test_3993_ps1_launcher() {
+  [[ -f "$PS1_LAUNCHER" ]] || log_fail "TEST-3993: .aai/scripts/install-pre-commit-hook.ps1 does not exist"
+  local problems work counts
+  problems="$(ps1_problems "$PS1_LAUNCHER")"
+  [[ -z "$problems" ]] || log_fail "TEST-3993: $problems"
+  need_pester TEST-3993 || return 0
+  work="$(new_own_scratch pester-launcher)"
+  counts="$(run_pester TEST-3993 "$work" '*launcher (pre-commit-installer-on-node)*')"
+  [[ "$counts" == "PESTER passed=5 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-3993: Pester summary '$counts', expected 5 passed, 0 skipped, 0 failed, 0 failed containers"; }
+  safe_rm_own "$work"
+  log_pass "TEST-3993: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, and the five launcher cases pass under Invoke-Pester with 0 skips, 0 failures and 0 failed containers"
+}
+
+# amend_count <list json> <spec id fragment> <what prefix>: prints the number of contract records of ref pre-commit-installer-on-node.
+# The list goes in on stdin: as one argument it outgrows the 128 KiB Linux limit on a single argv string.
+amend_count() {
+  node -e '
+    const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const hit = d.items.filter((i) => i.ref_id === "pre-commit-installer-on-node" && i.amendment_class === "contract" && i.spec.includes(process.argv[1]) && i.what.startsWith(process.argv[2]));
+    process.stdout.write(String(hit.length));
+  ' "$2" "$3" <<<"$1"
+}
+
+# fn_body <file> <function name>: the source of one shell function (from its definition to the closing brace in column 0).
+fn_body() {
+  awk -v name="$2" '$0 ~ "^" name "\\(\\) \\{" { p = 1 } p { print } p && /^}$/ { exit }' "$1"
+}
+
+test_3994_rehomed_ps1_side() {
+  need_tool TEST-3994 git || return 0
+  local pair suite fn body rc out
+  # no assertion in a re-homed function reads the .ps1's text
+  for pair in \
+    "test-aai-git-ref-guard.sh test_309_ps1_twin_static" "test-aai-git-ref-guard.sh test_608_ps1_hooks_static" \
+    "test-aai-git-ref-guard.sh test_631_ps1_decline_arm_params_static" "test-aai-git-ref-guard.sh test_632_ps1_policy_reader_fails_closed_static" \
+    "test-aai-git-ref-guard.sh test_633_ps1_foreign_refusal_shared_helper" "test-aai-git-ref-guard.sh test_637_ps1_plain_reinstall_honours_decline_static" \
+    "test-aai-git-ref-guard.sh test_641_ps1_write_policy_corrects_stray_value" "test-aai-git-ref-guard.sh test_642_ps1_decline_orders_write_before_removal" \
+    "test-aai-git-ref-guard.sh test_644_ps1_decline_seeds_or_discloses_new_config" "test-aai-git-ref-guard.sh test_646_ps1_hooks_contradicts_decline_arm" \
+    "test-aai-git-ref-guard.sh test_647_arm_ref_guard_creates_missing_hooks_dir" \
+    "test-aai-hygiene-pack.sh test_813_ps1_twin_parity" "test-aai-hygiene-pack.sh test_818_ps1_upgrade_is_byte_exact_and_order_checked"; do
+    suite="${pair%% *}"
+    fn="${pair#* }"
+    body="$(fn_body "$PROJECT_ROOT/tests/skills/$suite" "$fn")"
+    [[ -n "$body" ]] || log_fail "TEST-3994: $suite has no function $fn"
+    if printf '%s\n' "$body" | /usr/bin/grep -E '(^|[^A-Za-z_])(grep|egrep|fgrep|awk|sed|cat|head|tail)[^|#]*INSTALLER_PS1' >/dev/null; then
+      log_fail "TEST-3994: $suite $fn still reads the .ps1's text"
+    fi
+  done
+  need_pester TEST-3994 || return 0
+  for pair in \
+    "test-aai-git-ref-guard.sh test_309_ps1_twin_static" "test-aai-git-ref-guard.sh test_608_ps1_hooks_static" \
+    "test-aai-git-ref-guard.sh test_631_ps1_decline_arm_params_static" "test-aai-git-ref-guard.sh test_632_ps1_policy_reader_fails_closed_static" \
+    "test-aai-git-ref-guard.sh test_633_ps1_foreign_refusal_shared_helper" "test-aai-git-ref-guard.sh test_637_ps1_plain_reinstall_honours_decline_static" \
+    "test-aai-git-ref-guard.sh test_641_ps1_write_policy_corrects_stray_value" "test-aai-git-ref-guard.sh test_642_ps1_decline_orders_write_before_removal" \
+    "test-aai-git-ref-guard.sh test_644_ps1_decline_seeds_or_discloses_new_config" "test-aai-git-ref-guard.sh test_646_ps1_hooks_contradicts_decline_arm" \
+    "test-aai-git-ref-guard.sh test_647_arm_ref_guard_creates_missing_hooks_dir" \
+    "test-aai-hygiene-pack.sh test_813_ps1_twin_parity" "test-aai-hygiene-pack.sh test_818_ps1_upgrade_is_byte_exact_and_order_checked"; do
+    rc=0
+    out="$(env -u AAI_ROLE -u AAI_GIT_WRITE bash "$PROJECT_ROOT/tests/skills/${pair%% *}" "${pair#* }" 2>&1)" || rc=$?
+    [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3994: ${pair%% *} ${pair#* } exited $rc"; }
+    [[ "$out" != *"SKIP"* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3994: ${pair%% *} ${pair#* } skipped a part"; }
+  done
+  local work counts json id
+  work="$(new_own_scratch pester-whole)"
+  counts="$(run_pester TEST-3994 "$work")"
+  [[ "$counts" =~ ^PESTER\ passed=([0-9]+)\ skipped=0\ failed=0\ containers=0$ && "${BASH_REMATCH[1]}" -ge 12 ]] || { cat "$work/pester.log" >&2; log_fail "TEST-3994: Pester summary '$counts', expected at least 12 passes with 0 skips, 0 failures and 0 failed containers"; }
+  safe_rm_own "$work"
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-3994: spec-amend list failed"
+  for id in "SPEC-0184-|TEST-608 to TEST-647 re-homed" "SPEC-0156-|TEST-309 re-homed" "SPEC-0201-|TEST-813 and TEST-818 re-homed" "SPEC-0278-|install-pre-commit-hook.Tests.ps1 vendors the module"; do
+    out="$(amend_count "$json" "${id%%|*}" "${id#*|}")"
+    [[ "$out" == 1 ]] || log_fail "TEST-3994: contract records of ref pre-commit-installer-on-node for $id: $out, want 1"
+  done
+  log_pass "TEST-3994: the thirteen PowerShell-side re-homed selectors exit 0 with no assertion reading the .ps1 text, the whole Pester file passes with 0 skips, 0 failures and 0 failed containers, and the four contract records exist"
+}
+
+test_3995_parity_hooks() {
+  need_pester TEST-3995 || return 0
+  local work rc=0 verdict json args id
+  work="$(new_own_scratch parity-hooks)"
+  args=()
+  for id in HK-01 HK-02 HK-03 HK-04 HK-05 HK-06 HK-07 HK-08 HK-09 HK-10; do args+=(--scenario "$id"); done
+  env -u AAI_ROLE -u AAI_GIT_WRITE node "$PARITY_DRIVER" run --matrix full --twins sh,ps1,node "${args[@]}" --json "$work/hk.json" > "$work/hk.out" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/hk.out" >&2; log_fail "TEST-3995: the driver run over HK-01 to HK-10 exited $rc"; }
+  verdict="$(node -e '
+    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const bad = [];
+    if (r.verdict !== "PASS") bad.push("verdict " + r.verdict);
+    const ids = ["HK-01", "HK-02", "HK-03", "HK-04", "HK-05", "HK-06", "HK-07", "HK-08", "HK-09", "HK-10"];
+    for (const id of ids) {
+      const s = r.scenarios.find((x) => x.id === id);
+      if (!s) { bad.push(id + " missing"); continue; }
+      const twins = [...new Set(s.steps.map((x) => x.twin))].sort().join(",");
+      if (twins !== "node,ps1,sh") bad.push(id + " ran twins " + twins);
+    }
+    const cross = r.pairs.filter((p) => p.split(":")[0] !== p.split(":")[1]).sort().join(" ");
+    if (cross !== "ps1:node sh:node sh:ps1") bad.push("pairs " + cross);
+    if (r.uncovered.length) bad.push("uncovered " + JSON.stringify(r.uncovered));
+    process.stdout.write(bad.length ? bad.join("; ") : "ok");
+  ' "$work/hk.json")" || log_fail "TEST-3995: cannot read the driver report"
+  [[ "$verdict" == ok ]] || { cat "$work/hk.out" >&2; log_fail "TEST-3995: $verdict"; }
+  # the sh and ps1 argv name hkref, the node twin runs only update, bootstrap and hooks scenarios
+  verdict="$(AAI_PARITY_DRIVER_PATH="$PARITY_DRIVER" node --input-type=module -e '
+    const m = await import(process.env.AAI_PARITY_DRIVER_PATH);
+    const bad = [];
+    const ctx = { src: "/s", target: "/t", bash: "bash", ps: "pwsh", hkref: "/hk" };
+    const hk = { op: "hooks", profile: null, flags: [] };
+    const sh = m.TWINS.sh.argv(hk, ctx);
+    if (sh.args[0] !== "/hk/.aai/scripts/install-pre-commit-hook.sh") bad.push("sh argv " + sh.args[0]);
+    const ps = m.TWINS.ps1.argv(hk, ctx);
+    if (!ps.args.includes("/hk/.aai/scripts/install-pre-commit-hook.ps1")) bad.push("ps1 argv " + ps.args.join(" "));
+    const odd = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && !["update", "bootstrap", "hooks"].includes(s.op)).map((s) => s.id);
+    if (odd.length) bad.push("node runs " + odd.join(","));
+    process.stdout.write(bad.length ? bad.join("; ") : "ok");
+  ')"
+  [[ "$verdict" == ok ]] || log_fail "TEST-3995: $verdict"
+  run_node_tests TEST-3995 "$PARITY_TEST"
+  run_node_tests TEST-3956 "$BOOTSTRAP_TEST"
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-3995: spec-amend list failed"
+  for id in "SPEC-0284-|D-SEAM hook twins run the frozen references" "SPEC-0306-|TEST-3956 node twin operations"; do
+    verdict="$(amend_count "$json" "${id%%|*}" "${id#*|}")"
+    [[ "$verdict" == 1 ]] || log_fail "TEST-3995: contract records of ref pre-commit-installer-on-node for $id: $verdict, want 1"
+  done
+  safe_rm_own "$work"
+  log_pass "TEST-3995: the parity driver passes HK-01 to HK-10 with twins sh, ps1 and node on all three pairs, the sh and ps1 twins run the frozen references, the node twin runs only update, bootstrap and hooks scenarios, the unit tests and TEST-3956 hold, and the SPEC-0284 and SPEC-0306 records exist"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3997, grows run by run)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3995, grows run by run)"
   check_deps
   setup_fixture
   test_3980_scratch_safety
@@ -495,6 +670,9 @@ main() {
   test_3990_corpus_powershell
   test_3991_sh_launcher
   test_3992_rehomed_bash_side
+  test_3993_ps1_launcher
+  test_3994_rehomed_ps1_side
+  test_3995_parity_hooks
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
