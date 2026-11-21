@@ -151,6 +151,8 @@ export function readCoupledFamilies(dir) {
 // there, per check-vendored-script-deps.mjs), conformance-tested by
 // tests/skills/test-aai-hygiene-pack.sh test_618.
 export const REF_GUARD_POLICY = ['armed', 'declined'];
+const REF_GUARD_KEY_LINE = /^ref_guard:/;
+const BOM = '\uFEFF';
 
 // readRefGuardPolicy(dir) -> 'armed' | 'declined'
 // Column-0 `ref_guard: <value>` line scan in docs-audit.yaml, same line
@@ -173,6 +175,8 @@ export function readRefGuardPolicy(dir, opts = {}) {
   } catch {
     return 'armed';   // absent file: fail-CLOSED default (D3)
   }
+  // A single leading BOM is not part of line 1 (DR-16: an editor-saved file reads as the editor meant it).
+  if (raw.startsWith(BOM)) raw = raw.slice(BOM.length);
   for (const line of raw.split(/\r?\n/)) {
     const m = line.match(/^ref_guard:\s*(\S+)/);
     if (!m) continue;   // column-0 only; first occurrence wins
@@ -253,8 +257,112 @@ export function coupledGroupFor(groups, prefix) {
   return [p];
 }
 
-// writeRefGuardPolicy: placeholder until the policy-writer run of the hook installer port; the installer
-// module imports it by name, so the export must exist before its body does.
-export function writeRefGuardPolicy() {
-  throw new Error('writeRefGuardPolicy is not implemented yet');
+// writeRefGuardPolicy(dir, value, { seedFrom, dryRun, rename, readBack }) -> { path, seeded, changed, removed } (a dry run adds keyLines)
+// The single writer of the ref_guard line in <dir>/docs-audit.yaml (hook installer port, D-POLICY, DR-15 to DR-17).
+// `value` is armed or declined. The first column-0 `ref_guard:` line (valued or not) becomes `ref_guard: <value>`
+// with its own terminator, every later one is removed (their 1-based line numbers are returned in `removed`), and
+// with none the line is appended using the file's terminator. The file is read and written as bytes (latin1), so
+// every other byte, each line's own terminator and a leading BOM survive. A symbolic link is followed and kept; the
+// bytes go to a temp sibling of the real target and are renamed over it, so the target's permission bits stay.
+// `seeded` is 'template' (an absent file started from the bytes of `seedFrom`), 'empty' (an absent file started
+// empty) or null. `dryRun` reports `keyLines` and `removed` and writes nothing. `rename` and `readBack` are test seams.
+const refusedWrite = (cfgPath) => new Error(`${cfgPath} is not writable; nothing was written`);
+
+function resolveWriteTarget(cfgPath) {
+  let st;
+  try {
+    st = fs.lstatSync(cfgPath);
+  } catch {
+    return { target: cfgPath, exists: false };
+  }
+  if (!st.isSymbolicLink()) return { target: cfgPath, exists: true };
+  const refused = () => new Error(`${cfgPath} is a symbolic link to ${fs.readlinkSync(cfgPath)}; nothing was written`);
+  let target;
+  try {
+    target = fs.realpathSync(cfgPath);
+  } catch {
+    throw refused();
+  }
+  if (!fs.statSync(target).isFile()) throw refused();
+  return { target, exists: true };
+}
+
+function composePolicy(current, value) {
+  const bomBytes = Buffer.from(BOM, 'utf8').toString('latin1');
+  const bom = current.startsWith(bomBytes) ? bomBytes : '';
+  const lines = current.slice(bom.length).match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  const terminator = (line) => (line.endsWith('\r\n') ? '\r\n' : line.endsWith('\n') ? '\n' : '');
+  const keyLines = [];
+  lines.forEach((line, i) => { if (REF_GUARD_KEY_LINE.test(line)) keyLines.push(i + 1); });
+  const removed = keyLines.slice(1);
+  if (keyLines.length === 0) {
+    const last = lines.length ? lines[lines.length - 1] : '';
+    const eol = lines.find((l) => terminator(l) !== '') ? terminator(lines.find((l) => terminator(l) !== '')) : '\n';
+    const head = lines.length && terminator(last) === '' ? [...lines.slice(0, -1), last + eol] : lines;
+    return { text: bom + [...head, `ref_guard: ${value}${eol}`].join(''), keyLines, removed };
+  }
+  const out = [];
+  lines.forEach((line, i) => {
+    if (i + 1 === keyLines[0]) out.push(`ref_guard: ${value}${terminator(line)}`);
+    else if (!removed.includes(i + 1)) out.push(line);
+  });
+  return { text: bom + out.join(''), keyLines, removed };
+}
+
+export function writeRefGuardPolicy(dir, value, opts = {}) {
+  if (!REF_GUARD_POLICY.includes(value)) throw new Error(`ref_guard value must be armed or declined, got ${JSON.stringify(value)}`);
+  const cfgPath = path.join(dir, GUARD_CONFIG_BASENAME);
+  const { target, exists } = resolveWriteTarget(cfgPath);
+  let seeded = null;
+  let current = null;
+  let seedBytes = null;
+  if (exists) {
+    current = fs.readFileSync(target);
+  } else if (opts.seedFrom && fs.existsSync(opts.seedFrom) && fs.statSync(opts.seedFrom).isFile()) {
+    seedBytes = fs.readFileSync(opts.seedFrom);
+    seeded = 'template';
+  } else {
+    seeded = 'empty';
+  }
+  const base = current ?? seedBytes ?? Buffer.alloc(0);
+  const { text, keyLines, removed } = composePolicy(base.toString('latin1'), value);
+  if (opts.dryRun) return { path: cfgPath, seeded: null, changed: false, removed, keyLines };
+  const next = Buffer.from(text, 'latin1');
+  if (current && current.equals(next)) {
+    const same = (opts.readBack ?? readRefGuardPolicy)(dir, { warn: () => {} });
+    if (same !== value) throw new Error(`wrote ref_guard: ${value} to ${cfgPath} but reading it back gives ${same}`);
+    return { path: cfgPath, seeded: null, changed: false, removed };
+  }
+  if (exists) {
+    try {
+      fs.accessSync(target, fs.constants.W_OK);
+    } catch {
+      throw refusedWrite(cfgPath);
+    }
+  } else {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const mode = exists ? fs.statSync(target).mode & 0o777 : 0o666;
+  const tmp = `${target}.aai-tmp.${process.pid}`;
+  let fd;
+  try {
+    try {
+      fd = fs.openSync(tmp, 'wx', mode);
+    } catch (e) {
+      if (e && (e.code === 'EACCES' || e.code === 'EPERM' || e.code === 'EROFS')) throw refusedWrite(cfgPath);
+      throw e;
+    }
+    if (exists) fs.fchmodSync(fd, mode);
+    fs.writeSync(fd, next);
+    fs.closeSync(fd);
+    fd = undefined;
+    (opts.rename ?? fs.renameSync)(tmp, target);
+  } catch (e) {
+    if (fd !== undefined) fs.closeSync(fd);
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
+  const got = (opts.readBack ?? readRefGuardPolicy)(dir, { warn: () => {} });
+  if (got !== value) throw new Error(`wrote ref_guard: ${value} to ${cfgPath} but reading it back gives ${got}`);
+  return { path: cfgPath, seeded, changed: true, removed };
 }

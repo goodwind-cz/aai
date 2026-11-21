@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, statSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -748,5 +748,712 @@ describe('TEST-3982 arguments and the one resolved mode', () => {
     assert.equal(help.stderr, '');
     assert.equal(help.stdout, expectedHelp());
     assert.deepEqual(listTree(root).filter((f) => f !== OWN_MARKER_FILE && f !== 'gitconfig' && f !== 'tmp'), [], 'the runs created nothing');
+  });
+});
+
+// --- TEST-3983 ---------------------------------------------------------------------------------------------
+
+const GUARD_CONFIG_URL = pathToFileURL(path.join(ROOT, '.aai', 'scripts', 'lib', 'guard-config.mjs')).href;
+const DOCTOR = path.join(ROOT, '.aai', 'scripts', 'aai-doctor.mjs');
+const CFG = 'docs-audit.yaml';
+const BOM = '﻿';
+
+// cfgDir(label, bytes): a fresh own scratch directory standing for docs/ai, with the config written when given.
+function cfgDir(label, bytes) {
+  const dir = path.join(scratch(label), 'ai');
+  mkdirSync(dir);
+  if (bytes !== undefined) writeFileSync(path.join(dir, CFG), bytes);
+  return dir;
+}
+const cfgBytes = (dir) => readFileSync(path.join(dir, CFG));
+const cfgText = (dir) => cfgBytes(dir).toString('latin1');
+const noTemp = (dir) => assert.deepEqual(readdirSync(dir).filter((f) => f.includes('.aai-tmp.')), [], 'no temp sibling is left');
+
+// gitScratch(root, name): a scratch repository (no commit needed) with isolated git configuration.
+function gitScratch(root, name = 'repo') {
+  const repo = path.join(root, name);
+  mkdirSync(repo, { recursive: true });
+  const env = prepareEnv(root);
+  assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, env, encoding: 'utf8' }).status, 0);
+  return repo;
+}
+
+describe('TEST-3983 the ref_guard policy writer and the reader', () => {
+  test('TEST-3983 seeds an absent file from seedFrom or from nothing and creates the directory', async () => {
+    const { writeRefGuardPolicy, readRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const root = scratch('seed-');
+    const tpl = path.join(root, 'tpl.yaml');
+    writeFileSync(tpl, '# seed\r\nstale_after_days: 90\r\n');
+    const dir = path.join(root, 'new', 'ai');
+    const r = writeRefGuardPolicy(dir, 'declined', { seedFrom: tpl });
+    assert.deepEqual({ ...r, path: path.basename(r.path) }, { path: CFG, seeded: 'template', changed: true, removed: [] });
+    assert.equal(cfgText(dir), '# seed\r\nstale_after_days: 90\r\nref_guard: declined\r\n', 'the template bytes, then the key with the file terminator');
+    assert.equal(readRefGuardPolicy(dir), 'declined');
+    const dir2 = path.join(root, 'other', 'ai');
+    const r2 = writeRefGuardPolicy(dir2, 'armed', { seedFrom: path.join(root, 'missing.yaml') });
+    assert.equal(r2.seeded, 'empty');
+    assert.equal(cfgText(dir2), 'ref_guard: armed\n');
+    const dir3 = path.join(root, 'third', 'ai');
+    assert.equal(writeRefGuardPolicy(dir3, 'armed', { seedFrom: root }).seeded, 'empty', 'a directory is not a seed');
+    const dir4 = cfgDir('seed-existing-', 'a: 1\n');
+    assert.equal(writeRefGuardPolicy(dir4, 'armed', { seedFrom: tpl }).seeded, null, 'an existing file is never seeded');
+    assert.equal(cfgText(dir4), 'a: 1\nref_guard: armed\n');
+    assert.throws(() => writeRefGuardPolicy(dir4, 'maybe'), /armed or declined/);
+    assert.throws(() => writeRefGuardPolicy(dir4, undefined), /armed or declined/);
+    assert.equal(cfgText(dir4), 'a: 1\nref_guard: armed\n', 'a refused value writes nothing');
+  });
+
+  test('TEST-3983 a symbolic link is written through and kept, a dangling or non-file link is refused', async () => {
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const root = scratch('link-');
+    const real = path.join(root, 'real.yaml');
+    writeFileSync(real, 'x: 1\nref_guard: armed\n');
+    const dir = path.join(root, 'ai');
+    mkdirSync(dir);
+    symlinkSync(real, path.join(dir, CFG));
+    const r = writeRefGuardPolicy(dir, 'declined');
+    assert.equal(r.changed, true);
+    assert.ok(lstatSync(path.join(dir, CFG)).isSymbolicLink(), 'the link is kept');
+    assert.equal(readlinkSync(path.join(dir, CFG)), real);
+    assert.equal(readFileSync(real, 'utf8'), 'x: 1\nref_guard: declined\n', 'the target is written');
+    noTemp(root);
+    const dir2 = path.join(root, 'ai2');
+    mkdirSync(dir2);
+    const ghost = path.join(root, 'ghost.yaml');
+    symlinkSync(ghost, path.join(dir2, CFG));
+    assert.throws(() => writeRefGuardPolicy(dir2, 'armed'), (e) => e.message === `${path.join(dir2, CFG)} is a symbolic link to ${ghost}; nothing was written`);
+    assert.ok(!existsSync(ghost), 'the dangling target was not created');
+    assert.ok(lstatSync(path.join(dir2, CFG)).isSymbolicLink());
+    const dir3 = path.join(root, 'ai3');
+    mkdirSync(dir3);
+    symlinkSync(root, path.join(dir3, CFG));
+    assert.throws(() => writeRefGuardPolicy(dir3, 'armed'), /is a symbolic link to .*; nothing was written/);
+    assert.deepEqual(readdirSync(dir3), [CFG]);
+  });
+
+  test('TEST-3983 the permission bits of the file are kept (0644 and 0600) and a new file gets 0666 minus umask', async () => {
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    for (const mode of [0o644, 0o600, 0o664]) {
+      const dir = cfgDir('mode-', 'ref_guard: armed\n');
+      chmodSync(path.join(dir, CFG), mode);
+      writeRefGuardPolicy(dir, 'declined');
+      assert.equal(statSync(path.join(dir, CFG)).mode & 0o777, mode, `mode ${mode.toString(8)} kept`);
+      assert.equal(cfgText(dir), 'ref_guard: declined\n');
+    }
+    const fresh = path.join(scratch('mode-new-'), 'ai');
+    writeRefGuardPolicy(fresh, 'armed');
+    const old = process.umask(0o022);
+    process.umask(old);
+    assert.equal(statSync(path.join(fresh, CFG)).mode & 0o777, 0o666 & ~old);
+  });
+
+  test('TEST-3983 each line keeps its own terminator and a leading BOM is kept byte for byte', async () => {
+    const { writeRefGuardPolicy, readRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const dir = cfgDir('eol-', 'a: 1\r\nref_guard: armed\nb: 2\r\nc: 3\n');
+    writeRefGuardPolicy(dir, 'declined');
+    assert.equal(cfgText(dir), 'a: 1\r\nref_guard: declined\nb: 2\r\nc: 3\n', 'the replaced LF line stays LF, the CRLF lines stay CRLF');
+    const crlf = cfgDir('eol-crlf-', 'ref_guard: armed\r\nb: 2\r\n');
+    writeRefGuardPolicy(crlf, 'declined');
+    assert.equal(cfgText(crlf), 'ref_guard: declined\r\nb: 2\r\n', 'a replaced CRLF line keeps its CR');
+    const last = cfgDir('eol-last-', 'a: 1\nref_guard: armed');
+    writeRefGuardPolicy(last, 'declined');
+    assert.equal(cfgText(last), 'a: 1\nref_guard: declined', 'a last line without a terminator gets none');
+    const bom = cfgDir('eol-bom-', Buffer.concat([Buffer.from(BOM, 'utf8'), Buffer.from('ref_guard: armed\r\nb: 2\r\n')]));
+    const r = writeRefGuardPolicy(bom, 'declined');
+    assert.equal(r.changed, true);
+    assert.deepEqual([...cfgBytes(bom).subarray(0, 3)], [0xef, 0xbb, 0xbf], 'the BOM bytes are kept');
+    assert.equal(cfgBytes(bom).subarray(3).toString('latin1'), 'ref_guard: declined\r\nb: 2\r\n', 'line 1 matched without the BOM');
+    assert.equal(readRefGuardPolicy(bom), 'declined');
+    const raw = Buffer.concat([Buffer.from([0xff, 0xfe, 0x80, 0x0a]), Buffer.from('ref_guard: armed\n')]);
+    const bin = cfgDir('eol-bin-', raw);
+    writeRefGuardPolicy(bin, 'declined');
+    assert.deepEqual([...cfgBytes(bin).subarray(0, 4)], [0xff, 0xfe, 0x80, 0x0a], 'bytes that are not UTF-8 survive a rewrite');
+  });
+
+  test('TEST-3983 the first key line is replaced (valued or not), every later one removed with its line number', async () => {
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const dir = cfgDir('dup-', 'a: 1\nref_guard: armed\nb: 2\nref_guard: declined\n  ref_guard: armed\nref_guard:\nz: 1\n');
+    const r = writeRefGuardPolicy(dir, 'declined');
+    assert.deepEqual(r.removed, [4, 6]);
+    assert.equal(r.changed, true);
+    assert.equal(cfgText(dir), 'a: 1\nref_guard: declined\nb: 2\n  ref_guard: armed\nz: 1\n', 'an indented line is not a key line');
+    const bare = cfgDir('dup-bare-', 'ref_guard:\nref_guard: armed\n');
+    const r2 = writeRefGuardPolicy(bare, 'armed');
+    assert.deepEqual(r2.removed, [2]);
+    assert.equal(cfgText(bare), 'ref_guard: armed\n', 'a value-less key line is the key');
+    const typo = cfgDir('dup-typo-', 'ref_guard: arme\nb: 1\n');
+    assert.equal(writeRefGuardPolicy(typo, 'armed').changed, true);
+    assert.equal(cfgText(typo), 'ref_guard: armed\nb: 1\n');
+    const crlfDup = cfgDir('dup-crlf-', 'ref_guard: armed\r\nref_guard: declined\r\nb: 1\r\n');
+    assert.deepEqual(writeRefGuardPolicy(crlfDup, 'declined').removed, [2]);
+    assert.equal(cfgText(crlfDup), 'ref_guard: declined\r\nb: 1\r\n');
+    const probe = cfgDir('dup-dry-', 'ref_guard: armed\nb: 1\nref_guard: declined\n');
+    const before = cfgBytes(probe);
+    const d = writeRefGuardPolicy(probe, 'armed', { dryRun: true });
+    assert.deepEqual({ changed: d.changed, removed: d.removed, keyLines: d.keyLines }, { changed: false, removed: [3], keyLines: [1, 3] });
+    assert.ok(Buffer.compare(before, cfgBytes(probe)) === 0);
+    const none = path.join(scratch('dup-dry-none-'), 'ai');
+    assert.deepEqual(writeRefGuardPolicy(none, 'armed', { dryRun: true }).keyLines, []);
+    assert.ok(!existsSync(none), 'a dry run creates nothing');
+  });
+
+  test('TEST-3983 a missing key is appended with the file terminator, LF when it has none', async () => {
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const cases = [
+      ['a: 1\r\nb: 2\r\n', 'a: 1\r\nb: 2\r\nref_guard: armed\r\n'],
+      ['a: 1\r\nb: 2', 'a: 1\r\nb: 2\r\nref_guard: armed\r\n'],
+      ['a: 1\nb: 2', 'a: 1\nb: 2\nref_guard: armed\n'],
+      ['a: 1\nb: 2\n', 'a: 1\nb: 2\nref_guard: armed\n'],
+      ['a: 1\nb: 2\r\n', 'a: 1\nb: 2\r\nref_guard: armed\n'],
+      ['a: 1', 'a: 1\nref_guard: armed\n'],
+      ['', 'ref_guard: armed\n'],
+      ['# ref_guard: declined\n  ref_guard: declined\n', '# ref_guard: declined\n  ref_guard: declined\nref_guard: armed\n'],
+    ];
+    for (const [before, after] of cases) {
+      const dir = cfgDir('append-', before);
+      const r = writeRefGuardPolicy(dir, 'armed');
+      assert.equal(r.changed, true, JSON.stringify(before));
+      assert.equal(cfgText(dir), after, JSON.stringify(before));
+      assert.deepEqual(r.removed, []);
+    }
+  });
+
+  test('TEST-3983 nothing is written when the result equals the current bytes', async () => {
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const dir = cfgDir('noop-', 'a: 1\nref_guard: declined\n');
+    const file = path.join(dir, CFG);
+    utimesSync(file, new Date(1_000_000), new Date(1_000_000));
+    const before = statSync(file);
+    const r = writeRefGuardPolicy(dir, 'declined');
+    assert.equal(r.changed, false);
+    assert.equal(r.seeded, null);
+    const after = statSync(file);
+    assert.equal(after.mtimeMs, before.mtimeMs);
+    assert.equal(after.ino, before.ino);
+    noTemp(dir);
+    chmodSync(file, 0o444);
+    assert.equal(writeRefGuardPolicy(dir, 'declined').changed, false, 'a read-only file whose bytes already match is a no-op, not a refusal');
+  });
+
+  test('TEST-3983 a target the process cannot write is refused with nothing written', async (t) => {
+    if (process.platform === 'win32' || (process.getuid && process.getuid() === 0)) return t.skip('permission bits are not enforced here');
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const dir = cfgDir('ro-', 'a: 1\nref_guard: armed\n');
+    const file = path.join(dir, CFG);
+    chmodSync(file, 0o444);
+    utimesSync(file, new Date(2_000_000), new Date(2_000_000));
+    const before = statSync(file);
+    assert.throws(() => writeRefGuardPolicy(dir, 'declined'), (e) => e.message === `${file} is not writable; nothing was written`);
+    assert.equal(cfgText(dir), 'a: 1\nref_guard: armed\n');
+    assert.equal(statSync(file).mtimeMs, before.mtimeMs);
+    assert.equal(statSync(file).mode & 0o777, 0o444);
+    noTemp(dir);
+    const dir2 = cfgDir('ro-dir-', 'ref_guard: armed\n');
+    chmodSync(dir2, 0o555);
+    try {
+      assert.throws(() => writeRefGuardPolicy(dir2, 'declined'), /nothing was written/);
+      assert.equal(cfgText(dir2), 'ref_guard: armed\n');
+    } finally {
+      chmodSync(dir2, 0o755);
+    }
+    noTemp(dir2);
+  });
+
+  test('TEST-3983 a failed rename leaves no temp file and the original bytes; a read-back mismatch throws', async () => {
+    const { writeRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const dir = cfgDir('fail-', 'a: 1\nref_guard: armed\n');
+    const seen = [];
+    const rename = (from) => { seen.push(from); assert.ok(existsSync(from), 'the temp exists before the rename'); throw new Error('rename refused'); };
+    assert.throws(() => writeRefGuardPolicy(dir, 'declined', { rename }), /rename refused/);
+    assert.equal(seen.length, 1);
+    assert.match(path.basename(seen[0]), /^docs-audit\.yaml\.aai-tmp\.[0-9]+$/);
+    assert.equal(cfgText(dir), 'a: 1\nref_guard: armed\n');
+    noTemp(dir);
+    const dir2 = cfgDir('readback-', 'a: 1\n');
+    assert.throws(() => writeRefGuardPolicy(dir2, 'declined', { readBack: () => 'armed' }), (e) => e.message === `wrote ref_guard: declined to ${path.join(dir2, CFG)} but reading it back gives armed`);
+  });
+
+  test('TEST-3983 the reader reads a BOM-prefixed first line and keeps every other verdict', async () => {
+    const { readRefGuardPolicy } = await import(GUARD_CONFIG_URL);
+    const verdicts = [
+      [undefined, 'armed', false],
+      ['a: 1\n', 'armed', false],
+      ['ref_guard: declined\n', 'declined', false],
+      ['ref_guard:declined\n', 'declined', false],
+      ['ref_guard:\tdeclined\r\n', 'declined', false],
+      ['ref_guard: declined # why\n', 'declined', false],
+      ['ref_guard: armed\nref_guard: declined\n', 'armed', false],
+      ['  ref_guard: declined\n', 'armed', false],
+      ['# ref_guard: declined\n', 'armed', false],
+      ['ref_guard: Declined\n', 'armed', true],
+      ['ref_guard: declined#x\n', 'armed', true],
+      [`${BOM}ref_guard: declined\n`, 'declined', false],
+      [`${BOM}ref_guard: declined\r\nb: 1\r\n`, 'declined', false],
+      [`${BOM}a: 1\nref_guard: declined\n`, 'declined', false],
+      [`${BOM}${BOM}ref_guard: declined\n`, 'armed', false],
+      [`a: 1\n${BOM}ref_guard: declined\n`, 'armed', false],
+      [`${BOM}  ref_guard: declined\n`, 'armed', false],
+      [`${BOM}ref_guard: armed\n`, 'armed', false],
+    ];
+    for (const [text, want, warns] of verdicts) {
+      const dir = cfgDir('reader-', text);
+      const seen = [];
+      assert.equal(readRefGuardPolicy(dir, { warn: (m) => seen.push(m) }), want, JSON.stringify(text));
+      assert.equal(seen.length > 0, warns, `${JSON.stringify(text)} warning`);
+    }
+  });
+
+  test('TEST-3983 aai-doctor CAT-17 reports DECLINED for a BOM-prefixed declined file and no hook', () => {
+    const root = scratch('doctor-');
+    const repo = gitScratch(root);
+    mkdirSync(path.join(repo, 'docs', 'ai'), { recursive: true });
+    writeFileSync(path.join(repo, 'docs', 'ai', CFG), Buffer.concat([Buffer.from(BOM, 'utf8'), Buffer.from('ref_guard: declined\n')]));
+    const env = prepareEnv(root);
+    const r = spawnSync(process.execPath, [DOCTOR, '--root', repo, '--json'], { cwd: root, env, encoding: 'utf8' });
+    const cat17 = JSON.parse(r.stdout).categories.find((c) => c.id === 'CAT-17');
+    assert.equal(cat17.status, 'DECLINED', r.stdout);
+    writeFileSync(path.join(repo, 'docs', 'ai', CFG), 'ref_guard: armed\n');
+    const r2 = spawnSync(process.execPath, [DOCTOR, '--root', repo, '--json'], { cwd: root, env, encoding: 'utf8' });
+    assert.notEqual(JSON.parse(r2.stdout).categories.find((c) => c.id === 'CAT-17').status, 'DECLINED', 'the control: armed is not DECLINED');
+  });
+});
+
+// --- TEST-3984 ---------------------------------------------------------------------------------------------
+
+const hookOf = (repo, name) => path.join(repo, '.git', 'hooks', name);
+const CFG_REL = path.join('docs', 'ai', CFG);
+const BASH_INSTALLER = (repo) => `bash ${repo}/.aai/scripts/install-pre-commit-hook.sh`;
+
+// policyRepo(label, cfg, extra): a scratch repository whose docs/ai/docs-audit.yaml holds cfg (absent when undefined).
+function policyRepo(label, cfg) {
+  const root = scratch(label);
+  const repo = gitScratch(root);
+  if (cfg !== undefined) {
+    mkdirSync(path.join(repo, 'docs', 'ai'), { recursive: true });
+    writeFileSync(path.join(repo, CFG_REL), cfg);
+  }
+  return { root, repo, cfgPath: path.join(repo, CFG_REL), run: (...args) => runInstaller({ args, root, cwd: repo }) };
+}
+const skippedLines = (repo) => [
+  `Skipped AAI reference-transaction hook (AAI:REF-GUARD): ${path.join(repo, CFG_REL)} declares ref_guard: declined.\n`,
+  `Re-arm with: ${BASH_INSTALLER(repo)} --arm-ref-guard (--force installs the hook for this run only; ref_guard: declined stays recorded).\n`,
+];
+
+describe('TEST-3984 the policy flows', () => {
+  test('TEST-3984 a plain install skips the ref-guard for every reader verdict of declined and installs it otherwise', () => {
+    const declined = ['ref_guard: declined\n', `${BOM}ref_guard: declined\n`, 'ref_guard:declined\r\nx: 1\r\n', 'a: 1\nref_guard: declined # why\n'];
+    for (const cfg of declined) {
+      const { repo, run } = policyRepo('skip-', cfg);
+      const r = run();
+      assert.equal(r.status, 0, `${JSON.stringify(cfg)}: ${r.stderr}`);
+      for (const line of skippedLines(repo)) assert.ok(r.stdout.includes(line), `${JSON.stringify(cfg)} says: ${line}`);
+      assert.ok(!existsSync(hookOf(repo, 'reference-transaction')), `${JSON.stringify(cfg)}: no ref-guard`);
+      assert.ok(existsSync(hookOf(repo, 'pre-commit')) && existsSync(hookOf(repo, 'pre-push')), 'the other two hooks are installed');
+      assert.ok(r.stdout.trimEnd().endsWith('Uninstall with: bash .aai/scripts/install-pre-commit-hook.sh --uninstall'));
+    }
+    for (const cfg of [undefined, 'ref_guard: armed\n', 'ref_guard: Declined\n', 'a: 1\n  ref_guard: declined\n']) {
+      const { repo, run } = policyRepo('arm-plain-', cfg);
+      const r = run();
+      assert.equal(r.status, 0, `${JSON.stringify(cfg)}: ${r.stderr}`);
+      assert.ok(existsSync(hookOf(repo, 'reference-transaction')), `${JSON.stringify(cfg)}: the ref-guard is installed`);
+      assert.ok(!r.stdout.includes('Skipped AAI reference-transaction'));
+      assert.ok(r.stdout.includes(`Installed AAI reference-transaction hook (AAI:REF-GUARD) at ${hookOf(repo, 'reference-transaction')}\n`));
+      assert.ok(r.stdout.includes(`Decline: ${BASH_INSTALLER(repo)} --decline-ref-guard\n`), 'the install disclosure names the decline command');
+    }
+    const invalid = policyRepo('invalid-', 'ref_guard: maybe\n');
+    const ri = invalid.run();
+    assert.equal(ri.status, 0);
+    assert.match(ri.stderr, /^install-pre-commit-hook: WARNING ref_guard value "maybe" in .* treating as armed/m, 'the reader warning goes to stderr under the module prefix');
+    assert.ok(existsSync(hookOf(invalid.repo, 'reference-transaction')));
+  });
+
+  test('TEST-3984 --force passes a decline for this run and leaves declined recorded; a selected skip is not attested', () => {
+    const { repo, run, cfgPath } = policyRepo('force-', 'ref_guard: declined\n');
+    const r = run('--force');
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(existsSync(hookOf(repo, 'reference-transaction')));
+    assert.equal(readFileSync(cfgPath, 'utf8'), 'ref_guard: declined\n');
+    const only = policyRepo('skip-only-', 'ref_guard: declined\n');
+    const r2 = only.run('--hooks', 'ref-guard');
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.ok(!existsSync(hookOf(only.repo, 'reference-transaction')));
+    assert.deepEqual(readdirSync(path.join(only.repo, '.git', 'hooks')).filter((f) => !f.endsWith('.sample')), [], 'a declined-only run writes no hook');
+  });
+
+  test('TEST-3984 decline refuses a foreign hook unmodified and writes the declaration before removing an AAI hook', () => {
+    const foreign = policyRepo('decline-foreign-');
+    mkdirSync(path.join(foreign.repo, '.git', 'hooks'), { recursive: true });
+    writeFileSync(hookOf(foreign.repo, 'reference-transaction'), '#!/bin/sh\necho mine\n');
+    const r = foreign.run('--decline-ref-guard');
+    assert.equal(r.status, 1);
+    assert.equal(r.stderr, `ERROR: ${hookOf(foreign.repo, 'reference-transaction')} already exists and is not AAI-managed.\n       Refusing to remove a foreign hook -- --decline-ref-guard only removes an AAI-managed guard.\n`);
+    assert.equal(readFileSync(hookOf(foreign.repo, 'reference-transaction'), 'utf8'), '#!/bin/sh\necho mine\n');
+    assert.ok(!existsSync(foreign.cfgPath), 'a refusal writes no declaration');
+
+    const { repo, run, cfgPath } = policyRepo('decline-aai-', 'a: 1\nref_guard: armed\n');
+    assert.equal(run('--hooks', 'ref-guard').status, 0);
+    assert.ok(existsSync(hookOf(repo, 'reference-transaction')));
+    const d = run('--decline-ref-guard');
+    assert.equal(d.status, 0, d.stderr);
+    assert.equal(readFileSync(cfgPath, 'utf8'), 'a: 1\nref_guard: declined\n');
+    assert.ok(!existsSync(hookOf(repo, 'reference-transaction')));
+    assert.equal(d.stdout, [
+      `Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from ${hookOf(repo, 'reference-transaction')}`,
+      `Declined the AAI reference-transaction guard. Recorded ref_guard: declined in ${cfgPath}`,
+      `Re-arm with: bash ${repo}/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard`,
+      '',
+    ].join('\n'));
+    // declining again is idempotent and says nothing about a removal
+    const again = run('--decline-ref-guard');
+    assert.equal(again.status, 0);
+    assert.ok(!again.stdout.includes('Uninstalled'));
+    assert.equal(readFileSync(cfgPath, 'utf8'), 'a: 1\nref_guard: declined\n');
+  });
+
+  test('TEST-3984 decline discloses the creation of the config: SEED from the template, NOTE without one', () => {
+    const noTpl = policyRepo('decline-note-');
+    const r = noTpl.run('--decline-ref-guard');
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(r.stdout.startsWith('NOTE: creating docs/ai/docs-audit.yaml -- this switches docs-audit from report-only to enforced mode'), r.stdout);
+    assert.equal(readFileSync(noTpl.cfgPath, 'utf8'), 'ref_guard: declined\n');
+    const withTpl = policyRepo('decline-seed-');
+    mkdirSync(path.join(withTpl.repo, '.aai', 'templates'), { recursive: true });
+    const tpl = readFileSync(path.join(ROOT, '.aai', 'templates', 'docs-audit.template.yaml'));
+    writeFileSync(path.join(withTpl.repo, '.aai', 'templates', 'docs-audit.template.yaml'), tpl);
+    const r2 = withTpl.run('--decline-ref-guard');
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.ok(r2.stdout.startsWith('SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)\n'), r2.stdout);
+    assert.ok(readFileSync(withTpl.cfgPath).subarray(0, tpl.length).equals(tpl), 'the template bytes come first');
+    assert.match(readFileSync(withTpl.cfgPath, 'utf8'), /\nref_guard: declined\n$/);
+  });
+
+  test('TEST-3984 decline keeps the hook and exits 1 when the config cannot be written', (t) => {
+    if (process.platform === 'win32' || (process.getuid && process.getuid() === 0)) return t.skip('permission bits are not enforced here');
+    const ro = policyRepo('decline-ro-', 'ref_guard: armed\n');
+    assert.equal(ro.run('--hooks', 'ref-guard').status, 0);
+    chmodSync(ro.cfgPath, 0o444);
+    const r = ro.run('--decline-ref-guard');
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /docs-audit\.yaml is not writable; nothing was written/);
+    assert.ok(existsSync(hookOf(ro.repo, 'reference-transaction')), 'the hook stays');
+    assert.equal(readFileSync(ro.cfgPath, 'utf8'), 'ref_guard: armed\n');
+    assert.ok(!r.stdout.includes('Uninstalled'));
+    const dir = policyRepo('decline-rodir-', 'ref_guard: armed\n');
+    assert.equal(dir.run('--hooks', 'ref-guard').status, 0);
+    chmodSync(path.join(dir.repo, 'docs', 'ai'), 0o555);
+    try {
+      const r2 = dir.run('--decline-ref-guard');
+      assert.equal(r2.status, 1);
+      assert.ok(existsSync(hookOf(dir.repo, 'reference-transaction')), 'the hook stays');
+      assert.equal(readFileSync(dir.cfgPath, 'utf8'), 'ref_guard: armed\n');
+    } finally {
+      chmodSync(path.join(dir.repo, 'docs', 'ai'), 0o755);
+    }
+  });
+
+  test('TEST-3984 arm records armed after the attested hook; the round trip leaves one key line and a plain run stays quiet', () => {
+    const { repo, run, cfgPath } = policyRepo('arm-', 'ref_guard: declined\n');
+    const a = run('--arm-ref-guard');
+    assert.equal(a.status, 0, a.stderr);
+    assert.equal(a.stdout, [
+      `Installed AAI reference-transaction hook (AAI:REF-GUARD) at ${hookOf(repo, 'reference-transaction')}`,
+      `Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command. Decline: ${BASH_INSTALLER(repo)} --decline-ref-guard`,
+      `Recorded ref_guard: armed in ${cfgPath}`,
+      '',
+    ].join('\n'));
+    assert.equal(readFileSync(cfgPath, 'utf8'), 'ref_guard: armed\n');
+    assert.ok(statSync(hookOf(repo, 'reference-transaction')).mode & 0o100, 'the hook is executable');
+    // arming again: current hook, no write, the declaration is still recorded
+    const b = run('--arm-ref-guard');
+    assert.equal(b.status, 0, b.stderr);
+    assert.ok(b.stdout.startsWith(`AAI reference-transaction hook already installed at ${hookOf(repo, 'reference-transaction')}. No action taken.\n`));
+    assert.ok(b.stdout.endsWith(`Recorded ref_guard: armed in ${cfgPath}\n`));
+    // decline then a plain install on what decline wrote (the seam): quiet skip, exit 0
+    assert.equal(run('--decline-ref-guard').status, 0);
+    const p = run();
+    assert.equal(p.status, 0, p.stderr);
+    for (const line of skippedLines(repo)) assert.ok(p.stdout.includes(line));
+    assert.equal(readFileSync(cfgPath, 'utf8'), 'ref_guard: declined\n');
+  });
+
+  test('TEST-3984 arm refuses a foreign hook unless forced, naming --print ref-guard, and notes a marked hook that differs', () => {
+    const { repo, run, cfgPath } = policyRepo('arm-foreign-');
+    mkdirSync(path.join(repo, '.git', 'hooks'), { recursive: true });
+    writeFileSync(hookOf(repo, 'reference-transaction'), '#!/bin/sh\necho mine\n');
+    const r = run('--arm-ref-guard');
+    assert.equal(r.status, 1);
+    assert.equal(r.stderr, `ERROR: ${hookOf(repo, 'reference-transaction')} already exists and is not AAI-managed.\n       Pass --force to overwrite, or merge the AAI:REF-GUARD body with: ${repo}/.aai/scripts/install-pre-commit-hook.sh --print ref-guard\n`);
+    assert.equal(readFileSync(hookOf(repo, 'reference-transaction'), 'utf8'), '#!/bin/sh\necho mine\n');
+    assert.ok(!existsSync(cfgPath), 'a refusal records nothing');
+    const plain = run();
+    assert.equal(plain.status, 1);
+    assert.ok(plain.stderr.includes('--print ref-guard'), 'the plain install names the same command');
+    assert.ok(!existsSync(hookOf(repo, 'pre-commit')), 'a foreign slot refuses the whole run before any write');
+    const forced = run('--arm-ref-guard', '--force');
+    assert.equal(forced.status, 0, forced.stderr);
+    assert.match(readFileSync(hookOf(repo, 'reference-transaction'), 'utf8'), /^#!.*\n[\s\S]*AAI:REF-GUARD/);
+    // a marked hook whose bytes differ: not rewritten, one more line (DR-14)
+    const marked = `${readFileSync(hookOf(repo, 'reference-transaction'), 'utf8')}# local edit\n`;
+    writeFileSync(hookOf(repo, 'reference-transaction'), marked);
+    const note = run('--arm-ref-guard');
+    assert.equal(note.status, 0, note.stderr);
+    assert.equal(readFileSync(hookOf(repo, 'reference-transaction'), 'utf8'), marked);
+    assert.ok(note.stdout.includes(`No action taken.\nNOTE: ${hookOf(repo, 'reference-transaction')} carries # AAI:REF-GUARD but its bytes differ from the shipped body; pass --force to replace it.\n`), note.stdout);
+  });
+
+  test('TEST-3984 uninstalling the ref-guard says what an armed declaration will do, and nothing when declined', () => {
+    const note = [
+      'NOTE: docs/ai/docs-audit.yaml still reads ref_guard: armed, so the next plain install (for example /aai-update) installs the guard again.\n',
+    ];
+    for (const cfg of [undefined, 'ref_guard: armed\n']) {
+      const { repo, run } = policyRepo('uninstall-armed-', cfg);
+      assert.equal(run().status, 0);
+      const u = run('--uninstall');
+      assert.equal(u.status, 0, u.stderr);
+      assert.ok(!existsSync(hookOf(repo, 'reference-transaction')));
+      const want = `Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from ${hookOf(repo, 'reference-transaction')}\n${note[0]}To keep it off, run: ${BASH_INSTALLER(repo)} --decline-ref-guard\n`;
+      assert.ok(u.stdout.includes(want), u.stdout);
+    }
+    const dec = policyRepo('uninstall-declined-', 'ref_guard: declined\n');
+    assert.equal(dec.run('--force').status, 0);
+    const u2 = dec.run('--uninstall');
+    assert.equal(u2.status, 0, u2.stderr);
+    assert.ok(!u2.stdout.includes('NOTE:') && !u2.stdout.includes('To keep it off'));
+    // no hook to remove: no disclosure either
+    const none = policyRepo('uninstall-none-');
+    const u3 = none.run('--uninstall');
+    assert.equal(u3.status, 0);
+    assert.ok(u3.stdout.includes('No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken.\n'));
+    assert.ok(!u3.stdout.includes('To keep it off'));
+    // a selection without the ref-guard reads no policy
+    const sel = policyRepo('uninstall-sel-', 'ref_guard: maybe\n');
+    assert.equal(sel.run().status, 0);
+    const u4 = sel.run('--uninstall', '--hooks', 'index');
+    assert.equal(u4.status, 0);
+    assert.equal(u4.stderr, '', 'no policy read, no reader warning');
+  });
+
+  test('TEST-3984 a doubled key warns on a plain run without writing; arm and decline repair it and say so', () => {
+    const cfg = 'ref_guard: armed\nb: 1\nref_guard: declined\n';
+    const { repo, run, cfgPath } = policyRepo('doubled-', cfg);
+    utimesSync(cfgPath, new Date(3_000_000), new Date(3_000_000));
+    const before = statSync(cfgPath);
+    const p = run();
+    assert.equal(p.status, 0, p.stderr);
+    assert.equal(p.stderr, `WARNING: ${cfgPath} carries 2 ref_guard: lines (lines 1, 3); the first one wins. Repair: ${BASH_INSTALLER(repo)} --arm-ref-guard (or --decline-ref-guard).\n`);
+    assert.equal(readFileSync(cfgPath, 'utf8'), cfg);
+    assert.equal(statSync(cfgPath).mtimeMs, before.mtimeMs);
+    assert.ok(existsSync(hookOf(repo, 'reference-transaction')), 'the first line (armed) wins');
+    const d = run('--decline-ref-guard');
+    assert.equal(d.status, 0, d.stderr);
+    assert.ok(d.stdout.includes(`Removed 1 duplicate ref_guard: line(s) from ${cfgPath} (lines 3).\n`), d.stdout);
+    assert.equal(readFileSync(cfgPath, 'utf8'), 'ref_guard: declined\nb: 1\n');
+    const triple = policyRepo('tripled-', 'ref_guard:\nref_guard: armed\nx: 1\nref_guard: declined\n');
+    const a = triple.run('--arm-ref-guard');
+    assert.equal(a.status, 0, a.stderr);
+    assert.ok(a.stdout.includes(`Removed 2 duplicate ref_guard: line(s) from ${triple.cfgPath} (lines 2, 4).\n`), a.stdout);
+    assert.equal(readFileSync(triple.cfgPath, 'utf8'), 'ref_guard: armed\nx: 1\n');
+    // a single key line: no warning
+    const single = policyRepo('single-', 'ref_guard: armed\n');
+    assert.equal(single.run().stderr, '');
+  });
+
+  test('TEST-3984 the module holds no ref_guard pattern and reads the policy only through the reader', () => {
+    const source = readFileSync(MODULE, 'utf8');
+    const offending = source.split('\n').filter((l) => l.includes('ref_guard') && /(\.test\(|\.match\(|\.exec\(|RegExp|=~|\^ref_guard|grep )/.test(l) && !/^\s*\/\//.test(l));
+    assert.deepEqual(offending, []);
+    assert.ok(/readRefGuardPolicy\(path\.join\(/.test(source) || /readRefGuardPolicy\(/.test(source.replace(/import[^\n]*\n/, '')), 'the reader is called');
+    assert.ok(/writeRefGuardPolicy\(/.test(source.replace(/import[^\n]*\n/, '')), 'the writer is called');
+    assert.ok(!/readFileSync\([^)]*docs-audit/.test(source), 'the config file is not read directly');
+  });
+});
+
+// --- TEST-3985 ---------------------------------------------------------------------------------------------
+
+const TEMPLATE_FILES = { index: 'pre-commit-index.sh', 'guard-checks': 'pre-commit-guard-checks.sh', 'ref-guard': 'reference-transaction.sh', 'pre-push': 'pre-push.sh' };
+const stripCr = (buf) => Buffer.from(buf.filter((b) => b !== 13));
+
+// templateTree(label, mutate): <root>/.aai/{scripts,templates/git-hooks} with the four shipped templates written
+// with CRLF line endings; mutate(files) may change the { kind: text } map (a kind set to null is not written).
+function templateTree(label, mutate = () => {}) {
+  const root = scratch(label);
+  const dir = path.join(root, '.aai', 'templates', 'git-hooks');
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(path.join(root, '.aai', 'scripts'));
+  const files = {};
+  for (const [kind, name] of Object.entries(TEMPLATE_FILES)) files[kind] = readFileSync(path.join(TEMPLATE_DIR, name), 'utf8');
+  mutate(files);
+  for (const [kind, text] of Object.entries(files)) if (text !== null) writeFileSync(path.join(dir, TEMPLATE_FILES[kind]), text.replace(/\n/g, '\r\n'));
+  return { root, scriptDir: path.join(root, '.aai', 'scripts'), dir, files };
+}
+
+// runIn(argv, extra): the module's run() with captured output and a counting child seam; no git child runs
+// unless extra.spawn is given.
+async function runIn(argv, extra = {}) {
+  const { run } = await import(MODULE_URL);
+  const out = [];
+  const err = [];
+  const calls = [];
+  const spawn = extra.spawn ?? ((file, args) => { calls.push([file, args]); return { status: 1, stdout: '', stderr: '' }; });
+  const code = await run(argv, { out: (s) => out.push(Buffer.from(s)), err: (s) => err.push(s), spawn, ...extra });
+  return { code, stdout: Buffer.concat(out), stderr: err.join(''), calls };
+}
+
+describe('TEST-3985 templates, --print and composition', () => {
+  test('TEST-3985 templates are read from the injected script directory with every CR removed', async () => {
+    const tree = templateTree('tpl-crlf-');
+    for (const [kind, name] of Object.entries(TEMPLATE_FILES)) {
+      assert.ok(readFileSync(path.join(tree.dir, name)).includes(13), `${name} was written with CRLF`);
+      const r = await runIn(['--print', kind], { scriptDir: tree.scriptDir });
+      assert.equal(r.code, 0, `${kind}: ${r.stderr}`);
+      assert.ok(r.stdout.equals(stripCr(readFileSync(path.join(TEMPLATE_DIR, name)))), `${kind} is the CR-stripped template bytes`);
+      assert.equal(r.stderr, '');
+      assert.deepEqual(r.calls, [], 'no git child for --print');
+    }
+    const bare = await runIn(['--print'], { scriptDir: tree.scriptDir });
+    assert.ok(bare.stdout.equals(stripCr(readFileSync(path.join(TEMPLATE_DIR, TEMPLATE_FILES.index)))), 'bare --print is the index body');
+    const { loadTemplates } = await import(MODULE_URL);
+    const loaded = loadTemplates(tree.scriptDir, ['index', 'guard-checks']);
+    assert.deepEqual(loaded.errors, []);
+    assert.deepEqual(Object.keys(loaded.templates).sort(), ['guard-checks', 'index']);
+    assert.ok(!loaded.templates.index.includes(13));
+    // the default script directory is the module's own, never the working directory
+    const own = loadTemplates(undefined, ['pre-push']);
+    assert.ok(own.templates['pre-push'].equals(stripCr(readFileSync(path.join(TEMPLATE_DIR, 'pre-push.sh')))));
+  });
+
+  test('TEST-3985 every missing template is named with exit 1 and no hook is written', async () => {
+    const tree = templateTree('tpl-missing-', (f) => { f['guard-checks'] = null; f['pre-push'] = null; f['ref-guard'] = null; });
+    const p = await runIn(['--print', 'pre-push'], { scriptDir: tree.scriptDir });
+    assert.equal(p.code, 1);
+    assert.equal(p.stderr, `ERROR: AAI hook template missing: ${path.join(tree.dir, 'pre-push.sh')}\n`);
+    assert.equal(p.stdout.length, 0);
+    // an install in a scratch repository names each template the run needs, in order, before any write
+    const root = scratch('tpl-missing-run-');
+    const repo = gitScratch(root);
+    const before = listTree(path.join(repo, '.git', 'hooks'));
+    const { run } = await import(MODULE_URL);
+    const err = [];
+    const code = await run([], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: tree.scriptDir });
+    assert.equal(code, 1);
+    assert.equal(err.join(''), [
+      `ERROR: AAI hook template missing: ${path.join(tree.dir, 'pre-commit-guard-checks.sh')}`,
+      `ERROR: AAI hook template missing: ${path.join(tree.dir, 'reference-transaction.sh')}`,
+      `ERROR: AAI hook template missing: ${path.join(tree.dir, 'pre-push.sh')}`,
+      '',
+    ].join('\n'));
+    assert.deepEqual(listTree(path.join(repo, '.git', 'hooks')), before, 'nothing was written');
+    // a template the run does not need is not required: uninstall and decline need none
+    const bare = templateTree('tpl-none-', (f) => { for (const k of Object.keys(f)) f[k] = null; });
+    const code2 = await run(['--uninstall'], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: bare.scriptDir });
+    assert.equal(code2, 0, err.join(''));
+    const code3 = await run(['--decline-ref-guard'], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: bare.scriptDir });
+    assert.equal(code3, 0, err.join(''));
+    // a decline needs no template, an arm needs the ref-guard one
+    const code4 = await run(['--arm-ref-guard'], { out: () => {}, err: (s) => err.push(s), cwd: repo, env: prepareEnv(root), scriptDir: bare.scriptDir });
+    assert.equal(code4, 1);
+    assert.ok(err.join('').includes(`ERROR: AAI hook template missing: ${path.join(bare.dir, 'reference-transaction.sh')}`));
+  });
+
+  test('TEST-3985 a malformed index or guard-checks template is refused per D-TEMPLATE', async () => {
+    const indexMsg = (dir) => `ERROR: AAI hook template malformed (needs a first line and a second line): ${path.join(dir, 'pre-commit-index.sh')}\n`;
+    const guardMsg = (dir) => `ERROR: AAI hook template malformed (needs one GUARD-CHECKS BEGIN line, then one END line, and a final newline): ${path.join(dir, 'pre-commit-guard-checks.sh')}\n`;
+    const { loadTemplates } = await import(MODULE_URL);
+    const index1 = templateTree('tpl-index1-', (f) => { f.index = '#!/bin/sh\n'; });
+    assert.deepEqual(loadTemplates(index1.scriptDir, ['index']).errors, [indexMsg(index1.dir).trimEnd()]);
+    const indexEmpty = templateTree('tpl-index0-', (f) => { f.index = ''; });
+    assert.deepEqual(loadTemplates(indexEmpty.scriptDir, ['index']).errors, [indexMsg(indexEmpty.dir).trimEnd()]);
+    const indexTwo = templateTree('tpl-index2-', (f) => { f.index = '#!/bin/sh\necho second'; });
+    assert.deepEqual(loadTemplates(indexTwo.scriptDir, ['index']).errors, [], 'two lines, the last without a newline, are enough');
+    const BEGIN = '# AAI:GUARD-CHECKS BEGIN';
+    const END = '# AAI:GUARD-CHECKS END';
+    const shapes = {
+      'no END': `${BEGIN}\necho x\n`,
+      'no BEGIN': `echo x\n${END}\n`,
+      'END above BEGIN': `${END}\necho x\n${BEGIN}\n`,
+      'no final newline': `${BEGIN}\necho x\n${END}`,
+      'two BEGIN': `${BEGIN}\n${BEGIN}\necho x\n${END}\n`,
+      'two END': `${BEGIN}\necho x\n${END}\n${END}\n`,
+      empty: '',
+    };
+    for (const [name, text] of Object.entries(shapes)) {
+      const tree = templateTree('tpl-guard-', (f) => { f['guard-checks'] = text; });
+      // templateTree wrote CRLF text; the missing-final-newline shape has no newline at all after END
+      const r = await runIn(['--print', 'guard-checks'], { scriptDir: tree.scriptDir });
+      assert.equal(r.code, 1, name);
+      assert.equal(r.stderr, guardMsg(tree.dir), name);
+      assert.equal(r.stdout.length, 0, name);
+    }
+    const ok = templateTree('tpl-guard-ok-', (f) => { f['guard-checks'] = `${BEGIN}\necho x\n${END}\n`; });
+    assert.equal((await runIn(['--print', 'guard-checks'], { scriptDir: ok.scriptDir })).code, 0);
+    // the index run checks both; the other kinds are not checked for markers
+    const noMarkers = templateTree('tpl-pp-', (f) => { f['pre-push'] = 'x'; f['ref-guard'] = 'y'; });
+    assert.equal((await runIn(['--print', 'pre-push'], { scriptDir: noMarkers.scriptDir })).stdout.toString(), 'x');
+    assert.equal((await runIn(['--print', 'ref-guard'], { scriptDir: noMarkers.scriptDir })).stdout.toString(), 'y');
+  });
+
+  test('TEST-3985 --print and every kind work outside a repository and equal the CR-stripped template bytes', () => {
+    const root = scratch('tpl-print-');
+    const empty = path.join(root, 'notrepo');
+    mkdirSync(empty);
+    for (const [kind, name] of Object.entries(TEMPLATE_FILES)) {
+      const r = runInstaller({ args: ['--print', kind], root, cwd: empty });
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout, stripCr(readFileSync(path.join(TEMPLATE_DIR, name))).toString('utf8'), `${kind} bytes`);
+      assert.equal(r.stderr, '');
+    }
+    const bare = runInstaller({ args: ['--print'], root, cwd: empty });
+    assert.equal(bare.status, 0);
+    assert.equal(bare.stdout, stripCr(readFileSync(path.join(TEMPLATE_DIR, TEMPLATE_FILES.index))).toString());
+  });
+
+  test('TEST-3985 composePreCommit is the index first line, the guard block, the index rest and one final LF', async () => {
+    const { composePreCommit } = await import(MODULE_URL);
+    const b = (s) => Buffer.from(s);
+    assert.equal(composePreCommit(b('#!/bin/sh\necho a\necho b\n'), b('# G BEGIN\nx\n# G END\n')).toString(), '#!/bin/sh\n# G BEGIN\nx\n# G END\necho a\necho b\n');
+    assert.equal(composePreCommit(b('#!/bin/sh\necho a'), b('# G BEGIN\n# G END\n')).toString(), '#!/bin/sh\n# G BEGIN\n# G END\necho a\n', 'an index template without a final LF gets one');
+    assert.equal(composePreCommit(b('#!/bin/sh\n\n'), b('G\n')).toString(), '#!/bin/sh\nG\n\n');
+    const idx = readFileSync(path.join(TEMPLATE_DIR, TEMPLATE_FILES.index));
+    const guard = readFileSync(path.join(TEMPLATE_DIR, TEMPLATE_FILES['guard-checks']));
+    const composed = composePreCommit(stripCr(idx), stripCr(guard));
+    const first = idx.indexOf(10) + 1;
+    assert.ok(composed.subarray(0, first).equals(idx.subarray(0, first)));
+    assert.ok(composed.subarray(first, first + guard.length).equals(guard));
+    assert.equal(composed[composed.length - 1], 10);
+  });
+
+  test('TEST-3985 the composed hooks are byte-equal to what the frozen bash reference writes for the shipped templates and for an index without a final LF', async () => {
+    const { composePreCommit, loadTemplates } = await import(MODULE_URL);
+    for (const variant of ['shipped', 'no-final-lf']) {
+      const root = scratch('tpl-bash-');
+      const dests = materializeHookInstallerReference(ROOT, path.join(root, 'ref'));
+      const tplDir = path.join(root, 'ref', '.aai', 'templates', 'git-hooks');
+      if (variant === 'no-final-lf') {
+        const f = path.join(tplDir, TEMPLATE_FILES.index);
+        writeFileSync(f, readFileSync(f, 'utf8').replace(/\n+$/, ''));
+      }
+      const repo = gitScratch(root);
+      const r = runInstaller({ args: [], root, cwd: repo, script: dests.sh });
+      assert.equal(r.status, 0, r.stderr);
+      const loaded = loadTemplates(path.join(root, 'ref', '.aai', 'scripts'), ['index', 'guard-checks', 'ref-guard', 'pre-push']);
+      assert.deepEqual(loaded.errors, []);
+      const want = composePreCommit(loaded.templates.index, loaded.templates['guard-checks']);
+      assert.ok(readFileSync(hookOf(repo, 'pre-commit')).equals(want), `${variant}: pre-commit bytes`);
+      assert.equal(want[want.length - 1], 10);
+      assert.ok(readFileSync(hookOf(repo, 'reference-transaction')).equals(loaded.templates['ref-guard']), `${variant}: reference-transaction bytes`);
+      assert.ok(readFileSync(hookOf(repo, 'pre-push')).equals(loaded.templates['pre-push']), `${variant}: pre-push bytes`);
+      // and the module itself writes the same bytes from the same templates
+      const repo2 = gitScratch(root, 'repo2');
+      const m = await (async () => {
+        const { run } = await import(MODULE_URL);
+        const err = [];
+        const code = await run([], { out: () => {}, err: (s) => err.push(s), cwd: repo2, env: prepareEnv(root), scriptDir: path.join(root, 'ref', '.aai', 'scripts') });
+        return { code, err: err.join('') };
+      })();
+      assert.equal(m.code, 0, m.err);
+      for (const name of ['pre-commit', 'reference-transaction', 'pre-push']) {
+        assert.ok(readFileSync(hookOf(repo2, name)).equals(readFileSync(hookOf(repo, name))), `${variant}: the module writes the bash bytes of ${name}`);
+      }
+    }
   });
 });

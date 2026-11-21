@@ -216,6 +216,46 @@ test_3982_cli_and_mode() {
   log_pass "TEST-3982: every accepted form, the last wins rule, help per DR-1, DR-2, DR-3, DR-7, the mode flag pairs per DR-4, DR-5 and DR-6 each exit 2 with one line and no child, resolveBase per DR-20"
 }
 
+test_3983_policy_writer() {
+  run_node_tests TEST-3983
+  log_pass "TEST-3983: writeRefGuardPolicy seeds, writes through a link, keeps mode, per-line endings and a BOM, collapses a doubled or value-less key with the removed line numbers, appends with the file terminator, writes nothing when unchanged, refuses a read-only target and a dangling link, leaves no temp and checks its read-back; the reader reads a BOM-prefixed declined and keeps every other verdict; aai-doctor CAT-17 reports DECLINED on it"
+}
+
+test_3984_policy_flows() {
+  run_node_tests TEST-3984
+  # a real process through the suite's own helper: a plain install on a scratch repository that declined the guard
+  local work repo
+  work="$(new_own_scratch policy)"
+  repo="$work/repo"
+  mkdir -p "$repo/docs/ai"
+  ( cd "$repo" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git init -q ) || log_fail "TEST-3984: git init failed"
+  printf 'ref_guard: declined\n' > "$repo/docs/ai/docs-audit.yaml"
+  run_installer "$work" "$repo"
+  [[ "$RUN_RC" == 0 ]] || { cat "$work/run.err" >&2; log_fail "TEST-3984: a plain install on a declined scratch repository exited $RUN_RC"; }
+  grep -qF "Skipped AAI reference-transaction hook (AAI:REF-GUARD)" "$work/run.out" || log_fail "TEST-3984: the Skipped line is missing"
+  [[ ! -e "$repo/.git/hooks/reference-transaction" ]] || log_fail "TEST-3984: the declined guard was installed"
+  [[ -f "$repo/.git/hooks/pre-commit" && -f "$repo/.git/hooks/pre-push" ]] || log_fail "TEST-3984: the other two hooks were not installed"
+  run_installer "$work" "$repo" --arm-ref-guard
+  [[ "$RUN_RC" == 0 ]] || { cat "$work/run.err" >&2; log_fail "TEST-3984: --arm-ref-guard exited $RUN_RC"; }
+  [[ "$(cat "$repo/docs/ai/docs-audit.yaml")" == "ref_guard: armed" ]] || log_fail "TEST-3984: arm did not record armed"
+  [[ -x "$repo/.git/hooks/reference-transaction" ]] || log_fail "TEST-3984: the armed guard is not an executable hook"
+  safe_rm_own "$work"
+  log_pass "TEST-3984: plain skip exactly when declined, decline order, arm, the DR-18 uninstall disclosure, the doubled-key warning and repair, the DR-10 re-arm line, no ref_guard pattern in the module"
+}
+
+test_3985_templates() {
+  run_node_tests TEST-3985
+  # --print outside a repository through the suite's own helper
+  local work
+  work="$(new_own_scratch print)"
+  run_installer "$work" "$work" --print guard-checks
+  [[ "$RUN_RC" == 0 ]] || log_fail "TEST-3985: --print guard-checks outside a repository exited $RUN_RC"
+  [[ "$(sed -n 1p "$work/run.out")" == "# AAI:GUARD-CHECKS BEGIN" ]] || log_fail "TEST-3985: the guard block does not start with its BEGIN line"
+  cmp -s <(tr -d '\r' < "$PROJECT_ROOT/.aai/templates/git-hooks/pre-commit-guard-checks.sh") "$work/run.out" || log_fail "TEST-3985: --print guard-checks differs from the template"
+  safe_rm_own "$work"
+  log_pass "TEST-3985: templates read from the module's own location with every CR removed, each missing one named before any write, malformed index and guard-checks templates refused, --print outside a repository, composePreCommit with a final LF equal to the bash reference bytes"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3980..3997, grows run by run)"
   check_deps
@@ -223,6 +263,9 @@ main() {
   test_3980_scratch_safety
   test_3981_module_shape
   test_3982_cli_and_mode
+  test_3983_policy_writer
+  test_3984_policy_flows
+  test_3985_templates
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
