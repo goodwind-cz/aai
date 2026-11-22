@@ -1,8 +1,9 @@
 # AAI runtime-sidecar gitignore patterns — SINGLE SOURCE OF TRUTH.
 # Consumed by: aai-bootstrap.mjs ensureGitignore (fresh installs), aai-sync.sh's
 # gitignore section (every update, via the shared
-# .aai/scripts/lib/gitignore-block.sh reconcile) and aai-sync.ps1's
-# PowerShell reconcile (fresh installs and updates on Windows). One pattern
+# .aai/scripts/lib/gitignore-block.sh reconcile), aai-sync.ps1's
+# PowerShell reconcile (fresh installs and updates on Windows) and, for the
+# Node layer sync, the one reconcile in .aai/scripts/lib/gitignore-block.mjs. One pattern
 # per line; '#' comments ignored; '!' negation lines keep the .gitkeep
 # placeholders tracked.
 docs/ai/STATE.yaml

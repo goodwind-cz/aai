@@ -443,6 +443,7 @@ const EXPORTS = [
 // The anchor lines of D-MODULE: each occurs exactly once in the module.
 const ANCHORS = [
   "import { readRefGuardPolicy, writeRefGuardPolicy } from './lib/guard-config.mjs';",
+  "import { resolveBase } from './lib/resolve-base.mjs';",
   'const EXIT_FAIL = 1;',
   'const EXIT_USAGE = 2;',
   "const GUARD_BEGIN = '# AAI:GUARD-CHECKS BEGIN';",
@@ -481,7 +482,7 @@ export function moduleShapeProblems(source, tplLines = templateLines()) {
   for (const m of source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) specs.push(m[1]);
   for (const m of source.matchAll(/\b(?:import|require)\(\s*['"]([^'"]+)['"]/g)) specs.push(m[1]);
   for (const spec of specs) {
-    if (!spec.startsWith('node:') && spec !== './lib/guard-config.mjs') problems.push(`import of ${spec} is not a node: specifier or the guard-config library`);
+    if (!spec.startsWith('node:') && spec !== './lib/guard-config.mjs' && spec !== './lib/resolve-base.mjs') problems.push(`import of ${spec} is not a node: specifier, the guard-config or the shared base library`);
     if (NETWORK_MODULES.includes(spec.replace(/^node:/, ''))) problems.push(`import of the network module ${spec}`);
   }
   if (/[^\x00-\x7f]/.test(source)) problems.push('non-ASCII character');
@@ -2244,6 +2245,7 @@ function buildCaseDir(root, c, side, F, refs) {
     mkdirSync(path.join(scripts, 'lib'), { recursive: true });
     writeFileSync(path.join(scripts, 'install-pre-commit-hook.mjs'), readFileSync(MODULE));
     writeFileSync(path.join(scripts, 'lib', 'guard-config.mjs'), readFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'guard-config.mjs')));
+    writeFileSync(path.join(scripts, 'lib', 'resolve-base.mjs'), readFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'resolve-base.mjs')));
     mkdirSync(path.join(dir, '.aai', 'templates', 'git-hooks'), { recursive: true });
     for (const name of readdirSync(TEMPLATE_DIR)) writeFileSync(path.join(dir, '.aai', 'templates', 'git-hooks', name), readFileSync(path.join(TEMPLATE_DIR, name)));
   } else {

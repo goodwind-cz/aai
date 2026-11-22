@@ -2,7 +2,7 @@
 #
 # Test: aai-sync-node
 # (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
-# them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003)
+# them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006)
 #
 # The layer sync is one Node module (.aai/scripts/aai-sync.mjs) behind thin sh/ps1 launchers, compared against
 # frozen copies of both old twins (tests/fixtures/sync-reference/). Every case works in scratch directories this
@@ -46,6 +46,7 @@ phys_path() {
 PROJECT_ROOT="$(phys_path "$SCRIPT_DIR/../..")"
 MJS="$PROJECT_ROOT/.aai/scripts/aai-sync.mjs"
 NODE_TEST="$PROJECT_ROOT/tests/skills/lib/aai-sync.test.mjs"
+BASE_TEST="$PROJECT_ROOT/tests/skills/lib/resolve-base.test.mjs"
 REF_HELPER="$PROJECT_ROOT/tests/skills/lib/sync-reference.mjs"
 REFERENCE_SH="$PROJECT_ROOT/tests/fixtures/sync-reference/aai-sync.sh"
 REFERENCE_PS1="$PROJECT_ROOT/tests/fixtures/sync-reference/aai-sync.ps1"
@@ -304,14 +305,75 @@ test_4003_root_refusals() {
   log_pass "TEST-4003: the target equal to the source, inside it and at a link to it, a file system root, a source without .aai, a missing manifest and an empty core list each exit 1 with the D-ROOTS line and leave target and source byte-identical; a source inside the target is allowed"
 }
 
+# --- run 2: the shared base lib, the .gitignore reconcile and the dropped legacy moves (TEST-4004 to TEST-4006) ------
+
+test_4004_shared_base() {
+  [[ -f "$BASE_TEST" ]] || log_fail "TEST-4004: tests/skills/lib/resolve-base.test.mjs does not exist"
+  [[ -f "$PROJECT_ROOT/.aai/scripts/lib/resolve-base.mjs" ]] || log_fail "TEST-4004: .aai/scripts/lib/resolve-base.mjs does not exist"
+  run_node_tests TEST-4004 "$BASE_TEST"
+  # the existing tests of the three switched modules, by their ids (node:test files)
+  run_node_tests TEST-3962 "$PROJECT_ROOT/tests/skills/lib/aai-update.test.mjs"
+  run_node_tests TEST-3961 "$PROJECT_ROOT/tests/skills/lib/aai-update.test.mjs"
+  run_node_tests TEST-3941 "$PROJECT_ROOT/tests/skills/lib/aai-bootstrap.test.mjs"
+  run_node_tests TEST-3942 "$PROJECT_ROOT/tests/skills/lib/aai-bootstrap.test.mjs"
+  run_node_tests TEST-3981 "$PROJECT_ROOT/tests/skills/lib/install-pre-commit-hook.test.mjs"
+  # every helper that vendors a switched module vendors the lib: the guard of the vendoring class exits 0
+  local out rc=0
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4004: check-vendored-script-deps exited $rc"; }
+  # the hook installer helper copies the lib once, outside its case blocks
+  local helper="$PROJECT_ROOT/tests/skills/lib/vendor-hook-installer.sh" n
+  n="$(/usr/bin/grep -cxF -- '  cp "$src/.aai/scripts/lib/resolve-base.mjs" "$root/.aai/scripts/lib/"' "$helper" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-4004: vendor-hook-installer.sh copies resolve-base.mjs $n times, want once"
+  # PROFILES core lists the lib (the companion obligation of a new .aai file)
+  local verdict
+  verdict="$(node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+    const start = t.findIndex((l) => /^core:/.test(l));
+    let found = false;
+    for (let i = start + 1; i < t.length && !/^[A-Za-z]/.test(t[i]); i++) if (t[i].trim() === "- .aai/scripts/lib/resolve-base.mjs") found = true;
+    process.stdout.write(found ? "found" : "missing");
+  ' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")" || verdict="unreadable"
+  [[ "$verdict" == found ]] || log_fail "TEST-4004: PROFILES core does not list .aai/scripts/lib/resolve-base.mjs ($verdict)"
+  # the contract records of this ride's run 2 (D-REHOME): one per named change, unsigned
+  local json
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4004: spec-amend list failed"
+  local id
+  for id in "SPEC-0307-|TEST-3961 allows the shared base lib" "SPEC-0306-|TEST-3941 allows the shared base lib" \
+    "SPEC-0308-|TEST-3981 allows the shared base lib" "SPEC-0308-|vendor-hook-installer.sh vendors the shared base lib" \
+    "SPEC-0306-|TEST-3941 drops the samePlace anchor line" "SPEC-0157-|TEST-016 names the Node gitignore lib"; do
+    verdict="$(node -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const [spec, what] = process.argv[1].split("|");
+      const hit = d.items.filter((i) => i.ref_id === "sync-on-node" && i.amendment_class === "contract" && i.spec.includes(spec) && i.what.startsWith(what));
+      process.stdout.write(hit.length === 1 ? "found" : "count " + hit.length);
+    ' "$id" <<<"$json")"
+    [[ "$verdict" == found ]] || log_fail "TEST-4004: contract record of ref $SPEC_ID for $id: $verdict"
+  done
+  log_pass "TEST-4004: the lib answers every PWD shape (a dot-dot after a link included) and the four users agree with it and hold no check of their own; the existing tests TEST-3961, TEST-3962, TEST-3941, TEST-3942 and TEST-3981 pass, check-vendored-script-deps exits 0, the hook helper vendors the lib, PROFILES core lists it and the six run 2 records exist"
+}
+
+test_4005_gitignore() {
+  run_node_tests TEST-4005
+  log_pass "TEST-4005: the reconcile writes the bytes of the frozen bash reference for the K09 inputs, a second run changes nothing, a 200 KB file with the managed lines at the top is not re-appended, the DR-14 pointer and the missing-list note print, the lib holds no child process"
+}
+
+test_4006_legacy_dropped() {
+  run_node_tests TEST-4006
+  log_pass "TEST-4006: a legacy-layout target keeps every legacy path byte-identical through the module and the reconcile, no MIGRATE or legacy line is printed, and the module source holds none of the dropped paths"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4003)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4006)"
   check_deps
   setup_fixture
   test_4000_scratch_safety
   test_4001_module_shape
   test_4002_cli
   test_4003_root_refusals
+  test_4004_shared_base
+  test_4005_gitignore
+  test_4006_legacy_dropped
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

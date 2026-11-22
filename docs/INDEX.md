@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-sync-on-node | specs | implementing | 3 done, 19 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
+| spec-sync-on-node | specs | implementing | 6 done, 16 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
 
 ## Canonical layer (0)
 
@@ -796,7 +796,7 @@ _None._
 
 _None._
 
-## Broken references (594)
+## Broken references (604)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -816,6 +816,16 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/lib/aai-bootstrap.test.mjs | docs/other.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/AAI_PIN.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/AUTONOMOUS_LOOP.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/DYNAMIC_SKILLS.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/LOCKS.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/SUPERPOWERS_INTEGRATION.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/roles/role.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/specs/SPEC-1.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/templates/t.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/workflow/flow.md | NOT FOUND |
 | tests/skills/lib/aai-update.test.mjs | docs/ai/reports/sync-conflicts-b.md | NOT FOUND |
 | tests/skills/lib/aai-update.test.mjs | docs/ai/reports/sync-conflicts-m.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/base.md | NOT FOUND |

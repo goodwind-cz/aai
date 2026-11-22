@@ -327,6 +327,8 @@ test_3973_rehomed_bash_suites() {
   cp "$PROJECT_ROOT/tests/skills/lib/pipe-safe.sh" "$copy_root/tests/skills/lib/pipe-safe.sh"
   cp "$SH_LAUNCHER" "$copy_root/.aai/scripts/aai-update.sh"
   cp "$MJS" "$copy_root/.aai/scripts/aai-update.mjs"
+  mkdir -p "$copy_root/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/resolve-base.mjs" "$copy_root/.aai/scripts/lib/resolve-base.mjs"
   forced_suite="$copy_root/tests/skills/${UPDATE_SUITE##*/}"
   sed 's/^  check_deps$/  check_deps; log_fail "forced failure"/' "$UPDATE_SUITE" > "$forced_suite"
   /usr/bin/grep -q 'forced failure' "$forced_suite" || log_fail "TEST-3973: the forced failure was not injected into the copy"

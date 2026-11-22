@@ -206,7 +206,6 @@ const ANCHORS = [
   "const HOOKS_UNCHANGED = '0 hook(s) added, 0 updated';",
   'const PLATFORM_MISMATCH = 6;',
   'const EXIT_HOOKS_REFUSED = 3;',
-  'const samePlace = (a, b) => a.dev === b.dev && a.ino === b.ino;',
   'const sameContent = (a, b) => stripTrailingNewlines(a) === stripTrailingNewlines(b);',
   "if (pm === 'npm' && script === 'test') return 'npm test';",
   "const runChild = (script, args, cwd) => spawnSync(process.execPath, [script, ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });",
@@ -248,7 +247,7 @@ export function moduleShapeProblems(source) {
   for (const m of source.matchAll(/^\s*import\s[^;]*?\sfrom\s+['"]([^'"]+)['"]/gm)) specs.push(m[1]);
   for (const m of source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) specs.push(m[1]);
   for (const m of source.matchAll(/\b(?:import|require)\(\s*['"]([^'"]+)['"]/g)) specs.push(m[1]);
-  for (const spec of specs) if (!spec.startsWith('node:')) problems.push(`import of ${spec} is not a node: specifier`);
+  for (const spec of specs) if (!spec.startsWith('node:') && spec !== './lib/resolve-base.mjs') problems.push(`import of ${spec} is not a node: specifier or the shared base library`);
   if (/[^\x00-\x7f]/.test(source)) problems.push('non-ASCII character');
   for (const anchor of ANCHORS) {
     const n = source.split(anchor).length - 1;

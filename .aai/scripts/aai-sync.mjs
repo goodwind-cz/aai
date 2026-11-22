@@ -9,10 +9,22 @@
 // never reads standard input, and all of its output goes through descriptors 1 and 2 so that its lines and the
 // lines of the children it starts appear in program order.
 //
-// STATE OF THE PORT (run 1 of the ride): arguments, help, usage, the roots and their refusals, the profile and
-// the core list are here. The copy, prune, surfaces, hooks, report and pin steps (D-PROFILE onward) are exported
-// names that refuse with "not implemented yet" until their runs; the module is not reachable from a launcher
-// before the launcher swap, and a run that passes every pre-write check ends with exit 1 and no write.
+// DROPPED, ON PURPOSE (D-LEGACY, DR-13): both old twins carried moves for the layout that predates .aai/ (2026-03).
+// This module performs none of them and prints nothing about them. The moves removed a top-level ai/ directory, the
+// scripts/ files that share a name with a shipped script (and the ones under the old product name), a root playbook file, the
+// docs/ workflow, roles and templates trees, six loose files under docs/ai/ and one knowledge file. Each deleted a
+// name a project may own, and every target synced since 2026-03 has already moved its files. A target that still
+// holds the old layout keeps those files (the CHANGELOG names the manual cleanup). The rule this enforces: the sync
+// deletes only inside the managed set (the .aai/ prune and the stale clean, the copy-replaced managed entries and the
+// retired skill wrappers), under a target root it has verified again. Kept: the pointer to migrate-state-to-local,
+// printed by lib/gitignore-block.mjs when it appends the runtime-state patterns.
+//
+// STATE OF THE PORT (run 2 of the ride): arguments, help, usage, the roots and their refusals, the profile and
+// the core list are here, with the shared base resolution (lib/resolve-base.mjs) and the .gitignore reconcile
+// (lib/gitignore-block.mjs, called by the step order that run 3 assembles). The copy, prune, surfaces, hooks,
+// report and pin steps (D-PROFILE onward) are exported names that refuse with "not implemented yet" until their
+// runs; the module is not reachable from a launcher before the launcher swap, and a run that passes every pre-write
+// check ends with exit 1 and no write.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';

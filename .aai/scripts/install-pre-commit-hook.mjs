@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readRefGuardPolicy, writeRefGuardPolicy } from './lib/guard-config.mjs';
+import { resolveBase } from './lib/resolve-base.mjs';
 
 const EXIT_FAIL = 1;
 const EXIT_USAGE = 2;
@@ -205,20 +206,8 @@ const statOrNull = (p) => {
   }
 };
 
-// resolveBase(env, cwd): the base directory is PWD when it is absolute and names the same device and inode as
-// the working directory, else the working directory (DR-20); git children run with it as their cwd.
-export function resolveBase(env = process.env, cwd = process.cwd()) {
-  const pwd = env.PWD;
-  if (typeof pwd === 'string' && path.isAbsolute(pwd)) {
-    // the identity check applies to the very path that is returned: path.resolve folds '..' lexically while the OS
-    // follows a symlink first, so a PWD whose two readings differ is not trusted and the working directory wins
-    const resolved = path.resolve(pwd);
-    const a = statOrNull(resolved);
-    const b = statOrNull(cwd);
-    if (a && b && a.dev === b.dev && a.ino === b.ino) return resolved;
-  }
-  return cwd;
-}
+// resolveBase(env, cwd) is the shared base resolution of lib/resolve-base.mjs (D-BASE; DR-20), re-exported.
+export { resolveBase };
 
 const TEMPLATE_FILES = { index: 'pre-commit-index.sh', 'guard-checks': 'pre-commit-guard-checks.sh', 'ref-guard': 'reference-transaction.sh', 'pre-push': 'pre-push.sh' };
 const SLOT_NAMES = { index: 'pre-commit', 'ref-guard': 'reference-transaction', 'close-gate': 'pre-push' };

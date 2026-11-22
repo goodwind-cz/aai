@@ -35,9 +35,10 @@ Describe 'install-pre-commit-hook.ps1' {
       $t = Join-Path (Join-Path $Repo '.aai') 'templates'
       $sl = Join-Path $s 'lib'
       New-Item -ItemType Directory -Force -Path $s, $t, $sl | Out-Null
-      # the module both launchers run, and the one lib it imports (pre-commit-installer-on-node, D-PESTER)
+      # the module both launchers run, and the two libs it imports (pre-commit-installer-on-node, D-PESTER)
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.mjs') -Destination $s
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'lib') 'guard-config.mjs') -Destination $sl
+      Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'lib') 'resolve-base.mjs') -Destination $sl
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.ps1') -Destination $s
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.sh') -Destination $s
       Copy-Item -LiteralPath $script:Tpl -Destination $t -Recurse

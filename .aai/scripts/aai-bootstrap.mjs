@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveFromBase } from './lib/resolve-base.mjs';
 
 const GENERATOR = '.aai/scripts/aai-bootstrap.sh';
 const SKILL_MARKER = 'AAI-DYNAMIC-SKILL:START';
@@ -27,7 +28,6 @@ const EXIT_HOOKS_REFUSED = 3;
 const EXIT_CONFLICT = 1;
 const EXIT_USAGE = 2;
 
-const samePlace = (a, b) => a.dev === b.dev && a.ino === b.ino;
 const stripTrailingNewlines = (s) => s.replace(/\n+$/, '');
 const sameContent = (a, b) => stripTrailingNewlines(a) === stripTrailingNewlines(b);
 const runChild = (script, args, cwd) => spawnSync(process.execPath, [script, ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -136,19 +136,9 @@ const statOrNull = (p) => {
   }
 };
 
-// resolveRoot(target, env, cwd): the base is PWD when it is absolute and names the working directory
-// (the rule bash trusts PWD by), else the working directory; a target resolves lexically against it.
-// CDPATH is not read.
-export function resolveRoot(target = '', env = process.env, cwd = process.cwd()) {
-  let base = cwd;
-  const pwd = env.PWD;
-  if (typeof pwd === 'string' && path.isAbsolute(pwd)) {
-    const a = statOrNull(pwd);
-    const b = statOrNull(cwd);
-    if (a && b && samePlace(a, b)) base = path.resolve(pwd);
-  }
-  return target === '' ? base : path.resolve(base, target);
-}
+// resolveRoot(target, env, cwd): the shared base resolution of lib/resolve-base.mjs (D-BASE); a target resolves
+// lexically against the base. CDPATH is not read.
+export const resolveRoot = (target = '', env = process.env, cwd = process.cwd()) => resolveFromBase(target, env, cwd);
 
 const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const isFile = (p) => statOrNull(p)?.isFile() === true;

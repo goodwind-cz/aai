@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveFromBase } from './lib/resolve-base.mjs';
 
 const DEFAULT_REPO = 'goodwind-cz/aai';
 const DEFAULT_REF = 'main';
@@ -113,22 +114,9 @@ const statOrNull = (p) => {
   }
 };
 
-const samePlace = (a, b) => a.dev === b.dev && a.ino === b.ino;
-
-// resolveBase(rel, env, cwd): the base directory is PWD when it is absolute and names the same
-// device and inode as the working directory, else the working directory; a relative path resolves
-// lexically against it (dot-dot goes up the logical path). CDPATH is not read. With no path the
-// base itself is returned.
-export function resolveBase(rel = '', env = process.env, cwd = process.cwd()) {
-  let base = cwd;
-  const pwd = env.PWD;
-  if (typeof pwd === 'string' && path.isAbsolute(pwd)) {
-    const a = statOrNull(pwd);
-    const b = statOrNull(cwd);
-    if (a && b && samePlace(a, b)) base = path.resolve(pwd);
-  }
-  return rel === '' ? base : path.resolve(base, rel);
-}
+// resolveBase(rel, env, cwd): the shared base resolution of lib/resolve-base.mjs (D-BASE): PWD when it names the
+// working directory, else the working directory; a relative path resolves lexically against it.
+export const resolveBase = (rel = '', env = process.env, cwd = process.cwd()) => resolveFromBase(rel, env, cwd);
 
 // normSlug(s): "owner/repo" lower-cased from a slug, an https or ssh URL (a trailing .git and everything up to
 // the LAST github.com: or github.com/ dropped, both case per SLUG_CASE_FLAGS); empty for anything else.

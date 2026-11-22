@@ -684,6 +684,7 @@ test_runtime_ignore_header_consumer_accuracy() {
     ".aai/scripts/aai-sync.sh"
     ".aai/scripts/aai-sync.ps1"
     ".aai/scripts/lib/gitignore-block.sh"
+    ".aai/scripts/lib/gitignore-block.mjs"
   )
   header="$(sed -n '1,8p' "$RUNTIME_LIST")"
   local n

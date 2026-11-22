@@ -35,6 +35,7 @@ const NEW_TEST_FILES = [
   path.join(ROOT, 'tests', 'skills', 'test-aai-sync-node.sh'),
   path.join(HERE, 'aai-sync.test.mjs'),
   path.join(HERE, 'sync-reference.mjs'),
+  path.join(HERE, 'resolve-base.test.mjs'),
 ];
 
 const scratchDirs = [];
@@ -108,14 +109,15 @@ export function assertTargetUnderRoot(target, root, cwd, argv = []) {
 }
 
 // runSync({ argv, root, target, cwd, env, script }): the one way these tests start the sync as a process: the module
-// (default) or a copy of it under the root. The streams are returned as strings.
-export function runSync({ argv = [], root, target = null, cwd = root, env = {}, script = MODULE }) {
+// (default) or a copy of it under the root; exe is the interpreter (node by default, bash for the frozen bash
+// reference). The streams are returned as strings.
+export function runSync({ argv = [], root, target = null, cwd = root, env = {}, script = MODULE, exe = process.execPath }) {
   const runEnv = prepareEnv(root, { PWD: cwd, ...env });
   assert.equal(runEnv.GIT_CONFIG_NOSYSTEM, '1');
   assert.equal(readFileSync(runEnv.GIT_CONFIG_GLOBAL, 'utf8'), '', 'GIT_CONFIG_GLOBAL is an empty file');
   assertTargetUnderRoot(target, root, cwd, argv);
   assert.ok(script === MODULE || under(script, root), `the script ${script} is neither the module nor under the scratch root`);
-  return spawnSync(process.execPath, [script, ...argv], { cwd, env: runEnv, encoding: 'utf8' });
+  return spawnSync(exe, [script, ...argv], { cwd, env: runEnv, encoding: 'utf8' });
 }
 
 // runInProcess({ argv, root, target, cwd, env, scriptPath, spawn }): the one way these tests call the module's run().
@@ -940,5 +942,334 @@ describe('TEST-4003 roots and the refusals before any write', () => {
     renameSync(target, moved);
     mkdirSync(target);
     assert.equal(underRoot(roots, path.join(target, 'x')), false, 'the identity of the target changed');
+  });
+});
+
+// --- TEST-4005 and TEST-4006 (run 2): the .gitignore reconcile and the dropped legacy moves --------------------------
+
+const GITIGNORE_LIB_URL = pathToFileURL(path.join(ROOT, '.aai', 'scripts', 'lib', 'gitignore-block.mjs')).href;
+const REAL_LIST = path.join(ROOT, '.aai', 'system', 'RUNTIME_IGNORE.list');
+const PS1_MARKER = '# AAI runtime sidecars (seeded by aai-sync.ps1; per-dev, never commit)';
+const BOOTSTRAP_MARKER = '# AAI runtime sidecars (seeded by aai-bootstrap; per-dev, never commit)';
+const POINTER_1 = '  NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,\n';
+const POINTER_2 = '        run bash .aai/scripts/migrate-state-to-local.sh (or powershell -NoProfile -File .aai/scripts/migrate-state-to-local.ps1) in the target project.\n';
+
+// refSource(root, { list }): a scratch source tree holding the frozen bash twin and its library (the module-side engine
+// files are removed) and, when list is true, the real RUNTIME_IGNORE.list. Returns the root of the source.
+function refSource(root, { list = true } = {}) {
+  const src = path.join(root, 'refsrc');
+  mkdirSync(path.join(src, '.aai', 'system'), { recursive: true });
+  materializeSyncReference(src);
+  if (list) copyFileSync(REAL_LIST, path.join(src, '.aai', 'system', 'RUNTIME_IGNORE.list'));
+  return src;
+}
+
+// refSync(root, src, target): runs the frozen bash twin from the scratch source into the target through runSync.
+function refSync(root, src, target) {
+  const r = runSync({ argv: [target], root, target, script: path.join(src, '.aai', 'scripts', 'aai-sync.sh'), exe: 'bash' });
+  assert.equal(r.status, 0, `the bash reference failed: ${r.stderr}`);
+  return r;
+}
+
+// gitignoreLines(stdout, target): the lines of a run that concern the .gitignore, the target path replaced by <T>, the
+// second line of the pointer (its text differs by design, DR-14) left out.
+function gitignoreLines(stdout, target) {
+  return stdout.split('\n')
+    .filter((l) => /\.gitignore|^  NOTE: If docs\/ai\/STATE|skipped runtime-sidecar/.test(l))
+    .map((l) => l.split(target).join('<T>'));
+}
+
+const readIf = (file) => (existsSync(file) ? readFileSync(file) : null);
+
+// The K09 inputs: [label, initial .gitignore text or null, source list present, target list text or null]. A block built
+// from a first bash run on an empty target is the managed text.
+function k09Cases(managed) {
+  const crlf = (t) => t.replace(/\n/g, '\r\n');
+  return [
+    ['K09a no .gitignore', null, true, null],
+    ['K09a2 an LF .gitignore without the managed lines', 'node_modules/\ndist/\n', true, null],
+    ['K09a3 an LF .gitignore without a final newline', 'node_modules/\ndist', true, null],
+    ['K09b a CRLF .gitignore', crlf('node_modules/\n.agents/skills/\n.claude/skills/\ndocs/ai/STATE.yaml\n'), true, null],
+    ['K09c every managed block twice', `${managed}\n${managed}`, true, null],
+    ['K09c2 every managed block twice with blank runs and a project line between', `build/\n\n\n${managed}\n\nmine.log\n${managed}\n\n\n`, true, null],
+    ['K09c3 every managed block twice, CRLF', crlf(`${managed}${managed}`), true, null],
+    ['K09d only .aai/cache/ present (prefix reading)', 'src/\n.aai/cache/\n', true, null],
+    ['K09d2 a line starting with .aai/ is enough for the .aai/ block', '.aai/anything\n', true, null],
+    ['K09e a 200 KB .gitignore with the managed lines at the top', `${managed}${'padding/line/of/a/large/ignore/file\n'.repeat(5800)}`, true, null],
+    ['K09f the .ps1 marker text already present', `${PS1_MARKER}\nlogs/\n`, true, null],
+    ['K09f2 the bootstrap marker text already present', `${BOOTSTRAP_MARKER}\ndocs/ai/STATE.yaml\n`, true, null],
+    ['K09g no list in the source, the target list used', 'x/\n', false, 'custom/pattern-one\ncustom/pattern-two\n# comment\n\ncustom/pattern-one\n'],
+    ['K09h no list anywhere (the note)', 'x/\n', false, null],
+    ['K09i prefix-only: the marker prefix alone', '# AAI runtime sidecars\n', true, null],
+  ];
+}
+
+describe('TEST-4005 the .gitignore reconcile', () => {
+  test('TEST-4005 reconcileGitignore leaves the bytes of the frozen bash reference for the K09 inputs, a second run changes nothing', async () => {
+    const { reconcileGitignore } = await import(GITIGNORE_LIB_URL);
+    const root = scratch('gi-');
+    const withList = refSource(root);
+    const noList = path.join(root, 'refsrc-nolist');
+    mkdirSync(path.join(noList, '.aai', 'system'), { recursive: true });
+    materializeSyncReference(noList);
+    // the managed text: what the bash twin writes into an empty target
+    const first = path.join(root, 'managed-target');
+    mkdirSync(first);
+    refSync(root, withList, first);
+    const managed = readFileSync(path.join(first, '.gitignore'), 'utf8');
+    assert.ok(managed.includes('# AAI runtime sidecars (seeded from .aai/system/RUNTIME_IGNORE.list; per-dev, never commit)'));
+    assert.ok(managed.includes('docs/ai/STATE.yaml') && managed.includes('.agents/skills/') && managed.includes('.wrangler/'));
+    let n = 0;
+    for (const [label, initial, sourceList, targetList] of k09Cases(managed)) {
+      n += 1;
+      const tb = path.join(root, `bash-${n}`);
+      const tn = path.join(root, `node-${n}`);
+      for (const t of [tb, tn]) {
+        mkdirSync(path.join(t, '.aai', 'system'), { recursive: true });
+        if (initial !== null) writeFileSync(path.join(t, '.gitignore'), initial, 'latin1');
+        if (targetList !== null) writeFileSync(path.join(t, '.aai', 'system', 'RUNTIME_IGNORE.list'), targetList);
+      }
+      // The bash twin replaces the target's .aai/system before it reconciles, so a list that only the target holds is gone
+      // by then (the copy step, not the reconcile). The twin therefore runs with that same list in its source: the list in
+      // effect is the one under test, and the module reads it from the target.
+      let refSrc = sourceList ? withList : noList;
+      if (!sourceList && targetList !== null) {
+        refSrc = path.join(root, `refsrc-custom-${n}`);
+        mkdirSync(path.join(refSrc, '.aai', 'system'), { recursive: true });
+        materializeSyncReference(refSrc);
+        writeFileSync(path.join(refSrc, '.aai', 'system', 'RUNTIME_IGNORE.list'), targetList);
+      }
+      const ref = refSync(root, refSrc, tb);
+      const out = [];
+      const srcList = sourceList ? path.join(withList, '.aai', 'system', 'RUNTIME_IGNORE.list') : path.join(noList, '.aai', 'system', 'RUNTIME_IGNORE.list');
+      reconcileGitignore(tn, { srcList, targetList: path.join(tn, '.aai', 'system', 'RUNTIME_IGNORE.list'), out: (t) => out.push(t) });
+      const want = readIf(path.join(tb, '.gitignore'));
+      const got = readIf(path.join(tn, '.gitignore'));
+      assert.ok(want !== null && got !== null, `${label}: both targets hold a .gitignore`);
+      assert.equal(got.toString('latin1'), want.toString('latin1'), `${label}: the bytes of the bash reference`);
+      const wantLines = gitignoreLines(ref.stdout, tb);
+      const gotLines = gitignoreLines(out.join(''), tn).filter((l) => !l.startsWith('        run bash'));
+      assert.deepEqual(gotLines, wantLines.map((l) => l.replace(/^ {8}run bash.*$/, '')).filter(Boolean), `${label}: the printed lines`);
+      // a second run: byte-identical, nothing printed
+      const again = [];
+      reconcileGitignore(tn, { srcList, targetList: path.join(tn, '.aai', 'system', 'RUNTIME_IGNORE.list'), out: (t) => again.push(t) });
+      assert.equal(readFileSync(path.join(tn, '.gitignore'), 'latin1'), got.toString('latin1'), `${label}: a second run is byte-identical`);
+      // the missing-list note is printed on every run (the bash twin does the same); nothing else is
+      assert.deepEqual(again.filter((l) => !l.startsWith('  skipped runtime-sidecar gitignore seed: ')), [], `${label}: a second run prints nothing`);
+      assert.deepEqual(listTree(tn).filter((f) => f.includes('aai-dedup')), [], `${label}: no temporary sibling is left`);
+    }
+    assert.ok(n >= 12, 'the K09 inputs ran');
+  });
+
+  test('TEST-4005 a 200 KB .gitignore with the managed lines at the top is not re-appended, whatever the pipe buffer holds', async () => {
+    const { reconcileGitignore } = await import(GITIGNORE_LIB_URL);
+    const root = scratch('gi-big-');
+    const src = refSource(root);
+    const seed = path.join(root, 'seed');
+    mkdirSync(seed);
+    refSync(root, src, seed);
+    const big = `${readFileSync(path.join(seed, '.gitignore'), 'utf8')}${'a/line/that/pads/the/ignore/file\n'.repeat(7000)}`;
+    assert.ok(big.length > 200 * 1024, 'the file is larger than 200 KB');
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    writeFileSync(path.join(t, '.gitignore'), big);
+    const out = [];
+    reconcileGitignore(t, { srcList: path.join(src, '.aai', 'system', 'RUNTIME_IGNORE.list'), targetList: path.join(t, 'none.list'), out: (x) => out.push(x) });
+    reconcileGitignore(t, { srcList: path.join(src, '.aai', 'system', 'RUNTIME_IGNORE.list'), targetList: path.join(t, 'none.list'), out: (x) => out.push(x) });
+    assert.equal(readFileSync(path.join(t, '.gitignore'), 'utf8'), big, 'two runs left the file unchanged');
+    assert.deepEqual(out, [], 'nothing printed');
+  });
+
+  test('TEST-4005 the runtime-state block prints the DR-14 pointer naming both launchers, and a missing list prints the note', async () => {
+    const { reconcileGitignore } = await import(GITIGNORE_LIB_URL);
+    const root = scratch('gi-ptr-');
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    const out = [];
+    const list = path.join(t, '.aai', 'system', 'RUNTIME_IGNORE.list');
+    reconcileGitignore(t, { srcList: path.join(root, 'no-src.list'), targetList: list, out: (x) => out.push(x) });
+    const gi = path.join(t, '.gitignore');
+    assert.deepEqual(out, [
+      `  Added .aai/ to ${gi}\n`,
+      `  skipped runtime-sidecar gitignore seed: ${list} missing\n`,
+      `  Added .cloudflare-publish* to ${gi}\n`,
+      `  Added .wrangler/ to ${gi}\n`,
+      `  Added .aai/cache/ to ${gi}\n`,
+      `  Added docs/ai/reports runtime ignore rules to ${gi}\n`,
+      `  Added agent skill sync patterns to ${gi}\n`,
+      `  Added AAI per-dev runtime state patterns to ${gi}\n`,
+      POINTER_1,
+      POINTER_2,
+    ]);
+    // no pointer when the state patterns are already present, and none when the file is already complete
+    const second = [];
+    reconcileGitignore(t, { srcList: '', targetList: list, out: (x) => second.push(x) });
+    assert.deepEqual(second.filter((l) => !l.startsWith('  skipped runtime-sidecar')), []);
+    assert.equal(POINTER_2.includes('migrate-state-to-local.sh') && POINTER_2.includes('migrate-state-to-local.ps1'), true);
+  });
+
+  test('TEST-4005 seedRuntimeGitignore matches exact lines on a CR-free read, writes the marker once and by prefix, and reports the count', async () => {
+    const { seedRuntimeGitignore, AAI_GITIGNORE_MARKER_PREFIX } = await import(GITIGNORE_LIB_URL);
+    assert.equal(AAI_GITIGNORE_MARKER_PREFIX, '# AAI runtime sidecars');
+    const root = scratch('gi-seed-');
+    const list = path.join(root, 'list');
+    const file = path.join(root, '.gitignore');
+    writeFileSync(list, '# comment\n\na/one\r\nb/two\na/one\n');
+    // CRLF list lines match as LF lines; a duplicate list entry is written once per occurrence (the bash contract)
+    writeFileSync(file, 'x\r\nb/two\r\n');
+    assert.equal(seedRuntimeGitignore(file, list, '# AAI runtime sidecars (marker)'), `${file} add 2 AAI runtime sidecar pattern(s)`);
+    assert.equal(readFileSync(file, 'latin1'), 'x\r\nb/two\r\n\n# AAI runtime sidecars (marker)\na/one\na/one\n');
+    assert.equal(seedRuntimeGitignore(file, list, '# AAI runtime sidecars (marker)'), '', 'nothing to add: no note');
+    // a legacy marker (any text with the prefix) suppresses the new marker
+    writeFileSync(file, '# AAI runtime sidecars (seeded by something else)\n');
+    seedRuntimeGitignore(file, list, '# AAI runtime sidecars (marker)');
+    assert.equal(readFileSync(file, 'utf8'), '# AAI runtime sidecars (seeded by something else)\n\na/one\nb/two\na/one\n');
+    // a missing list writes nothing
+    const before = readFileSync(file);
+    assert.equal(seedRuntimeGitignore(file, path.join(root, 'absent'), 'm'), `skipped runtime-sidecar gitignore seed: ${path.join(root, 'absent')} missing`);
+    assert.deepEqual(readFileSync(file), before);
+    // an empty list is not a note and writes nothing
+    writeFileSync(list, '# only a comment\n\n');
+    assert.equal(seedRuntimeGitignore(file, list, 'm'), '');
+    assert.deepEqual(readFileSync(file), before);
+  });
+
+  test('TEST-4005 the self-heal keeps the first managed line, leaves project lines alone, keeps CRLF and rewrites only for a managed duplicate', async () => {
+    const { reconcileGitignore } = await import(GITIGNORE_LIB_URL);
+    const root = scratch('gi-heal-');
+    const src = refSource(root);
+    const list = path.join(src, '.aai', 'system', 'RUNTIME_IGNORE.list');
+    const seed = path.join(root, 'seed');
+    mkdirSync(seed);
+    refSync(root, src, seed);
+    const managed = readFileSync(path.join(seed, '.gitignore'), 'utf8');
+    const run = (initial) => {
+      const t = path.join(root, `h-${Math.random().toString(36).slice(2, 8)}`);
+      mkdirSync(t);
+      writeFileSync(path.join(t, '.gitignore'), initial);
+      const out = [];
+      reconcileGitignore(t, { srcList: list, targetList: path.join(t, 'none'), out: (x) => out.push(x) });
+      return { text: readFileSync(path.join(t, '.gitignore'), 'utf8'), out: out.join('').split(t).join('<T>'), dir: t };
+    };
+    // a project duplicate is never touched; a managed duplicate is removed once and the blank runs collapse
+    const a = run(`dup\ndup\n\n\n\n${managed}.wrangler/\n`);
+    assert.ok(a.text.startsWith('dup\ndup\n\n'), 'project duplicates stay');
+    assert.equal(a.text.split('\n').filter((l) => l === '.wrangler/').length, 1);
+    assert.ok(!/\n\n\n/.test(a.text), 'runs of blank lines collapsed');
+    assert.ok(a.out.includes('  De-duplicated 1 stale AAI-managed line(s) in <T>/.gitignore\n'), a.out);
+    // blank runs alone, without a managed duplicate, leave the file as it is
+    const b = run('x\n\n\n\ny\n');
+    assert.ok(b.text.startsWith('x\n\n\n\ny\n'), 'no managed duplicate: the file is not rewritten');
+    // CRLF is kept when any CR exists
+    const c = run(managed.replace(/\n/g, '\r\n') + '.wrangler/\r\n');
+    assert.ok(c.text.includes('\r\n') && !/[^\r]\n/.test(c.text), 'every line ends with CRLF');
+    // a leftover temporary sibling this run did not create is never overwritten
+    const d = path.join(root, 'h-exists');
+    mkdirSync(d);
+    writeFileSync(path.join(d, '.gitignore'), `${managed}.wrangler/\n`);
+    const tmp = path.join(d, `.gitignore.aai-dedup.${process.pid}`);
+    writeFileSync(tmp, 'foreign');
+    const before = readFileSync(path.join(d, '.gitignore'), 'utf8');
+    assert.throws(() => reconcileGitignore(d, { srcList: list, targetList: path.join(d, 'none'), out: () => {} }), /EEXIST/);
+    assert.equal(readFileSync(tmp, 'utf8'), 'foreign', 'the foreign temporary is left in place');
+    assert.equal(readFileSync(path.join(d, '.gitignore'), 'utf8'), before, 'the file is unchanged');
+  });
+
+  test('TEST-4005 the lib starts no child process and holds no shell', () => {
+    const text = readFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'gitignore-block.mjs'), 'utf8');
+    const code = text.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    assert.ok(!/child_process|spawn|exec\w*\(|\bshell\b|\|\s*grep|process\.stdout|process\.stderr/.test(code), 'no child process, shell or pipe');
+    assert.equal(text.split("export const AAI_GITIGNORE_MARKER_PREFIX = '# AAI runtime sidecars';").length - 1, 1, 'the prefix constant, once');
+    assert.ok(!/[^\x00-\x7f]/.test(text), 'ASCII only');
+  });
+});
+
+// --- TEST-4006 -----------------------------------------------------------------------------------------------------
+
+// The dropped moves of D-LEGACY, as the paths a pre-.aai layout holds. Assembled from parts so that this file names
+// each path as data and the module source can be scanned for the same tokens.
+const LEGACY_FILES = {
+  'ai/notes.md': 'legacy ai dir\n',
+  'scripts/tool.sh': '#!/bin/sh\necho mine\n',
+  'scripts/triage.sh': '#!/bin/sh\necho project-owned triage\n',
+  'scripts/ai-os-old.sh': '#!/bin/sh\necho old name\n',
+  'PLAYBOOK.md': 'project-owned playbook\n',
+  'docs/workflow/flow.md': 'workflow\n',
+  'docs/roles/role.md': 'role\n',
+  'docs/templates/t.md': 'template\n',
+  'docs/ai/AUTONOMOUS_LOOP.md': 'loop\n',
+  'docs/ai/SUPERPOWERS_INTEGRATION.md': 'sp\n',
+  'docs/ai/DYNAMIC_SKILLS.md': 'ds\n',
+  'docs/ai/PRICING.yaml': 'pricing\n',
+  'docs/ai/AAI_PIN.md': 'pin\n',
+  'docs/ai/LOCKS.md': 'locks\n',
+  'docs/knowledge/PATTERNS_UNIVERSAL.md': 'patterns\n',
+  'docs/specs/SPEC-1.md': 'project spec\n',
+  'README.md': 'project readme\n',
+};
+// Tokens of the dropped moves; the module and the two libs hold none of them (the pointer to the state-migration
+// script is kept and is not one of them).
+const DROPPED_TOKENS = [
+  'MIGRATE', 'Legacy', 'PLAYBOOK', 'AUTONOMOUS_LOOP', 'SUPERPOWERS_INTEGRATION', 'DYNAMIC_SKILLS', 'PATTERNS_UNIVERSAL',
+  'ai-os-', 'docs/workflow', 'docs/roles', 'docs/templates', 'docs/ai/PRICING', 'docs/ai/AAI_PIN', 'docs/ai/LOCKS',
+];
+const MANAGED_TOP = new Set(['.aai', '.agents', '.claude', '.claude-plugin', '.codex', '.cursor', '.gemini', '.github', '.gitignore', 'hooks']);
+
+// outsideManaged(dir): the snapshot rows of every path outside the managed set (the advisory directory docs/ai/reports
+// is part of it).
+const outsideManaged = (dir) => snapshotTree(dir).filter((row) => {
+  const rel = row.split('\t')[0];
+  return !MANAGED_TOP.has(rel.split('/')[0]) && !rel.startsWith('docs/ai/reports');
+});
+
+function writeLegacy(target) {
+  for (const [rel, body] of Object.entries(LEGACY_FILES)) {
+    mkdirSync(path.dirname(path.join(target, rel)), { recursive: true });
+    writeFileSync(path.join(target, rel), body);
+  }
+}
+
+describe('TEST-4006 the legacy-layout moves are dropped', () => {
+  test('TEST-4006 the frozen bash twin removes the legacy layout (the fixture reaches the dropped moves)', () => {
+    const root = scratch('lg-ref-');
+    const src = refSource(root);
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    writeLegacy(t);
+    const r = refSync(root, src, t);
+    assert.match(r.stdout, /MIGRATE removed legacy/);
+    assert.equal(existsSync(path.join(t, 'PLAYBOOK.md')), false, 'the twin deleted a project-owned playbook');
+    assert.equal(existsSync(path.join(t, 'ai')), false);
+    assert.equal(existsSync(path.join(t, 'docs', 'workflow', 'flow.md')), false);
+  });
+
+  test('TEST-4006 the module and the reconcile keep every legacy path byte-identical and print no MIGRATE or Legacy line', async () => {
+    const { reconcileGitignore } = await import(GITIGNORE_LIB_URL);
+    const root = scratch('lg-');
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    writeLegacy(t);
+    const before = outsideManaged(t);
+    assert.ok(before.length >= Object.keys(LEGACY_FILES).length, 'the fixture holds the legacy layout');
+    const r = runSync({ argv: [t], root, target: t });
+    assert.doesNotMatch(r.stdout + r.stderr, /MIGRATE|Legacy/, 'no legacy line');
+    assert.deepEqual(outsideManaged(t), before, 'the module run left every path outside the managed set byte-identical');
+    const out = [];
+    reconcileGitignore(t, { srcList: REAL_LIST, targetList: path.join(t, 'none'), out: (x) => out.push(x) });
+    assert.doesNotMatch(out.join(''), /MIGRATE|Legacy/);
+    assert.deepEqual(outsideManaged(t), before, 'the reconcile touched only .gitignore');
+    assert.ok(existsSync(path.join(t, '.gitignore')));
+    for (const [rel, body] of Object.entries(LEGACY_FILES)) assert.equal(readFileSync(path.join(t, rel), 'utf8'), body, rel);
+  });
+
+  test('TEST-4006 the module source and the two libs hold none of the dropped paths and lines', () => {
+    for (const file of [MODULE, path.join(ROOT, '.aai', 'scripts', 'lib', 'gitignore-block.mjs'), path.join(ROOT, '.aai', 'scripts', 'lib', 'resolve-base.mjs')]) {
+      const text = readFileSync(file, 'utf8');
+      for (const token of DROPPED_TOKENS) assert.ok(!text.includes(token), `${path.basename(file)} holds ${token}`);
+    }
+    // the kept pointer to the state migration is in the reconcile
+    assert.ok(readFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'gitignore-block.mjs'), 'utf8').includes('migrate-state-to-local.sh'));
+    // negative control: the scan is not vacuous
+    assert.ok(DROPPED_TOKENS.some((tok) => readFileSync(path.join(ROOT, 'tests', 'fixtures', 'sync-reference', 'aai-sync.sh'), 'utf8').includes(tok)), 'the bash twin holds the tokens');
   });
 });
