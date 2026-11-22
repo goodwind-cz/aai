@@ -429,11 +429,16 @@ test_3571_wiring() {
   local f out n tsv="$SCRIPT_DIR/suite-weights.tsv" wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" e push pr
   mkdir -p "$TEST_DIR/t3571"
   for f in .aai/scripts/aai-sync.sh .aai/scripts/aai-sync.ps1 .aai/scripts/aai-update.sh .aai/scripts/aai-update.ps1 \
-    .aai/scripts/install-pre-commit-hook.sh .aai/scripts/install-pre-commit-hook.ps1 \
     tests/skills/lib/install-parity.mjs tests/skills/lib/install-parity-allowlist.tsv tests/skills/install-parity.Tests.ps1; do
     printf '%s\n' "$f" > "$TEST_DIR/t3571/files.txt"
     out="$(selected_in "$PROJECT_ROOT" "$TEST_DIR/t3571/files.txt")"
     [[ "$out" == *'SELECTED aai-install-parity '* ]] || log_fail "TEST-3571: $f does not select aai-install-parity: $out"
+  done
+  # the hook installer is on protected_paths_l3 (spec-installer-l3-protected): a change to it runs every suite
+  for f in .aai/scripts/install-pre-commit-hook.sh .aai/scripts/install-pre-commit-hook.ps1; do
+    printf '%s\n' "$f" > "$TEST_DIR/t3571/files.txt"
+    out="$(selected_in "$PROJECT_ROOT" "$TEST_DIR/t3571/files.txt")"
+    [[ "$out" == *"FULL_RUN reason=protected-l3 path=$f"* ]] || log_fail "TEST-3571: $f is not FULL_RUN protected-l3: $out"
   done
   n="$(awk -F'\t' '$1=="aai-install-parity" && $2==196{c++} END{print c+0}' "$tsv")"
   [[ "$n" == 1 ]] || log_fail "TEST-3571: suite-weights holds $n aai-install-parity rows at 196, expected 1"

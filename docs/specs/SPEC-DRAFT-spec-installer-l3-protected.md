@@ -3,7 +3,7 @@ id: spec-installer-l3-protected
 type: spec
 number: null
 status: implementing
-frozen_sha256: b2f5e0868c9fd15873815b401eb77f0f8aec3d73743ad6bb9727b037b2ddea28
+frozen_sha256: f33dc488e496997fc5bafcf96b4467dccdfd3c3959095517ffd6190c000efaaf
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -52,6 +52,9 @@ SPEC-FROZEN: true
   .aai/templates/docs-audit.template.yaml; .aai/workflow/WORKFLOW.md;
   tests/skills/test-aai-suite-select.sh;
   tests/skills/test-aai-ceremony-levels.sh; CHANGELOG.md;
+  tests/skills/test-aai-hook-installer-node.sh;
+  tests/skills/test-aai-git-hook-templates.sh;
+  tests/skills/test-aai-install-parity.sh (added by the D7 amendment);
   docs/issues/CHANGE-DRAFT-installer-l3-protected.md;
   docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md.
 
@@ -82,12 +85,24 @@ SPEC-FROZEN: true
   docs/ai/docs-audit.yaml as a guarded config); PROFILES.yaml does not carry
   it; select-suites.mjs and lib/recheck.mjs read it live; no test pins the
   list's length (TEST-009 asks for at least four entries). Nothing else
-  changes.
+  changes. (Amended by D7: three existing wiring tests did pin the selector's
+  routing of these paths.)
 - D6 (consumer record). The seed template reaches new installs, so one
   CHANGELOG `## [unreleased]` per-entry heading. Existing downstream
   docs-audit.yaml files are project-owned and are not rewritten; the entry
   says how to add the lines. No product doc: the change adds list entries,
   not a capability.
+
+- D7 (amendment after review r1, B1). Three existing wiring tests expected
+  the selector to route installer or template paths to a named suite:
+  TEST-3997 (tests/skills/test-aai-hook-installer-node.sh), TEST-3443
+  (tests/skills/test-aai-git-hook-templates.sh) and TEST-3571
+  (tests/skills/test-aai-install-parity.sh). Once the paths are protected
+  the selector prints only `FULL_RUN reason=protected-l3`, so each test now
+  asserts that line for the listed paths it names and keeps the suite
+  routing check for its other paths, as TEST-3458 already does for
+  pre-commit-checks. Added with disclosure (`spec-amend.mjs add`, signoff
+  none); the owner's merge direction signs it.
 
 ## Acceptance Criteria Mapping
 
@@ -95,6 +110,7 @@ SPEC-FROZEN: true
 - Spec-AC-02 maps to intake AC-002 (the selector, a gate that reads the
   list).
 - Spec-AC-03 maps to intake AC-003 (the canon text).
+- Spec-AC-04 maps to preservation of the existing wiring tests (D7).
 
 ## Constitution deviations
 
@@ -106,6 +122,7 @@ None.
 |---|---|---|---|---|---|
 | Spec-AC-01 | WHEN loadConfig of docs-audit-core.mjs reads this repository, its protected_paths_l3 SHALL contain each of the seven D1 paths, and the protected_paths_l3 block of .aai/templates/docs-audit.template.yaml SHALL contain each of them | planned | — | — | D1, D3 |
 | Spec-AC-02 | WHEN select-suites.mjs runs against this repository with a file list holding one of the seven D1 paths, its output SHALL contain FULL_RUN reason=protected-l3 path= followed by that path, for each of the seven | planned | — | — | D2 |
+| Spec-AC-04 | WHEN TEST-3997, TEST-3443 and TEST-3571 run against this repository, each SHALL assert FULL_RUN reason=protected-l3 for the installer or template paths it names and SHALL still assert its named suite for its other paths, and each SHALL exit 0 | planned | — | — | D7 |
 | Spec-AC-03 | .aai/workflow/WORKFLOW.md SHALL carry a line starting with - hook installer: under its protected surfaces list that names install-pre-commit-hook.mjs, install-pre-commit-hook.sh, install-pre-commit-hook.ps1 and .aai/templates/git-hooks/ | planned | — | — | D4 |
 
 ## Implementation plan
@@ -129,13 +146,22 @@ None.
 | TEST-4000 | Spec-AC-02 | integration | tests/skills/test-aai-suite-select.sh | the selector on the real repository names each of the seven paths FULL_RUN reason=protected-l3; RED on the unchanged list | target `docs/ai/docs-audit.yaml`; `sed:s/\n  - \.aai\/scripts\/install-pre-commit-hook\.mjs(?=\n)//` drops the module entry and the case must fail | planned |
 | TEST-4002 | Spec-AC-03 | integration | tests/skills/test-aai-ceremony-levels.sh | WORKFLOW.md carries the hook installer bullet naming the three installer files and the template directory; RED on the unchanged canon | target `.aai/workflow/WORKFLOW.md`; `sed:s/\n- hook installer:[^\n]*//` drops the bullet's first line and the case must fail | planned |
 
+| TEST-3997 | Spec-AC-04 | integration | tests/skills/test-aai-hook-installer-node.sh | the installer module and both launchers select FULL_RUN reason=protected-l3; the reference twins and test helpers still select aai-hook-installer-node | target `docs/ai/docs-audit.yaml`; `sed:s/\n  - \.aai\/scripts\/install-pre-commit-hook\.ps1(?=\n)//` drops the ps1 entry and the case must fail | planned |
+| TEST-3443 | Spec-AC-04 | integration | tests/skills/test-aai-git-hook-templates.sh | the four templates and both launchers select FULL_RUN reason=protected-l3; the vendoring helper and the Pester file still select aai-git-hook-templates | target `docs/ai/docs-audit.yaml`; `sed:s/\n  - \.aai\/templates\/git-hooks\/reference-transaction\.sh(?=\n)//` drops one template entry and the case must fail | planned |
+| TEST-3571 | Spec-AC-04 | integration | tests/skills/test-aai-install-parity.sh | both installer launchers select FULL_RUN reason=protected-l3; the sync, update and parity files still select aai-install-parity | target `docs/ai/docs-audit.yaml`; `sed:s/\n  - \.aai\/scripts\/install-pre-commit-hook\.sh(?=\n)//` drops the sh entry and the case must fail | planned |
+
 RED observations: all three tests are written first and run against the
 unchanged lists and canon; their failing runs are stored as
 `red-<selector>.log` under `docs/ai/tdd/installer-l3-protected/`.
+TEST-3997, TEST-3443 and TEST-3571 (D7) existed before; they were red on the
+listed paths after the list change (review r1 B1), and their failing
+observation for the new assertions is the mutation record.
 
 ## Verification
 
 - `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh aai-suite-select aai-ceremony-levels aai-sync-seed`
+  and (D7) the hook-installer-node, git-hook-templates and install-parity
+  suites
 - `node .aai/scripts/mutation-run.mjs --spec <this spec>`
 - No full sweep: the change is list data plus two suites; the CI impact
   selector escalates the PR to the full run anyway (WORKFLOW.md is
