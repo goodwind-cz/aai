@@ -548,14 +548,18 @@ selected_for() {
 test_3443_wiring() {
   local f out n s wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" tsv="$SCRIPT_DIR/suite-weights.tsv" nsl="$SCRIPT_DIR/lib/nested-suite-lint.mjs"
   local helper_suites="aai-docs-audit aai-doctor aai-git-ref-guard aai-hygiene-pack aai-tracked-ignored"
-  for f in .aai/templates/git-hooks/pre-commit-index.sh .aai/templates/git-hooks/pre-commit-guard-checks.sh .aai/templates/git-hooks/reference-transaction.sh \
-    .aai/templates/git-hooks/pre-push.sh .aai/scripts/install-pre-commit-hook.sh .aai/scripts/install-pre-commit-hook.ps1 \
-    tests/skills/lib/vendor-hook-installer.sh tests/skills/install-pre-commit-hook.Tests.ps1; do
+  for f in tests/skills/lib/vendor-hook-installer.sh tests/skills/install-pre-commit-hook.Tests.ps1; do
     out="$(selected_for "$f")"
     [[ "$out" == *'SELECTED aai-git-hook-templates '* ]] || log_fail "TEST-3443: $f does not select aai-git-hook-templates: $out"
   done
-  # The helper and the templates it copies reach every suite whose fixtures read them.
-  for f in tests/skills/lib/vendor-hook-installer.sh .aai/templates/git-hooks/pre-push.sh; do
+  # The templates and the installer are on protected_paths_l3 (spec-installer-l3-protected): a change runs every suite.
+  for f in .aai/templates/git-hooks/pre-commit-index.sh .aai/templates/git-hooks/pre-commit-guard-checks.sh .aai/templates/git-hooks/reference-transaction.sh \
+    .aai/templates/git-hooks/pre-push.sh .aai/scripts/install-pre-commit-hook.sh .aai/scripts/install-pre-commit-hook.ps1; do
+    out="$(selected_for "$f")"
+    [[ "$out" == *"FULL_RUN reason=protected-l3 path=$f"* ]] || log_fail "TEST-3443: $f is not FULL_RUN protected-l3: $out"
+  done
+  # The helper reaches every suite whose fixtures read the templates it copies.
+  for f in tests/skills/lib/vendor-hook-installer.sh; do
     out="$(selected_for "$f")"
     for s in $helper_suites; do
       [[ "$out" == *"SELECTED $s "* || "$out" == *"CORE $s "* ]] || log_fail "TEST-3443: $f does not select $s: $out"

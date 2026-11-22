@@ -74,6 +74,11 @@ Protected surfaces (L3 canonical defaults; project-owned override/extension:
 - allocator: .aai/scripts/allocate-doc-number.mjs
 - guards: .aai/scripts/pre-commit-checks.sh, .aai/scripts/pre-commit-checks.ps1
 - hook gate: .aai/scripts/claude-hook-gate.sh, .aai/scripts/hook-gate.mjs
+- hook installer: .aai/scripts/install-pre-commit-hook.mjs,
+  .aai/scripts/install-pre-commit-hook.sh, .aai/scripts/install-pre-commit-hook.ps1
+  and the hook bodies it installs under .aai/templates/git-hooks/
+  (pre-commit-index.sh, pre-commit-guard-checks.sh, reference-transaction.sh,
+  pre-push.sh)
 - workflow canon: .aai/workflow/WORKFLOW.md, docs/CONSTITUTION.md
 
 A spec whose scope touches a protected surface MUST declare level 3.

@@ -1186,6 +1186,20 @@ real_select() {
   OUT="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from "$TEST_DIR/one.txt" 2>&1)" || log_fail "real_select: selector failed for $1: $OUT"
 }
 
+test_4000_hook_installer_is_protected_l3() {  # spec-installer-l3-protected Spec-AC-02
+  log_info "Test: the hook installer and its hook body templates select FULL_RUN reason=protected-l3 on the real list (TEST-4000)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local p
+  for p in .aai/scripts/install-pre-commit-hook.mjs .aai/scripts/install-pre-commit-hook.sh \
+           .aai/scripts/install-pre-commit-hook.ps1 .aai/templates/git-hooks/pre-commit-index.sh \
+           .aai/templates/git-hooks/pre-commit-guard-checks.sh .aai/templates/git-hooks/reference-transaction.sh \
+           .aai/templates/git-hooks/pre-push.sh; do
+    real_select "$p"
+    assert_payload_contains "$OUT" "FULL_RUN reason=protected-l3 path=$p" "TEST-4000: $p must be FULL_RUN reason=protected-l3, got: $OUT"
+  done
+  log_pass "TEST-4000: the hook installer and its four hook body templates are protected-l3"
+}
+
 test_1737_real_map_gitignore_full_and_guard_scripts_select() {  # validation round 1 BLOCKING-1
   log_info "Test: a .gitignore-only path list stays FULL_RUN; the commit-guard scripts and LOCAL EVIDENCE prompts select aai-tracked-ignored (TEST-1737)..."
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
@@ -2467,6 +2481,7 @@ main() {
   test_1712_inert_precedence_and_byte_identity
   test_1713_real_map_inert_pinned_to_ignored_dirs
   test_1737_real_map_gitignore_full_and_guard_scripts_select
+  test_4000_hook_installer_is_protected_l3
   test_1714_delta_selects_over_the_delta_only
   test_1715_delta_ineligible_cells
   test_1716_delta_ancestry_and_unknown_sha

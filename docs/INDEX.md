@@ -69,7 +69,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (689)
+## Done (691)
 
 | ID | Type | Path |
 |---|---|---|
@@ -331,6 +331,7 @@ _None._
 | CHANGE-0261 | issues | docs/issues/CHANGE-0261-bootstrap-on-node.md |
 | CHANGE-0262 | issues | docs/issues/CHANGE-0262-update-on-node.md |
 | CHANGE-0263 | issues | docs/issues/CHANGE-0263-pre-commit-installer-on-node.md |
+| CHANGE-0264 | issues | docs/issues/CHANGE-0264-installer-l3-protected.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -760,6 +761,7 @@ _None._
 | SPEC-0306 | specs | docs/specs/SPEC-0306-spec-bootstrap-on-node.md |
 | SPEC-0307 | specs | docs/specs/SPEC-0307-spec-update-on-node.md |
 | SPEC-0308 | specs | docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md |
+| SPEC-0309 | specs | docs/specs/SPEC-0309-spec-installer-l3-protected.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
