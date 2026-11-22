@@ -155,7 +155,7 @@ suites:
       - .aai/scripts/aai-bootstrap.sh
       - .aai/scripts/platform.mjs
       - .aai/scripts/lib/platform-adapter.mjs
-      - .aai/scripts/lib/gitignore-block.sh
+      - .aai/scripts/lib/gitignore-block.mjs
       - .aai/BOOTSTRAP.prompt.md
       - .aai/BOOTSTRAP_DIFF.prompt.md
       - .aai/SKILL_BOOTSTRAP.prompt.md
@@ -629,6 +629,7 @@ suites:
       - docs/ai/tests/golden-flow.jsonl
       - tests/fixtures/target-project/**
       - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/close-work-item.mjs
       - .aai/scripts/spec-freeze.mjs
       - .aai/scripts/docs-audit.mjs
@@ -650,6 +651,7 @@ suites:
       - .aai/system/AUTONOMOUS_LOOP.md
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/spec-amend.mjs
       - .aai/scripts/follow-ups.mjs
       - .aai/scripts/select-suites.mjs
@@ -812,6 +814,7 @@ suites:
       - tests/skills/lib/bootstrap-reference.mjs
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
@@ -823,7 +826,7 @@ suites:
       - .aai/scripts/install-pre-commit-hook.mjs
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/templates/git-hooks/**
-      - .aai/scripts/lib/gitignore-block.sh
+      - .aai/scripts/lib/gitignore-block.mjs
       - .aai/scripts/lib/merge-hooks-json.mjs
       - .aai/scripts/lib/guard-config.mjs
       - .aai/scripts/lib/docs-audit-core.mjs
@@ -889,6 +892,7 @@ suites:
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
@@ -899,6 +903,7 @@ suites:
       - .aai/system/PROFILES.yaml
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-sync.mjs
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/system/AAI_PIN.md
 
@@ -952,7 +957,8 @@ suites:
       - .aai/scripts/aai-bootstrap.mjs
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
-      - .aai/scripts/lib/gitignore-block.sh
+      - .aai/scripts/aai-sync.mjs
+      - .aai/scripts/lib/gitignore-block.mjs
       - .aai/system/RUNTIME_IGNORE.list
       - .aai/templates/update-config.template.yaml
       - .aai/templates/docs-audit.template.yaml
@@ -1180,6 +1186,7 @@ suites:
       - tests/skills/lib/release-notes-docs.test.mjs
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/release-finish.mjs
       - docs/product/release-notes-gate.md
 
@@ -1413,6 +1420,7 @@ suites:
       - .aai/scripts/install-pre-commit-hook.*
       - .aai/templates/git-hooks/**
       - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/aai-doctor.mjs
       - .aai/system/PROFILES.yaml
       - .gitattributes
@@ -1785,6 +1793,7 @@ suites:
       - tests/skills/lib/hermes-skills-smoke.py
       - tests/skills/lib/hermes-source-integrity.py
       - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/sync-harness-skills.mjs
       - .aai/system/HARNESS_SKILLS.yaml
       - .agents/skills/**
@@ -1802,6 +1811,7 @@ suites:
       - .aai/system/PROFILES.yaml
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/aai-update.mjs
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
@@ -1853,6 +1863,7 @@ suites:
       - .aai/system/PROFILES.yaml
       - .aai/templates/hooks/settings-hooks.json
       - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.mjs
       - tests/fixtures/aai-bootstrap-reference/**
       - tests/skills/test-aai-bootstrap-node.sh
       - tests/skills/lib/aai-bootstrap.test.mjs
@@ -1869,6 +1880,7 @@ suites:
       - .aai/scripts/update-doctor-report.mjs
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-sync.mjs
       - .aai/system/PROFILES.yaml
       - tests/fixtures/aai-update-reference/**
       - tests/skills/test-aai-update-node.sh
@@ -1907,6 +1919,7 @@ suites:
       - .aai/templates/docs-audit.template.yaml
       - .aai/system/PROFILES.yaml
       - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.mjs
       - .aai/scripts/aai-update.*
       - .aai/scripts/update-doctor-report.mjs
       - tests/fixtures/hook-installer-reference/**
@@ -1949,6 +1962,19 @@ suites:
       - tests/skills/test-aai-git-ref-guard.sh
       - tests/skills/test-aai-expert-fetch.sh
       - tests/skills/lib/prompt-diet-ledger.sh
+      - tests/skills/lib/pipe-safe.sh
+
+  aai-sync-docs:
+    globs:
+      - CHANGELOG.md
+      - README.md
+      - docs/USER_GUIDE.md
+      - docs/product/sync-on-node.md
+      - docs/analysis/node-first-remaining-plan.md
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-sync-docs.sh
+      - tests/skills/test-aai-expert-fetch.sh
+      - tests/skills/test-aai-follow-ups.sh
       - tests/skills/lib/pipe-safe.sh
 
   aai-sync-node:

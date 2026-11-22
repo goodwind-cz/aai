@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-sync-on-node | specs | implementing | 19 done, 4 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
+| spec-sync-on-node | specs | implementing | 20 done, 3 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
 
 ## Canonical layer (0)
 
@@ -798,7 +798,7 @@ _None._
 
 _None._
 
-## Broken references (605)
+## Broken references (606)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1395,6 +1395,7 @@ _None._
 | tests/skills/test-aai-suite-select.sh | docs/project-sessions/x.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/rfc/RFC-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/specs/SPEC-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-sync-node.sh | docs/product/sync-on-node.md | NOT FOUND |
 | tests/skills/test-aai-sync-seed.sh | docs/x.md | NOT FOUND |
 | tests/skills/test-aai-tdd.sh | docs/specs/SPEC-CHANGE-001.md | NOT FOUND |
 | tests/skills/test-aai-test-residue.sh | docs/specs/fixture-spec.md | NOT FOUND |

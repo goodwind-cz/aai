@@ -310,3 +310,5 @@ aai-hook-installer-node	196
 aai-hook-installer-docs	196
 # sample aai-sync-node fallback unsampled (new suite of sync-on-node; no successful observation)
 aai-sync-node	196
+# sample aai-sync-docs fallback unsampled (split from aai-sync-node by sync-on-node; no successful observation)
+aai-sync-docs	196

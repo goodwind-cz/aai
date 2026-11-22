@@ -802,6 +802,140 @@ test_4018_upgrade() {
   log_pass "TEST-4018: U0 fresh install, U1 old install updated by the new updater, U2 old engine over a new tree, U3 the pre-ride-10 updater and U4 the PowerShell runner (named skip without pwsh) vendor the module and both libs, keep the core profile, prune exactly the old core files the new list lacks and run the target's own sync, update, hook installer and bootstrap launchers; no node refuses with the D-LAUNCH line and an unchanged target"
 }
 
+# suite_map_rows <suite-map.yaml>: prints "row<TAB>glob" lines.
+suite_map_rows() {
+  node -e '
+    const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+    let row = "";
+    for (const l of lines) {
+      const m = /^  ([a-z0-9-]+):$/.exec(l);
+      if (m) row = m[1];
+      else if (row && /^      - /.test(l)) process.stdout.write(row + "\t" + l.replace(/^      - /, "") + "\n");
+    }
+  ' "$1"
+}
+
+# TEST-4019 (D-WIRE): the wiring of the suites, the weights, the pins, the ratchets and the path lists.
+test_4019_wiring() {
+  local work f out rc sel rows
+  work="$(new_own_scratch wiring)"
+  # every file of the ride routes to aai-sync-node; the two shared libs escalate to FULL_RUN (the .aai/scripts/lib/** shared-lib glob)
+  for f in .aai/scripts/aai-sync.mjs .aai/scripts/aai-sync.sh .aai/scripts/aai-sync.ps1 \
+    tests/fixtures/sync-reference/aai-sync.sh tests/fixtures/sync-reference/aai-sync.ps1 tests/fixtures/sync-reference/gitignore-block.sh \
+    tests/skills/lib/aai-sync.test.mjs tests/skills/lib/resolve-base.test.mjs tests/skills/lib/sync-reference.mjs tests/skills/lib/sync-upgrade.test.mjs \
+    tests/skills/aai-sync.Tests.ps1 tests/skills/lib/git-env-scrub.sh; do
+    printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
+    qgrep -q "^SELECTED aai-sync-node " < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-4019: select-suites does not route $f to aai-sync-node"; }
+  done
+  for f in .aai/scripts/lib/resolve-base.mjs .aai/scripts/lib/gitignore-block.mjs; do
+    printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
+    qgrep -q "^FULL_RUN reason=shared-lib path=$f" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-4019: select-suites does not escalate $f to FULL_RUN shared-lib"; }
+  done
+  rows="$(suite_map_rows "$PROJECT_ROOT/tests/skills/suite-map.yaml")" || log_fail "TEST-4019: cannot read suite-map.yaml"
+  # every suite-map row that names aai-sync.sh or aai-sync.ps1 names the module (or the aai-sync.* glob); no row names the deleted bash library
+  out="$(printf '%s\n' "$rows" | node -e '
+    const rows = {};
+    for (const l of require("fs").readFileSync(0, "utf8").split("\n")) {
+      if (!l) continue;
+      const [k, v] = l.split("\t");
+      (rows[k] = rows[k] || []).push(v);
+    }
+    const bad = [];
+    let named = 0;
+    for (const [k, v] of Object.entries(rows)) {
+      if (v.includes(".aai/scripts/aai-sync.sh") || v.includes(".aai/scripts/aai-sync.ps1") || v.includes(".aai/scripts/aai-sync.*")) {
+        named += 1;
+        if (!v.includes(".aai/scripts/aai-sync.mjs") && !v.includes(".aai/scripts/aai-sync.*")) bad.push(k + " lacks aai-sync.mjs");
+      }
+      if (v.some((g) => /gitignore-block\.sh$/.test(g))) bad.push(k + " names gitignore-block.sh");
+    }
+    if (named < 14) bad.push("only " + named + " rows name aai-sync.sh or .ps1 (want 14 or more)");
+    process.stdout.write(bad.join(", "));
+  ')" || log_fail "TEST-4019: the row check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-4019: suite-map rows: $out"
+  for sel in "aai-sync-node	tests/skills/test-aai-sync-node.sh" "aai-sync-node	tests/skills/lib/sync-upgrade.test.mjs" "aai-sync-docs	tests/skills/test-aai-sync-docs.sh" \
+    "aai-sync-docs	CHANGELOG.md" "aai-sync-docs	README.md" "aai-sync-docs	docs/USER_GUIDE.md" "aai-sync-docs	docs/product/sync-on-node.md" \
+    "aai-sync-docs	docs/analysis/node-first-remaining-plan.md" "aai-sync-docs	docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"; do
+    printf '%s\n' "$rows" | qgrep -qxF "$sel" || log_fail "TEST-4019: the suite-map row is missing: ${sel/	/ -> }"
+  done
+  for sel in aai-sync-node aai-sync-docs; do
+    qgrep -qxF "$(printf '%s\t196' "$sel")" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-4019: the weights row $sel 196 is missing"
+  done
+  qgrep -qxF "# sample aai-sync-node fallback unsampled (new suite of sync-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-4019: the weights fallback line for aai-sync-node is missing"
+  qgrep -qxF "# sample aai-sync-docs fallback unsampled (split from aai-sync-node by sync-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-4019: the weights fallback line for aai-sync-docs is missing"
+  for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_128_shipping_scripts_pipe_safe_at_zero" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" \
+    "test-aai-win-fallback.sh test_034" "test-aai-win-fallback.sh test_035"; do
+    rc=0
+    # shellcheck disable=SC2086
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-4019: ${sel#* } of ${sel%% *} exited $rc"; }
+  done
+  qgrep -q "row-count pin holds at 144\|-eq 144" < "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || log_fail "TEST-4019: test_090 does not pin 144 suite-map rows"
+  rc=0
+  node "$SCRIPT_DIR/lib/nested-suite-lint.mjs" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" > "$work/lint.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/lint.log" >&2; log_fail "TEST-4019: nested-suite-lint exited $rc"; }
+  for f in check-cd-subshell-leak.mjs check-vendored-script-deps.mjs; do
+    rc=0
+    node "$PROJECT_ROOT/.aai/scripts/$f" > "$work/chk.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-4019: $f exited $rc"; }
+  done
+  rc=0
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" > "$work/chk.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/chk.log" >&2; log_fail "TEST-4019: check-test-registration.mjs exited $rc"; }
+  qgrep -qxF "$(printf '1\t.aai/scripts/aai-sync.sh')" < "$SCRIPT_DIR/lib/cd-subshell-leak-baseline.tsv" || log_fail "TEST-4019: the cd-subshell baseline does not hold 1 for .aai/scripts/aai-sync.sh"
+  out="$(node -e '
+    const fs = require("fs");
+    const text = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const lists = [];
+    for (const key of ["push:", "pull_request:"]) {
+      const at = text.findIndex((l) => l === "  " + key);
+      if (at < 0) { lists.push(null); continue; }
+      const p = text.findIndex((l, i) => i > at && l === "    paths:");
+      const out = [];
+      for (let i = p + 1; i < text.length && /^      - /.test(text[i]); i += 1) out.push(text[i].replace(/^      - /, "").replace(/^\x27|\x27$/g, ""));
+      lists.push(out);
+    }
+    const bad = [];
+    if (!lists[0] || !lists[1]) bad.push("a path list is missing");
+    else {
+      if (JSON.stringify(lists[0]) !== JSON.stringify(lists[1])) bad.push("the push and pull_request path lists differ");
+      for (const w of [".aai/scripts/aai-sync.mjs", ".aai/scripts/lib/resolve-base.mjs", ".aai/scripts/lib/gitignore-block.mjs", "tests/fixtures/sync-reference/**", "tests/skills/lib/sync-reference.mjs"]) {
+        if (!lists[0].includes(w)) bad.push("the push list lacks " + w);
+        if (!lists[1].includes(w)) bad.push("the pull_request list lacks " + w);
+      }
+      for (const w of [".aai/scripts/lib/gitignore-block.sh"]) {
+        if (lists[0].includes(w) || lists[1].includes(w)) bad.push("a path list still holds " + w);
+      }
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$PROJECT_ROOT/.github/workflows/ps1-quality.yml")" || log_fail "TEST-4019: the path-list check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-4019: ps1-quality.yml: $out"
+  # the prompt corpus (.aai/*.prompt.md and .aai/AGENTS.md) is byte-equal to the commit before the ride
+  out="$(PROJECT_ROOT="$PROJECT_ROOT" node -e '
+    const { execFileSync } = require("child_process");
+    const fs = require("fs");
+    const root = process.env.PROJECT_ROOT;
+    const git = (args) => execFileSync("git", ["-C", root, ...args], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
+    try { git(["cat-file", "-e", "077ee649^{commit}"]); } catch { process.stdout.write("commit 077ee649 is not in this clone"); process.exit(0); }
+    const names = git(["ls-tree", "--name-only", "077ee649", ".aai/"]).toString("utf8").split("\n").filter((n) => /^\.aai\/[^\/]*\.prompt\.md$/.test(n) || n === ".aai/AGENTS.md");
+    const now = fs.readdirSync(root + "/.aai").filter((n) => /\.prompt\.md$/.test(n) || n === "AGENTS.md").map((n) => ".aai/" + n).sort();
+    const bad = [];
+    if (names.length < 30) bad.push("the corpus at 077ee649 lists only " + names.length + " files");
+    if (JSON.stringify(names.slice().sort()) !== JSON.stringify(now)) bad.push("the corpus file set differs from 077ee649");
+    for (const n of names) {
+      let want;
+      try { want = git(["show", "077ee649:" + n]); } catch { bad.push(n + " unreadable at 077ee649"); continue; }
+      if (!fs.existsSync(root + "/" + n) || Buffer.compare(want, fs.readFileSync(root + "/" + n)) !== 0) bad.push(n + " differs");
+    }
+    process.stdout.write(bad.join("; "));
+  ')" || log_fail "TEST-4019: the prompt corpus check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-4019: the prompt corpus: $out"
+  safe_rm_own "$work"
+  log_pass "TEST-4019: select-suites routes the module, launchers, libs, reference copies, test files, the Pester file and git-env-scrub.sh to aai-sync-node (FULL_RUN for the two libs), every row naming aai-sync.sh names the module and none names the bash library, the weights rows and fallback lines hold, test_090, test_128, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1 for aai-sync.sh, both ps1-quality path lists are identical and hold the D-WIRE entries, and the prompt corpus equals 077ee649"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4019)"
   check_deps
@@ -825,6 +959,7 @@ main() {
   test_4016_ps1_launcher
   test_4017_parity_sync
   test_4018_upgrade
+  test_4019_wiring
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
