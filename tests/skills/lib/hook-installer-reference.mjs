@@ -1,5 +1,5 @@
 // hook-installer-reference.mjs - the frozen hook installer references and the scratch-safety helpers
-// (docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md, D-REF and D-SAFETY).
+// (docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md, D-REF and D-SAFETY).
 //
 // The two references are byte copies of .aai/scripts/install-pre-commit-hook.sh (blob 2d9e1626) and
 // .aai/scripts/install-pre-commit-hook.ps1 (blob c46255f4) at commit bf0148d6, kept outside .aai/ so they are

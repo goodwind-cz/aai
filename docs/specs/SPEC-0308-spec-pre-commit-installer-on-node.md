@@ -1,10 +1,10 @@
 ---
 id: spec-pre-commit-installer-on-node
 type: spec
-number: null
-status: implementing
+number: 308
+status: done
 mutation_gate: v1
-frozen_sha256: ce8aed9311be93b9b7dd2e971a8c7341c582371115558c6d318e68c9c40bcc3e
+frozen_sha256: 7df0c195b65be2516e2c5903d63f952be5b48862746203a732bd4b00907f8323
 ceremony_level: 3
 links:
   requirement: pre-commit-installer-on-node
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Run the git hook installer as one Node module behind thin launchers](../issues/CHANGE-DRAFT-pre-commit-installer-on-node.md).
+- Requirement: [Run the git hook installer as one Node module behind thin launchers](../issues/CHANGE-0263-pre-commit-installer-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 11 (owner sign-off: yes; merge by the owner). Plan section 4
@@ -93,8 +93,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-update-node.sh
   .github/workflows/ps1-quality.yml CHANGELOG.md docs/USER_GUIDE.md
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
-  docs/ai/decisions.jsonl docs/issues/CHANGE-DRAFT-pre-commit-installer-on-node.md
-  docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md docs/INDEX.md
+  docs/ai/decisions.jsonl docs/issues/CHANGE-0263-pre-commit-installer-on-node.md
+  docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md docs/INDEX.md
   (decisions.jsonl only for the amendment and follow-up records; the
   allocator renames the two DRAFT files at merge; the fixtures file only if
   the corpus fixtures are split out of the node:test file;
@@ -1029,7 +1029,7 @@ selectors of TEST-3992 and TEST-3994 name them).
   declined.
 - RFC-0017 phase 5 row: one sentence after the fifteenth-slice sentence and
   before the remaining-scripts-plan sentence:
-  `The sixteenth slice [moved the git hook installer to Node](../issues/CHANGE-DRAFT-pre-commit-installer-on-node.md): one module holds the mode, policy, slot and write rules behind thin install-pre-commit-hook.sh and install-pre-commit-hook.ps1 launchers, compared with frozen copies of both twins, and the ref_guard policy is read and written only through guard-config.`
+  `The sixteenth slice [moved the git hook installer to Node](../issues/CHANGE-0263-pre-commit-installer-on-node.md): one module holds the mode, policy, slot and write rules behind thin install-pre-commit-hook.sh and install-pre-commit-hook.ps1 launchers, compared with frozen copies of both twins, and the ref_guard policy is read and written only through guard-config.`
   Status stays `in progress`; the allocator rewrites the link at merge
   (checks match only the suffix `pre-commit-installer-on-node.md`). The
   remaining-pairs inventory loses its `install-pre-commit-hook` row (the

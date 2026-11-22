@@ -2810,6 +2810,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### The git hook installer runs on Node behind thin launchers
+
+The hook installer puts the three AAI git hooks into the hooks directory git actually uses (`git rev-parse --git-path hooks/<name>`, which follows `core.hooksPath` and linked worktrees):
+
+[Product doc](product/pre-commit-installer-on-node.md) · [Spec](specs/SPEC-0308-spec-pre-commit-installer-on-node.md)
+
 ### The AAI layer updater runs on Node behind thin launchers
 
 `/aai-update` refreshes a project's vendored AAI layer from the canonical repository: it fetches the source (a local checkout, or a clone through gh, git, then an anonymous git clone), runs the source's sync into the project, and prints the changed files, the AAI_PIN lines, the newest conflict report, the doctor field report and the next steps. It now runs as one Node.js module behind two small launchers. The bash and PowerShell copies of the updater used to drift; they now share one behaviour. Each launcher keeps running the sync it ran before (`aai-sync.sh` from the shell launcher, `aai-sync.ps1` from PowerShell). Node.js 22 or later is now required: without it, both launchers refuse, print an install hint and change nothing.

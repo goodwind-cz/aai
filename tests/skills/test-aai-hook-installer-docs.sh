@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-installer-docs
-# (docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md, TEST-3998 and TEST-3999)
+# (docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md, TEST-3998 and TEST-3999)
 #
 # The documentation and follow-up half of the pre-commit-installer-on-node ride, split out of
 # test-aai-hook-installer-node.sh so that the long installer suite does not read the changelog (the release

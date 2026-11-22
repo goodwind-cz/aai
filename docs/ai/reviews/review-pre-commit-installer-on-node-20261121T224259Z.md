@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff bf0148d6..HEAD (HEAD 10d779e8, branch feat/pre-commit-installer-on-node; 39 files)"
-  spec: docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md
+  spec: docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -42,7 +42,7 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-git-ref-guard.sh, line: 1176,
           issue: "Re-homed .ps1 tests TEST-608, 631, 637 and 646 (and the .ps1 arm of TEST-309) now return 0 with no assertion when pwsh is absent. They used to carry static pins that always ran. This is the vacuous-pass class of fu-test641-passes-without-pwsh, which the ride closes for TEST-641 only.",
           failure_scenario: "On a host without pwsh, `bash tests/skills/test-aai-git-ref-guard.sh test_608_ps1_hooks_static` prints PASS-equivalent output with zero assertions. Mitigated: TEST-3994 runs them under need_pester, which fails on CI without pwsh, and the module-level properties are covered by TEST-3982 and TEST-3984." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md, line: 1245,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md, line: 1245,
           issue: "The Test Plan Status cells of TEST-3996 to TEST-3999 still read 'pending', while the AC Status table says done and RED/GREEN/mutation records exist for all four.",
           failure_scenario: "A reader or a later audit that reads the Test Plan table sees four rows still pending on a closed spec." }
   cannot_verify:
@@ -60,8 +60,8 @@ security_relevant: true
 ## Scope and inputs
 
 - Scope: `git diff bf0148d6..HEAD`, HEAD `10d779e8` on `feat/pre-commit-installer-on-node`, worktree `/Users/ales/Projects/aai-worktrees/pre-commit-installer-on-node`. That is 39 files, the same as STATE `code_review.scope`. The working tree had one unrelated modification, the append-only `docs/ai/EVENTS.jsonl`, which is outside the reviewed code.
-- Spec: the frozen `docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md`, ceremony L3. It carries 15 contract amendment records of ref `pre-commit-installer-on-node`. Three of them amend this spec itself: the scope addition, DR-23 and the DR-23 extension. All 15 are unsigned (`--signoff none`), so the owner signs them by the merge direction. `spec-lint` passes and `spec-amend list --strict` exits 0.
-- Intake: `docs/issues/CHANGE-DRAFT-pre-commit-installer-on-node.md`. Plan: `docs/analysis/node-first-remaining-plan.md`, ride 11.
+- Spec: the frozen `docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md`, ceremony L3. It carries 15 contract amendment records of ref `pre-commit-installer-on-node`. Three of them amend this spec itself: the scope addition, DR-23 and the DR-23 extension. All 15 are unsigned (`--signoff none`), so the owner signs them by the merge direction. `spec-lint` passes and `spec-amend list --strict` exits 0.
+- Intake: `docs/issues/CHANGE-0263-pre-commit-installer-on-node.md`. Plan: `docs/analysis/node-first-remaining-plan.md`, ride 11.
 - Dispatch note: the dispatch listed focus areas. It did not pre-rate any finding or exclude any area, so it is not recorded as coaching. The full scope was reviewed.
 - Prior validation reports (rounds 1 to 3, final PASS) were read as context only. Their open R3-N1 to R3-N4 are not repeated below except where noted.
 

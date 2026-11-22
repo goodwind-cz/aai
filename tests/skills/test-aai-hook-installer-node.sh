@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-installer-node
-# (docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md, TEST-3980..3999; this file holds TEST-3980..3997
+# (docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md, TEST-3980..3999; this file holds TEST-3980..3997
 # (TEST-3998 and TEST-3999 live in test-aai-hook-installer-docs.sh))
 #
 # The git hook installer is one Node module (.aai/scripts/install-pre-commit-hook.mjs) behind thin sh/ps1

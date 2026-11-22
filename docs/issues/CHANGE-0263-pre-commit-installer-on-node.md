@@ -1,8 +1,8 @@
 ---
 id: pre-commit-installer-on-node
 type: change
-number: null
-status: draft
+number: 263
+status: done
 capability: pre-commit-installer-on-node
 user_visible: true
 parent: smaller-node-core-and-faster-feedback

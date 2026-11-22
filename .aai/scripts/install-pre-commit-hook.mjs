@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // install-pre-commit-hook.mjs - the AAI git hook installer as one Node module behind thin launchers
-// (docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md; RFC-0017 phase 5).
+// (docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md; RFC-0017 phase 5).
 //
 // Usage: node .aai/scripts/install-pre-commit-hook.mjs [--force] [--uninstall] [--print [kind]] [--hooks <csv>] [--decline-ref-guard] [--arm-ref-guard] [-h]
 //

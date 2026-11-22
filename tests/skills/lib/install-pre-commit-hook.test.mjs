@@ -1,5 +1,5 @@
 // install-pre-commit-hook.test.mjs - node:test cases of the hook-installer-on-node ride
-// (docs/specs/SPEC-DRAFT-pre-commit-installer-on-node.md). Every case name starts with its TEST id; the suite
+// (docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md). Every case name starts with its TEST id; the suite
 // tests/skills/test-aai-hook-installer-node.sh selects them with --test-name-pattern. The file grows run by run.
 //
 // Safety (D-SAFETY): directories are created and removed only through hook-installer-reference.mjs (own prefix,
