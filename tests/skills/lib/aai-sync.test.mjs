@@ -11,6 +11,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import nodeFs from 'node:fs';
 import {
   chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync,
   rmSync, statSync, symlinkSync, utimesSync, writeFileSync,
@@ -866,6 +867,51 @@ describe('TEST-4003 roots and the refusals before any write', () => {
       assert.equal(r.stdout, '');
     }
     assert.deepEqual(snapshotTree(root), before, 'the source and the target are byte-identical afterwards');
+  });
+
+  // DR-35: a file system may report no inode (0) or one above 2**53 (Windows file ids), which a Number comparison reads as equal.
+  test('TEST-4003 DR-35 a file system that reports no inode does not make every directory the source, and a target stays under the root by spelling', async () => {
+    const { resolveRoots, underRoot } = await import(MODULE_URL);
+    const root = scratch('zero-ino-');
+    const target = path.join(root, 'target');
+    mkdirSync(target);
+    const env = prepareEnv(root);
+    const realStat = nodeFs.statSync;
+    // every stat of the module reads inode 0, as a file system without inodes does (the test code itself holds the named import)
+    nodeFs.statSync = (p, o) => {
+      const st = realStat(p, o);
+      return Object.assign(Object.create(Object.getPrototypeOf(st)), st, { ino: typeof st.ino === 'bigint' ? 0n : 0 });
+    };
+    try {
+      const roots = resolveRoots({ target }, { env, cwd: root });
+      assert.equal(roots.refusal, undefined, `a target outside the source is not refused: ${roots.refusal?.refusal?.line ?? JSON.stringify(roots.refusal)}`);
+      assert.equal(typeof roots.targetIno, 'bigint', 'the identity is read as bigint');
+      assert.equal(typeof roots.targetDev, 'bigint');
+      assert.equal(underRoot(roots, path.join(target, '.aai', 'x')), true, 'a path under the target is allowed');
+      assert.equal(underRoot(roots, path.join(root, 'elsewhere', 'x')), false, 'a path outside the target is refused');
+      const self = resolveRoots({ target: ROOT }, { env, cwd: root });
+      assert.ok(self.refusal, 'the source itself is still refused, by spelling');
+    } finally {
+      nodeFs.statSync = realStat;
+    }
+  });
+
+  test('TEST-4003 DR-35 a real path that realpathSync.native cannot read is read with realpathSync, and the roots are still captured', async () => {
+    const { resolveRoots } = await import(MODULE_URL);
+    const root = scratch('no-native-');
+    const target = path.join(root, 'target');
+    mkdirSync(target);
+    const env = prepareEnv(root);
+    const native = nodeFs.realpathSync.native;
+    nodeFs.realpathSync.native = () => { throw new Error('no native real path here'); };
+    try {
+      const roots = resolveRoots({ target }, { env, cwd: root });
+      assert.equal(roots.refusal, undefined, JSON.stringify(roots.refusal));
+      assert.equal(roots.targetReal, realpathSync(target));
+      assert.equal(roots.srcReal, realpathSync(ROOT));
+    } finally {
+      nodeFs.realpathSync.native = native;
+    }
   });
 
   test('TEST-4003 a target holding the source is allowed past the refusals', () => {

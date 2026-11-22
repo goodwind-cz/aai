@@ -31,6 +31,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveFromBase } from './lib/resolve-base.mjs';
+import { sameFile } from './lib/resolve-base.mjs';
 import { reconcileGitignore } from './lib/gitignore-block.mjs';
 import { mergeHooksJson, formatSummary, formatConflicts, formatSnapshotError } from './lib/merge-hooks-json.mjs';
 
@@ -43,18 +44,20 @@ const SKILL_TREES = ['.claude/skills', '.agents/skills'];
 const isCoreListed = (coreSet, rel) => coreSet.has(rel);
 // Identity, not spelling (DR-32): a file system may be case-insensitive, so one directory has many spellings. The
 // roots are compared by their canonical (native) real paths and, in addition, by device and inode up the ancestors.
-const ancestorIsFile = (start, stat) => {
+// The identities are bigint stats (DR-35); an identity that is unknown (a zero inode) is compared by real path spelling.
+const ancestorIsFile = (start, other) => {
+  const stat = statOrNull(other);
   if (stat === null) return false;
   let dir = start;
   for (;;) {
-    if (sameFile(statOrNull(dir), stat)) return true;
+    if (sameFile(statOrNull(dir), stat, dir, other)) return true;
     const up = path.dirname(dir);
     if (up === dir) return false;
     dir = up;
   }
 };
 const overlapsSource = (roots) => isUnderOrSame(roots.targetReal, roots.srcReal);
-const targetInSource = (roots) => [overlapsSource(roots), ancestorIsFile(roots.targetReal, statOrNull(roots.srcReal))].some(Boolean);
+const targetInSource = (roots) => [overlapsSource(roots), ancestorIsFile(roots.targetReal, roots.srcReal)].some(Boolean);
 const PIN_VERSION_PREFIX = '- Template version: ';
 const runChild = (file, args, opts) => spawnSync(file, args, opts);
 const writeFd = (fd) => (s) => { fs.writeSync(fd, s); };
@@ -168,15 +171,25 @@ export function parseArgs(argv) {
 
 const statOrNull = (p) => {
   try {
-    return fs.statSync(p);
+    return fs.statSync(p, { bigint: true });
   } catch {
     return null;
   }
 };
 
-const realOrResolve = (p) => {
+// realNative(p): the real path in the file system's own spelling; realpathSync.native may be unavailable or refuse a path
+// (a Windows volume without it), so a throw falls back to realpathSync, which throws only when the path cannot be resolved (DR-35).
+const realNative = (p) => {
   try {
     return fs.realpathSync.native(p);
+  } catch {
+    return fs.realpathSync(p);
+  }
+};
+
+const realOrResolve = (p) => {
+  try {
+    return realNative(p);
   } catch {
     return path.resolve(p);
   }
@@ -188,8 +201,6 @@ function isUnderOrSame(child, parent) {
   return child.startsWith(parent.endsWith(path.sep) ? parent : parent + path.sep);
 }
 
-const sameFile = (a, b) => a !== null && b !== null && a.dev === b.dev && a.ino === b.ino;
-
 // sourceRoot(scriptPath): the parent of the parent of the directory of the script as the launcher passed it (a
 // logical path), used only when its .aai/scripts/aai-sync.mjs names the same device and inode as the running
 // module; else the root of the module's real path.
@@ -197,7 +208,8 @@ function sourceRoot(scriptPath) {
   const modulePath = fileURLToPath(import.meta.url);
   const logical = path.resolve(path.dirname(path.dirname(path.dirname(path.resolve(scriptPath)))));
   const running = statOrNull(modulePath);
-  if (sameFile(statOrNull(path.join(logical, '.aai', 'scripts', 'aai-sync.mjs')), running)) return logical;
+  const logicalModule = path.join(logical, '.aai', 'scripts', 'aai-sync.mjs');
+  if (sameFile(statOrNull(logicalModule), running, logicalModule, modulePath)) return logical;
   return path.dirname(path.dirname(path.dirname(realOrResolve(modulePath))));
 }
 
@@ -216,7 +228,7 @@ export function resolveRoots(args, io = {}) {
   const srcStat = statOrNull(path.join(src, '.aai'));
   if (srcStat === null || !srcStat.isDirectory()) return refusal(`ERROR: Source missing .aai/ directory: ${src}`);
   const roots = {
-    src, target, srcReal: fs.realpathSync.native(src), targetReal: fs.realpathSync.native(target), targetDev: st.dev, targetIno: st.ino,
+    src, target, srcReal: realNative(src), targetReal: realNative(target), targetDev: st.dev, targetIno: st.ino,
   };
   if (targetInSource(roots)) {
     return refusal(`ERROR: target ${roots.targetReal} is the source ${roots.srcReal} or lies inside it; nothing was written.`);
@@ -242,8 +254,9 @@ const MANAGED_TOP = ['.aai', '.agents', '.agents/skills', '.claude', '.claude/sk
 function sourceInManagedRefusal(roots) {
   for (const rel of MANAGED_TOP) {
     if (rel === 'docs' || rel === 'docs/ai' || rel === '.gitignore') continue;
-    const st = statOrNull(path.join(roots.target, rel));
-    if (st !== null && st.isDirectory() && ancestorIsFile(roots.srcReal, st)) {
+    const managed = path.join(roots.target, rel);
+    const st = statOrNull(managed);
+    if (st !== null && st.isDirectory() && ancestorIsFile(roots.srcReal, managed)) {
       return refusal(`ERROR: the source ${roots.srcReal} lies inside ${rel} of the target ${roots.target}, which the sync replaces; nothing was written.`);
     }
   }
@@ -264,7 +277,7 @@ function managedLinkRefusal(roots) {
     if (!st.isSymbolicLink()) continue;
     let real = '';
     try {
-      real = fs.realpathSync.native(abs);
+      real = realNative(abs);
     } catch {
       real = path.resolve(path.dirname(abs), fs.readlinkSync(abs));
     }
@@ -275,16 +288,20 @@ function managedLinkRefusal(roots) {
   return null;
 }
 
+// targetUnchanged(roots): the target still names the device and inode captured at the start; an identity that was unknown (a zero
+// inode) is judged by the real path spelling captured at the start (DR-35).
+const targetUnchanged = (roots) => sameFile(statOrNull(roots.target), { dev: roots.targetDev, ino: roots.targetIno }, roots.target, roots.targetReal);
+
 // underRoot(roots, abs) (DR-8): true only when the real path of the parent directory of abs (the nearest existing
 // ancestor for a path about to be created) lies under the target and not under the source, and the target still
 // names the device and inode captured at the start.
 export function underRoot(roots, abs) {
-  if (!sameFile(statOrNull(roots.target), { dev: roots.targetDev, ino: roots.targetIno })) return false;
+  if (!targetUnchanged(roots)) return false;
   let dir = path.dirname(path.resolve(abs));
   let real = '';
   for (;;) {
     try {
-      real = fs.realpathSync.native(dir);
+      real = realNative(dir);
       break;
     } catch {
       const up = path.dirname(dir);
@@ -292,7 +309,7 @@ export function underRoot(roots, abs) {
       dir = up;
     }
   }
-  return isUnderOrSame(real, roots.targetReal) && !isUnderOrSame(real, roots.srcReal) && !ancestorIsFile(real, statOrNull(roots.srcReal));
+  return isUnderOrSame(real, roots.targetReal) && !isUnderOrSame(real, roots.srcReal) && !ancestorIsFile(real, roots.srcReal);
 }
 
 // refuseOutside(roots, abs): the refusal of a mutation path that fails underRoot.
@@ -395,7 +412,7 @@ function mustGuard(roots, abs) {
 // reverifyTarget(roots): null while the target still names the device and inode captured at the start, else the refusal.
 // Read again before each delete phase (the core prune, the stale clean, the retired-wrapper removal).
 export function reverifyTarget(roots) {
-  if (!sameFile(statOrNull(roots.target), { dev: roots.targetDev, ino: roots.targetIno })) return refuseOutside(roots, path.join(roots.target, '.aai'));
+  if (!targetUnchanged(roots)) return refuseOutside(roots, path.join(roots.target, '.aai'));
   return null;
 }
 

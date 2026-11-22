@@ -11,7 +11,7 @@
 // relative-path resolution; four users agreeing with the lib; no PWD comparison of their own in the four modules.
 
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, statSync, symlinkSync } from 'node:fs';
+import nodeFs, { mkdirSync, readFileSync, statSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -66,9 +66,64 @@ function cases(f) {
 }
 
 describe('TEST-4004 the shared base lib', () => {
-  test('TEST-4004 the lib exports exactly resolveBase and resolveFromBase and has no side effect on import', async () => {
+  test('TEST-4004 the lib exports exactly resolveBase, resolveFromBase and sameFile and has no side effect on import', async () => {
     const lib = await import(url('lib', 'resolve-base.mjs'));
-    assert.deepEqual(Object.keys(lib).sort(), ['resolveBase', 'resolveFromBase']);
+    assert.deepEqual(Object.keys(lib).sort(), ['resolveBase', 'resolveFromBase', 'sameFile']);
+  });
+
+  // DR-35: the identity of a file is its device and inode read as bigint; a zero device or inode, or a number beyond 2**53, is no
+  // identity, and the comparison then falls to the real path spellings (case-insensitive on win32), never to "the same file".
+  test('TEST-4004 DR-35 sameFile compares bigint identities and reads a zero or lossy identity as unknown', async () => {
+    const { sameFile } = await import(url('lib', 'resolve-base.mjs'));
+    const id = (dev, ino) => ({ dev, ino });
+    const big = 2n ** 60n;
+    assert.equal(sameFile(id(1n, 5n), id(1n, 5n)), true);
+    assert.equal(sameFile(id(1n, 5n), id(2n, 5n)), false, 'another device');
+    assert.equal(sameFile(id(1n, 5n), id(1n, 6n)), false, 'another inode');
+    assert.equal(Number(big + 1n), Number(big + 2n), 'the premise: a Number cannot tell these two apart');
+    assert.equal(sameFile(id(1n, big + 1n), id(1n, big + 2n)), false, 'two ids above 2**53 stay two files');
+    assert.equal(sameFile(id(1n, big + 1n), id(1n, big + 1n)), true);
+    assert.equal(sameFile(id(1, 2 ** 60), id(1, 2 ** 60)), false, 'a lossy Number carries no identity');
+    assert.equal(sameFile(id(1, 7), id(1, 7)), true, 'a safe Number does');
+    assert.equal(sameFile(null, id(1n, 5n)), false);
+    assert.equal(sameFile(id(1n, 5n), null), false);
+    assert.equal(sameFile(null, null), false);
+    assert.equal(sameFile(id(1n, 0n), id(1n, 0n)), false, 'a zero inode is unknown, so two unrelated paths are not one file');
+    assert.equal(sameFile(id(0n, 5n), id(0n, 5n)), false, 'a zero device is unknown');
+    assert.equal(sameFile(id(0, 0), id(0, 0)), false);
+    const f = fixture();
+    const zero = id(1n, 0n);
+    assert.equal(sameFile(zero, zero, f.real, f.other), false, 'unknown identity, two real paths');
+    assert.equal(sameFile(zero, zero, f.real, f.real), true, 'unknown identity, one spelling');
+    assert.equal(sameFile(zero, zero, f.real, f.rlink), true, 'unknown identity, one real path under two spellings');
+    assert.equal(sameFile(zero, zero, f.real, ''), false, 'unknown identity and no path to compare');
+    assert.equal(sameFile(zero, zero), false);
+    assert.equal(sameFile(id(1n, 5n), zero, f.real, f.other), false, 'one known, one unknown: by path');
+    assert.equal(sameFile(zero, zero, '/nonexistent/Foo', '/nonexistent/foo', 'linux'), false, 'exact letter case elsewhere');
+    assert.equal(sameFile(zero, zero, '/nonexistent/Foo', '/nonexistent/foo', 'win32'), true, 'case-insensitive on win32');
+    const native = nodeFs.realpathSync.native;
+    nodeFs.realpathSync.native = () => { throw new Error('no native real path here'); };
+    try {
+      assert.equal(sameFile(zero, zero, f.real, f.rlink), true, 'realpathSync.native throwing falls back to realpathSync');
+      assert.equal(sameFile(zero, zero, f.real, f.other), false);
+    } finally {
+      nodeFs.realpathSync.native = native;
+    }
+  });
+
+  test('TEST-4004 DR-35 resolveBase answers every PWD shape when the file system reports no inode', async () => {
+    const { resolveBase } = await import(url('lib', 'resolve-base.mjs'));
+    const f = fixture();
+    const realStat = nodeFs.statSync;
+    nodeFs.statSync = (p, o) => {
+      const st = realStat(p, o);
+      return Object.assign(Object.create(Object.getPrototypeOf(st)), st, { ino: typeof st.ino === 'bigint' ? 0n : 0 });
+    };
+    try {
+      for (const [label, env, cwd, want] of cases(f)) assert.equal(resolveBase(env, cwd), want, `no inode: ${label}`);
+    } finally {
+      nodeFs.statSync = realStat;
+    }
   });
 
   test('TEST-4004 resolveBase answers every PWD shape, the identity check applying to the path that is returned', async () => {
