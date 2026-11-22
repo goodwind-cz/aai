@@ -1010,6 +1010,7 @@ function k09Cases(managed) {
     ['K09g no list in the source, the target list used', 'x/\n', false, 'custom/pattern-one\ncustom/pattern-two\n# comment\n\ncustom/pattern-one\n'],
     ['K09h no list anywhere (the note)', 'x/\n', false, null],
     ['K09i prefix-only: the marker prefix alone', '# AAI runtime sidecars\n', true, null],
+    ['K09j managed lines with trailing whitespace are not managed lines (DR-12: matched exactly, never after TrimEnd)', 'build/\n.aai/ \n.aai/\n.aai/cache/\t\n.aai/cache/\n.aai/\n', true, null],
   ];
 }
 
@@ -1844,6 +1845,28 @@ describe('TEST-4008 copy semantics, the extended flow and the path guard', () =>
     assert.equal(r.code, 1);
     assert.match(r.stderr, /aai-sync: internal error: .*EEXIST/);
     assert.equal(readFileSync(foreign, 'utf8'), 'not made by this run\n', 'the foreign temp file is never deleted');
+  });
+
+  test('TEST-4008 DR-31: a link in the shipped snapshot directory or at a merge temp name is replaced, never written through', async () => {
+    for (const [label, where] of [['snapshot', ['.aai', 'cache', 'hooks-shipped', 'hooks.json']], ['merge temp', ['hooks', `.hooks.json.${process.pid}.tmp`]]]) {
+      const root = scratch('dr31-');
+      const { src, script } = makeLayer(root, 'S', { engine: 'module', ...hooksLayer });
+      const outside = path.join(root, 'outside');
+      writeTree(outside, { 'victim.json': 'VICTIM\n' });
+      const t = path.join(root, 't');
+      mkdirSync(path.dirname(path.join(t, ...where)), { recursive: true });
+      symlinkSync(path.join(outside, 'victim.json'), path.join(t, ...where));
+      prepareEnv(root);
+      const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+      assert.equal(r.code, 0, `${label}: ${r.stderr}`);
+      assert.equal(readFileSync(path.join(outside, 'victim.json'), 'utf8'), 'VICTIM\n', `${label}: the file outside the target is untouched`);
+      assert.deepEqual(readdirSync(outside), ['victim.json']);
+      if (label === 'snapshot') {
+        const snap = path.join(t, '.aai', 'cache', 'hooks-shipped', 'hooks.json');
+        assert.ok(!lstatSync(snap).isSymbolicLink(), 'the link is replaced by a regular file');
+        assert.equal(readFileSync(snap, 'utf8'), readFileSync(path.join(src, 'hooks', 'hooks.json'), 'utf8'));
+      }
+    }
   });
 
   test('TEST-4008 a dangling link nested in a source skill is copied as a link (DR-15); a dangling top-level entry of the skill tree is skipped as bash skips it (DR-27)', async () => {
@@ -2835,6 +2858,7 @@ function bashCases(managed) {
   g('K09f', 'the .ps1 marker text already present', `${PS1_MARKER}\nlogs/\n`);
   g('K09g', 'no list in the source', 'x/\n', { rw: ['DR-14', 'DR-21'], src: (h) => h.rm('S', '.aai/system/RUNTIME_IGNORE.list'), tgt: (h) => { h.w('T', '.gitignore', 'x/\n'); h.w('T', '.aai/system/RUNTIME_IGNORE.list', 'custom/one\n'); } });
   g('K09h', 'no list anywhere (the note)', 'x/\n', { rw: ['DR-14', 'DR-21'], src: (h) => h.rm('S', '.aai/system/RUNTIME_IGNORE.list') });
+  g('K09j', 'managed lines with trailing whitespace are kept, only the exact duplicate goes (DR-12)', 'build/\n.aai/ \n.aai/\n.aai/cache/\t\n.aai/cache/\n.aai/\n');
   cases.push(
     k('K09i', 'no .gitignore at all', [[T]], {}),
     k('K10', 'skill trees: a differing template skill, a project skill, a retired wrapper, a near miss, a link entry', [[T]], {
@@ -3022,7 +3046,7 @@ describe('TEST-4013 the bash-side corpus K01 to K32, KR1 and KR2 against the fro
   test('TEST-4013 the corpus holds every K case with its lettered variants and KR1 and KR2, each registered rewrite names a DR, and no case is filtered away', () => {
     const ids = cases.map((c) => c.id);
     assert.equal(new Set(ids).size, ids.length);
-    const want = ['K01', 'K02', 'K03', 'K04', 'K05', 'K05b', 'K06a', 'K06b', 'K07', 'K08', 'K09a', 'K09a2', 'K09b', 'K09c', 'K09c2', 'K09c3', 'K09d', 'K09e', 'K09f', 'K09g', 'K09h', 'K09i',
+    const want = ['K01', 'K02', 'K03', 'K04', 'K05', 'K05b', 'K06a', 'K06b', 'K07', 'K08', 'K09a', 'K09a2', 'K09b', 'K09c', 'K09c2', 'K09c3', 'K09d', 'K09e', 'K09f', 'K09g', 'K09h', 'K09j', 'K09i',
       'K10', 'K11', 'K12', 'K13a', 'K13b', 'K14', 'K15a', 'K15b', 'K15c', 'K15d', 'K15e', 'K16a', 'K16b', 'K16c', 'K16d', 'K16e', 'K16f', 'K17', 'K18', 'K19', 'K20', 'K21', 'K22', 'K23', 'K24',
       'K25', 'K26', 'K27', 'K28', 'K29', 'K29b', 'K30a', 'K30b', 'K30c', 'K30d', 'K31a', 'K31b', 'K32a', 'K32b', 'KR1', 'KR2'];
     assert.deepEqual(ids, want);
