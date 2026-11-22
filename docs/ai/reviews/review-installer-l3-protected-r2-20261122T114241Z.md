@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 97b53e25..HEAD (0fd3e406, b3cf8b81) on branch chore/installer-l3-protected; AC walk over the whole ride 077ee649..HEAD"
-  spec: docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md
+  spec: docs/specs/SPEC-0309-spec-installer-l3-protected.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -38,7 +38,7 @@ security_relevant: false
 Scope: `git diff 97b53e25..HEAD` in /Users/ales/Projects/aai-worktrees/installer-l3-protected:
 0fd3e406 (three wiring tests, spec amendment, decisions/EVENTS), b3cf8b81 (r1
 report, follow-up fu-guard-config-not-l3-protected). The AC table is walked over
-the whole ride. Spec: the frozen docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md,
+the whole ride. Spec: the frozen docs/specs/SPEC-0309-spec-installer-l3-protected.md,
 amended additively (D7, Spec-AC-04, three Test Plan rows). Dispatch prompt: it
 summarised the remediation and named the questions to judge. It did not rate
 expected findings or exclude any area. I reviewed the full delta anyway.

@@ -229,14 +229,15 @@ test_3999_follow_ups() {
     for (const id of filed) {
       const it = by.get(id);
       if (!it) { bad.push(id + " is not filed"); continue; }
-      if (it.closed) bad.push(id + " is not open");
+      // filed open by this ride; a later ride may close it (installer-l3-protected closed fu-installer-not-in-l3-protected-paths)
+      if (it.closed && (it.resolved_by === "pre-commit-installer-on-node" || !it.resolved_by)) bad.push(id + " is not open");
       if (it.ref_id !== "pre-commit-installer-on-node") bad.push(id + " ref is " + it.ref_id);
     }
     process.stdout.write(bad.join("; "));
   ' "$PROJECT_ROOT" "$CLOSED_FU" "$OPEN_FU" "$FILED_FU")" || log_fail "TEST-3999: the follow-up check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-3999: $out"
   safe_rm_own "$work"
-  log_pass "TEST-3999: the eighteen follow-ups are closed with resolved_by pre-commit-installer-on-node and a source naming a test file and a TEST id it holds, fu-seterr-suspended-left-of-or stays open, and the four suggested follow-ups are open with ref pre-commit-installer-on-node"
+  log_pass "TEST-3999: the eighteen follow-ups are closed with resolved_by pre-commit-installer-on-node and a source naming a test file and a TEST id it holds, fu-seterr-suspended-left-of-or stays open, and the four suggested follow-ups are filed with ref pre-commit-installer-on-node and open unless a later ride resolved them"
 }
 
 main() {

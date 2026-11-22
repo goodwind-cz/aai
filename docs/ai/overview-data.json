@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-22T11:48:16.252Z",
+  "generatedAt": "2026-11-22T12:07:38.081Z",
   "project": "aai",
   "counts": {
     "delivered": 379,
@@ -226,13 +226,13 @@
       "title": "The git hook installer and the hook bodies it installs are L3 protected surfaces",
       "type": "change",
       "status": "done",
-      "path": "docs/issues/CHANGE-DRAFT-installer-l3-protected.md",
+      "path": "docs/issues/CHANGE-0264-installer-l3-protected.md",
       "closed_on": "2026-11-22",
       "agent_minutes": null,
       "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md",
+      "spec": "docs/specs/SPEC-0309-spec-installer-l3-protected.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-installer-l3-protected-20261122T111759Z.md"
+      "review": "docs/ai/reviews/review-installer-l3-protected-r2-20261122T114241Z.md"
     },
     {
       "ref": "update-on-node",
@@ -5180,13 +5180,13 @@
           "title": "The git hook installer and the hook bodies it installs are L3 protected surfaces",
           "type": "change",
           "status": "done",
-          "path": "docs/issues/CHANGE-DRAFT-installer-l3-protected.md",
+          "path": "docs/issues/CHANGE-0264-installer-l3-protected.md",
           "closed_on": "2026-11-22",
           "agent_minutes": null,
           "token_total": null,
-          "spec": "docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md",
+          "spec": "docs/specs/SPEC-0309-spec-installer-l3-protected.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-installer-l3-protected-20261122T111759Z.md"
+          "review": "docs/ai/reviews/review-installer-l3-protected-r2-20261122T114241Z.md"
         },
         {
           "ref": "update-on-node",

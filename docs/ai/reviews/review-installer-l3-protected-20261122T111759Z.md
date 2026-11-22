@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 077ee649..97b53e25 (branch chore/installer-l3-protected)"
-  spec: docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md
+  spec: docs/specs/SPEC-0309-spec-installer-l3-protected.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -37,7 +37,7 @@ security_relevant: false
 Scope: `git diff 077ee649..97b53e25` in the worktree
 /Users/ales/Projects/aai-worktrees/installer-l3-protected (two commits:
 b8eb7e92 intake + spec, 97b53e25 the change). Spec: the frozen
-docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md. Dispatch-prompt
+docs/specs/SPEC-0309-spec-installer-l3-protected.md. Dispatch-prompt
 note: the orchestrator asked specific questions (seven-path completeness,
 consumer consistency, bash 3.2 soundness, CHANGELOG wording); these were
 treated as questions, not as scope limits, and the full diff was reviewed.

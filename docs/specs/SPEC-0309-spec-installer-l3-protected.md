@@ -1,9 +1,9 @@
 ---
 id: spec-installer-l3-protected
 type: spec
-number: null
+number: 309
 status: done
-frozen_sha256: f33dc488e496997fc5bafcf96b4467dccdfd3c3959095517ffd6190c000efaaf
+frozen_sha256: 9c7c91e3b64035d77f636fea9311b83e2248a21a3277af82d2c220eebd12266d
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-installer-l3-protected.md
+- Requirement: docs/issues/CHANGE-0264-installer-l3-protected.md
   (follow-up `fu-installer-not-in-l3-protected-paths`, P3; owner decision
   2026-11-22 that the installer is an L3 protected surface).
 - Prior scope (closed, not edited):
@@ -55,8 +55,9 @@ SPEC-FROZEN: true
   tests/skills/test-aai-hook-installer-node.sh;
   tests/skills/test-aai-git-hook-templates.sh;
   tests/skills/test-aai-install-parity.sh (added by the D7 amendment);
-  docs/issues/CHANGE-DRAFT-installer-l3-protected.md;
-  docs/specs/SPEC-DRAFT-spec-installer-l3-protected.md.
+  tests/skills/test-aai-hook-installer-docs.sh (added by the D8 amendment);
+  docs/issues/CHANGE-0264-installer-l3-protected.md;
+  docs/specs/SPEC-0309-spec-installer-l3-protected.md.
 
 ## Decisions
 
@@ -104,6 +105,15 @@ SPEC-FROZEN: true
   pre-commit-checks. Added with disclosure (`spec-amend.mjs add`, signoff
   none); the owner's merge direction signs it.
 
+- D8 (amendment after CI on PR #580). TEST-3999
+  (tests/skills/test-aai-hook-installer-docs.sh, SPEC-0308 Spec-AC-20)
+  required the four follow-ups the installer port filed, among them
+  `fu-installer-not-in-l3-protected-paths`, to stay open. This ride closes
+  that item, so the check now requires each of the four to be filed with
+  ref pre-commit-installer-on-node and not closed by that ride itself; a
+  later ride may resolve one. Added with disclosure (`spec-amend.mjs add`,
+  signoff none).
+
 ## Acceptance Criteria Mapping
 
 - Spec-AC-01 maps to intake AC-001 (both lists).
@@ -111,6 +121,7 @@ SPEC-FROZEN: true
   list).
 - Spec-AC-03 maps to intake AC-003 (the canon text).
 - Spec-AC-04 maps to preservation of the existing wiring tests (D7).
+- Spec-AC-05 maps to preservation of the installer port's follow-up pin (D8).
 
 ## Constitution deviations
 
@@ -123,6 +134,7 @@ None.
 | Spec-AC-01 | WHEN loadConfig of docs-audit-core.mjs reads this repository, its protected_paths_l3 SHALL contain each of the seven D1 paths, and the protected_paths_l3 block of .aai/templates/docs-audit.template.yaml SHALL contain each of them | done | TEST-4001 red docs/ai/tdd/installer-l3-protected/red-test_4001_installer_on_both_l3_lists.log; green docs/ai/tdd/installer-l3-protected/green-test_4001_installer_on_both_l3_lists.log and docs/ai/tdd/installer-l3-protected/green-suite-ceremony-levels.log, mutation docs/ai/tdd/spec-installer-l3-protected/mutation-TEST-4001.txt; validation docs/ai/validation/VALIDATION-installer-l3-protected-r1.md and docs/ai/validation/VALIDATION-installer-l3-protected-r2.md | — | D1, D3 |
 | Spec-AC-02 | WHEN select-suites.mjs runs against this repository with a file list holding one of the seven D1 paths, its output SHALL contain FULL_RUN reason=protected-l3 path= followed by that path, for each of the seven | done | TEST-4000 red docs/ai/tdd/installer-l3-protected/red-test_4000_hook_installer_is_protected_l3.log; green docs/ai/tdd/installer-l3-protected/green-test_4000_hook_installer_is_protected_l3.log and docs/ai/tdd/installer-l3-protected/green-suite-suite-select.log, mutation docs/ai/tdd/spec-installer-l3-protected/mutation-TEST-4000.txt; validation docs/ai/validation/VALIDATION-installer-l3-protected-r1.md and docs/ai/validation/VALIDATION-installer-l3-protected-r2.md | — | D2 |
 | Spec-AC-04 | WHEN TEST-3997, TEST-3443 and TEST-3571 run against this repository, each SHALL assert FULL_RUN reason=protected-l3 for the installer or template paths it names and SHALL still assert its named suite for its other paths, and each SHALL exit 0 | done | TEST-3997, TEST-3443, TEST-3571 green docs/ai/tdd/installer-l3-protected/green-suite-hook-installer-node.log, docs/ai/tdd/installer-l3-protected/green-suite-git-hook-templates.log, docs/ai/tdd/installer-l3-protected/green-suite-install-parity.log, docs/ai/tdd/installer-l3-protected/green-test_3997_wiring.log, mutation docs/ai/tdd/spec-installer-l3-protected/mutation-TEST-3997.txt, docs/ai/tdd/spec-installer-l3-protected/mutation-TEST-3443.txt, docs/ai/tdd/spec-installer-l3-protected/mutation-TEST-3571.txt; validation docs/ai/validation/VALIDATION-installer-l3-protected-r2.md | — | D7 |
+| Spec-AC-05 | WHEN TEST-3999 runs against this repository after fu-installer-not-in-l3-protected-paths is closed by installer-l3-protected, it SHALL exit 0, and it SHALL fail when any of the four follow-ups the installer port filed is closed with resolved_by pre-commit-installer-on-node | done | TEST-3999 red docs/ai/tdd/installer-l3-protected/red-test_3999_follow_ups.log (CI run 45019259507); green docs/ai/tdd/installer-l3-protected/green-test_3999_follow_ups.log, mutation docs/ai/tdd/spec-installer-l3-protected/mutation-TEST-3999.txt | — | D8 |
 | Spec-AC-03 | .aai/workflow/WORKFLOW.md SHALL carry a line starting with - hook installer: under its protected surfaces list that names install-pre-commit-hook.mjs, install-pre-commit-hook.sh, install-pre-commit-hook.ps1 and .aai/templates/git-hooks/ | done | TEST-4002 red docs/ai/tdd/installer-l3-protected/red-test_4002_workflow_names_hook_installer.log; green docs/ai/tdd/installer-l3-protected/green-test_4002_workflow_names_hook_installer.log and docs/ai/tdd/installer-l3-protected/green-suite-ceremony-levels.log, mutation docs/ai/tdd/spec-installer-l3-protected/mutation-TEST-4002.txt; validation docs/ai/validation/VALIDATION-installer-l3-protected-r1.md and docs/ai/validation/VALIDATION-installer-l3-protected-r2.md | — | D4 |
 
 ## Implementation plan
@@ -149,6 +161,7 @@ None.
 | TEST-3997 | Spec-AC-04 | integration | tests/skills/test-aai-hook-installer-node.sh | the installer module and both launchers select FULL_RUN reason=protected-l3; the reference twins and test helpers still select aai-hook-installer-node | target `docs/ai/docs-audit.yaml`; `sed:s/\n  - \.aai\/scripts\/install-pre-commit-hook\.ps1(?=\n)//` drops the ps1 entry and the case must fail | green |
 | TEST-3443 | Spec-AC-04 | integration | tests/skills/test-aai-git-hook-templates.sh | the four templates and both launchers select FULL_RUN reason=protected-l3; the vendoring helper and the Pester file still select aai-git-hook-templates | target `docs/ai/docs-audit.yaml`; `sed:s/\n  - \.aai\/templates\/git-hooks\/reference-transaction\.sh(?=\n)//` drops one template entry and the case must fail | green |
 | TEST-3571 | Spec-AC-04 | integration | tests/skills/test-aai-install-parity.sh | both installer launchers select FULL_RUN reason=protected-l3; the sync, update and parity files still select aai-install-parity | target `docs/ai/docs-audit.yaml`; `sed:s/\n  - \.aai\/scripts\/install-pre-commit-hook\.sh(?=\n)//` drops the sh entry and the case must fail | green |
+| TEST-3999 | Spec-AC-05 | inspection | tests/skills/test-aai-hook-installer-docs.sh | the four filed follow-ups are filed with ref pre-commit-installer-on-node and none is closed by that ride; this ride's close of fu-installer-not-in-l3-protected-paths passes | target `docs/ai/decisions.jsonl`; `sed:s/("id":"fu-installer-not-in-l3-protected-paths","status":"done","resolved_by":")installer-l3-protected/$1pre-commit-installer-on-node/` makes the close look self-inflicted and the case must fail | green |
 
 RED observations: all three tests are written first and run against the
 unchanged lists and canon; their failing runs are stored as
