@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-sync-on-node | specs | implementing | 20 done, 1 implementing, 2 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
+| spec-sync-on-node | specs | implementing | 22 done, 1 implementing | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
 
 ## Canonical layer (0)
 
