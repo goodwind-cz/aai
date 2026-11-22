@@ -3,7 +3,7 @@ id: spec-sync-on-node
 type: spec
 number: 310
 status: done
-frozen_sha256: 9b1d814cda0b08e3c3923b7e0f32c16cc38946aa585fc193f03b017220132767
+frozen_sha256: 2d519dbeb7127b9e85b1a8375d51a252aebb12c63fa92d067297e7a3c09263ed
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -663,6 +663,8 @@ the `migrate-state-to-local` pointer (D-GITIGNORE, DR-14).
 | DR-31 | a link at `.aai/cache/hooks-shipped/<name>` (the snapshot) or at a merge temp name `<dir>/.<name>.<pid>.tmp` is written through, so the write can overwrite a file outside the target | same | the snapshot link is removed and a regular file written; the temp name is removed first and created exclusively; nothing is written through a link | a write outside the verified target root is never acceptable (owner policy after the 2026-11-19 incident); closes fu-sync-shipped-snapshot-link-escape | TEST-4008 |
 | DR-32 | the target is compared with the source by path spelling; on a case-insensitive file system (macOS and Windows defaults) a target that names the source with other letter case is not refused and the first copy-replace deletes a source file | same | refused before any write, exit 1: both roots are real paths in the file system's own spelling (`fs.realpathSync.native`) and the target's ancestors are also compared with the source by device and inode | a sync must never delete or write the source, whatever the spelling (owner policy after the 2026-11-19 incident) | TEST-4003 |
 | DR-33 | a source inside a managed entry of the target (for example `<t>/.aai/upstream`) is deleted by the stale clean or replaced by the copy of that entry, and the run exits 0 | same class | refused before any write, exit 1, one line naming the source and the entry; a source elsewhere inside the target stays allowed (D-ROOTS) | the run must not remove its own source or running engine | TEST-4003 |
+| DR-34 | `core:` must be followed by LF; a CR ends up in the line and the block never opens | the line is read without its CR (`Get-Content`), so a CRLF manifest works | a CR before the line feed ends the line and is no part of it; every other DR-10 rule is unchanged | a Windows checkout (core.autocrlf) holds `PROFILES.yaml` with CRLF; the module refused it with no core entries where the PowerShell twin worked | TEST-4003, TEST-4007 |
+| DR-35 | device and inode compared as Numbers | the same | read as bigint; a zero device or inode, or a Number beyond 2**53, is no identity and two unknown identities are compared by real path spelling (`realpathSync.native`, else `realpathSync`; case-insensitive on win32), never taken for one file; every `realpathSync.native` call of the module falls back to `realpathSync` when it throws | Windows file ids pass 2**53 and some file systems report inode 0, which made unrelated directories one file (PR review) | TEST-4003, TEST-4004 |
 
 Run 8 amendment (additive with disclosure, Remediation after Validation
 round 1): DR-31 is added after the fact. Validation found that the shipped
@@ -711,6 +713,41 @@ pre-existing entry at that exact name before the exclusive create, and
 nothing outside the target is touched. N3 (Windows PowerShell 5.1 native
 argument quoting in `aai-sync.ps1`) is filed as a follow-up and not changed
 here.
+
+Run 10 amendment (additive with disclosure, Remediation after the hosted
+CI run of the pull request): DR-34 and DR-35 are added, and two evidence
+fixes follow from the hosted Windows and release rehearsal jobs. DR-34: the
+Windows jobs of CI (native Windows PowerShell 5.1 and pwsh 7, the worktree
+seed and the merge cleanup Pester files) synced with `-Profile core` from a
+checkout holding `.aai/system/PROFILES.yaml` with CRLF line ends, and the
+module found no core entries because DR-10 read `core:` exactly and the CR
+stayed in the line. `parseCoreList` now removes a CR before the line feed from
+every line; the rest of DR-10 (a tab-indented line closes the block, `core:`
+plus spaces does not open it) is unchanged, and the TEST-4003 pin that a CR
+after `core:` does not open the block is replaced by its opposite. Every
+other text the module reads was checked for the same class: the pin's profile
+line, the version line, the Copilot overrides, the shipped list and the
+gitignore lists already remove a CR, `hooks.json` is JSON. DR-35 (the Codex
+review comment on `sameFile`, closes `fu-sync-win-ino-identity-precision`):
+the module reads each real path through `realNative`, which falls back to `realpathSync` when `realpathSync.native` throws (a Windows volume without it
+made the roots unreadable); the identity compare moves to `lib/resolve-base.mjs` as the third export
+`sameFile`, so the D-BASE sentence "exports exactly `resolveBase` and
+`resolveFromBase`" now reads three names; `resolveBase` and the sync module
+both use it, and `aai-sync.mjs` imports it on a second import line from the
+same lib (the pinned import line is unchanged). Evidence fixes, no behaviour
+change of the module: (a) the install-parity allowlist rows
+`win-source-path-pin` and `win-source-path-report` accept the `syref` copy
+(the frozen twins run from it) besides `fx/src`, and the rows
+`sync-source-path-pin` and `sync-source-path-report` stand before the paired
+Windows rows, because the first row in file order whose regex matches a line
+judges it and a paired row matching every line claimed the Source line;
+(b) `test-aai-sync-node.sh` no longer names the change log in one piece,
+because the release rehearsal enlists every suite whose text names it as a
+reader and runs it under a 540 second timeout; this suite takes minutes, read
+nothing of the log, and starved the readers behind it (TEST-4019 now checks
+the rehearsal's reader list holds `test-aai-sync-docs.sh` and not this suite).
+No owner sign-off was obtained for any of these; the owner's merge direction
+signs them.
 
 Kept for parity, pinned as rules and not drifts: the `^\.aai/` prefix reading
 of the `.aai/` ignore line; a copy-replaced directory loses target-added
