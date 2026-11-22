@@ -1,5 +1,5 @@
 // aai-sync.test.mjs - node:test cases of the sync-on-node ride
-// (docs/specs/SPEC-DRAFT-spec-sync-on-node.md). Every case name starts with its TEST id; the suite
+// (docs/specs/SPEC-0310-spec-sync-on-node.md). Every case name starts with its TEST id; the suite
 // tests/skills/test-aai-sync-node.sh selects them with --test-name-pattern. The file grows run by run.
 //
 // Safety (D-SAFETY): directories are created and removed only through sync-reference.mjs (own prefix, marker,

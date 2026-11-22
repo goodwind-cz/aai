@@ -1,5 +1,5 @@
 // resolve-base.mjs - the one base-directory resolution shared by the updater, the bootstrap, the hook installer
-// and the layer sync (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, D-BASE).
+// and the layer sync (docs/specs/SPEC-0310-spec-sync-on-node.md, D-BASE).
 //
 // The base directory is PWD when it is absolute and names the same device and inode as the working directory,
 // else the working directory. Dependency-free; importing it has no side effect.

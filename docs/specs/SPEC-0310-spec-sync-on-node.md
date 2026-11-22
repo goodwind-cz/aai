@@ -1,9 +1,9 @@
 ---
 id: spec-sync-on-node
 type: spec
-number: null
-status: implementing
-frozen_sha256: 11725daca2ec75694957fb6ae29cfc118018e9c0624683e4dcd974bca7f6dece
+number: 310
+status: done
+frozen_sha256: 9b1d814cda0b08e3c3923b7e0f32c16cc38946aa585fc193f03b017220132767
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Run the AAI layer sync as one Node module behind thin launchers](../issues/CHANGE-DRAFT-sync-on-node.md).
+- Requirement: [Run the AAI layer sync as one Node module behind thin launchers](../issues/CHANGE-0265-sync-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 12, the last ride (owner sign-off: yes; merge by the owner). Plan
@@ -110,8 +110,8 @@ SPEC-FROZEN: true
   CHANGELOG.md README.md docs/USER_GUIDE.md docs/product/sync-on-node.md
   docs/analysis/node-first-remaining-plan.md
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
-  docs/ai/decisions.jsonl docs/issues/CHANGE-DRAFT-sync-on-node.md
-  docs/specs/SPEC-DRAFT-spec-sync-on-node.md docs/INDEX.md
+  docs/ai/decisions.jsonl docs/issues/CHANGE-0265-sync-on-node.md
+  docs/specs/SPEC-0310-spec-sync-on-node.md docs/INDEX.md
   (decisions.jsonl only for the amendment and follow-up records; the
   allocator renames the two DRAFT files at merge; the fixtures file only if
   the corpus fixtures are split out of the node:test file;
@@ -1296,7 +1296,7 @@ its header names its source.
   sentence.
 - RFC-0017 phase 5 row: one sentence after the sixteenth-slice sentence and
   before the remaining-scripts-plan sentence:
-  `The seventeenth slice [moved the layer sync to Node](../issues/CHANGE-DRAFT-sync-on-node.md): one module holds the argument, profile, copy, prune and gitignore rules behind thin aai-sync.sh and aai-sync.ps1 launchers, compared with frozen copies of both twins, and the updater, the bootstrap, the hook installer and the sync share one base-resolution library.`
+  `The seventeenth slice [moved the layer sync to Node](../issues/CHANGE-0265-sync-on-node.md): one module holds the argument, profile, copy, prune and gitignore rules behind thin aai-sync.sh and aai-sync.ps1 launchers, compared with frozen copies of both twins, and the updater, the bootstrap, the hook installer and the sync share one base-resolution library.`
   The allocator rewrites the link at merge (checks match only the suffix
   `sync-on-node.md`). The remaining-pairs inventory loses its `aai-sync` row
   (expert-fetch test_2624 counts only pairs without an `.mjs`). The phase
@@ -1477,7 +1477,7 @@ legacy moves are named with the manual cleanup.
 | Spec-AC-17 | WHEN the parity driver runs the seven SY scenarios with twins sh, ps1 and node against the committed allowlist the system SHALL exit 0 with verdict PASS, pairs sh:ps1, sh:node and ps1:node in each sync scenario, the sh and ps1 twins running the frozen references from syref, and only the D-PARITY allowlist changes; a fake node twin that writes one more byte into the pin SHALL fail naming sh:node; the real-registry unit test and aai-bootstrap.test.mjs TEST-3956 SHALL pass and spec-amend list SHALL hold the SPEC-0284 and SPEC-0306 records. | done | TEST-4017 red docs/ai/tdd/sync-on-node/red/TEST-4017.log; TEST-4017 green docs/ai/tdd/sync-on-node/green/TEST-4017.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4017.txt | — | D-PARITY; H2 on Windows |
 | Spec-AC-18 | WHEN the D-UPGRADE cases U0 to U4 run in scratch trees the system SHALL exit 0 for each install and update, vendor the module, both launchers and both libs into every updated target with no lib/gitignore-block.sh left in an extended target (a core target keeps it as the preserved target-only script it was under both twins), keep a core target's profile and prune exactly the .aai files the new core list lacks, run the updated target's sync, update, hook installer and bootstrap launchers with exit 0, leave the frozen twin as aai-sync.sh only in the U2 target until its next update, and exit 1 with the D-LAUNCH line and an unchanged target when node is not on PATH. | done | TEST-4018 red docs/ai/tdd/sync-on-node/red/TEST-4018.log; TEST-4018 green docs/ai/tdd/sync-on-node/green/TEST-4018.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4018.txt | — | D-UPGRADE, run 7a amendment |
 | Spec-AC-19 | Wiring per D-WIRE: select-suites SHALL route the module, both launchers, both libs, the three reference copies, the node:test files, the Pester file and git-env-scrub.sh to aai-sync-node, every row listing aai-sync.sh SHALL list aai-sync.mjs and no row SHALL list gitignore-block.sh; both weights rows SHALL be 196 with their fallback lines; hygiene test_090 SHALL pin 144 and test_129 and test_128 pass; the cd-subshell baseline SHALL hold 1 for aai-sync.sh; nested-suite lint, check-cd-subshell-leak, check-test-registration and check-vendored-script-deps SHALL exit 0; both ps1-quality path lists SHALL be identical and hold the D-WIRE entries with win-fallback test_034 and test_035 passing; the prompt corpus bytes SHALL equal 077ee649. | done | TEST-4019 red docs/ai/tdd/sync-on-node/red/TEST-4019.log; TEST-4019 green docs/ai/tdd/sync-on-node/green/TEST-4019.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4019.txt | — | D-WIRE |
-| Spec-AC-20 | CHANGELOG.md SHALL hold the D-DOCS heading exactly once with a body naming Node.js 22, DR-2, DR-5, DR-7, DR-11, DR-13, DR-18, DR-20 and DR-21 and every D-LEGACY path; README.md and docs/USER_GUIDE.md SHALL name aai-sync.mjs and Node.js 22 in the sync install blocks; the RFC-0017 phase 5 row SHALL hold the D-DOCS sentence once with a link ending sync-on-node.md and no aai-sync inventory row, and expert-fetch test_2624 SHALL pass; after LOOP COMPLETE docs/product/sync-on-node.md SHALL exist and pass the product-doc check. | implementing | TEST-4020 red docs/ai/tdd/sync-on-node/red/TEST-4020.log; TEST-4020 green docs/ai/tdd/sync-on-node/green/TEST-4020.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4020.txt | — | D-DOCS; the product-doc arm is written after LOOP COMPLETE |
+| Spec-AC-20 | CHANGELOG.md SHALL hold the D-DOCS heading exactly once with a body naming Node.js 22, DR-2, DR-5, DR-7, DR-11, DR-13, DR-18, DR-20 and DR-21 and every D-LEGACY path; README.md and docs/USER_GUIDE.md SHALL name aai-sync.mjs and Node.js 22 in the sync install blocks; the RFC-0017 phase 5 row SHALL hold the D-DOCS sentence once with a link ending sync-on-node.md and no aai-sync inventory row, and expert-fetch test_2624 SHALL pass; after LOOP COMPLETE docs/product/sync-on-node.md SHALL exist and pass the product-doc check. | done | TEST-4020 red docs/ai/tdd/sync-on-node/red/TEST-4020.log; TEST-4020 green docs/ai/tdd/sync-on-node/green/TEST-4020.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4020.txt; product doc docs/product/sync-on-node.md written after LOOP COMPLETE (TEST-4020 product-doc arm passes) | — | D-DOCS; the product-doc arm is written after LOOP COMPLETE |
 | Spec-AC-21 | follow-ups list --status all SHALL show each of the thirteen D-FU follow-ups that stay closed (run 9 reopened fu-parity-win-source-path, which SHALL show open) and fu-guard-config-not-l3-protected closed with resolved_by sync-on-node and a source naming a test file and a TEST id that occurs in that file followed by a colon, and the three filed suggestions SHALL be listed open with ref sync-on-node. | done | TEST-4021 red docs/ai/tdd/sync-on-node/red/TEST-4021.log; TEST-4021 green docs/ai/tdd/sync-on-node/green/TEST-4021.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4021.txt | — | D-FU, run 7d amendment |
 | Spec-AC-22 | WHEN the D-PHASE5 measurement runs the system SHALL find the rows of section 6 of docs/analysis/node-first-remaining-plan.md equal to the measured non-launcher files with their code lines and classes, the twin duplication number 0, the listed open P1 and P2 node-first follow-ups equal to the ledger's, and the RFC-0017 phase 5 status done only when every plan section 5 criterion holds on that measurement. | done | TEST-4022 red docs/ai/tdd/sync-on-node/red/TEST-4022.log; TEST-4022 green docs/ai/tdd/sync-on-node/green/TEST-4022.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4022.txt | — | D-PHASE5; phase 5 stays in progress |
 | Spec-AC-23 | Owner-authorised scope addition, relayed 2026-11-22 after PR 580 (additive, disclosed): .aai/scripts/lib/guard-config.mjs SHALL be listed on both protected_paths_l3 lists (docs/ai/docs-audit.yaml and .aai/templates/docs-audit.template.yaml), WORKFLOW.md protected surfaces SHALL carry a guard config bullet naming it, and select-suites SHALL report a change to it as FULL_RUN reason=protected-l3, the same shape PR 580 (SPEC-0309) gave the hook installer. | done | TEST-4023 red docs/ai/tdd/sync-on-node/red/TEST-4023.log; TEST-4023 green docs/ai/tdd/sync-on-node/green/TEST-4023.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4023.txt | — | owner scope addition |

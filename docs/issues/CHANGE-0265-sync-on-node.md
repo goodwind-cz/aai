@@ -1,8 +1,8 @@
 ---
 id: sync-on-node
 type: change
-number: null
-status: draft
+number: 265
+status: done
 capability: sync-on-node
 user_visible: true
 parent: smaller-node-core-and-faster-feedback

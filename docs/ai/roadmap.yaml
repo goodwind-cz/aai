@@ -159,7 +159,7 @@ pairs:
   - capability: pre-commit-installer-on-node
     status: done
   - capability: sync-on-node
-    status: planned
+    status: done
   - capability: release-publish-on-node
     status: done
   - capability: factory-round-cap

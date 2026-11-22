@@ -1,4 +1,4 @@
-// sync-upgrade.test.mjs - TEST-4018 of the sync-on-node ride (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, D-UPGRADE):
+// sync-upgrade.test.mjs - TEST-4018 of the sync-on-node ride (docs/specs/SPEC-0310-spec-sync-on-node.md, D-UPGRADE):
 // the upgrade proof in scratch trees. The suite tests/skills/test-aai-sync-node.sh selects these cases with
 // --test-name-pattern TEST-4018.
 //

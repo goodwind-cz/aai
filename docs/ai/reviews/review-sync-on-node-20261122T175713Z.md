@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 46712c91..b3af756e (feat/sync-on-node; the code_review.scope path list in docs/ai/STATE.yaml, 66 files)"
-  spec: docs/specs/SPEC-DRAFT-spec-sync-on-node.md (frozen L3, amendments in docs/ai/decisions.jsonl through run 8 / DR-31)
+  spec: docs/specs/SPEC-0310-spec-sync-on-node.md (frozen L3, amendments in docs/ai/decisions.jsonl through run 8 / DR-31)
   spec_compliance:
     verdict: fail
     ac_walk:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-sync-node
-# (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
+# (docs/specs/SPEC-0310-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
 # them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006, run 3 TEST-4007..4009,
 # run 4 TEST-4010..4012, run 5 TEST-4013..4014, run 6 TEST-4015..4017, run 7 TEST-4018..4019)
 #

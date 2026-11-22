@@ -1,5 +1,5 @@
 // gitignore-block.mjs - the .gitignore reconcile of the layer sync, in one place
-// (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, D-GITIGNORE; DR-11, DR-12, DR-14).
+// (docs/specs/SPEC-0310-spec-sync-on-node.md, D-GITIGNORE; DR-11, DR-12, DR-14).
 //
 // Ported from the bash twin of the layer sync and from lib/gitignore-block.sh byte for byte: the managed blocks are
 // appended in the bash order, a second run changes nothing, and the self-heal collapses the duplicates that older

@@ -1,5 +1,5 @@
 // sync-reference.mjs - the frozen layer sync references and the scratch-safety helpers
-// (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, D-REF and D-SAFETY).
+// (docs/specs/SPEC-0310-spec-sync-on-node.md, D-REF and D-SAFETY).
 //
 // The three references are byte copies of .aai/scripts/aai-sync.sh (blob f42b62ca), .aai/scripts/aai-sync.ps1
 // (blob d7ab810f) and .aai/scripts/lib/gitignore-block.sh (blob 8402ac80) at commit 077ee649, kept outside .aai/

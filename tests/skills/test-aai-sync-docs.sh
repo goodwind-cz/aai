@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-sync-docs
-# (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4020 to TEST-4022)
+# (docs/specs/SPEC-0310-spec-sync-on-node.md, TEST-4020 to TEST-4022)
 #
 # The documentation, follow-up and phase 5 re-measure half of the sync-on-node ride, split out of
 # test-aai-sync-node.sh so that the long sync suite does not read the changelog (the release dry-run

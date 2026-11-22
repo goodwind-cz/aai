@@ -1,5 +1,5 @@
 # git-env-scrub.sh - the installer suites scrub the caller's git environment
-# (docs/specs/SPEC-DRAFT-spec-sync-on-node.md D-GITENV, closes the class of fu-suite-git-env-scrub-class).
+# (docs/specs/SPEC-0310-spec-sync-on-node.md D-GITENV, closes the class of fu-suite-git-env-scrub-class).
 #
 # WHY: a hook installer run by a test resolves its hooks directory through git, and git reads the caller's
 # environment: GIT_CONFIG_COUNT/KEY_n/VALUE_n and GIT_CONFIG_PARAMETERS (what `git -c core.hooksPath=... ` hands to its

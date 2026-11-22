@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // aai-sync.mjs - the AAI layer sync as one Node module behind thin launchers
-// (docs/specs/SPEC-DRAFT-spec-sync-on-node.md; RFC-0017 phase 5).
+// (docs/specs/SPEC-0310-spec-sync-on-node.md; RFC-0017 phase 5).
 //
 // Usage: node .aai/scripts/aai-sync.mjs <path-to-target-project> [--profile core|extended] [-h]
 //

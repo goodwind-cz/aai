@@ -2823,6 +2823,12 @@ The hook installer puts the three AAI git hooks into the hooks directory git act
 
 [Product doc](product/pre-commit-installer-on-node.md) · [Spec](specs/SPEC-0308-spec-pre-commit-installer-on-node.md)
 
+### The AAI layer sync runs on Node behind thin launchers
+
+The layer sync copies the vendored AAI layer (`.aai/`, the harness skill folders, the root shims, the managed `.gitignore` blocks, the Session-start hooks) from a source checkout into a project, prunes files the source no longer ships, and writes the AAI pin and a conflict advisory. It is what `/aai-update`, `install.sh` and `install.ps1` run. It now runs as one Node.js module behind two small launchers instead of two separate bash and PowerShell scripts that used to drift. The files a sync writes are the same as before; each behaviour that differs from the old scripts is a numbered, tested decision. Node.js 22 or later is now required: without it both launchers refuse, print an install hint and change nothing.
+
+[Product doc](product/sync-on-node.md) · [Spec](specs/SPEC-0310-spec-sync-on-node.md)
+
 ### The AAI layer updater runs on Node behind thin launchers
 
 `/aai-update` refreshes a project's vendored AAI layer from the canonical repository: it fetches the source (a local checkout, or a clone through gh, git, then an anonymous git clone), runs the source's sync into the project, and prints the changed files, the AAI_PIN lines, the newest conflict report, the doctor field report and the next steps. It now runs as one Node.js module behind two small launchers. The bash and PowerShell copies of the updater used to drift; they now share one behaviour. Each launcher keeps running the sync it ran before (`aai-sync.sh` from the shell launcher, `aai-sync.ps1` from PowerShell). Node.js 22 or later is now required: without it, both launchers refuse, print an install hint and change nothing.

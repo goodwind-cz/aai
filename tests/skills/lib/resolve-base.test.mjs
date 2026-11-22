@@ -1,5 +1,5 @@
 // resolve-base.test.mjs - node:test cases of the shared base resolution
-// (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, D-BASE, TEST-4004). Every case name starts with TEST-4004; the suite
+// (docs/specs/SPEC-0310-spec-sync-on-node.md, D-BASE, TEST-4004). Every case name starts with TEST-4004; the suite
 // tests/skills/test-aai-sync-node.sh selects them with --test-name-pattern.
 //
 // The same fixtures run through the lib and through its four users (aai-update.mjs resolveBase, aai-bootstrap.mjs
