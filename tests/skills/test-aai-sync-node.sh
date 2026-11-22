@@ -855,11 +855,19 @@ test_4019_wiring() {
     process.stdout.write(bad.join(", "));
   ')" || log_fail "TEST-4019: the row check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4019: suite-map rows: $out"
+  # the change log name is written in two pieces: the release rehearsal's reader scan is a text match (the check below holds it)
+  local clog="CHANGE""LOG.md"
   for sel in "aai-sync-node	tests/skills/test-aai-sync-node.sh" "aai-sync-node	tests/skills/lib/sync-upgrade.test.mjs" "aai-sync-docs	tests/skills/test-aai-sync-docs.sh" \
-    "aai-sync-docs	CHANGELOG.md" "aai-sync-docs	README.md" "aai-sync-docs	docs/USER_GUIDE.md" "aai-sync-docs	docs/product/sync-on-node.md" \
+    "aai-sync-docs	$clog" "aai-sync-docs	README.md" "aai-sync-docs	docs/USER_GUIDE.md" "aai-sync-docs	docs/product/sync-on-node.md" \
     "aai-sync-docs	docs/analysis/node-first-remaining-plan.md" "aai-sync-docs	docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"; do
     printf '%s\n' "$rows" | qgrep -qxF "$sel" || log_fail "TEST-4019: the suite-map row is missing: ${sel/	/ -> }"
   done
+  # The release rehearsal enlists every tracked suite whose text names the change log as a reader and runs it under a 540 second timeout and one
+  # 18 minute budget. This suite takes minutes and reads no change log (aai-sync-docs does), so a stray mention here would enlist a suite that
+  # cannot finish in the rehearsal and starve the readers behind it: the readers it lists must hold aai-sync-docs and not this suite.
+  out="$(node "$PROJECT_ROOT/.aai/scripts/release-dry-run.mjs" --list --root "$PROJECT_ROOT" 2>&1)" || { printf '%s\n' "$out" >&2; log_fail "TEST-4019: release-dry-run --list failed"; }
+  qgrep -qxF "READER tests/skills/test-aai-sync-docs.sh" <<< "$out" || log_fail "TEST-4019: the release rehearsal does not list test-aai-sync-docs.sh as a reader"
+  if qgrep -qxF "READER tests/skills/test-aai-sync-node.sh" <<< "$out"; then log_fail "TEST-4019: the release rehearsal lists this suite as a reader (a line of this file names the change log)"; fi
   for sel in aai-sync-node aai-sync-docs; do
     qgrep -qxF "$(printf '%s\t196' "$sel")" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-4019: the weights row $sel 196 is missing"
   done
