@@ -1947,3 +1947,27 @@ suites:
       - tests/skills/test-aai-expert-fetch.sh
       - tests/skills/lib/prompt-diet-ledger.sh
       - tests/skills/lib/pipe-safe.sh
+
+  aai-sync-node:
+    globs:
+      - .aai/scripts/aai-sync.*
+      - .aai/scripts/lib/resolve-base.mjs
+      - .aai/scripts/lib/gitignore-block.mjs
+      - .aai/scripts/lib/merge-hooks-json.mjs
+      - .aai/system/PROFILES.yaml
+      - .aai/system/RUNTIME_IGNORE.list
+      - .aai/system/COPILOT_SHIM_SHIPPED.list
+      - install.sh
+      - install.ps1
+      - tests/fixtures/sync-reference/**
+      - tests/skills/test-aai-sync-node.sh
+      - tests/skills/lib/aai-sync.test.mjs
+      - tests/skills/lib/aai-sync-fixtures.mjs
+      - tests/skills/lib/resolve-base.test.mjs
+      - tests/skills/lib/sync-reference.mjs
+      - tests/skills/lib/git-env-scrub.sh
+      - tests/skills/lib/pipe-safe.sh
+      - tests/skills/aai-sync.Tests.ps1
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
+      - tests/skills/test-aai-hygiene-pack.sh

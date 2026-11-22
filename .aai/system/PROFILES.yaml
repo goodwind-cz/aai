@@ -386,6 +386,9 @@ extended:
   - .aai/scripts/validate-skills.mjs
   - .aai/scripts/validate-skills.ps1
   - .aai/scripts/validate-skills.sh
+  - .aai/scripts/aai-sync.mjs
+  - .aai/scripts/lib/resolve-base.mjs
+  - .aai/scripts/lib/gitignore-block.mjs
   - .aai/system/EXPERT_REGISTRY.yaml
   - .aai/system/FRICTION_PROTOCOL.md
   - .aai/system/SELF_HOSTING.md

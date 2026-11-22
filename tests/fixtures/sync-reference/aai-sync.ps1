@@ -1,0 +1,1135 @@
+param(
+  [Parameter(Mandatory=$true)]
+  [string]$TargetRoot,
+  [string]$Profile = ""
+)
+
+$ErrorActionPreference = "Stop"
+
+# Push AAI layer FROM this repository INTO a target project.
+#
+# Usage (run from anywhere, script finds its own repo root):
+#   .\.aai\scripts\aai-sync.ps1 -TargetRoot ..\maty-ai
+#
+# Example:
+#   .\.aai\scripts\aai-sync.ps1 -TargetRoot z:\AI\maty-ai
+#   .\.aai\scripts\aai-sync.ps1 -TargetRoot ..\maty-ai -Profile core
+#
+# Profiles (CHANGE layer-profiles / .aai/system/PROFILES.yaml):
+#   extended (default) - the whole vendored layer; copy behavior identical to
+#                        the pre-profile sync (the manifest is never consulted).
+#   core               - exactly the PROFILES.yaml core: list (the workflow
+#                        engine); non-core .aai files are pruned from the
+#                        target, target-only scripts are preserved.
+# Resolution when -Profile is absent: the target pin's "- Profile:" line
+# (sticky - /aai-update re-syncs keep the installed profile), else extended.
+# (Validated manually, not via ValidateSet, so the empty sticky default stays
+# legal and the error message matches aai-sync.sh.)
+
+if ($Profile -and ($Profile -ne "core") -and ($Profile -ne "extended")) {
+  throw "Invalid -Profile value: $Profile (allowed: core|extended)"
+}
+
+function Copy-Replace {
+  param(
+    [Parameter(Mandatory=$true)][string]$Src,
+    [Parameter(Mandatory=$true)][string]$Dst
+  )
+  # Git is the backup - no .bak files needed.
+  if (Test-Path $Dst) { Remove-Item $Dst -Recurse -Force }
+  if (Test-Path $Src -PathType Container) {
+    # Create the destination root FIRST, then copy CONTENTS into it. Windows
+    # PowerShell 5.1's `Copy-Item -Recurse <dir> <nonexistent-dst>` does not
+    # reliably create the destination root before copying a top-level file into
+    # it, throwing DirectoryNotFoundException ("part of the path ... was not
+    # found") on dirs that mix loose files with subdirs (e.g. .codex/skills and
+    # .gemini/skills, which carry a top-level README.md alongside skill folders).
+    # PS7 and `cp -a` are unaffected; creating $Dst up front is version-safe.
+    New-Item -ItemType Directory -Force -Path $Dst | Out-Null
+    $kids = @(Get-ChildItem -LiteralPath $Src -Force)
+    if ($kids.Count -gt 0) {
+      Copy-Item -LiteralPath $kids.FullName -Destination $Dst -Recurse -Force
+    }
+  } else {
+    Copy-Item -LiteralPath $Src -Destination $Dst -Force
+  }
+}
+
+function Test-FileContentDifferent {
+  param(
+    [Parameter(Mandatory=$true)][string]$Src,
+    [Parameter(Mandatory=$true)][string]$Dst
+  )
+  if (!(Test-Path $Src) -or !(Test-Path $Dst)) { return $true }
+  $srcItem = Get-Item $Src -Force
+  $dstItem = Get-Item $Dst -Force
+  if ($srcItem.PSIsContainer -or $dstItem.PSIsContainer) { return $true }
+  try {
+    $srcHash = (Get-FileHash -Algorithm SHA256 -Path $Src).Hash
+    $dstHash = (Get-FileHash -Algorithm SHA256 -Path $Dst).Hash
+    return $srcHash -ne $dstHash
+  } catch {
+    # Fail closed (fu-sync-hash-compare-fails-open): an unobtainable hash must
+    # not flip the copilot shim into the merge branch.
+    return $false
+  }
+}
+
+function Test-DirectoryContentDifferent {
+  param(
+    [Parameter(Mandatory=$true)][string]$Src,
+    [Parameter(Mandatory=$true)][string]$Dst
+  )
+  if (!(Test-Path $Src) -or !(Test-Path $Dst)) { return $true }
+  $srcFiles = Get-ChildItem -Path $Src -Recurse -File -Force -ErrorAction SilentlyContinue
+  $dstFiles = Get-ChildItem -Path $Dst -Recurse -File -Force -ErrorAction SilentlyContinue
+
+  $srcRel = @{}
+  foreach ($f in $srcFiles) {
+    $rel = $f.FullName.Substring($Src.Length).TrimStart('\','/')
+    $srcRel[$rel] = $f.FullName
+  }
+  $dstRel = @{}
+  foreach ($f in $dstFiles) {
+    $rel = $f.FullName.Substring($Dst.Length).TrimStart('\','/')
+    $dstRel[$rel] = $f.FullName
+  }
+
+  if ($srcRel.Count -ne $dstRel.Count) { return $true }
+  foreach ($rel in $srcRel.Keys) {
+    if (!$dstRel.ContainsKey($rel)) { return $true }
+    if (Test-FileContentDifferent -Src $srcRel[$rel] -Dst $dstRel[$rel]) { return $true }
+  }
+  return $false
+}
+
+function Get-CopilotProjectOverridesContent {
+  param(
+    [Parameter(Mandatory=$true)][string]$Content
+  )
+  $startMarker = "<!-- AAI-PROJECT-OVERRIDES:START -->"
+  $endMarker = "<!-- AAI-PROJECT-OVERRIDES:END -->"
+  $startIndex = $Content.IndexOf($startMarker)
+  $endIndex = $Content.IndexOf($endMarker)
+  if (($startIndex -ge 0) -and ($endIndex -gt $startIndex)) {
+    $startPos = $startIndex + $startMarker.Length
+    return $Content.Substring($startPos, $endIndex - $startPos).Trim()
+  }
+  return $Content.Trim()
+}
+
+# Test-CopilotShimShipped -Text <extracted override text> -ListPath <list> -
+# $true when the text is empty or its normalized hash is a row of the source's
+# COPILOT_SHIM_SHIPPED.list, i.e. it is an unmodified older Copilot shim and not
+# a real project override (SPEC spec-provider-adapter-registry-slice D4). Twin of
+# copilot_shim_is_shipped in aai-sync.sh. Normalized hash: delete every CR, drop
+# the trailing LFs, sha256 of the UTF-8 bytes, lowercase hex. A hash that cannot
+# be computed counts as not shipped, so the existing merge keeps the text. It
+# compares only that hash with the list; it cannot tell a deliberate edit that
+# reproduces a shipped version from an untouched one.
+function Test-CopilotShimShipped {
+  param(
+    [string]$Text,
+    [Parameter(Mandatory=$true)][string]$ListPath
+  )
+  $norm = ("$Text" -replace "`r", "").TrimEnd("`n")
+  if ([string]::IsNullOrWhiteSpace($norm)) { return $true }
+  if (!(Test-Path -LiteralPath $ListPath)) { return $false }
+  $hash = ""
+  try {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $hash = ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($norm))) -replace "-", "").ToLowerInvariant()
+    } finally { $sha.Dispose() }
+  } catch { return $false }
+  $shipped = New-Object 'System.Collections.Generic.HashSet[string]'
+  foreach ($row in @(Get-Content -LiteralPath $ListPath)) {
+    $t = "$row".Trim()
+    if ($t -and !$t.StartsWith('#')) { [void]$shipped.Add($t) }
+  }
+  return $shipped.Contains($hash)
+}
+
+# Resolve source = this repository's root (grandparent of the .aai/scripts/ folder)
+$SrcRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+
+if (!(Test-Path (Join-Path $SrcRoot ".aai"))) {
+  throw "Source missing .aai/ directory: $SrcRoot"
+}
+
+if (!(Test-Path $TargetRoot)) {
+  throw "Target directory does not exist: $TargetRoot"
+}
+
+$TargetRoot = (Resolve-Path $TargetRoot).Path
+
+# Resolve the effective profile: explicit flag > sticky target pin > extended.
+if (-not $Profile) {
+  $existingPin = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
+  if (Test-Path $existingPin) {
+    $pinMatch = Select-String -Path $existingPin -Pattern '^- Profile: (core|extended)\s*$' | Select-Object -First 1
+    if ($pinMatch) { $Profile = $pinMatch.Matches[0].Groups[1].Value }
+  }
+}
+if (-not $Profile) { $Profile = "extended" }
+
+Write-Host "Syncing AAI from: $SrcRoot"
+Write-Host "Target project:     $TargetRoot"
+Write-Host "Profile:            $Profile"
+
+# Core profile needs the manifest (extended never reads it - copy-everything
+# behavior is structurally unchanged).
+$coreFiles = @()
+if ($Profile -eq "core") {
+  $profilesManifest = Join-Path $SrcRoot ".aai/system/PROFILES.yaml"
+  if (!(Test-Path $profilesManifest)) {
+    throw "-Profile core requires the manifest: $profilesManifest"
+  }
+  $inCore = $false
+  foreach ($line in (Get-Content $profilesManifest)) {
+    if ($line -match '^core:\s*$') { $inCore = $true; continue }
+    if ($line -match '^\S') { $inCore = $false; continue }
+    if ($inCore -and $line -match '^  - (.+)$') { $coreFiles += $Matches[1].Trim() }
+  }
+  if ($coreFiles.Count -eq 0) {
+    throw "No core entries found in $profilesManifest"
+  }
+}
+
+# Target directories (AAI layer only)
+foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".agents/skills",".claude/skills",".claude-plugin",".codex/skills",".codex/skills.local",".cursor/rules",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai","hooks")) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
+}
+
+$overwriteConflicts = @()
+$deletions = @()
+
+# -- Legacy cleanup: remove old-layout paths that moved into .aai/ -----------
+$legacyCleaned = $false
+
+# Old prompt / subagent directory (was ai/)
+$oldAi = Join-Path $TargetRoot "ai"
+if (Test-Path $oldAi) {
+  Remove-Item $oldAi -Recurse -Force
+  Write-Host "  MIGRATE removed legacy: ai/"
+  $legacyCleaned = $true
+}
+
+# Old scripts directory (was scripts/) - only remove AAI-owned scripts, keep project scripts
+$oldScripts = Join-Path $TargetRoot "scripts"
+if (Test-Path $oldScripts) {
+  # Remove scripts that now live in .aai/scripts/ (current names)
+  Get-ChildItem -Path (Join-Path $SrcRoot ".aai/scripts") -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    $oldFile = Join-Path $oldScripts $_.Name
+    if (Test-Path $oldFile) {
+      Remove-Item $oldFile -Force
+      Write-Host "  MIGRATE removed legacy: scripts/$($_.Name) -> now in .aai/scripts/"
+      $legacyCleaned = $true
+    }
+  }
+  # Remove old ai-os-* named scripts (renamed to aai-*)
+  Get-ChildItem -Path $oldScripts -File -Filter "ai-os-*" -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    Remove-Item $_.FullName -Force
+    Write-Host "  MIGRATE removed legacy: scripts/$($_.Name) (old ai-os-* name)"
+    $legacyCleaned = $true
+  }
+  # Remove the directory only if it's now empty
+  if ((Get-ChildItem -Path $oldScripts -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+    Remove-Item $oldScripts -Force
+    Write-Host "  MIGRATE removed empty: scripts/"
+  }
+}
+
+# Root files that moved into .aai/ (AGENTS.md is NOT one of them any more: it is a
+# generated root shim, installed below with CLAUDE.md, CODEX.md and GEMINI.md)
+foreach ($f in @("PLAYBOOK.md")) {
+  $oldFile = Join-Path $TargetRoot $f
+  if (Test-Path $oldFile) {
+    Remove-Item $oldFile -Force
+    Write-Host "  MIGRATE removed legacy root: $f"
+    $legacyCleaned = $true
+  }
+}
+
+# docs/ subdirs whose content moved into .aai/
+foreach ($d in @("docs/workflow","docs/roles","docs/templates")) {
+  $dirPath = Join-Path $TargetRoot $d
+  if (Test-Path $dirPath) {
+    $entries = Get-ChildItem -Path $dirPath -Force | Where-Object { $_.Name -ne ".gitkeep" }
+    if ($entries.Count -gt 0) {
+      Remove-Item $dirPath -Recurse -Force
+      New-Item -ItemType Directory -Force -Path $dirPath | Out-Null
+      New-Item -ItemType File -Force -Path (Join-Path $dirPath ".gitkeep") | Out-Null
+      Write-Host "  MIGRATE cleaned legacy dir: $d/ (kept .gitkeep)"
+      $legacyCleaned = $true
+    }
+  }
+}
+
+# System docs that moved from docs/ai/ to .aai/system/
+foreach ($f in @("AUTONOMOUS_LOOP.md","SUPERPOWERS_INTEGRATION.md","DYNAMIC_SKILLS.md","PRICING.yaml","AAI_PIN.md","LOCKS.md")) {
+  $oldFile = Join-Path $TargetRoot "docs/ai/$f"
+  if (Test-Path $oldFile) {
+    Remove-Item $oldFile -Force
+    Write-Host "  MIGRATE removed legacy: docs/ai/$f -> now in .aai/system/"
+    $legacyCleaned = $true
+  }
+}
+
+# PATTERNS_UNIVERSAL moved from docs/knowledge/ to .aai/knowledge/
+$oldPU = Join-Path $TargetRoot "docs/knowledge/PATTERNS_UNIVERSAL.md"
+if (Test-Path $oldPU) {
+  Remove-Item $oldPU -Force
+  Write-Host "  MIGRATE removed legacy: docs/knowledge/PATTERNS_UNIVERSAL.md -> now in .aai/knowledge/"
+  $legacyCleaned = $true
+}
+
+if ($legacyCleaned) {
+  Write-Host "  Legacy paths migrated to .aai/ structure."
+}
+
+$technologyTemplatePath = Join-Path $SrcRoot ".aai/templates/TECHNOLOGY_TEMPLATE.md"
+$targetTechnologyPath = Join-Path $TargetRoot "docs/TECHNOLOGY.md"
+$updateConfigTemplatePath = Join-Path $SrcRoot ".aai/templates/update-config.template.yaml"
+$targetUpdateConfigPath = Join-Path $TargetRoot "docs/ai/update-config.yaml"
+$docsAuditTemplatePath = Join-Path $SrcRoot ".aai/templates/docs-audit.template.yaml"
+$targetDocsAuditPath = Join-Path $TargetRoot "docs/ai/docs-audit.yaml"
+
+# -- Copy AAI canonical layer (.aai/ is the single source of truth) -------
+# Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
+New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot ".aai") | Out-Null
+
+if ($Profile -eq "core") {
+  # -- CORE PROFILE: filtered .aai copy per PROFILES.yaml core: list ---------
+  Write-Host "  PROFILE core: filtered .aai copy per .aai/system/PROFILES.yaml"
+  foreach ($rel in $coreFiles) {
+    $srcFile = Join-Path $SrcRoot $rel
+    if (!(Test-Path $srcFile -PathType Leaf)) {
+      Write-Host "  WARN core-listed file missing in source (skipped): $rel"
+      continue
+    }
+    $dstFile = Join-Path $TargetRoot $rel
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dstFile) | Out-Null
+    Copy-Replace $srcFile $dstFile
+  }
+
+  # Prune target .aai files not in the core list: removes extended files from
+  # a previous extended sync AND stale files. Preserved: target-only scripts
+  # (same PRESERVE semantics as the extended merge) and runtime cache/.
+  $dstAai = Join-Path $TargetRoot ".aai"
+  Get-ChildItem -Path $dstAai -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    $rel = $_.FullName.Substring($TargetRoot.Length).TrimStart('\','/') -replace '\\','/'
+    if ($rel -like ".aai/cache/*") { return }
+    if ($coreFiles -notcontains $rel) {
+      if (($rel -like ".aai/scripts/*") -and !(Test-Path (Join-Path $SrcRoot $rel))) {
+        Write-Host "  PRESERVE target-only script: $rel"
+        return
+      }
+      Remove-Item $_.FullName -Force
+      $deletions += $rel
+      Write-Host "  PROFILE prune (not in core): $rel"
+    }
+  }
+
+  # Drop directories the prune emptied (cache/ guarded above).
+  Get-ChildItem -Path $dstAai -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+    Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
+      if ((Get-ChildItem -Path $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+        Remove-Item $_.FullName -Force
+      }
+    }
+} else {
+  # -- EXTENDED PROFILE (default): copy everything - unchanged behavior ------
+  # Top-level files and non-scripts directories: overwrite from source
+  # Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
+  Get-ChildItem -Path (Join-Path $SrcRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
+    $targetAaiPath = Join-Path $TargetRoot ".aai"
+    Copy-Replace $_.FullName (Join-Path $targetAaiPath $_.Name)
+  }
+
+  # Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
+  Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
+    $srcAaiPath = Join-Path $SrcRoot ".aai"
+    if (!(Test-Path (Join-Path $srcAaiPath $_.Name))) {
+      Remove-Item $_.FullName -Recurse -Force
+      $deletions += ".aai/$($_.Name)"
+      Write-Host "  CLEAN removed stale: .aai/$($_.Name)"
+    }
+  }
+
+  # scripts/: file-by-file merge - overwrite source scripts, preserve target-only
+  $srcScripts = Join-Path $SrcRoot ".aai/scripts"
+  $dstScripts = Join-Path $TargetRoot ".aai/scripts"
+  New-Item -ItemType Directory -Force -Path $dstScripts | Out-Null
+  Get-ChildItem -Path $srcScripts -Force | ForEach-Object {
+    Copy-Replace $_.FullName (Join-Path $dstScripts $_.Name)
+  }
+  Get-ChildItem -Path $dstScripts -Force | ForEach-Object {
+    if (!(Test-Path (Join-Path $srcScripts $_.Name))) {
+      Write-Host "  PRESERVE target-only script: .aai/scripts/$($_.Name)"
+    }
+  }
+}
+
+# Retired template skill wrappers (sync-prune-retired-skill-wrappers).
+# Mirror of is_retired_skill_wrapper / remove_retired_skill_wrappers in aai-sync.sh:
+# a target-only entry under .claude/skills or .agents/skills is removed ONLY when it
+# is provably a template shim whose .aai/SKILL_<X>.prompt.md the SOURCE layer no
+# longer ships. Everything else is left untouched.
+# EVERY string comparison in the predicate is ordinal (byte-exact): -ceq/-cne/-clike are
+# culture-aware in pwsh 7 (ICU skips U+200B/U+FEFF/U+00AD, equates NFC with NFD), which
+# would let ps1 delete an entry bash keeps.
+function Test-OrdEq([string]$A, [string]$B) {
+  return [string]::Equals($A, $B, [System.StringComparison]::Ordinal)
+}
+# System.IO only inside the predicate: provider cmdlets expand wildcards/backslashes in names.
+function Test-RetiredNameAllowed([string]$Name) {
+  # ASCII allowlist, ordinal ranges (no IgnoreCase), CultureInvariant; \z not $ so no trailing-newline match.
+  if (-not [regex]::IsMatch($Name, '^aai-[a-z0-9-]+\z', [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)) { return $false }
+  return (-not $Name.StartsWith('aai-project-', [System.StringComparison]::Ordinal))
+}
+# True for anything at the path, including a dangling symlink (mirror of bash -e || -L).
+function Test-AnyEntry([string]$Path) {
+  try {
+    if ([System.IO.File]::Exists($Path) -or [System.IO.Directory]::Exists($Path)) { return $true }
+    $fi = New-Object System.IO.FileInfo($Path)
+    # A missing path reports Attributes -1 (all bits set): never read that as a ReparsePoint.
+    $attr = [int]$fi.Attributes
+    return (($attr -ne -1) -and (($attr -band [int][System.IO.FileAttributes]::ReparsePoint) -ne 0))
+  } catch { return $false }
+}
+function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
+  try {
+    if (-not (Test-RetiredNameAllowed $EntryName)) { return $false }
+    $dir = New-Object System.IO.DirectoryInfo($EntryPath)
+    if (-not $dir.Exists) { return $false }
+    if ($dir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
+    $children = @([System.IO.Directory]::GetFileSystemEntries($EntryPath))
+    if ($children.Count -ne 1) { return $false }
+    $childPath = $children[0]
+    if (-not (Test-OrdEq ([System.IO.Path]::GetFileName($childPath)) "SKILL.md")) { return $false }
+    # Regular file only: not a directory, not a symlink; a FIFO/device reports Length 0 and is
+    # rejected below before anything opens it. Bounded: 1..65536 bytes.
+    $fi = New-Object System.IO.FileInfo($childPath)
+    if ((-not $fi.Exists) -or ($fi.Attributes -band ([System.IO.FileAttributes]::ReparsePoint -bor [System.IO.FileAttributes]::Directory -bor [System.IO.FileAttributes]::Device))) { return $false }
+    if (($fi.Length -lt 1) -or ($fi.Length -gt 65536)) { return $false }
+    # Raw bytes, never Get-Content: it drops a leading UTF-8 BOM, which bash keeps (a BOM means not-a-shim).
+    $bytes = [System.IO.File]::ReadAllBytes($childPath)
+    if ([Array]::IndexOf($bytes, [byte]0) -ge 0) { return $false }
+    $raw = (New-Object System.Text.UTF8Encoding($false)).GetString($bytes)
+    # The ordinal compares below also reject a leading U+FEFF (line 1 would not equal "---").
+    $text = $raw.Replace("`r", "")
+    $lines = @($text -split "`n")
+    $n = $lines.Count
+    while (($n -gt 0) -and ([regex]::IsMatch($lines[$n - 1], '^[ \t]*\z'))) { $n-- }
+    if (($n -lt 1) -or (-not (Test-OrdEq $lines[0] "---"))) { return $false }
+    $close = -1
+    for ($i = 1; $i -lt $n; $i++) { if (Test-OrdEq $lines[$i] "---") { $close = $i; break } }
+    if ($close -lt 0) { return $false }
+    $hasName = $false
+    for ($i = 1; $i -lt $close; $i++) { if (Test-OrdEq $lines[$i] ("name: " + $EntryName)) { $hasName = $true } }
+    if (-not $hasName) { return $false }
+    $body = @()
+    for ($i = $close + 1; $i -lt $n; $i++) { if (-not [regex]::IsMatch($lines[$i], '^[ \t]*\z')) { $body += $lines[$i] } }
+    $k = 0
+    if ($body.Count -gt 0 -and (Test-OrdEq $body[0] "<SUBAGENT-STOP>")) {
+      $j = 1
+      $found = $false
+      while ($j -lt $body.Count) { if (Test-OrdEq $body[$j] "</SUBAGENT-STOP>") { $found = $true; break }; $j++ }
+      if ((-not $found) -or ($j -eq 1)) { return $false }
+      $k = $j + 1
+    }
+    if (($body.Count - $k) -ne 2) { return $false }
+    $pre = 'Read the file `.aai/SKILL_'
+    $a = $body[$k]
+    if (-not $a.StartsWith($pre, [System.StringComparison]::Ordinal)) { return $false }
+    $r = $a.Substring($pre.Length)
+    $e = $r.IndexOf('.prompt.md`', [System.StringComparison]::Ordinal)
+    if ($e -lt 0) { return $false }
+    $x = $r.Substring(0, $e)
+    if (-not [regex]::IsMatch($x, '^[A-Z0-9_]+\z')) { return $false }
+    $r = $r.Substring($e + '.prompt.md`'.Length)
+    $mid = ' from the current project root and follow its instructions exactly'
+    if (-not $r.StartsWith($mid, [System.StringComparison]::Ordinal)) { return $false }
+    $rest = $r.Substring($mid.Length)
+    if ($rest.IndexOf(' Invoke this as `', [System.StringComparison]::Ordinal) -lt 0) { return $false }
+    if ($rest.IndexOf('.aai/', [System.StringComparison]::Ordinal) -ge 0) { return $false }
+    if (-not $a.EndsWith('.', [System.StringComparison]::Ordinal)) { return $false }
+    $want = 'If `.aai/SKILL_' + $x + '.prompt.md` does not exist, say: "SKILL_' + $x + ' not found ' + [string][char]0x2014 + ' are you in an AAI project? Expected: .aai/SKILL_' + $x + '.prompt.md"'
+    if (-not (Test-OrdEq $body[$k + 1] $want)) { return $false }
+    if (Test-AnyEntry ([System.IO.Path]::Combine($SrcRoot, ".aai", "SKILL_$x.prompt.md"))) { return $false }
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Remove-RetiredSkillWrappers([string]$Tree) {
+  $dstTree = [System.IO.Path]::Combine($TargetRoot, $Tree)
+  if (-not [System.IO.Directory]::Exists($dstTree)) { return }
+  foreach ($entryPath in [System.IO.Directory]::GetFileSystemEntries($dstTree)) {
+    $entryName = [System.IO.Path]::GetFileName($entryPath)
+    # Allowlist first: no filesystem call touches a name outside aai-[a-z0-9-]+.
+    if (-not (Test-RetiredNameAllowed $entryName)) { continue }
+    if (Test-AnyEntry ([System.IO.Path]::Combine($SrcRoot, $Tree, $entryName))) { continue }
+    if (Test-RetiredSkillWrapper $entryPath $entryName) {
+      # A failed removal must neither abort the sync nor be recorded as a deletion.
+      # SKILL.md was vetted as a regular, non-reparse file: clear ReadOnly so Delete(..., $true) cannot throw on it.
+      try {
+        $skillMd = [System.IO.Path]::Combine($entryPath, "SKILL.md")
+        [System.IO.File]::SetAttributes($skillMd, [System.IO.FileAttributes]::Normal)
+        [System.IO.Directory]::Delete($entryPath, $true)
+        if ([System.IO.Directory]::Exists($entryPath)) { throw "entry still present after delete" }
+        $script:deletions += "$Tree/$entryName"
+        Write-Host "  CLEAN removed retired skill wrapper: $Tree/$entryName"
+      } catch {
+        Write-Host "  WARN could not remove retired skill wrapper (left in place): $Tree/$entryName ($($_.Exception.Message))"
+      }
+    }
+  }
+}
+
+# Claude Code skills (session helpers):
+# copy template skills entry-by-entry and preserve target-only local skills.
+$claudeSkills = Join-Path $SrcRoot ".claude/skills"
+if (Test-Path $claudeSkills) {
+  $targetClaudeSkills = Join-Path $TargetRoot ".claude/skills"
+  New-Item -ItemType Directory -Force -Path $targetClaudeSkills | Out-Null
+  Get-ChildItem -Path $claudeSkills -Force | ForEach-Object {
+    $dstEntry = Join-Path $targetClaudeSkills $_.Name
+    $srcSkillMd = Join-Path $_.FullName "SKILL.md"
+    $dstSkillMd = Join-Path $dstEntry "SKILL.md"
+    if (Test-Path $dstEntry) {
+      if ((Test-Path $srcSkillMd) -and (Test-Path $dstSkillMd)) {
+        if (Test-FileContentDifferent -Src $srcSkillMd -Dst $dstSkillMd) {
+          $overwriteConflicts += [pscustomobject]@{
+            Path = ".claude/skills/$($_.Name)/SKILL.md"
+            Recommendation = "Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .claude/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged."
+          }
+        }
+      } elseif (Test-DirectoryContentDifferent -Src $_.FullName -Dst $dstEntry) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = ".claude/skills/$($_.Name)"
+          Recommendation = "Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only."
+        }
+      }
+    }
+    Copy-Replace $_.FullName $dstEntry
+  }
+  Remove-RetiredSkillWrappers ".claude/skills"
+  Write-Host "  PRESERVE target-only skills under: $targetClaudeSkills"
+}
+
+# docs/knowledge: file-by-file copy; skip files that no longer contain the
+# AAI-TEMPLATE sentinel (meaning the target project has filled them with real content).
+$know = Join-Path $SrcRoot "docs/knowledge"
+if (Test-Path $know) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/knowledge") | Out-Null
+  Get-ChildItem -Path $know -File | ForEach-Object {
+    $srcFile = $_.FullName
+    $dstKnowledge = Join-Path $TargetRoot "docs/knowledge"
+    $dstFile = Join-Path $dstKnowledge $_.Name
+    $isTemplate = $true
+    if (Test-Path $dstFile) {
+      $content = Get-Content $dstFile -Raw -ErrorAction SilentlyContinue
+      $isTemplate = $content -match "AAI-TEMPLATE"
+    }
+    if ($isTemplate) {
+      Copy-Item $srcFile $dstFile -Force
+    } else {
+      Write-Host "  SKIP (project-owned, sentinel removed): $dstFile"
+    }
+  }
+}
+
+# docs/TECHNOLOGY.md: seed from template only when missing.
+if ((Test-Path $technologyTemplatePath) -and !(Test-Path $targetTechnologyPath)) {
+  Copy-Item $technologyTemplatePath $targetTechnologyPath -Force
+  Write-Host "  SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md"
+}
+
+# docs/ai/update-config.yaml: seed from template only when missing.
+# Project-owned auto-update policy - never overwrite an operator's copy (same
+# seed-when-missing discipline as docs/TECHNOLOGY.md above).
+if ((Test-Path $updateConfigTemplatePath) -and !(Test-Path $targetUpdateConfigPath)) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/ai") | Out-Null
+  Copy-Item $updateConfigTemplatePath $targetUpdateConfigPath -Force
+  Write-Host "  SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml"
+}
+
+# docs/ai/docs-audit.yaml: seed from template only when missing (CHANGE-0121).
+# Without it every guard that reads it fails CLOSED - most visibly lane-gate,
+# which reports protected_config_missing and pins every downstream ride to the
+# heavy lane. Project-owned once seeded; same never-overwrite discipline.
+if ((Test-Path $docsAuditTemplatePath) -and !(Test-Path $targetDocsAuditPath)) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/ai") | Out-Null
+  Copy-Item $docsAuditTemplatePath $targetDocsAuditPath -Force
+  Write-Host "  SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)"
+}
+
+# docs/ai: preserve existing runtime data - system docs are now in .aai/system/
+if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
+  Write-Host "  PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)"
+}
+
+
+# Root canonical shims (PLAYBOOK.md is now inside .aai/; AGENTS.md is a root shim again)
+# README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
+foreach ($f in @("AGENTS.md","CLAUDE.md","CODEX.md","GEMINI.md","SKILLS.md")) {
+  $srcFile = Join-Path $SrcRoot $f
+  $dstFile = Join-Path $TargetRoot $f
+  if ((Test-Path $srcFile) -and (Test-Path $dstFile) -and (Test-FileContentDifferent -Src $srcFile -Dst $dstFile)) {
+    $overwriteConflicts += [pscustomobject]@{
+      Path = $f
+      Recommendation = "Target file contains local changes. Use AI agent to merge project-specific instructions into docs/ai/project-overrides/$f and keep synced shim concise."
+    }
+  }
+  if (Test-Path $srcFile) {
+    Copy-Replace $srcFile $dstFile
+  }
+}
+$srcReadme = Join-Path $SrcRoot "README.md"
+$dstReadmeAai = Join-Path $TargetRoot "README_AAI.md"
+if ((Test-Path $srcReadme) -and (Test-Path $dstReadmeAai) -and (Test-FileContentDifferent -Src $srcReadme -Dst $dstReadmeAai)) {
+  $overwriteConflicts += [pscustomobject]@{
+    Path = "README_AAI.md"
+    Recommendation = "Target README_AAI.md differs from source README.md. Use AI agent to move project notes into README.md or docs/, and keep README_AAI.md sync-managed."
+  }
+}
+if (Test-Path $srcReadme) {
+  Copy-Replace $srcReadme $dstReadmeAai
+}
+
+# Copilot shim
+$copilot = Join-Path $SrcRoot ".github/copilot-instructions.md"
+$dstCopilot = Join-Path $TargetRoot ".github/copilot-instructions.md"
+if (Test-Path $copilot) {
+  $overrideDir = Join-Path $TargetRoot "docs/ai/project-overrides"
+  $overrideFile = Join-Path $overrideDir "copilot-instructions.project.md"
+  $shippedList = Join-Path $SrcRoot ".aai/system/COPILOT_SHIM_SHIPPED.list"
+  $dstCopilotShipped = $false
+  if ((Test-Path $dstCopilot) -and (Test-FileContentDifferent -Src $copilot -Dst $dstCopilot)) {
+    # Same extraction as the merge below (with its override-file fallback), read as UTF-8 so the hash is stable.
+    $utf8Dst = [System.IO.File]::ReadAllText($dstCopilot)
+    $shippedText = ""
+    if (![string]::IsNullOrEmpty($utf8Dst)) { $shippedText = Get-CopilotProjectOverridesContent -Content $utf8Dst }
+    if ([string]::IsNullOrWhiteSpace($shippedText) -and (Test-Path $overrideFile)) {
+      $shippedText = [System.IO.File]::ReadAllText($overrideFile).Trim()
+    }
+    $dstCopilotShipped = Test-CopilotShimShipped -Text $shippedText -ListPath $shippedList
+  }
+  if ($dstCopilotShipped) {
+    Copy-Replace $copilot $dstCopilot
+    Write-Host "  SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)"
+  } elseif ((Test-Path $dstCopilot) -and (Test-FileContentDifferent -Src $copilot -Dst $dstCopilot)) {
+    New-Item -ItemType Directory -Force -Path $overrideDir | Out-Null
+    $dstContent = Get-Content $dstCopilot -Raw -ErrorAction SilentlyContinue
+    $projectOverrides = Get-CopilotProjectOverridesContent -Content $dstContent
+    if ([string]::IsNullOrWhiteSpace($projectOverrides) -and (Test-Path $overrideFile)) {
+      $projectOverrides = (Get-Content $overrideFile -Raw -ErrorAction SilentlyContinue).Trim()
+    }
+    if (![string]::IsNullOrWhiteSpace($projectOverrides)) {
+      Set-Content -Path $overrideFile -Value $projectOverrides -Encoding utf8
+    }
+
+    $baseContent = Get-Content $copilot -Raw -ErrorAction SilentlyContinue
+    $merged = @(
+      $baseContent.TrimEnd()
+      ""
+      "---"
+      "## Project Overrides (auto-merged)"
+      ""
+      "<!-- AAI-PROJECT-OVERRIDES:START -->"
+      $projectOverrides
+      "<!-- AAI-PROJECT-OVERRIDES:END -->"
+      ""
+    ) -join "`n"
+    Set-Content -Path $dstCopilot -Value $merged -Encoding utf8
+    Write-Host "  MERGE preserved project overrides in: $overrideFile"
+  } else {
+    Copy-Replace $copilot $dstCopilot
+  }
+}
+
+# Codex skill index
+$codexSkills = Join-Path $SrcRoot ".codex/skills"
+$dstCodexSkills = Join-Path $TargetRoot ".codex/skills"
+if ((Test-Path $codexSkills) -and (Test-Path $dstCodexSkills) -and (Test-DirectoryContentDifferent -Src $codexSkills -Dst $dstCodexSkills)) {
+  $overwriteConflicts += [pscustomobject]@{
+    Path = ".codex/skills/"
+    Recommendation = "Target Codex skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched."
+  }
+}
+if (Test-Path $codexSkills) {
+  Copy-Replace $codexSkills $dstCodexSkills
+}
+if (Test-Path (Join-Path $TargetRoot ".codex/skills.local")) {
+  Write-Host "  PRESERVE local Codex dynamic index: $(Join-Path $TargetRoot ".codex/skills.local")"
+}
+
+# Gemini skill index
+$geminiSkills = Join-Path $SrcRoot ".gemini/skills"
+$dstGeminiSkills = Join-Path $TargetRoot ".gemini/skills"
+if ((Test-Path $geminiSkills) -and (Test-Path $dstGeminiSkills) -and (Test-DirectoryContentDifferent -Src $geminiSkills -Dst $dstGeminiSkills)) {
+  $overwriteConflicts += [pscustomobject]@{
+    Path = ".gemini/skills/"
+    Recommendation = "Target Gemini skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched."
+  }
+}
+if (Test-Path $geminiSkills) {
+  Copy-Replace $geminiSkills $dstGeminiSkills
+}
+if (Test-Path (Join-Path $TargetRoot ".gemini/skills.local")) {
+  Write-Host "  PRESERVE local Gemini dynamic index: $(Join-Path $TargetRoot ".gemini/skills.local")"
+}
+
+# Agents skill index (primary Gemini CLI / Cursor discovery path). A stale,
+# sync-unmanaged .agents/skills/ shadows the fresh per-harness copies, so it
+# must be synced. Because this is the path where a project may legitimately
+# place its OWN skills, copy template skills entry-by-entry and PRESERVE
+# target-only skills (same discipline as .claude/skills) — never a wholesale
+# replace that would delete an unmatched (possibly untracked) project skill.
+$agentsSkills = Join-Path $SrcRoot ".agents/skills"
+if (Test-Path $agentsSkills) {
+  $targetAgentsSkills = Join-Path $TargetRoot ".agents/skills"
+  New-Item -ItemType Directory -Force -Path $targetAgentsSkills | Out-Null
+  Get-ChildItem -Path $agentsSkills -Force | ForEach-Object {
+    $dstEntry = Join-Path $targetAgentsSkills $_.Name
+    $srcSkillMd = Join-Path $_.FullName "SKILL.md"
+    $dstSkillMd = Join-Path $dstEntry "SKILL.md"
+    if (Test-Path $dstEntry) {
+      if ((Test-Path $srcSkillMd) -and (Test-Path $dstSkillMd)) {
+        if (Test-FileContentDifferent -Src $srcSkillMd -Dst $dstSkillMd) {
+          $overwriteConflicts += [pscustomobject]@{
+            Path = ".agents/skills/$($_.Name)/SKILL.md"
+            Recommendation = "Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .agents/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged."
+          }
+        }
+      } elseif (Test-DirectoryContentDifferent -Src $_.FullName -Dst $dstEntry) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = ".agents/skills/$($_.Name)"
+          Recommendation = "Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only."
+        }
+      }
+    }
+    Copy-Replace $_.FullName $dstEntry
+  }
+  Remove-RetiredSkillWrappers ".agents/skills"
+  Write-Host "  PRESERVE target-only skills under: $targetAgentsSkills"
+}
+
+# Claude Code plugin manifest
+$pluginJson = Join-Path $SrcRoot ".claude-plugin/plugin.json"
+if (Test-Path $pluginJson) {
+  Copy-Replace $pluginJson (Join-Path $TargetRoot ".claude-plugin/plugin.json")
+  Write-Host "  SYNC .claude-plugin/plugin.json"
+}
+
+# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex):
+# file-by-file merge, same idiom as .aai/scripts/ and .claude/skills -
+# overwrite source-owned hook entries, preserve target-only ones. A
+# wholesale Copy-Replace here used to delete a target's own
+# hooks/merge-guard.* safety control on every sync (goodwind-cz/aai#414).
+#
+# hooks/hooks.json and hooks/hooks.windows.json are the ONE exception to
+# "source-owned files overwrite": owner amendment (2026-09-30) - a
+# target-added registration entry (e.g. merge-guard's own PreToolUse hook)
+# must survive a sync, so these two are MERGED via the shared
+# .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
+# --with-claude-hooks overlay). The rule, stated in that file's header: a
+# source hook not present in the target is added; a source-owned entry whose
+# command changed is UPDATED IN PLACE only when the target's WHOLE
+# registration - the hook object in every field AND its enclosing matcher -
+# equals what this engine last shipped here (the --shipped snapshot under
+# <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
+# gitignored); a same-path entry the engine cannot prove it authored - a
+# different command, an added timeout, a flipped async, a changed matcher,
+# or no snapshot at all - is LEFT AS-IS, not added beside, and named in the
+# advisory - a user-modified hook is never rewritten. A target entry whose
+# path the source does not ship is never touched. A merge refusal (target
+# does not parse as the expected JSON shape) or a missing `node` leaves the
+# target file untouched and is named in the advisory - never a silent skip.
+# A snapshot the engine could not RECORD after a merge that did happen is
+# reported as exactly that (the merge stands; the next sync can only
+# report, not update) - never as "left untouched". Retirement residual: the
+# merge never removes anything, so a hook the source has retired stays
+# registered in a target that already carries it (see Spec-AC-08/-11).
+$hooksJsonMergeLib = Join-Path $SrcRoot ".aai/scripts/lib/merge-hooks-json.mjs"
+$hooksShippedDir = Join-Path $TargetRoot ".aai/cache/hooks-shipped"
+$hooksNodeAvailable = [bool](Get-Command node -ErrorAction SilentlyContinue)
+$hooksDir = Join-Path $SrcRoot "hooks"
+if (Test-Path $hooksDir) {
+  $targetHooksDir = Join-Path $TargetRoot "hooks"
+  New-Item -ItemType Directory -Force -Path $targetHooksDir | Out-Null
+  Get-ChildItem -Path $hooksDir -Force | ForEach-Object {
+    $dstHook = Join-Path $targetHooksDir $_.Name
+    if (($_.Name -eq "hooks.json") -or ($_.Name -eq "hooks.windows.json")) {
+      if (-not $hooksNodeAvailable) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = "hooks/$($_.Name)"
+          Recommendation = "node is unavailable, so the hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the `"hooks`" key from the source file manually."
+        }
+        Write-Host "  WARN node unavailable - hooks/$($_.Name) registration merge skipped, file left untouched"
+      } elseif (-not (Test-Path $hooksJsonMergeLib)) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = "hooks/$($_.Name)"
+          Recommendation = "The hooks-registration merge library is missing from this source tree; the target file was left untouched. Merge the `"hooks`" key from the source file manually."
+        }
+        Write-Host "  WARN merge library missing - hooks/$($_.Name) registration merge skipped, file left untouched"
+      } else {
+        $shippedPath = Join-Path $hooksShippedDir $_.Name
+        $mergeOut = & node $hooksJsonMergeLib $_.FullName $dstHook --shipped $shippedPath 2>&1 | Out-String
+        # Advisory text names paths relative to the two roots, never the
+        # machine's absolute layout (Validation NB-5). Both separators: the
+        # library echoes the paths as it received them.
+        $mergeOut = $mergeOut.Trim().Replace("$TargetRoot/", "").Replace("$TargetRoot\", "").Replace("$SrcRoot/", "<source>/").Replace("$SrcRoot\", "<source>/")
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "  MERGE hooks/$($_.Name): $mergeOut"
+          # One `LEFT-AS-IS <event> <path>: ...` line per source-owned entry
+          # the merge could not prove it authored - the owner's priority
+          # (never rewrite a user-modified hook) applied; surface each one.
+          # One `SNAPSHOT-NOT-RECORDED <path>: <error>` line when the merge
+          # stood but the engine could not record what it shipped (NB-A):
+          # report THAT, never "left untouched" for a file that was written.
+          foreach ($mergeLine in ($mergeOut -split "`r?`n")) {
+            if ($mergeLine.StartsWith("LEFT-AS-IS ")) {
+              $overwriteConflicts += [pscustomobject]@{
+                Path = "hooks/$($_.Name)"
+                Recommendation = "A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). $($mergeLine.Substring(11))"
+              }
+            } elseif ($mergeLine.StartsWith("SNAPSHOT-NOT-RECORDED ")) {
+              $snapshotDetail = $mergeLine.Substring(22)
+              $overwriteConflicts += [pscustomobject]@{
+                Path = "hooks/$($_.Name)"
+                Recommendation = "The registration merge was applied to the target, but the engine could not record what it shipped ($snapshotDetail), so the next sync can only report a changed source-owned entry as left as-is, never update it, until that path is writable. Fix the snapshot path under .aai/cache/hooks-shipped/ and re-sync."
+              }
+              Write-Host "  WARN hooks/$($_.Name) merged, but the shipped snapshot could not be recorded: $snapshotDetail"
+            }
+          }
+        } else {
+          # The library throws only BEFORE it writes the destination (parse
+          # refusals, an unreadable/unwritable target), so "left untouched"
+          # is true here; the library's own message names the cause.
+          $overwriteConflicts += [pscustomobject]@{
+            Path = "hooks/$($_.Name)"
+            Recommendation = "Hook-registration merge was refused and the target was left untouched: $mergeOut Merge the registration manually."
+          }
+          Write-Host "  WARN hooks/$($_.Name) registration merge refused (target left untouched): $mergeOut"
+        }
+      }
+      return
+    }
+    Copy-Replace $_.FullName $dstHook
+  }
+  Get-ChildItem -Path $targetHooksDir -Force | ForEach-Object {
+    if (!(Test-Path (Join-Path $hooksDir $_.Name))) {
+      Write-Host "  PRESERVE target-only hook: hooks/$($_.Name)"
+    }
+  }
+  Write-Host "  SYNC hooks/"
+}
+
+# Cursor rules
+$cursorRule = Join-Path $SrcRoot ".cursor/rules/aai.mdc"
+if (Test-Path $cursorRule) {
+  Copy-Replace $cursorRule (Join-Path $TargetRoot ".cursor/rules/aai.mdc")
+  Write-Host "  SYNC .cursor/rules/aai.mdc"
+}
+
+# IMPORTANT: Do NOT sync project-specific docs:
+# - docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**, docs/issues/**, docs/rfc/**, docs/project-sessions/**
+# These are owned by the target project.
+
+# Ensure .aai/ is gitignored in target (it's vendored, not committed)
+$gitignorePath = Join-Path $TargetRoot ".gitignore"
+$needsGitignore = $true
+if (Test-Path $gitignorePath) {
+  $content = Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue
+  if ($content -match '(?m)^\.aai/') { $needsGitignore = $false }
+}
+if ($needsGitignore) {
+  Add-Content -Path $gitignorePath -Value "`n# AAI infrastructure (vendored, not committed)`n.aai/"
+  Write-Host "  Added .aai/ to $gitignorePath"
+}
+
+# Ensure .cloudflare-publish* and .wrangler/ are gitignored (aai-share temp dirs)
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+foreach ($pattern in @('.cloudflare-publish*', '.wrangler/')) {
+  if ($giContent -notmatch [regex]::Escape($pattern)) {
+    Add-Content -Path $gitignorePath -Value "`n$pattern"
+    Write-Host "  Added $pattern to $gitignorePath"
+  }
+}
+
+# Ensure expert subagent cache is gitignored (runtime artifact, not committed)
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+if ($giContent -notmatch [regex]::Escape('.aai/cache/')) {
+  Add-Content -Path $gitignorePath -Value "`n# Expert subagent cache (fetched on-demand from VoltAgent registry)`n.aai/cache/"
+  Write-Host "  Added .aai/cache/ to $gitignorePath"
+}
+
+# Ensure docs/ai/reports is fully treated as ephemeral runtime evidence
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+if ($giContent -notmatch [regex]::Escape('docs/ai/reports/**')) {
+  $reportBlock = @(
+    ""
+    "# AAI runtime reports (ephemeral; not project-owned docs)"
+    "docs/ai/reports/**"
+    "!docs/ai/reports/"
+    "!docs/ai/reports/.gitkeep"
+  ) -join "`n"
+  Add-Content -Path $gitignorePath -Value $reportBlock
+  Write-Host "  Added docs/ai/reports runtime ignore rules to $gitignorePath"
+}
+
+# Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+$agentSkillEntries = @(
+  ".agents/skills/"
+  ".claude/skills/"
+  ".codex/skills/"
+  ".codex/skills.local/"
+  ".gemini/skills/"
+  ".gemini/skills.local/"
+)
+$missingAgentSkillEntries = @()
+foreach ($entry in $agentSkillEntries) {
+  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "\r?$")) {
+    $missingAgentSkillEntries += $entry
+  }
+}
+if ($missingAgentSkillEntries.Count -gt 0) {
+  $agentSkillBlock = @(
+    ""
+    "# AAI agent skill sync artifacts (managed by sync)"
+  ) + $missingAgentSkillEntries
+  Add-Content -Path $gitignorePath -Value ($agentSkillBlock -join "`n")
+  Write-Host "  Added agent skill sync patterns to $gitignorePath"
+}
+
+# Ensure AAI per-dev runtime state is gitignored (RFC-0001).
+# STATE.yaml and LOOP_TICKS.jsonl are per-developer local; cross-dev
+# visibility lives in docs/ai/EVENTS.jsonl (append-only, committed).
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+$runtimeStateEntries = @(
+  "docs/ai/STATE.yaml"
+  "docs/ai/LOOP_TICKS.jsonl"
+)
+$missingRuntimeStateEntries = @()
+foreach ($entry in $runtimeStateEntries) {
+  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "\r?$")) {
+    $missingRuntimeStateEntries += $entry
+  }
+}
+if ($missingRuntimeStateEntries.Count -gt 0) {
+  $runtimeStateBlock = @(
+    ""
+    "# AAI per-dev runtime state (RFC-0001: never committed)"
+  ) + $missingRuntimeStateEntries
+  Add-Content -Path $gitignorePath -Value ($runtimeStateBlock -join "`n")
+  Write-Host "  Added AAI per-dev runtime state patterns to $gitignorePath"
+  Write-Host "  NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,"
+  Write-Host "        run pwsh .aai/scripts/migrate-state-to-local.ps1 in the target project."
+}
+
+# Runtime-sidecar patterns (spec-aai-update-gitignore-drift-reconcile): seeded
+# on EVERY sync from the SINGLE SOURCE .aai/system/RUNTIME_IGNORE.list, so
+# this PowerShell path gains parity with the bash aai-sync.sh reconcile
+# (previously this engine seeded none of these patterns at all -- the root
+# cause of the reported drift). Exact-line match; a comment mentioning a path
+# never suppresses a seed; missing list -> skip with a note, never fail.
+# Marker detection is by PREFIX ("# AAI runtime sidecars"), never full-string,
+# so a target already carrying the bash engine's marker text never gets a
+# second marker line here (Spec-AC-05). Windows PowerShell 5.1 compatible
+# constructs only.
+$runtimeListPath = Join-Path $SrcRoot ".aai/system/RUNTIME_IGNORE.list"
+if (-not (Test-Path $runtimeListPath)) {
+  $runtimeListPath = Join-Path $TargetRoot ".aai/system/RUNTIME_IGNORE.list"
+}
+if (Test-Path $runtimeListPath) {
+  $runtimeSidecarLines = Get-Content -Path $runtimeListPath -ErrorAction SilentlyContinue
+  $runtimeSidecarPatterns = @()
+  foreach ($rawLine in $runtimeSidecarLines) {
+    $trimmedLine = $rawLine.TrimEnd("`r")
+    if ([string]::IsNullOrEmpty($trimmedLine)) { continue }
+    if ($trimmedLine.StartsWith("#")) { continue }
+    $runtimeSidecarPatterns += $trimmedLine
+  }
+  $giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+  $missingRuntimeSidecarPatterns = @()
+  foreach ($entry in $runtimeSidecarPatterns) {
+    if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "\r?$")) {
+      $missingRuntimeSidecarPatterns += $entry
+    }
+  }
+  if ($missingRuntimeSidecarPatterns.Count -gt 0) {
+    # Prefix ("# AAI runtime sidecars") must match AAI_GITIGNORE_MARKER_PREFIX
+    # (.aai/scripts/lib/gitignore-block.sh) -- the canonical copy; also
+    # mirrored in aai-bootstrap.sh and aai-sync.sh marker texts.
+    # tests/skills/test-aai-sync-seed.sh TEST-020 pins all 5 to that constant.
+    $runtimeSidecarBlock = @()
+    if ($giContent -notmatch "(?m)^# AAI runtime sidecars") {
+      $runtimeSidecarBlock += "# AAI runtime sidecars (seeded by aai-sync.ps1; per-dev, never commit)"
+    }
+    $runtimeSidecarBlock += $missingRuntimeSidecarPatterns
+    Add-Content -Path $gitignorePath -Value ("`n" + ($runtimeSidecarBlock -join "`n"))
+    Write-Host "  Added $($missingRuntimeSidecarPatterns.Count) AAI runtime-sidecar pattern(s) to $gitignorePath"
+  }
+} else {
+  Write-Host "  skipped runtime-sidecar gitignore seed: $runtimeListPath missing"
+}
+
+# Self-heal: collapse duplicate AAI-managed .gitignore lines left behind by
+# older syncs (pre-CRLF-fix runs re-appended managed blocks on every update).
+# Conservative: only de-duplicates AAI-owned lines, keeping the first of each;
+# project-owned entries are never touched. Writes back only if something
+# changed, so it is a no-op (no spurious diff) on already-clean files.
+if (Test-Path $gitignorePath) {
+  $rawGi = Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue
+  if ($rawGi) {
+    $aaiManaged = @(
+      '# AAI infrastructure (vendored, not committed)'
+      '# Expert subagent cache (fetched on-demand from VoltAgent registry)'
+      '# AAI runtime reports (ephemeral; not project-owned docs)'
+      '# AAI agent skill sync artifacts (managed by sync)'
+      '# AAI per-dev runtime state (RFC-0001: never committed)'
+      '.aai/'
+      '.aai/cache/'
+      'docs/ai/reports/**'
+      '!docs/ai/reports/'
+      '!docs/ai/reports/.gitkeep'
+      '.agents/skills/'
+      '.claude/skills/'
+      '.codex/skills/'
+      '.codex/skills.local/'
+      '.gemini/skills/'
+      '.gemini/skills.local/'
+      'docs/ai/STATE.yaml'
+      'docs/ai/LOOP_TICKS.jsonl'
+      '.cloudflare-publish*'
+      '.wrangler/'
+    )
+    $eol = if ($rawGi -match "`r`n") { "`r`n" } else { "`n" }
+    $lines = $rawGi -split "`r`n|`n"
+    $seen = @{}
+    $removed = 0
+    $kept = New-Object System.Collections.Generic.List[string]
+    foreach ($line in $lines) {
+      $trim = $line.TrimEnd()
+      if ($aaiManaged -contains $trim) {
+        if ($seen.ContainsKey($trim)) { $removed++; continue }
+        $seen[$trim] = $true
+      }
+      $kept.Add($line)
+    }
+    if ($removed -gt 0) {
+      # collapse runs of blank lines created by the removals
+      $compact = New-Object System.Collections.Generic.List[string]
+      $prevBlank = $false
+      foreach ($l in $kept) {
+        $isBlank = [string]::IsNullOrWhiteSpace($l)
+        if ($isBlank -and $prevBlank) { continue }
+        $compact.Add($l); $prevBlank = $isBlank
+      }
+      $newGi = ($compact -join $eol)
+      # UTF-8 without BOM, in both Windows PowerShell 5.1 and PowerShell 7.
+      [System.IO.File]::WriteAllText($gitignorePath, $newGi, (New-Object System.Text.UTF8Encoding($false)))
+      Write-Host "  De-duplicated $removed stale AAI-managed line(s) in $gitignorePath"
+    }
+  }
+}
+
+# Create conflict advisory report for files that were overwritten with
+# differences, or deleted (goodwind-cz/aai#414: a purely destructive run used
+# to write no advisory at all).
+if (($overwriteConflicts.Count -gt 0) -or ($deletions.Count -gt 0)) {
+  $reportDir = Join-Path $TargetRoot "docs/ai/reports"
+  New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
+  $reportName = "sync-conflicts-$((Get-Date).ToString('yyyyMMdd-HHmmss')).md"
+  $reportPath = Join-Path $reportDir $reportName
+  $reportLines = @(
+    "# Sync Conflict Advisory"
+    ""
+    "- Generated at (UTC): $((Get-Date).ToUniversalTime().ToString('o'))"
+    "- Source: $SrcRoot"
+    ""
+    "The following target files/directories had local content that differed from sync source and were overwritten."
+    "Use an AI agent to decide merge strategy per item."
+    ""
+    "## Recommended AI workflow"
+    "1. Inspect each item with `git diff -- <path>` in the target project."
+    "2. Ask AI to extract project-specific guidance and place it into project-owned docs (for example `docs/ai/project-overrides/`)."
+    "3. Keep sync-managed files as baseline templates to reduce future conflicts."
+    ""
+    "## Overwritten items"
+  )
+  foreach ($conflict in $overwriteConflicts) {
+    $reportLines += ""
+    $reportLines += "- Path: $($conflict.Path)"
+    $reportLines += "- Recommendation: $($conflict.Recommendation)"
+  }
+  if ($deletions.Count -gt 0) {
+    $reportLines += ""
+    $reportLines += "## Deleted items"
+    foreach ($deleted in $deletions) {
+      $reportLines += ""
+      $reportLines += "- Path: $deleted"
+    }
+  }
+  Set-Content -Path $reportPath -Value ($reportLines -join "`n") -Encoding utf8
+  Write-Host "  Advisory report: $reportPath"
+}
+
+# Pin info
+$templateSha = "UNKNOWN"
+try { $templateSha = (git -C $SrcRoot rev-parse HEAD) 2>$null } catch {}
+
+# Canonical repo URL for the drift check (spec-doctor-vendored-layer-drift D1):
+# the sync source's origin remote. Empty/failed -> UNKNOWN.
+$canonicalUrl = "UNKNOWN"
+try {
+  $canonicalUrl = (git -C $SrcRoot config --get remote.origin.url) 2>$null
+  if ([string]::IsNullOrWhiteSpace($canonicalUrl)) { $canonicalUrl = "UNKNOWN" }
+} catch { $canonicalUrl = "UNKNOWN" }
+
+$templateVersion = "UNKNOWN"
+$versionFile = Join-Path $SrcRoot "docs/ai/AAI_VERSION.md"
+if (Test-Path $versionFile) {
+  try {
+    $line = Select-String -Path $versionFile -Pattern '^\s*-?\s*Version:' | Select-Object -First 1
+    if ($line) {
+      $templateVersion = ($line.Line -replace '.*Version:\s*','').Trim()
+      if ([string]::IsNullOrWhiteSpace($templateVersion)) { $templateVersion = "UNKNOWN" }
+    }
+  } catch {}
+}
+# Fallback parity with aai-sync.sh (aai-version-file): a source checkout that
+# predates the release-written AAI_VERSION.md still gets a real version from
+# the newest reachable release tag instead of UNKNOWN.
+if ($templateVersion -eq "UNKNOWN") {
+  try {
+    $tag = (git -C $SrcRoot describe --tags --abbrev=0) 2>$null
+    if (-not [string]::IsNullOrWhiteSpace($tag)) { $templateVersion = "$($tag.Trim()) (tag)" }
+  } catch {}
+}
+
+$pinPath = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
+$null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $pinPath)
+@"
+# AAI Pin
+
+- Source path: $SrcRoot
+- Template version: $templateVersion
+- Template commit: $templateSha
+- Canonical repo: $canonicalUrl
+- Profile: $Profile
+- Synced at (UTC): $((Get-Date).ToUniversalTime().ToString("o"))
+
+Notes:
+- This project intentionally vendors the AAI files (self-contained).
+- Project-specific docs (requirements/specs/decisions/releases/issues/project-sessions) are not synced by this script.
+- docs/TECHNOLOGY.md is seeded from template only when missing and becomes project-owned after generation.
+"@ | Set-Content -Path $pinPath -Encoding utf8
+
+Write-Host "Sync complete. Review changes in $TargetRoot :"
+Write-Host "  cd $TargetRoot; git status; git diff"

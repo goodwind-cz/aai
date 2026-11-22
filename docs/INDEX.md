@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-sync-on-node | specs | implementing | 22 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
+| spec-sync-on-node | specs | implementing | 3 done, 19 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
 
 ## Canonical layer (0)
 
@@ -796,7 +796,7 @@ _None._
 
 _None._
 
-## Broken references (592)
+## Broken references (594)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -809,6 +809,8 @@ _None._
 | .aai/scripts/lib/repo-tripwire.sh | docs/other.md | NOT FOUND |
 | .aai/scripts/migrate-state-to-local.mjs | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/spec-lint.mjs | docs/analysis/altitude-replay.md | NOT FOUND |
+| tests/fixtures/sync-reference/aai-sync.ps1 | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
+| tests/fixtures/sync-reference/aai-sync.sh | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
