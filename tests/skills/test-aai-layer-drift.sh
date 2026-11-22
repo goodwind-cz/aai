@@ -293,6 +293,10 @@ test_sync_stamps_pin() {
   local src="$TMP_ROOT/sync-src" dst="$TMP_ROOT/sync-dst"
   mkdir -p "$src/.aai/scripts" "$dst"
   cp "$SYNC_SH" "$src/.aai/scripts/aai-sync.sh"
+  # the launcher runs the Node module and the three libs it imports (sync-on-node run 6a)
+  mkdir -p "$src/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/aai-sync.mjs" "$src/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/resolve-base.mjs" "$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.mjs" "$PROJECT_ROOT/.aai/scripts/lib/merge-hooks-json.mjs" "$src/.aai/scripts/lib/"
   echo "marker" > "$src/.aai/AGENTS.md"
   git -C "$src" init -q -b main
   git -C "$src" config user.email "test@example.invalid"

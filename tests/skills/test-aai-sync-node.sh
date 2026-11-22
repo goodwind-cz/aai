@@ -3,7 +3,7 @@
 # Test: aai-sync-node
 # (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
 # them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006, run 3 TEST-4007..4009,
-# run 4 TEST-4010..4012, run 5 TEST-4013..4014)
+# run 4 TEST-4010..4012, run 5 TEST-4013..4014, run 6 TEST-4015..4017)
 #
 # The layer sync is one Node module (.aai/scripts/aai-sync.mjs) behind thin sh/ps1 launchers, compared against
 # frozen copies of both old twins (tests/fixtures/sync-reference/). Every case works in scratch directories this
@@ -461,8 +461,171 @@ test_4012_git_env_scrub() {
   log_pass "TEST-4012: the recorded repro exits 0, core.hooksPath injected through GIT_CONFIG_COUNT/KEY_0/VALUE_0 and GIT_CONFIG_PARAMETERS reaches none of hygiene test_618, the doctor suite and the pre-commit-checks suite (the victim stays empty, rc 0), and the four suites run their installers through aai_git_scrubbed with aai_assert_hooks_under"
 }
 
+# --- run 6a: the sh launcher and the bash-side re-homes (TEST-4015) ---------------------------------------
+SH_LAUNCHER="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
+REFUSAL_LINE="aai-sync: refused - node not found in PATH or aai-sync.mjs missing; nothing was changed. Install Node.js 22 or later (https://nodejs.org/) and re-run."
+
+# write_stub_module <dir>: an aai-sync.mjs that prints its argv as JSON and exits 7.
+write_stub_module() {
+  printf '%s\n' 'console.log(JSON.stringify({ argv: process.argv.slice(2) }));' 'process.exit(7);' > "$1/aai-sync.mjs"
+}
+
+# expect_pass_through <label> <shell> <launcher copy> <expected argv...>: the copy beside its stub passes the argv
+# in order and exit 7 through.
+expect_pass_through() {
+  local label="$1" shell="$2" copy="$3" out rc=0 verdict
+  shift 3
+  out="$("$shell" "$copy" "$@" 2>&1)" || rc=$?
+  [[ "$rc" == 7 ]] || log_fail "TEST-4015: $label: expected exit 7 through the launcher, got $rc: $out"
+  verdict="$(node -e '
+    const got = JSON.parse(process.argv[1]);
+    const want = process.argv.slice(2);
+    const same = got.argv.length === want.length && got.argv.every((a, i) => a === want[i]);
+    process.stdout.write(same ? "same" : "differs: " + process.argv[1]);
+  ' "$out" "$@")" || log_fail "TEST-4015: $label: the stub output is not JSON: $out"
+  [[ "$verdict" == same ]] || log_fail "TEST-4015: $label: $verdict"
+}
+
+# expect_refusal <label> <shell> <copy> <path> <target dir>: runs the launcher in the target with the given PATH and
+# requires exit 1, empty stdout, exactly the refusal line on stderr and an unchanged target.
+expect_refusal() {
+  local label="$1" shell="$2" copy="$3" use_path="$4" target="$5" rc=0 before after
+  before="$(find "$target" | LC_ALL=C sort)"
+  ( cd "$target" && PATH="$use_path" "$shell" "$copy" "$target" --profile core ) > "$target/../refusal.out" 2> "$target/../refusal.err" || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-4015: $label: expected exit 1, got $rc"
+  [[ ! -s "$target/../refusal.out" ]] || log_fail "TEST-4015: $label: stdout must be empty"
+  [[ "$(cat "$target/../refusal.err")" == "$REFUSAL_LINE" ]] || log_fail "TEST-4015: $label: stderr is not the refusal line: $(cat "$target/../refusal.err")"
+  after="$(find "$target" | LC_ALL=C sort)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-4015: $label: the target changed"
+}
+
+# run_suite_selector <suite file> <selector>: one re-homed or vendoring selector must exit 0.
+run_suite_selector() {
+  local suite="$1" sel="$2" rc=0 out
+  [[ -f "$PROJECT_ROOT/tests/skills/$suite" ]] || log_fail "TEST-4015: tests/skills/$suite does not exist"
+  out="$(env -u AAI_ROLE -u AAI_GIT_WRITE bash "$PROJECT_ROOT/tests/skills/$suite" "$sel" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4015: $suite $sel exited $rc"; }
+}
+
+# run_node_selector <file> <pattern>: one re-homed node:test case must pass (a pattern that matches nothing fails).
+run_node_selector() {
+  local file="$1" pat="$2" rc=0 out
+  out="$(env -u AAI_ROLE node --test --test-reporter=tap --test-name-pattern "$pat" "$PROJECT_ROOT/tests/skills/lib/$file" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4015: $file $pat exited $rc"; }
+  [[ "$out" =~ pass\ [1-9] && "$out" =~ ok\ [0-9]+\ -\ $pat ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4015: $file reported no passing test named $pat"; }
+}
+
+test_4015_sh_launcher() {
+  [[ -f "$SH_LAUNCHER" ]] || log_fail "TEST-4015: .aai/scripts/aai-sync.sh does not exist"
+  local lines mode token body
+  lines="$(wc -l < "$SH_LAUNCHER" | tr -d ' ')"
+  [[ "$lines" -le 20 ]] || log_fail "TEST-4015: the launcher has $lines lines, at most 20 allowed"
+  [[ "$(head -n 1 "$SH_LAUNCHER")" == "#!/bin/sh" ]] || log_fail "TEST-4015: the launcher does not start with #!/bin/sh"
+  if LC_ALL=C /usr/bin/grep -q '[^ -~	]' "$SH_LAUNCHER"; then log_fail "TEST-4015: the launcher holds a non-ASCII byte"; fi
+  mode="$(git -C "$PROJECT_ROOT" ls-files -s .aai/scripts/aai-sync.sh | cut -c1-6)"
+  [[ "$mode" == 100755 && -x "$SH_LAUNCHER" ]] || log_fail "TEST-4015: the launcher is not mode 100755 (index: $mode)"
+  body="$(/usr/bin/grep -v '^#' "$SH_LAUNCHER")"
+  for token in 'git' 'rev-parse' 'PROFILES' 'profile' '.gitignore' 'exit 2' '--profile' 'core' 'extended' 'rm '; do
+    [[ "$body" != *"$token"* ]] || log_fail "TEST-4015: the launcher holds the policy token: $token"
+  done
+
+  local work copy bin shell
+  work="$(new_own_scratch launcher)"
+  mkdir "$work/beside" "$work/alone" "$work/bin" "$work/target"
+  cp "$SH_LAUNCHER" "$work/beside/launcher-copy.sh"
+  cp "$SH_LAUNCHER" "$work/alone/launcher-copy.sh"
+  write_stub_module "$work/beside"
+  copy="$work/beside/launcher-copy.sh"
+  for shell in bash sh dash; do
+    need_tool TEST-4015 "$shell" || continue
+    expect_pass_through "$shell with a spaced target and the two forms" "$shell" "$copy" "/some path/target" --profile core --profile=extended -h
+    expect_pass_through "$shell with the bare flags" "$shell" "$copy" --profile "a b" -h --bogus
+  done
+  # PATH holding only dirname: the module exists but node is not found
+  bin="$work/bin"
+  ln -s "$(command -v dirname)" "$bin/dirname"
+  mkdir "$work/target/inner"
+  for shell in "$(command -v bash)" "$(command -v sh)"; do
+    expect_refusal "no node ($shell)" "$shell" "$copy" "$bin" "$work/target"
+  done
+  # node is on PATH but the module is missing: the launcher copied alone
+  expect_refusal "module missing" "$(command -v sh)" "$work/alone/launcher-copy.sh" "$PATH" "$work/target"
+  safe_rm_own "$work"
+
+  # the bash library is gone; PROFILES core lists the module and both libs
+  [[ ! -e "$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh" ]] || log_fail "TEST-4015: .aai/scripts/lib/gitignore-block.sh is still shipped"
+  local verdict entry
+  for entry in .aai/scripts/aai-sync.mjs .aai/scripts/lib/resolve-base.mjs .aai/scripts/lib/gitignore-block.mjs; do
+    verdict="$(node -e '
+      const fs = require("fs");
+      const t = fs.readFileSync(process.argv[1], "utf8").split("\n");
+      const start = t.findIndex((l) => /^core:/.test(l));
+      let found = false;
+      for (let i = start + 1; i < t.length && !/^[A-Za-z]/.test(t[i]); i++) {
+        if (t[i].trim() === "- " + process.argv[2]) found = true;
+      }
+      process.stdout.write(found ? "found" : "missing");
+    ' "$PROJECT_ROOT/.aai/system/PROFILES.yaml" "$entry")" || verdict="unreadable"
+    [[ "$verdict" == found ]] || log_fail "TEST-4015: PROFILES core does not list $entry ($verdict)"
+  done
+  local rc=0 out
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4015: check-vendored-script-deps exited $rc"; }
+
+  # the bash-side D-REHOME selectors (run 6a)
+  local pair
+  for pair in \
+    "test-aai-sync-seed.sh test_template_and_parity" \
+    "test-aai-sync-seed.sh test_audit_template_single_source" \
+    "test-aai-sync-seed.sh test_marker_prefix_pinned_across_call_sites" \
+    "test-aai-sync-seed.sh test_single_bash_reader_and_sourcing" \
+    "test-aai-sync-seed.sh test_library_in_profiles_core" \
+    "test-aai-sync-seed.sh test_core_profile_keeps_library_and_bootstrap_works" \
+    "test-aai-sync-seed.sh test_library_missing_list_skips_with_note" \
+    "test-aai-sync-seed.sh test_bootstrap_survives_missing_library" \
+    "test-aai-sync-seed.sh test_runtime_ignore_header_consumer_accuracy" \
+    "test-aai-sync-seed.sh test_bash_seed_crlf_safe" \
+    "test-aai-sync-seed.sh test_628_compare_fails_closed" \
+    "test-aai-sync-seed.sh test_783_hook_json_no_node_leaves_untouched" \
+    "test-aai-sync-seed.sh test_795_sync_cache_equivalence" \
+    "test-aai-sync-seed.sh test_796_sync_cache_adoption" \
+    "test-aai-sync-seed.sh test_831_predicate_awk_child_runs_under_c_locale" \
+    "test-aai-layer-profiles.sh test_464_core_prune_survives_large_core_list" \
+    "test-aai-layer-profiles.sh test_465_gitignore_membership_survives_large_gitignore" \
+    "test-aai-layer-profiles.sh test_466_no_pipe_into_early_closing_reader" \
+    "test-aai-layer-profiles.sh test_ps1_parity" \
+    "test-aai-layer-drift.sh test_sync_stamps_pin" \
+    "test-aai-update-check.sh test_auto_sync" \
+    "test-aai-harness-shims.sh test_3008_sync_sh_recognises_shipped_copilot" \
+    "test-aai-harness-shims.sh test_3010_sync_sh_installs_agents_md" \
+    "test-aai-legacy-migrations.sh test_3396_doctor_seam" \
+    "test-aai-bootstrap.sh test_gitignore_seed_uses_shared_library"; do
+    run_suite_selector "${pair%% *}" "${pair#* }"
+  done
+  run_node_selector release-notes-docs.test.mjs TEST-2708
+  run_node_selector aai-bootstrap.test.mjs TEST-3948
+
+  # the run 6a contract records of ref sync-on-node
+  local json id
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4015: spec-amend list failed"
+  for id in "SPEC-0106-|TEST-003 and TEST-006 re-homed" "SPEC-0157-|TEST-011 to TEST-021 re-homed" "SPEC-0184-|TEST-628 re-homed" \
+            "SPEC-0199-|TEST-783 re-homed" "SPEC-0035-|TEST-008 re-homed" "SPEC-0020-|TEST-010 vendors the module" \
+            "SPEC-0106-|build_sync_source vendors the module" "SPEC-0253-|TEST-3008 case d re-homed" \
+            "SPEC-0253-|TEST-3010 re-homed" "SPEC-0250-|TEST-2708 reads ROOT_SHIMS" "SPEC-0273-|TEST-3396 re-homed" \
+            "SPEC-0306-|TEST-3948 the shipped bash library is gone"; do
+    verdict="$(node -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const [spec, what] = process.argv[1].split("|");
+      const hit = d.items.filter((i) => i.ref_id === "sync-on-node" && i.amendment_class === "contract" && i.spec.includes(spec) && i.what.startsWith(what));
+      process.stdout.write(hit.length === 1 ? "found" : "count " + hit.length);
+    ' "$id" <<<"$json")"
+    [[ "$verdict" == found ]] || log_fail "TEST-4015: contract record of ref sync-on-node for $id: $verdict"
+  done
+  log_pass "TEST-4015: the sh launcher is at most 20 ASCII lines, mode 100755, holds no policy token, passes every argument and the exit code through under bash, sh and dash, refuses with the exact line, exit 1 and an unchanged target without node or the module; the bash library is gone, PROFILES core lists the module and both libs, check-vendored-script-deps exits 0, the bash-side re-homed selectors exit 0 and the run 6a contract records exist"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4014)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4015)"
   check_deps
   setup_fixture
   test_4000_scratch_safety
@@ -480,6 +643,7 @@ main() {
   test_4012_git_env_scrub
   test_4013_corpus_bash
   test_4014_corpus_powershell
+  test_4015_sh_launcher
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

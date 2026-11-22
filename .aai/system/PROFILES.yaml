@@ -102,6 +102,7 @@ core:
   - .aai/scripts/lib/github-checks.mjs
   - .aai/scripts/aai-run-tests.ps1
   - .aai/scripts/aai-run-tests.sh
+  - .aai/scripts/aai-sync.mjs
   - .aai/scripts/aai-sync.ps1
   - .aai/scripts/aai-sync.sh
   - .aai/scripts/aai-update.mjs
@@ -199,7 +200,7 @@ core:
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs
   - .aai/scripts/lib/git-bash-path.sh
-  - .aai/scripts/lib/gitignore-block.sh
+  - .aai/scripts/lib/gitignore-block.mjs
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness-shims.mjs
   - .aai/scripts/lib/harness.mjs
@@ -387,8 +388,6 @@ extended:
   - .aai/scripts/validate-skills.mjs
   - .aai/scripts/validate-skills.ps1
   - .aai/scripts/validate-skills.sh
-  - .aai/scripts/aai-sync.mjs
-  - .aai/scripts/lib/gitignore-block.mjs
   - .aai/system/EXPERT_REGISTRY.yaml
   - .aai/system/FRICTION_PROTOCOL.md
   - .aai/system/SELF_HOSTING.md

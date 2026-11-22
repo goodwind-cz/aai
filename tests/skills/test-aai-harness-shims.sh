@@ -567,7 +567,8 @@ sync_copilot_cases() {  # <id> <engine>
 test_3008_sync_sh_recognises_shipped_copilot() {
   log_info "TEST-3008: aai-sync.sh replaces a shipped Copilot shim, keeps a real override, degrades without a hash tool..."
   sync_copilot_cases TEST-3008 sh
-  # (d) case (a) with no working hash tool: the old text is kept through the existing merge
+  # (d) case (a) with no working hash tool: the module hashes in process (node:crypto, DR-19), so the stubbed tools do not
+  # matter and the shipped shim is replaced exactly as in case (a)
   local stubs="$TMP_ROOT/t3008-stubs" dst="$TMP_ROOT/TEST-3008-sh-d" blob="$TMP_ROOT/TEST-3008-sh-blob-a.md" t
   mkdir -p "$stubs"
   for t in sha256sum shasum; do
@@ -576,8 +577,8 @@ test_3008_sync_sh_recognises_shipped_copilot() {
   done
   seed_target "$dst" "$blob"
   run_sync sh "$dst" "$stubs"
-  [[ "$(cat "$dst/$COPILOT_REL")" == *'Project Overrides (auto-merged)'* && "$(cat "$dst/$COPILOT_REL")" == *'## AAI Skills (post-sync)'* ]] \
-    || log_fail "TEST-3008 (d): with no working hash tool the old text must be kept through the existing merge"
+  cmp -s "$PROJECT_ROOT/$COPILOT_REL" "$dst/$COPILOT_REL" \
+    || log_fail "TEST-3008 (d): with no working hash tool the shipped shim must still be replaced, byte-equal to the source (DR-19)"
   log_pass "TEST-3008 aai-sync.sh recognises shipped Copilot shims"
 }
 
@@ -609,8 +610,14 @@ sync_agents_cases() {  # <id> <engine>
   cmp -s "$PROJECT_ROOT/AGENTS.md" "$dst/AGENTS.md" || log_fail "$id: the target's own AGENTS.md must be replaced by the source AGENTS.md"
   out="$(cat "$dst.sync.log")"
   [[ "$out" != *'MIGRATE removed legacy root: AGENTS.md'* ]] || log_fail "$id: the sync must not print 'MIGRATE removed legacy root: AGENTS.md'"
-  [[ "$out" == *'MIGRATE removed legacy root: PLAYBOOK.md'* && ! -e "$dst/PLAYBOOK.md" ]] \
-    || log_fail "$id: a legacy root PLAYBOOK.md must still be removed"
+  if [[ "$engine" == "sh" ]]; then
+    # re-homed (sync-on-node run 6a, DR-13): the legacy-layout moves are dropped, a root PLAYBOOK.md is project-owned and stays
+    [[ "$out" != *'MIGRATE'* && "$(cat "$dst/PLAYBOOK.md" 2>/dev/null)" == '# legacy playbook' ]] \
+      || log_fail "$id: a root PLAYBOOK.md must be left untouched and no MIGRATE line printed (DR-13)"
+  else
+    [[ "$out" == *'MIGRATE removed legacy root: PLAYBOOK.md'* && ! -e "$dst/PLAYBOOK.md" ]] \
+      || log_fail "$id: a legacy root PLAYBOOK.md must still be removed"
+  fi
   report=""
   for f in "$dst"/docs/ai/reports/sync-conflicts-*.md; do [[ -f "$f" ]] && report="$f"; done
   [[ -n "$report" ]] || log_fail "$id: no sync conflict advisory was written"

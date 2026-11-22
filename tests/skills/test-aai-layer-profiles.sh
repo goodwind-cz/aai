@@ -627,7 +627,8 @@ test_ps1_parity() {
   grep -q -- '- Profile: ' "$SYNC_PS1" || log_fail "ps1 does not stamp '- Profile:' into the pin"
   grep -q 'PROFILE prune' "$SYNC_PS1" || log_fail "ps1 lacks the prune message seam"
   grep -q 'PRESERVE target-only script' "$SYNC_PS1" || log_fail "ps1 lacks target-only preservation"
-  grep -q 'PROFILE prune' "$SYNC_SH" || log_fail "sh lacks the prune message seam (structural diff broken)"
+  # The bash side is a launcher of the Node module (sync-on-node run 6a); its seams are behaviour now: the sh core run
+  # below prints the prune line and keeps the same file set (TEST-003, TEST-004, TEST-464).
 
   if ! command -v pwsh >/dev/null 2>&1; then
     log_info "TEST-008 note: pwsh absent — structural parity only (end-to-end + parse skipped)"
@@ -873,22 +874,22 @@ test_465_gitignore_membership_survives_large_gitignore() {
   log_pass "TEST-465 .gitignore membership stays exact-once across two syncs against a >200KB file"
 }
 
-# --- TEST-466 — static ratchet: aai-sync.sh pipes nothing into grep -q or
-#     head -n1 (both are early-closing readers under pipefail) -------------
+# --- TEST-466 — static ratchet, re-homed to the Node module (sync-on-node run 6a; source: the bash ratchet that
+#     counted pipes into grep -q / head -n1, early-closing readers under pipefail) ---------------------------------
+# The module has no shell, so the class cannot exist: it starts children only as argv arrays through spawnSync (no
+# shell option, no exec or execSync), and no child command line holds a pipe.
 test_466_no_pipe_into_early_closing_reader() {
-  log_info "TEST-466: aai-sync.sh has zero real pipelines into grep -q (any spelling) / head -n1 (any spelling)..."
-  local hits
-  # A single `|` not immediately preceded by another `|` (excludes the
-  # pre-existing, unrelated `[[ ! -f x ]] || grep -q ... x` at the
-  # docs/knowledge sentinel check, which reads its file argument directly —
-  # never a pipe — and is not part of this bug class).
-  # Any spelling of the two early-closing readers (validation round 8 NB-1:
-  # `grep --quiet`, `grep -xq`, `head -1` escaped the first regex).
-  # Comment lines never count (validation round 10 NB-1): the same filter the
-  # repo-wide ratchet applies.
-  hits="$(/usr/bin/grep -vE '^[[:space:]]*#' "$SYNC_SH" | /usr/bin/grep -cE '[^|]\|[[:space:]]*((command[[:space:]]+)?\\?(/usr/bin/)?grep([[:space:]]+-[A-Za-z]+|[[:space:]]+--[a-z-]+)*[[:space:]]+(-[A-Za-z]*q|--quiet|--silent|-m[[:space:]]*[0-9]+)|(command[[:space:]]+)?\\?(/usr/bin/)?head([[:space:]]|$))' || true)"
-  [[ "$hits" -eq 0 ]] || log_fail "TEST-466: aai-sync.sh still pipes into grep -q / head -n1 ($hits occurrence(s)) — pipefail + an early-closing reader can SIGPIPE the writer and flip a real match/line into a false negative or abort the sync"
-  log_pass "TEST-466 aai-sync.sh: zero pipe-into-(grep -q|qhead -n1) sites"
+  log_info "TEST-466: aai-sync.mjs spawns no shell and holds no pipe in a child command line..."
+  local mjs="$PROJECT_ROOT/.aai/scripts/aai-sync.mjs" code bad
+  [[ -f "$mjs" ]] || log_fail "TEST-466: aai-sync.mjs not found"
+  code="$(/usr/bin/grep -vE '^[[:space:]]*//' "$mjs")"
+  bad="$(printf '%s\n' "$code" | /usr/bin/grep -nE "shell:[[:space:]]*(true|'|\")|\b(exec|execSync|execFile|execFileSync|fork)\(|child_process'[^;]*\b(exec|execSync|execFile|fork)\b|spawn(Sync)?\((['\"])(sh|bash|dash|zsh|cmd|powershell|pwsh)\b" || true)"
+  [[ -z "$bad" ]] || { printf '%s\n' "$bad" >&2; log_fail "TEST-466: aai-sync.mjs starts a shell or a non-argv child"; }
+  bad="$(printf '%s\n' "$code" | /usr/bin/grep -nE "gitOut\([^)]*['\"][^'\"]*[^|'\"]\|[^|'\"]*['\"]" || true)"
+  [[ -z "$bad" ]] || { printf '%s\n' "$bad" >&2; log_fail "TEST-466: a child command line of aai-sync.mjs holds a pipe"; }
+  [[ "$(printf '%s\n' "$code" | /usr/bin/grep -c "from 'node:child_process'")" -eq 1 ]] || log_fail "TEST-466: aai-sync.mjs must import node:child_process exactly once"
+  printf '%s\n' "$code" | qgrep -qF "import { spawnSync } from 'node:child_process';" || log_fail "TEST-466: the one child_process import must be spawnSync alone"
+  log_pass "TEST-466 aai-sync.mjs: no shell child, no pipe in a child command line"
 }
 
 # --- Spec-AC self-check — no real network schemes in this suite ---------------

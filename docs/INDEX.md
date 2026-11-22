@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-sync-on-node | specs | implementing | 15 done, 8 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
+| spec-sync-on-node | specs | implementing | 16 done, 7 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
 
 ## Canonical layer (0)
 
@@ -798,12 +798,11 @@ _None._
 
 _None._
 
-## Broken references (607)
+## Broken references (606)
 
 | Source | Reference | Status |
 |---|---|---|
 | .aai/scripts/aai-sync.ps1 | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
-| .aai/scripts/aai-sync.sh | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
 | .aai/scripts/deslop-unrequested.mjs | docs/ai/validation/validation-20260815T085528Z-...-round5.md | NOT FOUND |
 | .aai/scripts/deslop-unrequested.mjs | docs/issues/CHANGE-0145-...md | NOT FOUND |
 | .aai/scripts/generate-overview.mjs | docs/issues/team/foo.md | NOT FOUND |

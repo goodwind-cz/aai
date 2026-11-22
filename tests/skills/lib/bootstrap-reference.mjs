@@ -20,6 +20,8 @@ export const REFERENCE_PATH = 'tests/fixtures/aai-bootstrap-reference/aai-bootst
 export const REFERENCE_SHA256 = '19055401a8854ead8233d75a8b788851a5535d4d95fd7aff31fa14b56bf661c0';
 export const REFERENCE_BLOB = 'b41a0c02';
 export const REFERENCE_COMMIT = '34fad51b';
+export const GITIGNORE_LIB_REFERENCE_PATH = 'tests/fixtures/sync-reference/gitignore-block.sh';
+export const GITIGNORE_LIB_REFERENCE_SHA256 = '5544c8395b5b8ae956a8ffcedafb4bf7e93d1e6171540f0c1a82f81ecee3e7d1';
 export const OWN_MARKER_FILE = '.aai-bs-owned';
 const OWN_SCRATCH_PREFIX = 'aai-bs-';
 
@@ -85,5 +87,16 @@ export function materializeBootstrapReference(fromRoot, intoRoot) {
   mkdirSync(path.dirname(dest), { recursive: true });
   writeFileSync(dest, readFileSync(src));
   chmodSync(dest, 0o755);
+  // The shipped bash library is gone (sync-on-node run 6): the reference sources the frozen copy of it, which this
+  // writes beside the reference, verified against the sync reference's pin.
+  const lib = path.join(fromRoot, GITIGNORE_LIB_REFERENCE_PATH);
+  const libGot = sha256File(lib);
+  if (libGot !== GITIGNORE_LIB_REFERENCE_SHA256) {
+    throw new Error(`${lib} hashes to ${libGot}, expected ${GITIGNORE_LIB_REFERENCE_SHA256} (the frozen library was edited)`);
+  }
+  const libDest = path.join(intoRoot, '.aai', 'scripts', 'lib', 'gitignore-block.sh');
+  mkdirSync(path.dirname(libDest), { recursive: true });
+  writeFileSync(libDest, readFileSync(lib));
+  chmodSync(libDest, 0o644);
   return dest;
 }

@@ -35,12 +35,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 . "$SCRIPT_DIR/lib/companion-assert.sh"
 SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
 SYNC_PS1="$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
+SYNC_MJS="$PROJECT_ROOT/.aai/scripts/aai-sync.mjs"
 TEMPLATE="$PROJECT_ROOT/.aai/templates/update-config.template.yaml"
 AUDIT_TEMPLATE="$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml"
 LIVE_AUDIT_CONFIG="$PROJECT_ROOT/docs/ai/docs-audit.yaml"
 LANE_GATE="$PROJECT_ROOT/.aai/scripts/lane-gate.mjs"
 RUNTIME_LIST="$PROJECT_ROOT/.aai/system/RUNTIME_IGNORE.list"
-GITIGNORE_LIB="$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh"
+GITIGNORE_MJS="$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.mjs"
 BOOTSTRAP_MJS="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.mjs"
 
 TMP_ROOT=""
@@ -221,8 +222,9 @@ test_template_and_parity() {
   ' "$profiles" | grep -Fx ".aai/templates/update-config.template.yaml" || true)"
   [[ -n "$in_core" ]] || log_fail ".aai/templates/update-config.template.yaml is NOT in the PROFILES.yaml core list"
   # both engines seed docs/ai/update-config.yaml from the template (parity).
-  grep -qF "update-config.template.yaml" "$SYNC_SH" || log_fail "aai-sync.sh does not seed from the template"
-  grep -qF "docs/ai/update-config.yaml" "$SYNC_SH" || log_fail "aai-sync.sh does not reference the seed target"
+  # the bash side is a launcher (sync-on-node run 6a): the seed rules live in the module
+  grep -qF "update-config.template.yaml" "$SYNC_MJS" || log_fail "aai-sync.mjs does not seed from the template"
+  grep -qF "docs/ai/update-config.yaml" "$SYNC_MJS" || log_fail "aai-sync.mjs does not reference the seed target"
   if [[ -f "$SYNC_PS1" ]]; then
     grep -qF "update-config.template.yaml" "$SYNC_PS1" || log_fail "aai-sync.ps1 does not seed from the template (parity)"
     grep -qF "docs/ai/update-config.yaml" "$SYNC_PS1" || log_fail "aai-sync.ps1 does not reference the seed target (parity)"
@@ -373,7 +375,7 @@ test_audit_template_single_source() {
   ' "$profiles" | grep -Fx ".aai/templates/docs-audit.template.yaml" || true)"
   [[ -n "$in_core" ]] || log_fail "TEST-006: .aai/templates/docs-audit.template.yaml is NOT in the PROFILES.yaml core list"
 
-  grep -qF "docs-audit.template.yaml" "$SYNC_SH" || log_fail "TEST-006: aai-sync.sh does not seed from the template"
+  grep -qF "docs-audit.template.yaml" "$SYNC_MJS" || log_fail "TEST-006: aai-sync.mjs does not seed from the template"
   if [[ -f "$SYNC_PS1" ]]; then
     grep -qF "docs-audit.template.yaml" "$SYNC_PS1" \
       || log_fail "TEST-006: aai-sync.ps1 does not seed from the template (parity)"
@@ -502,7 +504,7 @@ test_legacy_marker_no_duplicate_across_engines() {
 
 # --- TEST-020 — marker PREFIX pinned identically across all 5 call sites (Spec-AC-05 guard hardening) ---
 test_marker_prefix_pinned_across_call_sites() {
-  log_info "TEST-020: the marker PREFIX is byte-identical across the bash constant, the PowerShell detection regex, and all three caller marker texts..."
+  log_info "TEST-020: the marker PREFIX is byte-identical across the library constant, the PowerShell detection regex, and the three caller marker texts..."
   # The prefix cannot be a single literal SHARED across bash and PowerShell
   # (no shell library spans both languages), so it exists as 5 call-site
   # copies: this pins them all to the bash constant as the one canonical
@@ -510,9 +512,10 @@ test_marker_prefix_pinned_across_call_sites() {
   # of silently reproducing the two-marker Spec-AC-05 regression this scope
   # fixed (drift is invisible to TEST-010, which only counts lines matching
   # the CURRENT prefix, whatever that happens to be).
+  # Re-homed (sync-on-node run 6a): the canonical copy is the constant of lib/gitignore-block.mjs; the bash constant is gone.
   local canonical
-  canonical="$(grep -oE '^AAI_GITIGNORE_MARKER_PREFIX="[^"]*"' "$GITIGNORE_LIB" | sed -E 's/^AAI_GITIGNORE_MARKER_PREFIX="(.*)"$/\1/')"
-  [[ -n "$canonical" ]] || log_fail "TEST-020: could not extract AAI_GITIGNORE_MARKER_PREFIX from $GITIGNORE_LIB"
+  canonical="$(grep -oE "^export const AAI_GITIGNORE_MARKER_PREFIX = '[^']*'" "$GITIGNORE_MJS" | sed -E "s/^export const AAI_GITIGNORE_MARKER_PREFIX = '(.*)'\$/\1/")"
+  [[ -n "$canonical" ]] || log_fail "TEST-020: could not extract AAI_GITIGNORE_MARKER_PREFIX from $GITIGNORE_MJS"
 
   # 1. the bash constant (extracted above) is the canonical copy.
   # 2. the PowerShell detection regex.
@@ -521,8 +524,9 @@ test_marker_prefix_pinned_across_call_sites() {
   # 3-5. the three caller marker TEXTS actually written to .gitignore.
   grep -qF "'${canonical} (seeded by aai-bootstrap;" "$BOOTSTRAP_MJS" \
     || log_fail "TEST-020: aai-bootstrap.mjs's marker text does not start with the canonical prefix '$canonical'"
-  grep -qF "\"${canonical} (seeded from" "$SYNC_SH" \
-    || log_fail "TEST-020: aai-sync.sh's marker text does not start with the canonical prefix '$canonical'"
+  # the sync marker is the module library's constant, which the reconcile writes: read it from the module, not its text
+  [[ "$(node -e 'import(process.argv[1]).then((m) => process.stdout.write(m.SYNC_RUNTIME_MARKER.startsWith(m.AAI_GITIGNORE_MARKER_PREFIX + " (seeded from") ? "same" : "differs"))' "$GITIGNORE_MJS")" == same ]] \
+    || log_fail "TEST-020: the sync marker of lib/gitignore-block.mjs does not start with the canonical prefix '$canonical'"
   grep -qF "\"${canonical} (seeded by aai-sync.ps1;" "$SYNC_PS1" \
     || log_fail "TEST-020: aai-sync.ps1's written marker text does not start with the canonical prefix '$canonical'"
   log_pass "TEST-020 marker prefix '$canonical' pinned identically across the bash constant, the ps1 regex, and all 3 caller marker texts"
@@ -530,43 +534,21 @@ test_marker_prefix_pinned_across_call_sites() {
 
 # --- TEST-011 — one bash reader, sourced (not reimplemented) by both callers (Spec-AC-04) ---
 test_single_bash_reader_and_sourcing() {
-  log_info "TEST-011: exactly one bash reader loops over the runtime list; aai-sync.sh sources it, not reimplements it (bootstrap is a Node module with its own reconcile)..."
-  [[ -f "$GITIGNORE_LIB" ]] || log_fail "TEST-011: shared library missing: $GITIGNORE_LIB"
-
-  # Semantic population Spec-AC-04 bounds: every .sh file under .aai/scripts
-  # that references RUNTIME_IGNORE at all -- not a stylistic loop-syntax
-  # fingerprint (a prior version of this assertion counted files containing
-  # the literal string 'while IFS= read -r line', which is blind to a
-  # reimplementation using a different loop-variable name and brittle to any
-  # unrelated read-loop being renamed to 'line').
-  local referencers n_referencers
+  log_info "TEST-011: no shipped .sh reads the runtime list; the sync module imports the one reconcile and holds no read-loop of its own (bootstrap is a Node module with its own reconcile)..."
+  [[ -f "$GITIGNORE_MJS" ]] || log_fail "TEST-011: shared library missing: $GITIGNORE_MJS"
+  # Re-homed (sync-on-node run 6a): the bash fork and the bash library are gone. No .sh under .aai/scripts references the
+  # runtime list, the module imports reconcileGitignore from the one library, and it holds no read of the list that loops.
+  local referencers
   referencers="$(find "$PROJECT_ROOT/.aai/scripts" -name '*.sh' -print0 \
     | xargs -0 grep -lF 'RUNTIME_IGNORE' 2>/dev/null | sort || true)"
-  n_referencers="$(grep -c . <<< "$referencers" || true)"
-  [[ "$n_referencers" -eq 2 ]] \
-    || log_fail "TEST-011: expected exactly 2 .aai/scripts/**.sh files to reference RUNTIME_IGNORE (sync, library), found $n_referencers: $referencers"
-
-  # Of that set, exactly one file -- the shared library -- may loop-and-append
-  # over the list: a `while ... read ...; done < "$<var named after the
-  # runtime list>"` construct, tied to the LIST VARIABLE itself (any
-  # read-loop element-variable name), never the generic `while IFS= read -r
-  # line` idiom that 7 unrelated .aai/scripts/**.sh files already share.
-  local loop_regex='done[[:space:]]*<[[:space:]]*"\$[A-Za-z_]*[Rr]untime_?[Ll]ist'
-  local f loopers=0
-  while IFS= read -r f; do
-    [[ -z "$f" ]] && continue
-    grep -qE "$loop_regex" "$f" && loopers=$((loopers + 1))
-  done <<< "$referencers"
-  [[ "$loopers" -eq 1 ]] \
-    || log_fail "TEST-011: expected exactly one RUNTIME_IGNORE-referencing file to loop-and-append over the list (the shared library), found $loopers"
-  grep -qE "$loop_regex" "$GITIGNORE_LIB" \
-    || log_fail "TEST-011: the shared library itself does not contain the runtime-list read-loop"
-  grep -qE "$loop_regex" "$SYNC_SH" \
-    && log_fail "TEST-011: aai-sync.sh reimplements a read-loop over the runtime list instead of sourcing the shared library"
-
-  grep -qE 'source[[:space:]]+"\$GITIGNORE_BLOCK_LIB"' "$SYNC_SH" \
-    || log_fail "TEST-011: aai-sync.sh does not source the shared library"
-  log_pass "TEST-011 one bash reader of the runtime list (the shared library), sourced by the bash sync, structurally verified"
+  [[ -z "$referencers" ]] \
+    || log_fail "TEST-011: expected no .aai/scripts/**.sh file to reference RUNTIME_IGNORE (the bash reader is gone), found: $referencers"
+  grep -qE "^import \{[^}]*\breconcileGitignore\b[^}]*\} from '\./lib/gitignore-block\.mjs';" "$SYNC_MJS" \
+    || log_fail "TEST-011: aai-sync.mjs does not import the shared reconcile from lib/gitignore-block.mjs"
+  if grep -qE "readFileSync\([^)]*RUNTIME_IGNORE|split\('\\n'\)\.(for|map|filter)\(.*RUNTIME" "$SYNC_MJS"; then
+    log_fail "TEST-011: aai-sync.mjs reimplements a read of the runtime list instead of using the shared reconcile"
+  fi
+  log_pass "TEST-011 no shipped .sh reads the runtime list; the sync module imports the one reconcile"
 }
 
 # --- TEST-012 — shared library classified in PROFILES.yaml core (Spec-AC-06) ---
@@ -577,8 +559,9 @@ test_library_in_profiles_core() {
     $0 == "core:" { f = 1; next }
     /^[^ ]/       { f = 0 }
     f && sub(/^  - /, "") { sub(/[ \t\r]+$/, ""); print }
-  ' "$profiles" | grep -Fx ".aai/scripts/lib/gitignore-block.sh" || true)"
-  [[ -n "$in_core" ]] || log_fail "TEST-012: .aai/scripts/lib/gitignore-block.sh is NOT in the PROFILES.yaml core list"
+  ' "$profiles" | grep -Fx ".aai/scripts/lib/gitignore-block.mjs" || true)"
+  [[ -n "$in_core" ]] || log_fail "TEST-012: .aai/scripts/lib/gitignore-block.mjs is NOT in the PROFILES.yaml core list"
+  [[ ! -e "$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh" ]] || log_fail "TEST-012: the bash library is still shipped"
   log_pass "TEST-012 shared gitignore library classified in PROFILES.yaml core"
 }
 
@@ -589,7 +572,7 @@ test_core_profile_keeps_library_and_bootstrap_works() {
   mkdir -p "$dst"
   git -C "$dst" init -q -b main
   bash "$SYNC_SH" "$dst" --profile core >/dev/null 2>&1 || log_fail "TEST-013: core-profile sync failed"
-  [[ -f "$dst/.aai/scripts/lib/gitignore-block.sh" ]] \
+  [[ -f "$dst/.aai/scripts/lib/gitignore-block.mjs" ]] \
     || log_fail "TEST-013: core-profile sync pruned the shared gitignore library"
   bash "$dst/.aai/scripts/aai-bootstrap.sh" "$dst" >/dev/null 2>&1 \
     || log_fail "TEST-013: bootstrap failed on a core-profile target"
@@ -606,11 +589,8 @@ test_library_missing_list_skips_with_note() {
   # runs when the command substitution itself fails set -e, so `$?` would
   # always read 0 and the "returns exit status 0" assertion below would be a
   # tautology that could never catch a future nonzero return.
-  out="$(
-    # shellcheck source=/dev/null
-    source "$GITIGNORE_LIB"
-    aai_gitignore_seed_runtime "$gi" "$missing_list" "# marker"
-  )" || rc=$?
+  # Re-homed (sync-on-node run 6a): the library is lib/gitignore-block.mjs; seedRuntimeGitignore returns the note line.
+  out="$(node -e 'import(process.argv[1]).then((m) => { process.stdout.write(m.seedRuntimeGitignore(process.argv[2], process.argv[3], "# marker") + "\n"); })' "$GITIGNORE_MJS" "$gi" "$missing_list")" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-014: library returned $rc for a missing list path, expected 0"
   grep -qF "$missing_list" <<< "$out" || log_fail "TEST-014: skip note does not name the missing path: $out"
   grep -qF "missing" <<< "$out" || log_fail "TEST-014: skip note does not read as a skip: $out"
@@ -626,9 +606,8 @@ test_bootstrap_survives_missing_library() {
   # bootstrap from the target's own copy (never the real repo's library).
   local dst="$TMP_ROOT/lib-absent-bootstrap" out pattern want=0 got=0
   _sync_cached sh "$PROJECT_ROOT" "$dst" git
-  [[ -f "$dst/.aai/scripts/lib/gitignore-block.sh" ]] \
-    || log_fail "TEST-019: bad fixture -- sync did not vendor the shared library into $dst"
-  rm -f "$dst/.aai/scripts/lib/gitignore-block.sh"
+  [[ ! -e "$dst/.aai/scripts/lib/gitignore-block.sh" && -f "$dst/.aai/scripts/lib/gitignore-block.mjs" ]] \
+    || log_fail "TEST-019: bad fixture -- the sync vendored a bash library or no module library into $dst"
   out="$(bash "$dst/.aai/scripts/aai-bootstrap.sh" "$dst" 2>&1)" \
     || log_fail "TEST-019: aai-bootstrap.sh exited nonzero with the shared library missing:"$'\n'"$out"
   if grep -qF "skipped runtime-sidecar gitignore seed" <<< "$out"; then
@@ -681,9 +660,8 @@ test_runtime_ignore_header_consumer_accuracy() {
   log_info "TEST-016: every script named in RUNTIME_IGNORE.list's header references the list; every referencing script is named there..."
   local header named=(
     ".aai/scripts/aai-bootstrap.mjs"
-    ".aai/scripts/aai-sync.sh"
+    ".aai/scripts/aai-sync.mjs"
     ".aai/scripts/aai-sync.ps1"
-    ".aai/scripts/lib/gitignore-block.sh"
     ".aai/scripts/lib/gitignore-block.mjs"
   )
   header="$(sed -n '1,8p' "$RUNTIME_LIST")"
@@ -758,10 +736,8 @@ test_bash_seed_crlf_safe() {
       printf '%s\r\n' "$pattern"
     done < "$RUNTIME_LIST"
   } > "$dst/.gitignore"
-  (
-    source "$GITIGNORE_LIB"
-    aai_gitignore_seed_runtime "$dst/.gitignore" "$RUNTIME_LIST" "# AAI runtime sidecars"
-  ) >/dev/null 2>&1 || log_fail "TEST-021: aai_gitignore_seed_runtime failed"
+  node -e 'import(process.argv[1]).then((m) => { m.seedRuntimeGitignore(process.argv[2], process.argv[3], "# AAI runtime sidecars"); })' "$GITIGNORE_MJS" "$dst/.gitignore" "$RUNTIME_LIST" >/dev/null 2>&1 \
+    || log_fail "TEST-021: seedRuntimeGitignore failed"
   local dup=0 count
   while IFS= read -r pattern; do
     [[ -z "$pattern" || "$pattern" == \#* ]] && continue
@@ -867,31 +843,25 @@ test_agents_skills_mirror_synced() {
 # real runtime check on the twin).
 test_628_compare_fails_closed() {
   log_info "TEST-628: file_content_different reports NOT different when cmp cannot complete the comparison (exit 2, driven with an unreadable path); the .ps1 twin's catch arm returns false..."
-  local fn readable unreadable out rc=0
-  fn="$(awk '/^file_content_different\(\) \{/{f=1} f{print; if ($0 ~ /^}/) exit}' "$SYNC_SH")"
-  [[ -n "$fn" ]] || log_fail "TEST-628: could not extract file_content_different() from $SYNC_SH"
-
-  readable="$TMP_ROOT/t628-readable.txt"
-  unreadable="$TMP_ROOT/t628-unreadable.txt"
-  printf 'a\n' > "$readable"
-  printf 'b\n' > "$unreadable"
-  chmod 000 "$unreadable"
-  if [[ ! -r "$unreadable" ]]; then
-    out="$(
-      bash -c "
-        set -euo pipefail
-        $fn
-        if file_content_different \"\$1\" \"\$2\"; then echo DIFFERENT; else echo NOT_DIFFERENT; fi
-      " _ "$readable" "$unreadable"
-    )" || rc=$?
-    chmod 644 "$unreadable"
-    [[ "$rc" -eq 0 ]] || log_fail "TEST-628: calling file_content_different against an unreadable path errored (rc=$rc): $out"
-    [[ "$out" == "NOT_DIFFERENT" ]] \
-      || log_fail "TEST-628: file_content_different treated an unreadable-path cmp failure (exit 2) as DIFFERENT, expected NOT_DIFFERENT (fail-closed): $out"
+  local readable unreadable out rc=0 dst
+  # Re-homed (sync-on-node run 6a): the compare is the module's fileDiffers. Behaviour: a README_AAI.md of the target that
+  # differs from the source README.md and cannot be read is NOT reported as a conflict (fail closed) and the sync exits 0.
+  dst="$TMP_ROOT/t628-target"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
+  printf 'a different local README_AAI\n' > "$dst/README_AAI.md"
+  chmod 000 "$dst/README_AAI.md"
+  if [[ ! -r "$dst/README_AAI.md" ]]; then
+    out="$(bash "$SYNC_SH" "$dst" 2>&1)" || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-628: the sync with an unreadable README_AAI.md errored (rc=$rc): $out"
+    if grep -qF 'README_AAI.md' <<< "$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f -newer "$dst/.aai/system/AAI_PIN.md" -print0 | xargs -0 cat 2>/dev/null)"; then
+      log_fail "TEST-628: an unreadable-file compare was treated as DIFFERENT (a conflict was reported for README_AAI.md), expected fail-closed"
+    fi
+    [[ "$(cat "$dst/README_AAI.md" 2>/dev/null)" == "$(cat "$PROJECT_ROOT/README.md")" ]] || log_fail "TEST-628: the sync did not replace README_AAI.md with the source README.md"
   else
-    chmod 644 "$unreadable"
-    log_info "TEST-628 note: chmod 000 did not make the file unreadable in this environment (root?) — bash arm SKIPPED, ps1 static arm still runs"
+    chmod 644 "$dst/README_AAI.md"
+    log_info "TEST-628 note: chmod 000 did not make the file unreadable in this environment (root?) -- bash arm SKIPPED, ps1 static arm still runs"
   fi
+  readable=""; unreadable=""
 
   # ps1 twin (static): the catch arm of Test-FileContentDifferent must
   # `return $false` (fail closed), never $true.
@@ -1271,21 +1241,22 @@ test_783_hook_json_no_node_leaves_untouched() {
   # stdout and stderr captured SEPARATELY: Spec-AC-11 says the WARN is on
   # stdout (as it is in the .ps1 engine); a `2>&1` log could not tell a
   # stderr WARN from a stdout one (Validation NB-2, 2026-09-30).
-  env PATH="$no_node_path" bash "$SYNC_SH" "$dst" >"$log" 2>"$errlog" \
-    || log_fail "TEST-783: sync failed under a node-less PATH (should degrade, not fail): $(cat "$log" "$errlog")"
+  # Re-homed (sync-on-node run 6a, DR-18): the sync needs node, so without it the launcher refuses (exit 1, the one line on
+  # stderr, nothing on stdout) and the target stays untouched: no hooks/hooks.json, no advisory, no .aai.
+  local rc=0 before after
+  before="$(find "$dst" | LC_ALL=C sort)"
+  env PATH="$no_node_path" bash "$SYNC_SH" "$dst" >"$log" 2>"$errlog" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-783: the sync under a node-less PATH must exit 1 (the launcher refusal), got $rc: $(cat "$log" "$errlog")"
   if env PATH="$no_node_path" bash -c 'command -v node' >/dev/null 2>&1; then
     log_fail "TEST-783: bad fixture -- node is still resolvable on the stripped PATH"
   fi
-  [[ -f "$dst/hooks/hooks.json" ]] \
-    && log_fail "TEST-783: hooks/hooks.json was created without node (expected: left untouched/absent)"
-  grep -qF -- 'WARN node unavailable' "$log" \
-    || log_fail "TEST-783: sync STDOUT did not warn about the missing node interpreter (stderr was: $(cat "$errlog")); stdout: $(cat "$log")"
-  local newest
-  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
-  [[ -n "$newest" ]] || log_fail "TEST-783: no advisory report was written"
-  grep -qF -- '- Path: hooks/hooks.json' "$newest" \
-    || log_fail "TEST-783: advisory does not name hooks/hooks.json: $(cat "$newest")"
-  log_pass "TEST-783 with node unavailable, hooks/hooks.json is left untouched and named in the advisory"
+  [[ ! -s "$log" ]] || log_fail "TEST-783: the refusal wrote to stdout: $(cat "$log")"
+  [[ "$(cat "$errlog")" == "aai-sync: refused - node not found in PATH or aai-sync.mjs missing; nothing was changed. Install Node.js 22 or later (https://nodejs.org/) and re-run." ]] \
+    || log_fail "TEST-783: stderr is not the launcher refusal line: $(cat "$errlog")"
+  after="$(find "$dst" | LC_ALL=C sort)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-783: the refused run changed the target"
+  [[ ! -f "$dst/hooks/hooks.json" ]] || log_fail "TEST-783: hooks/hooks.json was created without node"
+  log_pass "TEST-783 with node unavailable the launcher refuses with exit 1 and the one line, and the target (hooks/hooks.json included) is untouched"
 }
 
 # ── owner-directed scope extension (2026-09-30) — TEST-784..788 ─────────────
@@ -1931,16 +1902,18 @@ test_795_sync_cache_equivalence() {
     _795_check "${arm%%:*}" "$(echo "$arm" | cut -d: -f2)" "${arm##*:}"
   done
 
-  # Static: the only field either engine reads from an existing pin is Profile.
-  fields="$(grep -oE "s/\^- [A-Za-z ()]+: //p" "$SYNC_SH" | LC_ALL=C sort -u || true)"
-  [[ "$fields" == "s/^- Profile: //p" ]] \
-    || log_fail "TEST-795 (plan row TEST-007): aai-sync.sh reads a pin field other than Profile (or none): [$fields]"
+  # Static: the only field the module reads from an existing pin is Profile (re-homed, sync-on-node run 6a: readStickyProfile of
+  # the module; the .ps1 arm follows the launcher swap).
+  local fn
+  fn="$(awk '/^export function readStickyProfile\(/{f=1} f{print; if ($0 ~ /^}/) exit}' "$SYNC_MJS")"
+  [[ -n "$fn" ]] || log_fail "TEST-795 (plan row TEST-007): could not extract readStickyProfile from $SYNC_MJS"
+  grep -qF "'- Profile: '" <<< "$fn" || log_fail "TEST-795 (plan row TEST-007): the module's pin reader does not read the Profile line"
+  fields="$(grep -nE '(Source path|Template version|Template commit|Canonical repo|Synced at)' <<< "$fn" || true)"
+  [[ -z "$fields" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): the module's pin reader matches a pin field other than Profile: $fields"
   fields="$(grep -oE "Pattern '\^- [A-Za-z ()]+:" "$SYNC_PS1" | LC_ALL=C sort -u || true)"
   [[ "$fields" == "Pattern '^- Profile:" ]] \
     || log_fail "TEST-795 (plan row TEST-007): aai-sync.ps1 reads a pin field other than Profile (or none): [$fields]"
-  fields="$(grep -nE '\^- (Source path|Template version|Template commit|Canonical repo|Synced at)' "$SYNC_SH" "$SYNC_PS1" || true)"
-  [[ -z "$fields" ]] \
-    || log_fail "TEST-795 (plan row TEST-007): an engine matches a pin field other than Profile: $fields"
   log_pass "TEST-795 a cached golden equals a fresh sync from a differently located identical source (pin and advisory path lines aside); both engines read only Profile from an existing pin"
 }
 
@@ -2416,23 +2389,33 @@ test_830_ps1_preservation_parity() {
 }
 
 test_831_predicate_awk_child_runs_under_c_locale() {
-  log_info "TEST-831: the retired-shim predicate's awk child receives LC_ALL=C even when the caller exports a UTF-8 locale..."
-  local dst="$TMP_ROOT/retired-831" shimdir="$TMP_ROOT/retired-831-bin" real log out
-  real="$(command -v awk)"; log="$TMP_ROOT/retired-831.awk.log"
-  mkdir -p "$shimdir"; : > "$log"
-  # Logging pass-through (not a behaviour stub): records LC_ALL for the predicate's awk, then execs the real awk.
-  cat > "$shimdir/awk" <<SHIM
-#!/bin/sh
-case "\$*" in *'l[++n] = \$0'*) printf '%s\n' "\${LC_ALL-unset}" >> "$log" ;; esac
-exec "$real" "\$@"
-SHIM
-  chmod +x "$shimdir/awk"
+  log_info "TEST-831: the retired-shim predicate compares ordinally under a UTF-8 caller locale: a plain shim goes, shims with U+200B, U+FEFF, NFD text or a BOM stay..."
+  # Re-homed (sync-on-node run 6a, TEST-831 had no plan row of its own): the awk child is gone; the module's predicate reads
+  # one character per byte and compares exact text, so a look-alike never counts as a template wrapper whatever the locale.
+  local dst="$TMP_ROOT/retired-831" out name tree
   _retired_two_step_target "$dst"
+  _retired_install "$dst" aai-zwsp ZWSP plain
+  _retired_install "$dst" aai-bom BOM plain
+  _retired_install "$dst" aai-nfd NFD plain
+  for tree in .claude/skills .agents/skills; do
+    node -e '
+      const fs = require("fs");
+      const [root] = process.argv.slice(1);
+      const edit = (name, f) => { const p = root + "/" + name + "/SKILL.md"; fs.writeFileSync(p, f(fs.readFileSync(p, "utf8"))); };
+      edit("aai-zwsp", (s) => s.replace("SKILL_ZWSP.prompt.md`", "SKILL_ZWSP\u200b.prompt.md`"));
+      edit("aai-bom", (s) => "\ufeff" + s);
+      edit("aai-nfd", (s) => s.replace("Expected:", "Expecte\u0301d:"));
+    ' "$dst/$tree"
+  done
   _sync_fixture_canon
-  out="$(env -u LC_ALL LANG=en_US.UTF-8 PATH="$shimdir:$PATH" bash "$SYNC_FIXTURE_CANON/.aai/scripts/aai-sync.sh" "$dst" 2>&1)" || log_fail "TEST-831: sync failed: $out"
-  [[ -s "$log" ]] || log_fail "TEST-831: the predicate's awk was never observed (shim not reached): $out"
-  ! grep -qvx 'C' "$log" || log_fail "TEST-831: predicate awk ran without LC_ALL=C: $(sort "$log" | uniq -c)"
-  log_pass "TEST-831 predicate awk child runs under LC_ALL=C (host-locale misbehaviour itself not reproducible here)"
+  out="$(env -u LC_ALL LANG=en_US.UTF-8 bash "$SYNC_FIXTURE_CANON/.aai/scripts/aai-sync.sh" "$dst" 2>&1)" || log_fail "TEST-831: sync failed: $out"
+  [[ ! -e "$dst/.claude/skills/aai-retired" && ! -e "$dst/.agents/skills/aai-retired" ]] || log_fail "TEST-831: the plain retired shim was not removed: $out"
+  for name in aai-zwsp aai-bom aai-nfd; do
+    for tree in .claude/skills .agents/skills; do
+      [[ -f "$dst/$tree/$name/SKILL.md" ]] || log_fail "TEST-831: the look-alike $tree/$name was removed (the predicate must compare ordinally)"
+    done
+  done
+  log_pass "TEST-831 the predicate compares ordinally under a UTF-8 locale: plain shim removed, U+200B, BOM and NFD look-alikes kept"
 }
 
 # Make deletion of an otherwise-vetted retired shim fail: a read-only entry dir blocks unlinking SKILL.md.

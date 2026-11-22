@@ -1324,6 +1324,8 @@ describe('TEST-3948 gitignore', () => {
   });
 
   test('TEST-3948 a tree copy without lib/gitignore-block.sh still seeds the 30 patterns (DR-4)', () => {
+    // The shipped bash library is gone (sync-on-node run 6); the frozen reference tree gets its own copy, which this removes.
+    assert.ok(!existsSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'gitignore-block.sh')), 'the shipped bash library is gone');
     const base = scratch('dr4-');
     const tree = path.join(base, 'tree');
     materializeBootstrapReference(ROOT, tree);
@@ -1740,9 +1742,9 @@ describe('TEST-3956 parity harness bootstrap pieces', () => {
     assert.ok(PARITY.SCENARIOS.filter((x) => x.op === 'bootstrap').every((x) => x.id.startsWith('BS-')));
   });
 
-  test('TEST-3956 the twin registry holds the node twin restricted to bootstrap, update and hooks and the argv lines follow D-PARITY', () => {
+  test('TEST-3956 the twin registry holds the node twin restricted to bootstrap, update, hooks and sync and the argv lines follow D-PARITY', () => {
     assert.deepEqual(Object.keys(PARITY.TWINS), ['sh', 'ps1', 'node']);
-    assert.deepEqual(PARITY.TWINS.node.ops, ['bootstrap', 'update', 'hooks']);
+    assert.deepEqual(PARITY.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
     assert.equal(PARITY.TWINS.node.peers?.bootstrap, undefined);
     assert.equal(PARITY.TWINS.sh.ops, undefined);
     const ctx = { src: '/s', target: '/t', bash: 'bash', ps: 'pwsh', bsref: '/r' };
@@ -1767,9 +1769,11 @@ describe('TEST-3956 parity harness bootstrap pieces', () => {
     const all = [PARITY.TWINS.sh, PARITY.TWINS.ps1, PARITY.TWINS.node];
     const sync = PARITY.SCENARIOS.find((x) => x.id === 'SY-01');
     const bs = PARITY.SCENARIOS.find((x) => x.id === 'BS-01');
-    assert.deepEqual(PARITY.twinsFor(all, sync).map((t) => t.name), ['sh', 'ps1']);
+    assert.deepEqual(PARITY.twinsFor(all, sync).map((t) => t.name), ['sh', 'ps1', 'node']);
     assert.deepEqual(PARITY.twinsFor(all, bs).map((t) => t.name), ['sh', 'ps1', 'node']);
     const plain = { name: 'plain', argv: () => ({}) };
-    assert.deepEqual(PARITY.twinsFor([plain, PARITY.TWINS.node], sync).map((t) => t.name), ['plain']);
+    assert.deepEqual(PARITY.twinsFor([plain, PARITY.TWINS.node], sync).map((t) => t.name), ['plain', 'node']);
+    const hooksOnly = PARITY.SCENARIOS.find((x) => x.op === 'hooks');
+    assert.deepEqual(PARITY.twinsFor([plain, PARITY.TWINS.node], hooksOnly).map((t) => t.name), ['plain', 'node']);
   });
 });
