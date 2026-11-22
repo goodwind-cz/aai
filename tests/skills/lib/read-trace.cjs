@@ -12,10 +12,14 @@ if (!silent) {
   const wrap = (obj, n, label) => {
     const orig = obj[n];
     if (typeof orig !== 'function') return;
-    obj[n] = function (p, ...rest) {
-      if (typeof p === 'string' || p instanceof URL || Buffer.isBuffer(p)) log('R', p instanceof URL ? p.pathname : p, label);
-      return orig.call(this, p, ...rest);
+    const traced = (fn, lbl) => function (p, ...rest) {
+      if (typeof p === 'string' || p instanceof URL || Buffer.isBuffer(p)) log('R', p instanceof URL ? p.pathname : p, lbl);
+      return fn.call(this, p, ...rest);
     };
+    const w = traced(orig, label);
+    // fs.realpathSync.native (and fs.realpath.native) hang off the function: keep them, traced too.
+    if (typeof orig.native === 'function') w.native = traced(orig.native, `${label}.native`);
+    obj[n] = w;
   };
   for (const n of ['readFileSync', 'readdirSync', 'statSync', 'lstatSync', 'existsSync', 'openSync', 'readFile', 'readdir', 'stat', 'lstat', 'opendirSync', 'accessSync', 'createReadStream', 'realpathSync']) wrap(fs, n, n);
   wrap(fs.promises, 'readFile', 'promises.readFile');
