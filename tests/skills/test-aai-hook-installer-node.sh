@@ -822,10 +822,10 @@ test_3997_wiring() {
     printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
     qgrep -q "^FULL_RUN reason=protected-l3 path=$f" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate $f to FULL_RUN protected-l3"; }
   done
-  # guard-config.mjs lives under .aai/scripts/lib/, a shared-lib glob: a change to it escalates straight to FULL_RUN,
+  # guard-config.mjs is on protected_paths_l3 (and under the .aai/scripts/lib/ shared-lib glob): a change to it escalates straight to FULL_RUN,
   # which runs every suite and so this one; the row also lists it for a suite-only selection
   printf '%s\n' .aai/scripts/lib/guard-config.mjs | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
-  qgrep -q "^FULL_RUN reason=shared-lib path=.aai/scripts/lib/guard-config.mjs" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate guard-config.mjs to FULL_RUN"; }
+  qgrep -q "^FULL_RUN reason=protected-l3 path=.aai/scripts/lib/guard-config.mjs" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate guard-config.mjs to FULL_RUN protected-l3"; }
   rows="$(suite_map_rows "$PROJECT_ROOT/tests/skills/suite-map.yaml")" || log_fail "TEST-3997: cannot read suite-map.yaml"
   # every suite-map row that names install-pre-commit-hook.sh names install-pre-commit-hook.mjs
   out="$(printf '%s\n' "$rows" | node -e '

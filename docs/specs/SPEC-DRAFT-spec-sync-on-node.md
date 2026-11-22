@@ -3,7 +3,7 @@ id: spec-sync-on-node
 type: spec
 number: null
 status: implementing
-frozen_sha256: 5586b86ea457755bfe06c80697dd835597df2ddfb87094ef5694f4d55fe544ca
+frozen_sha256: 0ada1a5d8863cbddd7fab68d54c1ac4feeb6a86430d61b96cf675d3b0869b896
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -1335,6 +1335,7 @@ legacy moves are named with the manual cleanup.
 | Spec-AC-20 | CHANGELOG.md SHALL hold the D-DOCS heading exactly once with a body naming Node.js 22, DR-2, DR-5, DR-7, DR-11, DR-13, DR-18, DR-20 and DR-21 and every D-LEGACY path; README.md and docs/USER_GUIDE.md SHALL name aai-sync.mjs and Node.js 22 in the sync install blocks; the RFC-0017 phase 5 row SHALL hold the D-DOCS sentence once with a link ending sync-on-node.md and no aai-sync inventory row, and expert-fetch test_2624 SHALL pass; after LOOP COMPLETE docs/product/sync-on-node.md SHALL exist and pass the product-doc check. | planned | — | — | D-DOCS |
 | Spec-AC-21 | follow-ups list --status all SHALL show each of the fourteen D-FU follow-ups closed with resolved_by sync-on-node and a source naming a test file and a TEST id that occurs in that file followed by a colon, and the suggested follow-ups SHALL be listed open with ref sync-on-node. | planned | — | — | D-FU |
 | Spec-AC-22 | WHEN the D-PHASE5 measurement runs the system SHALL find the rows of section 6 of docs/analysis/node-first-remaining-plan.md equal to the measured non-launcher files with their code lines and classes, the twin duplication number 0, the listed open P1 and P2 node-first follow-ups equal to the ledger's, and the RFC-0017 phase 5 status done only when every plan section 5 criterion holds on that measurement. | planned | — | — | D-PHASE5 |
+| Spec-AC-23 | Owner-authorised scope addition, relayed 2026-11-22 after PR 580 (additive, disclosed): .aai/scripts/lib/guard-config.mjs SHALL be listed on both protected_paths_l3 lists (docs/ai/docs-audit.yaml and .aai/templates/docs-audit.template.yaml), WORKFLOW.md protected surfaces SHALL carry a guard config bullet naming it, and select-suites SHALL report a change to it as FULL_RUN reason=protected-l3, the same shape PR 580 (SPEC-0309) gave the hook installer. | done | TEST-4023 red docs/ai/tdd/sync-on-node/red/TEST-4023.log; TEST-4023 green docs/ai/tdd/sync-on-node/green/TEST-4023.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4023.txt | — | owner scope addition |
 
 ## Implementation plan
 
@@ -1422,8 +1423,9 @@ with `-Name:value`; Windows paths (H2, H3).
 | TEST-4020 | Spec-AC-20 | inspection | tests/skills/test-aai-sync-docs.sh | test_4020_docs requires the CHANGELOG heading once with Node.js 22, the eight named DRs and every D-LEGACY path in its body, README.md and the USER_GUIDE sync blocks naming aai-sync.mjs and Node.js 22, the RFC-0017 phase 5 row holding the D-DOCS sentence once with a link ending sync-on-node.md and no aai-sync inventory row, runs expert-fetch test_2624_inventory_matches_tree (exit 0), and after LOOP COMPLETE requires docs/product/sync-on-node.md to pass the product-doc check | `sed:s/The seventeenth slice \[moved the layer sync to Node\]/The seventeenth slice [moved sync]/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | pending |
 | TEST-4021 | Spec-AC-21 | inspection | tests/skills/test-aai-sync-docs.sh | test_4021_follow_ups reads follow-ups list --status all --json and requires each of the fourteen D-FU ids closed with resolved_by sync-on-node and a source whose test file exists and contains the cited TEST id followed by a colon, and the suggested ids open with ref sync-on-node | `sed:s/TEST-4004:/TEST-4004X:/g` on tests/skills/lib/resolve-base.test.mjs | pending |
 | TEST-4022 | Spec-AC-22 | inspection | tests/skills/test-aai-sync-docs.sh | test_4022_phase5_remeasure measures every tracked .sh and .ps1 under .aai/scripts with the plan's section 1 method, classifies each, and requires section 6 of the plan to list exactly the non-launcher files with their code lines and classes, the twin duplication 0, the open P1 and P2 node-first follow-ups equal to the ledger's, and the RFC-0017 phase 5 status done only when every section 5 criterion holds | `sed:s/claude-hook-gate.sh/claude-hook-gateX.sh/g` on docs/analysis/node-first-remaining-plan.md | pending |
+| TEST-4023 | Spec-AC-23 | inspection | tests/skills/test-aai-ceremony-levels.sh | test_4023_guard_config_is_l3_protected requires .aai/scripts/lib/guard-config.mjs on the live (loadConfig) and the seed protected_paths_l3 lists, a guard config bullet naming it in WORKFLOW.md, and select-suites --files-from - printing FULL_RUN reason=protected-l3 path=.aai/scripts/lib/guard-config.mjs; the TEST-3997 shared-lib expectation for the same path is moved to protected-l3 | `sed:s/  - \.aai\/scripts\/lib\/guard-config\.mjs/  - .aai\/scripts\/lib\/guard-configX.mjs/` on docs/ai/docs-audit.yaml | green |
 
-Test counts by type: unit 10, integration 8, inspection 5 (23 rows). The
+Test counts by type: unit 10, integration 8, inspection 6 (24 rows). The
 re-homed rows of other specs (D-REHOME) keep their own ids and mutations.
 
 RED observations (stored under `docs/ai/tdd/sync-on-node/red/`): TEST-4000 to
