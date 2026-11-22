@@ -41,7 +41,20 @@ const PS_NAMES = { '-targetroot': 'target', '-profile': '--profile' };
 const ROOT_SHIMS = ['AGENTS.md', 'CLAUDE.md', 'CODEX.md', 'GEMINI.md', 'SKILLS.md'];
 const SKILL_TREES = ['.claude/skills', '.agents/skills'];
 const isCoreListed = (coreSet, rel) => coreSet.has(rel);
+// Identity, not spelling (DR-32): a file system may be case-insensitive, so one directory has many spellings. The
+// roots are compared by their canonical (native) real paths and, in addition, by device and inode up the ancestors.
+const ancestorIsFile = (start, stat) => {
+  if (stat === null) return false;
+  let dir = start;
+  for (;;) {
+    if (sameFile(statOrNull(dir), stat)) return true;
+    const up = path.dirname(dir);
+    if (up === dir) return false;
+    dir = up;
+  }
+};
 const overlapsSource = (roots) => isUnderOrSame(roots.targetReal, roots.srcReal);
+const targetInSource = (roots) => [overlapsSource(roots), ancestorIsFile(roots.targetReal, statOrNull(roots.srcReal))].some(Boolean);
 const PIN_VERSION_PREFIX = '- Template version: ';
 const runChild = (file, args, opts) => spawnSync(file, args, opts);
 const writeFd = (fd) => (s) => { fs.writeSync(fd, s); };
@@ -163,7 +176,7 @@ const statOrNull = (p) => {
 
 const realOrResolve = (p) => {
   try {
-    return fs.realpathSync(p);
+    return fs.realpathSync.native(p);
   } catch {
     return path.resolve(p);
   }
@@ -203,9 +216,9 @@ export function resolveRoots(args, io = {}) {
   const srcStat = statOrNull(path.join(src, '.aai'));
   if (srcStat === null || !srcStat.isDirectory()) return refusal(`ERROR: Source missing .aai/ directory: ${src}`);
   const roots = {
-    src, target, srcReal: fs.realpathSync(src), targetReal: fs.realpathSync(target), targetDev: st.dev, targetIno: st.ino,
+    src, target, srcReal: fs.realpathSync.native(src), targetReal: fs.realpathSync.native(target), targetDev: st.dev, targetIno: st.ino,
   };
-  if (overlapsSource(roots)) {
+  if (targetInSource(roots)) {
     return refusal(`ERROR: target ${roots.targetReal} is the source ${roots.srcReal} or lies inside it; nothing was written.`);
   }
   if (path.parse(roots.targetReal).root === roots.targetReal) {
@@ -213,6 +226,8 @@ export function resolveRoots(args, io = {}) {
   }
   const linked = managedLinkRefusal(roots);
   if (linked !== null) return linked;
+  const nested = sourceInManagedRefusal(roots);
+  if (nested !== null) return nested;
   return roots;
 }
 
@@ -220,6 +235,20 @@ export function resolveRoots(args, io = {}) {
 // the target or enters the source.
 const MANAGED_TOP = ['.aai', '.agents', '.agents/skills', '.claude', '.claude/skills', '.claude-plugin', '.codex', '.codex/skills', '.cursor',
   '.gemini', '.gemini/skills', '.github', 'docs', 'docs/ai', 'docs/knowledge', 'hooks', '.gitignore'];
+
+// sourceInManagedRefusal(roots) (DR-33): the refusal when the source (and with it the running engine) lies inside a
+// managed entry of the target, which a run deletes or replaces wholesale; else null. Identity walk over the source's
+// ancestors, so the spelling and the case of the paths do not matter. Reads only.
+function sourceInManagedRefusal(roots) {
+  for (const rel of MANAGED_TOP) {
+    if (rel === 'docs' || rel === 'docs/ai' || rel === '.gitignore') continue;
+    const st = statOrNull(path.join(roots.target, rel));
+    if (st !== null && st.isDirectory() && ancestorIsFile(roots.srcReal, st)) {
+      return refusal(`ERROR: the source ${roots.srcReal} lies inside ${rel} of the target ${roots.target}, which the sync replaces; nothing was written.`);
+    }
+  }
+  return null;
+}
 
 // managedLinkRefusal(roots): the refusal for the first managed top-level path that is a symbolic link whose real path
 // (the link text resolved when it dangles) lies outside the target or inside the source, else null. Reads only.
@@ -235,7 +264,7 @@ function managedLinkRefusal(roots) {
     if (!st.isSymbolicLink()) continue;
     let real = '';
     try {
-      real = fs.realpathSync(abs);
+      real = fs.realpathSync.native(abs);
     } catch {
       real = path.resolve(path.dirname(abs), fs.readlinkSync(abs));
     }
@@ -255,7 +284,7 @@ export function underRoot(roots, abs) {
   let real = '';
   for (;;) {
     try {
-      real = fs.realpathSync(dir);
+      real = fs.realpathSync.native(dir);
       break;
     } catch {
       const up = path.dirname(dir);
@@ -263,7 +292,7 @@ export function underRoot(roots, abs) {
       dir = up;
     }
   }
-  return isUnderOrSame(real, roots.targetReal) && !isUnderOrSame(real, roots.srcReal);
+  return isUnderOrSame(real, roots.targetReal) && !isUnderOrSame(real, roots.srcReal) && !ancestorIsFile(real, statOrNull(roots.srcReal));
 }
 
 // refuseOutside(roots, abs): the refusal of a mutation path that fails underRoot.
@@ -1168,7 +1197,7 @@ async function runSteps(argv, io) {
   return 0;
 }
 
-// run(argv, io): resolves to the exit code. io holds out and err (string sinks), env, cwd, spawn, now, platform and
+// run(argv, io): resolves to the exit code. io holds out and err (string sinks), env, cwd, spawn, now and
 // scriptPath; each defaults to the real thing. Every child process (git only) goes through io.spawn with io.env.
 export async function run(argv, io = {}) {
   const err = io.err ?? writeFd(2);

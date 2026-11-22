@@ -277,6 +277,25 @@ export function shellInvocationProblems(source) {
 }
 
 describe('TEST-4000 scratch safety and the frozen references', () => {
+  test('TEST-4000 removeOwnScratch removes the children first and the ownership marker last', (t) => {
+    if (process.platform === 'win32' || (typeof process.getuid === 'function' && process.getuid() === 0)) {
+      t.skip('a directory cannot be made undeletable here (win32 or root)');
+      return;
+    }
+    const dir = scratch('order-');
+    const locked = path.join(dir, 'locked');
+    mkdirSync(locked);
+    writeFileSync(path.join(locked, 'f'), 'x\n');
+    writeFileSync(path.join(dir, 'plain'), 'y\n');
+    chmodSync(locked, 0o500);
+    try {
+      assert.throws(() => removeOwnScratch(dir), /EACCES|EPERM/);
+      assert.ok(existsSync(path.join(dir, OWN_MARKER_FILE)), 'an interrupted removal still leaves the marker, so a rerun may finish it');
+    } finally {
+      chmodSync(locked, 0o700);
+    }
+  });
+
   test('TEST-4000 removeOwnScratch refuses each unsafe path', () => {
     const base = scratch('refuse-');
     const unmarked = path.join(base, 'aai-sy-unmarked');
@@ -811,6 +830,42 @@ describe('TEST-4003 roots and the refusals before any write', () => {
       }
     }
     assert.deepEqual(snapshotTree(root), before, 'the target and the source are byte-identical afterwards');
+  });
+
+  test('TEST-4003 DR-32 a target that names the source with other letter case is refused by identity, on a case-insensitive file system', (t) => {
+    const root = scratch('case-');
+    const { src, script } = makeSource(root, 'Src', { profiles: PROFILES_OK });
+    mkdirSync(path.join(src, 'Sub'));
+    const upper = path.join(root, 'SRC');
+    if (!existsSync(upper)) {
+      t.skip('the scratch file system is case-sensitive, a case variant names no directory');
+      return;
+    }
+    prepareEnv(root);
+    const before = snapshotTree(root);
+    for (const target of [upper, path.join(root, 'SRC', 'sUB')]) {
+      const r = runSync({ argv: [target], root, target, script });
+      assert.equal(r.status, 1, `${target}: ${r.stderr}`);
+      assert.match(r.stderr, /^ERROR: target .* is the source .* or lies inside it; nothing was written\.\n$/, r.stderr);
+      assert.equal(r.stdout, '');
+    }
+    assert.deepEqual(snapshotTree(root), before, 'the source is byte-identical afterwards');
+  });
+
+  test('TEST-4003 DR-33 a source inside a managed entry of the target is refused before any write', () => {
+    const root = scratch('nested-');
+    const target = path.join(root, 'project');
+    mkdirSync(path.join(target, '.aai'), { recursive: true });
+    const { src, script } = makeSource(path.join(target, '.aai'), 'upstream', { profiles: PROFILES_OK });
+    prepareEnv(root);
+    const before = snapshotTree(root);
+    for (const extra of [[], ['--profile', 'core']]) {
+      const r = runSync({ argv: [target, ...extra], root, target, script });
+      assert.equal(r.status, 1, r.stderr);
+      assert.equal(r.stderr, `ERROR: the source ${realpathSync(src)} lies inside .aai of the target ${target}, which the sync replaces; nothing was written.\n`);
+      assert.equal(r.stdout, '');
+    }
+    assert.deepEqual(snapshotTree(root), before, 'the source and the target are byte-identical afterwards');
   });
 
   test('TEST-4003 a target holding the source is allowed past the refusals', () => {
@@ -2464,12 +2519,12 @@ describe('TEST-4011 the advisory report, the pin and the closing lines', () => {
     assert.ok(readFileSync(path.join(t, '.aai/system/AAI_PIN.md'), 'utf8').includes('- Synced at (UTC): 2026-05-06T07:08:09Z\n'));
   });
 
-  test('TEST-4011 DR-23 native paths: with platform win32 the source path in the pin and the closing lines are the path as the platform gives it', async () => {
+  test('TEST-4011 native paths: the source path in the pin and the closing lines is the path the host gives it, never rewritten to a /c/ style (Windows form is hosted evidence H2)', async () => {
     const root = scratch('win-');
     const { src, script } = makeLayer(root, 'S', { engine: 'module' });
     const t = path.join(root, 't');
     mkdirSync(t);
-    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script, platform: 'win32' });
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
     assert.equal(r.code, 0, r.stderr);
     assert.ok(readFileSync(path.join(t, '.aai/system/AAI_PIN.md'), 'utf8').includes(`- Source path: ${src}\n`));
     assert.ok(r.stdout.includes(`Syncing AAI from: ${src}\n`));

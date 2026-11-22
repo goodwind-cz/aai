@@ -13,7 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import {
-  chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync,
+  chmodSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -82,6 +82,11 @@ export function removeOwnScratch(dir) {
   if (!/^[0-9]+$/.test(markerPid(real))) throw refusal(dir, `no ${OWN_MARKER_FILE} marker`);
   // Re-read right before the removal: the marker must still be there.
   if (!/^[0-9]+$/.test(markerPid(real))) throw refusal(dir, `${OWN_MARKER_FILE} marker vanished`);
+  // Children first, the ownership marker last: an interrupted removal leaves a marked tree a rerun can finish.
+  for (const name of readdirSync(real)) {
+    if (name !== OWN_MARKER_FILE) rmSync(path.join(real, name), { recursive: true, force: true });
+  }
+  rmSync(path.join(real, OWN_MARKER_FILE), { force: true });
   rmSync(real, { recursive: true, force: true });
 }
 

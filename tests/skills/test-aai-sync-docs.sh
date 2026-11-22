@@ -172,10 +172,11 @@ test_4020_docs() {
   log_pass "TEST-4020: the CHANGELOG entry (Node.js 22, ten DRs, every legacy path, the closing sentence), the README and USER_GUIDE sync blocks, the RFC-0017 sentence and inventory hold, and expert-fetch test_2624 passes"
 }
 
-# The fourteen follow-ups this ride closes (D-FU) and the fifteenth, fu-guard-config-not-l3-protected, closed by the owner-authorised
+# The thirteen follow-ups this ride closes (D-FU; fu-parity-win-source-path was reopened by run 9, see REOPENED_FU) and the fourteenth, fu-guard-config-not-l3-protected, closed by the owner-authorised
 # Spec-AC-23 (TEST-4023); the three it files open (the fourth suggestion, fu-sync-sl-skill-dangling-core, is the already open
 # fu-sync-core-profile-dangling-wrappers and is not filed again).
-CLOSED_FU="fu-resolvebase-dotdot-after-symlink fu-suite-git-env-scrub-class fu-parity-pin-template-spacing fu-parity-ps1-timestamp-precision fu-parity-gitignore-block-order fu-parity-ps1-hook-exec-bit fu-parity-ps1-report-name-local-time fu-parity-ps1-report-backticks fu-parity-win-source-path fu-parity-win-ps1-crlf-bom fu-parity-sh-report-stamp-two-reads fu-sync-ps1-merge-lib-stderr-5-1 fu-sync-ps1-dangling-src-symlink fu-sync-symlinked-tree-root fu-guard-config-not-l3-protected"
+CLOSED_FU="fu-resolvebase-dotdot-after-symlink fu-suite-git-env-scrub-class fu-parity-pin-template-spacing fu-parity-ps1-timestamp-precision fu-parity-gitignore-block-order fu-parity-ps1-hook-exec-bit fu-parity-ps1-report-name-local-time fu-parity-ps1-report-backticks fu-parity-win-ps1-crlf-bom fu-parity-sh-report-stamp-two-reads fu-sync-ps1-merge-lib-stderr-5-1 fu-sync-ps1-dangling-src-symlink fu-sync-symlinked-tree-root fu-guard-config-not-l3-protected"
+REOPENED_FU="fu-parity-win-source-path"
 FILED_FU="fu-bootstrap-seed-use-shared-lib fu-runner-git-env-scrub fu-sync-aai-prefix-ignore"
 
 test_4021_follow_ups() {
@@ -188,6 +189,7 @@ test_4021_follow_ups() {
     const root = process.argv[1];
     const closed = process.argv[2].split(" ");
     const filed = process.argv[3].split(" ");
+    const reopened = process.argv[4];
     const items = JSON.parse(fs.readFileSync(0, "utf8")).items;
     const by = new Map(items.map((i) => [i.id, i]));
     // the registry projection keeps the filing source; the close source lives on the latest follow_up_status record
@@ -199,7 +201,9 @@ test_4021_follow_ups() {
       if (rec.type === "follow_up_status" && rec.status === "done") closeSource.set(rec.id, String(rec.source ?? ""));
     }
     const bad = [];
-    if (new Set(closed).size !== 15) bad.push("the closed list does not hold fifteen ids");
+    if (new Set(closed).size !== 14) bad.push("the closed list does not hold fourteen ids");
+    const re = by.get(reopened);
+    if (!re || re.closed) bad.push(reopened + " is not open (the Windows path form closes with hosted evidence H2)");
     for (const id of closed) {
       const it = by.get(id);
       if (!it) { bad.push(id + " is not in the registry"); continue; }
@@ -221,10 +225,10 @@ test_4021_follow_ups() {
       if (it.severity !== "P3") bad.push(id + " severity is " + it.severity);
     }
     process.stdout.write(bad.join("; "));
-  ' "$PROJECT_ROOT" "$CLOSED_FU" "$FILED_FU")" || log_fail "TEST-4021: the follow-up check failed to run"
+  ' "$PROJECT_ROOT" "$CLOSED_FU" "$FILED_FU" "$REOPENED_FU")" || log_fail "TEST-4021: the follow-up check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4021: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4021: the fifteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, and the three suggested follow-ups are open with ref sync-on-node"
+  log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open again, and the three suggested follow-ups are open with ref sync-on-node"
 }
 
 # TEST-4022 (D-PHASE5): the phase 5 re-measure. Every tracked .sh and .ps1 under .aai/scripts (lib included) is measured with the plan's
