@@ -1,0 +1,9 @@
+== test-aai-git-ref-guard.sh test_642 (install_module) with core.hooksPath injected through the environment
+FAIL: TEST-642 (setup): setup precondition failed — reference-transaction hook (AAI:REF-GUARD) not installed in /private/tmp/claude-501/-Users-ales-Projects-aai/2071b3a2-d378-409f-946d-cd8edb99948a/scratchpad/aai-git-ref-guard.b3JXRR/t642
+
+Selected test FAILED.
+files written outside the suite's scratch root, in /private/tmp/claude-501/-Users-ales-Projects-aai/2071b3a2-d378-409f-946d-cd8edb99948a/scratchpad/review-r2n1-victim.K0ZQZt:
+pre-commit
+pre-push
+reference-transaction
+RESULT: install_module wrote 3 file(s) outside the scratch root

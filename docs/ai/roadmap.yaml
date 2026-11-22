@@ -157,7 +157,7 @@ pairs:
   - capability: update-on-node
     status: done
   - capability: pre-commit-installer-on-node
-    status: planned
+    status: done
   - capability: sync-on-node
     status: planned
   - capability: release-publish-on-node

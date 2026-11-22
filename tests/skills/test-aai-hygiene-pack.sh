@@ -1102,8 +1102,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 140 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 140 (pin moved for the aai-update-docs suite) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 142 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 142 (pin moved for the aai-hook-installer-node and aai-hook-installer-docs suites) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -4862,29 +4862,31 @@ EOS
 }
 
 test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisclosed TEST-618 / Spec-AC-06
-  log_info "Test: lib/guard-config.mjs readRefGuardPolicy and the installer's thin shell grep agree on the same fixture set (Spec-AC-06)..."
+  # TEST-618 re-homed (pre-commit-installer-on-node): the installer is one Node module that imports the
+  # reader, so there is no shell grep to extract. The variants go through readRefGuardPolicy and through a
+  # plain module install in a scratch repository, which skips the ref-guard exactly when the reader says declined.
+  log_info "Test: lib/guard-config.mjs readRefGuardPolicy and a plain installer run agree on the same fixture set (Spec-AC-06)..."
   local lib="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
-  local installer_sh="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
+  local installer_mjs="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs"
   [[ -f "$lib" ]] || log_fail "missing shared reader $lib"
-  [[ -f "$installer_sh" ]] || log_fail "missing $installer_sh"
+  [[ -f "$installer_mjs" ]] || log_fail "missing $installer_mjs"
   command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
 
-  # Unlike the enforce/report-only dials (test_031), ref_guard's mirror lives
-  # directly in install-pre-commit-hook.sh (D5 — no node import in a script
-  # that ships into targets with no guaranteed node module resolution); the
-  # coupling is still documented at the fork site.
-  grep -qF "lib/guard-config.mjs" "$installer_sh" \
-    || log_fail "TEST-618: install-pre-commit-hook.sh must name lib/guard-config.mjs as the canonical reader it mirrors"
-
-  # Extract the ACTUAL grep -Eq pattern from the installer (drift now fails
-  # this test instead of diverging silently).
-  local rg_pat
-  rg_pat="$(awk -F"'" '/grep -Eq/ && /ref_guard:/ { print $(NF-1); exit }' "$installer_sh")"
-  [[ -n "$rg_pat" ]] || log_fail "TEST-618: could not extract the ref_guard grep pattern from install-pre-commit-hook.sh"
+  # The module reads the policy only through the shared reader: it imports it and holds no ref_guard pattern
+  # (a regular expression literal or RegExp over the key) of its own.
+  grep -qF "readRefGuardPolicy" "$installer_mjs" \
+    || log_fail "TEST-618: install-pre-commit-hook.mjs must import readRefGuardPolicy from lib/guard-config.mjs"
+  grep -qF "./lib/guard-config.mjs" "$installer_mjs" \
+    || log_fail "TEST-618: install-pre-commit-hook.mjs must name lib/guard-config.mjs as the canonical reader"
+  if grep -nE "RegExp\(.*ref_guard|/[^/ ]*ref_guard[^/ ]*/[gimsuy]*[.,;) ]" "$installer_mjs" >/dev/null 2>&1; then
+    log_fail "TEST-618: install-pre-commit-hook.mjs holds a ref_guard pattern of its own; the policy is read only through readRefGuardPolicy"
+  fi
 
   TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
   local d="$TEST_DIR/t618"
   mkdir -p "$d"
+  : > "$d/gitconfig"
 
   reader_verdict_ref_guard() {  # $1 dir -> armed|declined
     (cd "$PROJECT_ROOT" && node --input-type=module -e '
@@ -4893,18 +4895,34 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
     ' "$1")
   }
 
-  check_ref_guard_variant() {  # $1 label, $2 config-content ('' = absent file)
-    local label="$1" content="$2"
-    rm -f "$d/docs-audit.yaml"
-    [[ -n "$content" ]] && printf '%s\n' "$content" > "$d/docs-audit.yaml"
-    local want="armed"
-    if [[ -f "$d/docs-audit.yaml" ]] && grep -Eq "$rg_pat" "$d/docs-audit.yaml" 2>/dev/null; then
-      want="declined"
-    fi
-    local got
-    got="$(reader_verdict_ref_guard "$d")"
+  # installer_verdict_ref_guard <label-dir> -> armed|declined: a plain module install in a scratch repository
+  # whose docs/ai/docs-audit.yaml is the file under <label-dir>; the guard hook present means armed.
+  installer_verdict_ref_guard() {
+    local cfgdir="$1" r="$1/repo" irc=0
+    rm -rf "$r"
+    mkdir -p "$r/docs/ai"
+    ( cd "$r" && git init -q . )
+    [[ -f "$cfgdir/docs-audit.yaml" ]] && cp "$cfgdir/docs-audit.yaml" "$r/docs/ai/docs-audit.yaml"
+    vendor_hook_installer "$r" sh
+    ( cd "$r" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$d/gitconfig" bash .aai/scripts/install-pre-commit-hook.sh ) >/dev/null 2>&1 || irc=$?
+    [[ "$irc" == 0 ]] || log_fail "TEST-618: the plain installer run exited $irc in $r"
+    [[ -f "$r/.git/hooks/pre-commit" ]] || log_fail "TEST-618: the plain installer run wrote no pre-commit hook in $r"
+    if [[ -f "$r/.git/hooks/reference-transaction" ]]; then echo armed; else echo declined; fi
+  }
+
+  check_ref_guard_variant() {  # $1 label, $2 config-content ('' = absent file), $3 optional raw leading bytes
+    local label="$1" content="$2" prefix="${3:-}" vd
+    vd="$d/v-${label// /-}"
+    [[ "$vd" == "$d/v-"?* ]] || log_fail "TEST-618: empty variant directory for '$label'"
+    rm -rf "$vd"
+    mkdir -p "$vd"
+    [[ -n "$content" ]] && { printf '%s%s\n' "$prefix" "$content" > "$vd/docs-audit.yaml"; }
+    local want got
+    want="$(reader_verdict_ref_guard "$vd")"
+    got="$(installer_verdict_ref_guard "$vd")"
     [[ "$got" == "$want" ]] \
-      || log_fail "TEST-618: ref_guard conformance drift on '$label': shell grep says $want, reader says $got"
+      || log_fail "TEST-618: ref_guard conformance drift on '$label': the reader says $want, a plain installer run says $got"
+    echo "$want" > "$vd/verdict"
   }
 
   check_ref_guard_variant "absent file" ""
@@ -4918,8 +4936,12 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
   check_ref_guard_variant "glued comment" "ref_guard: declined# note"
   check_ref_guard_variant "quoted value" 'ref_guard: "declined"'
   check_ref_guard_variant "CRLF line" $'ref_guard: declined\r'
+  check_ref_guard_variant "BOM" "ref_guard: declined" $'\xef\xbb\xbf'
+  # the declined variants really declined and the armed ones armed: the comparison is not vacuous
+  [[ "$(cat "$d/v-declined/verdict")" == declined && "$(cat "$d/v-BOM/verdict")" == declined && "$(cat "$d/v-armed/verdict")" == armed ]] \
+    || log_fail "TEST-618: the declined, BOM and armed variants did not read declined, declined and armed"
 
-  log_pass "readRefGuardPolicy and the installer's thin shell grep agree on all fixture variants (Spec-AC-06, TEST-618)"
+  log_pass "readRefGuardPolicy and a plain installer run agree on all twelve fixture variants including a BOM (Spec-AC-06, TEST-618 re-homed)"
 }
 
 # --- shipped-guards-have-no-downstream-trigger (TEST-800..807, 813..816) ----
@@ -4952,7 +4974,6 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
 #                               raw e9/ff fe bytes and a missing final newline
 
 SG_INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
-SG_INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
 
 sg_tmp() { TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"; }
 
@@ -5439,19 +5460,17 @@ test_807_default_branch_resolution_and_notes() {  # TEST-807 / Spec-AC-04
 
 test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
   log_info "Test: both installers write the close-gate, reference-transaction and guard block bytes from one set of templates (TEST-813)..."
-  [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-813: missing $SG_INSTALLER_PS1"
+  # pre-commit-installer-on-node (D-REHOME run 6): the .ps1 is a launcher of the Node module, so no assertion reads its text;
+  # the closed set is exercised through the launcher under pwsh and the template names are read from the module.
   sg_tmp
-  local d="$TEST_DIR/t813" tpl="$PROJECT_ROOT/.aai/templates/git-hooks" t
+  local d="$TEST_DIR/t813" tpl="$PROJECT_ROOT/.aai/templates/git-hooks" t mod="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs"
   rm -rf "$d"; mkdir -p "$d"
-  grep -qF "'close-gate'" "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 -Hooks closed set does not declare close-gate"
-  grep -qF 'closed set: index, ref-guard, close-gate, all' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 closed-set message does not read index, ref-guard, close-gate, all"
-  # The bodies are templates (spec-git-hook-bodies-single-source): neither installer embeds one, and
-  # both name the same template files.
+  [[ -f "$mod" ]] || log_fail "TEST-813: missing $mod"
+  # The bodies are templates (spec-git-hook-bodies-single-source): the module embeds none and names the four template files.
   for t in pre-push.sh pre-commit-index.sh pre-commit-guard-checks.sh reference-transaction.sh; do
     [[ -f "$tpl/$t" ]] || log_fail "TEST-813: missing template $t"
-    grep -qF "$t" "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 does not name the template $t"
+    grep -qF "$t" "$mod" || log_fail "TEST-813: the module does not name the template $t"
   done
-  grep -qF '$prePushBody = @' "$SG_INSTALLER_PS1" && log_fail "TEST-813: the .ps1 still carries a \$prePushBody here-string"
   grep -qF '# AAI:CLOSE-GATE' "$tpl/pre-push.sh" || log_fail "TEST-813: the pre-push template carries no # AAI:CLOSE-GATE marker"
   grep -qF '# AAI:GUARD-CHECKS BEGIN' "$tpl/pre-commit-guard-checks.sh" || log_fail "TEST-813: the guard template carries no guard block"
 
@@ -5462,9 +5481,18 @@ test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
   bash "$SG_INSTALLER" --print pre-push > "$d/prepush.sh"
   cmp -s "$d/prepush.sh" "$tpl/pre-push.sh" || log_fail "TEST-813: --print pre-push differs from the pre-push template"
 
-  # behavioural arm (pwsh only): the .ps1 upgrade inserts the block and keeps every other byte
+  # behavioural arm (pwsh only): the launcher's closed set, and the upgrade inserts the block and keeps every other byte
   if command -v pwsh >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
-    local r hp
+    local r hp r2 cout crc=0
+    r2="$(sg_repo t813closed)"
+    vendor_hook_installer "$r2" ps1
+    cout="$(sg_install_ps1 "$r2" -Hooks close-gate 2>&1)" || crc=$?
+    [[ $crc -eq 0 ]] || log_fail "TEST-813 pwsh: -Hooks close-gate exited $crc: $cout"
+    [[ -f "$(sg_hook "$r2" pre-push)" ]] || log_fail "TEST-813 pwsh: -Hooks close-gate wrote no pre-push hook"
+    [[ ! -e "$(sg_hook "$r2" pre-commit)" && ! -e "$(sg_hook "$r2" reference-transaction)" ]] || log_fail "TEST-813 pwsh: -Hooks close-gate wrote a hook besides pre-push"
+    crc=0; cout="$(sg_install_ps1 "$r2" -Hooks bogus 2>&1)" || crc=$?
+    [[ $crc -eq 2 ]] || log_fail "TEST-813 pwsh: -Hooks bogus must exit 2, got $crc: $cout"
+    assert_payload_contains "$cout" 'closed set: index, ref-guard, close-gate, all' "TEST-813 pwsh: the -Hooks refusal must name the closed set with close-gate"
     r="$(sg_repo t813pwsh)"
     vendor_hook_installer "$r" ps1
     hp="$(sg_hook "$r" pre-commit)"
@@ -5481,9 +5509,9 @@ test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
     cp "$hp" "$r/after"
     sg_install_ps1 "$r" -Hooks index >/dev/null 2>&1 || log_fail "TEST-813 pwsh: second run exited non-zero"
     cmp -s "$r/after" "$hp" || log_fail "TEST-813 pwsh: second run changed the hook"
-    log_pass "TEST-813 both installers read the same templates (guard block, pre-push body); pwsh upgrade inserts once, other bytes untouched"
+    log_pass "TEST-813 the module names the four templates both installers read (guard block, pre-push body); the launcher's -Hooks close-gate writes pre-push only and -Hooks bogus names the closed set; pwsh upgrade inserts once, other bytes untouched"
   else
-    log_pass "TEST-813 both installers read the same templates (guard block, pre-push body); SKIP: pwsh behavioural arm (pwsh not installed)"
+    log_pass "TEST-813 the module names the four templates both installers read (guard block, pre-push body); SKIP: pwsh behavioural arm (pwsh not installed)"
   fi
 }
 
@@ -5751,21 +5779,12 @@ test_819_nonregular_slot_is_refused_before_any_write() {  # TEST-819 / Spec-AC-1
 }
 
 test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-13
-  log_info "Test: the .ps1 twin checks marker order before any write and refreshes on bytes (static; behavioural under pwsh) (TEST-818)..."
-  [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-818: missing $SG_INSTALLER_PS1"
+  log_info "Test: the .ps1 launcher's upgrade checks marker order before any write and refreshes on bytes (behavioural under pwsh) (TEST-818)..."
+  # pre-commit-installer-on-node (D-REHOME run 6): the three text pins on the .ps1 are gone with its body; the behaviour arms
+  # below stay and now run the launcher and the module.
   sg_tmp
-  # static: the order comparison, the byte-level marker scan, and no
-  # decode-split-join-re-encode round-trip anywhere in the twin.
-  grep -qF '$beginLn -gt $endLn' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no BEGIN-before-END line-number check (\$beginLn -gt \$endLn)"
-  grep -qF 'function Find-MarkerLines' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Find-MarkerLines"
-  grep -qF 'function Test-MarkerOwned' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Test-MarkerOwned"
-  if grep -qF 'UTF8.GetString(' "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still decodes the hook as UTF-8 text (UTF8.GetString) — a refresh on decoded text re-encodes bytes outside the markers"; fi
-  local esc
-  for esc in '[regex]::Escape($marker)' '[regex]::Escape($Marker)'; do
-    if grep -qF "$esc" "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still tests ownership on decoded text ($esc)"; fi
-  done
   if ! command -v pwsh >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
-    log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); SKIP: behavioural arm (pwsh not installed)"
+    log_pass "TEST-818 .ps1 launcher checks marker order and scans markers on bytes; SKIP: behavioural arm (pwsh not installed)"
     return 0
   fi
   local d hp out rc body
@@ -5820,7 +5839,7 @@ test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-1
   rc=0; out="$(sg_install_ps1 "$d" -Uninstall -Hooks index 2>&1)" || rc=$?
   [[ $rc -eq 0 && -f "$hp" ]] || log_fail "TEST-818 pwsh (e): -Uninstall must exit 0 and leave a foreign hook in place (rc=$rc): $out"
   cmp -s "$d/orig-e" "$hp" || log_fail "TEST-818 pwsh (e): -Uninstall changed the foreign hook"
-  log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); under pwsh inverted markers, a stray END, a BOM, a UTF-16 hook and a merely-mentioned marker are refused byte-identical and the refresh keeps every byte outside the interior"
+  log_pass "TEST-818 .ps1 launcher checks marker order and scans markers on bytes; under pwsh inverted markers, a stray END, a BOM, a UTF-16 hook and a merely-mentioned marker are refused byte-identical and the refresh keeps every byte outside the interior"
 }
 
 # ---- nested-suite-reruns-duplicate-sweep-time, D6/D7/D8 (TEST-033/034/036) ---

@@ -70,7 +70,7 @@
 3	tests/skills/test-aai-friction-wiring.sh
 3	tests/skills/test-aai-friction.sh
 3	tests/skills/test-aai-git-hook-templates.sh
-24	tests/skills/test-aai-git-ref-guard.sh
+19	tests/skills/test-aai-git-ref-guard.sh
 4	tests/skills/test-aai-golden-flow.sh
 2	tests/skills/test-aai-harness-shims.sh
 2	tests/skills/test-aai-heartbeat.sh

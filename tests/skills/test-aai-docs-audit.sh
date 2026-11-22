@@ -3252,22 +3252,21 @@ MD
 }
 
 test_spec0011_hook_parity_grep() {  # TEST-013 / Spec-AC-10
-  log_info "Test: both installers write the close-gate block from the ONE pre-commit index template (TEST-013)..."
-  local sh="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
-  local ps="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
+  # TEST-013 re-homed (pre-commit-installer-on-node): the installers' hook bodies come from one template and the
+  # Node module is the installer that reads it (the .sh is a launcher, the .ps1 follows in the next ride).
+  log_info "Test: the installer writes the close-gate block from the ONE pre-commit index template (TEST-013)..."
+  local mjs="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs"
   local tpl="$PROJECT_ROOT/.aai/templates/git-hooks/pre-commit-index.sh"
-  assert_file "$sh"; assert_file "$ps"; assert_file "$tpl"
+  assert_file "$mjs"; assert_file "$tpl"
   # Parity is structural since spec-git-hook-bodies-single-source: the block lives once, in
-  # the template, and each installer names that template instead of embedding a copy.
+  # the template, and the installer names that template instead of embedding a copy.
   grep -qF "AAI:INDEX-AUTOGEN" "$tpl" || log_fail "$tpl must keep the AAI:INDEX-AUTOGEN marker"
   grep -qF "docs-audit.mjs --gate" "$tpl" || log_fail "$tpl must embed the --gate call"
   grep -qF "close_gate" "$tpl" || log_fail "$tpl must read the close_gate config"
   grep -qF "enforce" "$tpl" || log_fail "$tpl must branch on enforce"
   grep -qF "report-only" "$tpl" || log_fail "$tpl must branch on report-only"
-  for f in "$sh" "$ps"; do
-    grep -qF "pre-commit-index.sh" "$f" || log_fail "$f must read the pre-commit index template"
-  done
-  log_pass "Both installers write the close-gate block from one template"
+  grep -qF "pre-commit-index.sh" "$mjs" || log_fail "$mjs must read the pre-commit index template"
+  log_pass "The installer module writes the close-gate block from one template"
 }
 
 test_spec0011_read_only() {  # TEST-014 / Spec-AC-11
@@ -4147,11 +4146,12 @@ test_change0007_hook_body_lint() {  # TEST-008 / Spec-AC-01
     || log_fail "the pre-commit index template must embed the --lint-body-file call"
   grep -qF "body_lint" "$tpl" \
     || log_fail "the pre-commit index template must read the body_lint config key"
-  grep -qF "pre-commit-index.sh" "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" \
-    || log_fail "install-pre-commit-hook.sh must read the pre-commit index template"
-  grep -qF "pre-commit-index.sh" "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1" \
-    || log_fail "install-pre-commit-hook.ps1 must read the pre-commit index template (parity)"
+  # TEST-008 re-homed (pre-commit-installer-on-node): the module is the installer that reads the template.
+  grep -qF "pre-commit-index.sh" "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs" \
+    || log_fail "install-pre-commit-hook.mjs must read the pre-commit index template"
 
+  # Self-sufficient in single-test mode (no shared setup_fixture ran; set here, never inside a command substitution).
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
   local d; d="$(setup_spec0011_hook_repo bodylint)"
   grep -qF -- "--lint-body-file" "$d/.git/hooks/pre-commit" \
     || log_fail "generated hook must carry the body-lint block"

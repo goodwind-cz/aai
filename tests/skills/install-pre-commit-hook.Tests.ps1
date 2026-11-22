@@ -28,12 +28,16 @@ Describe 'install-pre-commit-hook.ps1' {
       [void](Invoke-Git $d @('config', 'commit.gpgsign', 'false'))
       return $d
     }
-    # Copy-Installers: vendor both installers and the whole templates directory into <repo>/.aai/.
+    # Copy-Installers: vendor both installers, the Node module with its guard-config import and the whole templates directory into <repo>/.aai/.
     function Copy-Installers {
       param([string]$Repo)
       $s = Join-Path (Join-Path $Repo '.aai') 'scripts'
       $t = Join-Path (Join-Path $Repo '.aai') 'templates'
-      New-Item -ItemType Directory -Force -Path $s, $t | Out-Null
+      $sl = Join-Path $s 'lib'
+      New-Item -ItemType Directory -Force -Path $s, $t, $sl | Out-Null
+      # the module both launchers run, and the one lib it imports (pre-commit-installer-on-node, D-PESTER)
+      Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.mjs') -Destination $s
+      Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'lib') 'guard-config.mjs') -Destination $sl
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.ps1') -Destination $s
       Copy-Item -LiteralPath (Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.sh') -Destination $s
       Copy-Item -LiteralPath $script:Tpl -Destination $t -Recurse
@@ -205,6 +209,120 @@ Describe 'install-pre-commit-hook.ps1' {
     $r.ExitCode | Should -Be 0
     foreach ($slot in $script:Slots) {
       Test-Path -LiteralPath (Get-HookPath $d $slot) | Should -BeFalse
+    }
+  }
+
+  # D-PESTER (pre-commit-installer-on-node): the .ps1 is a thin launcher of the Node module. This context runs the launcher
+  # with the engine running this test, through ProcessStartInfo with an explicit PATH; every directory lives in $TestDrive,
+  # and git runs with no system config and an empty global config.
+  Context 'launcher (pre-commit-installer-on-node)' {
+    BeforeAll {
+      $script:Launcher = Join-Path (Join-Path (Join-Path $script:Root '.aai') 'scripts') 'install-pre-commit-hook.ps1'
+      $script:Refused = 'install-pre-commit-hook: refused - node not found in PATH or install-pre-commit-hook.mjs missing; nothing was changed. Install Node.js 22 or later (https://nodejs.org/) and re-run.'
+      $script:GitGlobal = Join-Path $TestDrive 'empty-gitconfig'
+      [IO.File]::WriteAllText($script:GitGlobal, '')
+
+      function New-LaunchDir {
+        param([string]$Name)
+        $d = Join-Path $TestDrive $Name
+        New-Item -ItemType Directory -Force -Path $d | Out-Null
+        return $d
+      }
+      function Invoke-Engine {
+        param([string]$EngineArgs, [string]$WorkDir, [string]$Path)
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $script:Engine
+        $psi.Arguments = $EngineArgs
+        $psi.WorkingDirectory = $WorkDir
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.EnvironmentVariables['PATH'] = $Path
+        $psi.EnvironmentVariables['GIT_CONFIG_NOSYSTEM'] = '1'
+        $psi.EnvironmentVariables['GIT_CONFIG_GLOBAL'] = $script:GitGlobal
+        $p = [System.Diagnostics.Process]::Start($psi)
+        $out = $p.StandardOutput.ReadToEnd()
+        $err = $p.StandardError.ReadToEnd()
+        $p.WaitForExit()
+        return [pscustomobject]@{ ExitCode = $p.ExitCode; Stdout = $out; Stderr = $err }
+      }
+      function Invoke-LauncherFile {
+        param([string]$Launcher, [string]$WorkDir, [string]$LauncherArgs, [string]$Path)
+        return (Invoke-Engine -EngineArgs (('-NoProfile -NonInteractive -File "' + $Launcher + '" ' + $LauncherArgs).Trim()) -WorkDir $WorkDir -Path $Path)
+      }
+      # in session: one child engine runs the launcher as a command, so the arguments are parsed as PowerShell code and the
+      # launcher's exit code is handed on explicitly (-Command otherwise reports only success or failure)
+      function Invoke-LauncherSession {
+        param([string]$Launcher, [string]$WorkDir, [string]$LauncherArgs, [string]$Path)
+        return (Invoke-Engine -EngineArgs ('-NoProfile -NonInteractive -Command "& ''' + $Launcher + ''' ' + $LauncherArgs + '; exit $LASTEXITCODE"') -WorkDir $WorkDir -Path $Path)
+      }
+      function Write-StubModule {
+        param([string]$Dir)
+        [IO.File]::WriteAllText((Join-Path $Dir 'install-pre-commit-hook.mjs'), "console.log(JSON.stringify({ argv: process.argv.slice(2) }));`nprocess.exit(7);`n")
+      }
+    }
+
+    It 'passes every argument through under -File in order and keeps the module exit code' {
+      $d = New-LaunchDir 'launch-pass'
+      Copy-Item -LiteralPath $script:Launcher -Destination (Join-Path $d 'install-pre-commit-hook.ps1')
+      Write-StubModule $d
+      $r = Invoke-LauncherFile (Join-Path $d 'install-pre-commit-hook.ps1') $d '-Hooks "index,ref-guard" --print pre-push -Force -Uninstall' $env:PATH
+      $r.ExitCode | Should -Be 7 -Because "stderr: $($r.Stderr)"
+      $got = $r.Stdout | ConvertFrom-Json
+      @($got.argv) | Should -Be @('-Hooks', 'index,ref-guard', '--print', 'pre-push', '-Force', '-Uninstall')
+    }
+
+    It 'marshals in-session arguments: a comma array is one value, -Force:$false is no -Force, -Hooks:value is a flag and a value' {
+      $d = New-LaunchDir 'launch-session'
+      Copy-Item -LiteralPath $script:Launcher -Destination (Join-Path $d 'install-pre-commit-hook.ps1')
+      Write-StubModule $d
+      $r = Invoke-LauncherSession (Join-Path $d 'install-pre-commit-hook.ps1') $d '-Hooks index,ref-guard -Force:$false -Uninstall -Hooks:close-gate' $env:PATH
+      $r.ExitCode | Should -Be 7 -Because "stderr: $($r.Stderr)"
+      $got = $r.Stdout | ConvertFrom-Json
+      @($got.argv) | Should -Be @('-Hooks', 'index,ref-guard', '-Uninstall', '-Hooks', 'close-gate')
+    }
+
+    It 'refuses with the one line, prints nothing on stdout and changes nothing when node is not on PATH' {
+      $d = New-LaunchDir 'launch-nonode'
+      $repo = New-Repo 'launch-nonode-repo'
+      $emptyPath = New-LaunchDir 'launch-empty-path'
+      Copy-Item -LiteralPath $script:Launcher -Destination (Join-Path $d 'install-pre-commit-hook.ps1')
+      Write-StubModule $d
+      $before = @(Get-ChildItem -LiteralPath $repo -Recurse -Force | ForEach-Object { $_.FullName }).Count
+      $r = Invoke-LauncherFile (Join-Path $d 'install-pre-commit-hook.ps1') $repo '-Force' $emptyPath
+      $r.ExitCode | Should -Be 1
+      $r.Stdout | Should -Be ''
+      $r.Stderr.Trim() | Should -Be $script:Refused
+      @(Get-ChildItem -LiteralPath $repo -Recurse -Force | ForEach-Object { $_.FullName }).Count | Should -Be $before
+      foreach ($slot in $script:Slots) { Test-Path -LiteralPath (Get-HookPath $repo $slot) | Should -BeFalse }
+    }
+
+    It 'refuses the same way when the module is missing next to the launcher' {
+      $d = New-LaunchDir 'launch-nomodule'
+      $repo = New-Repo 'launch-nomodule-repo'
+      Copy-Item -LiteralPath $script:Launcher -Destination (Join-Path $d 'install-pre-commit-hook.ps1')
+      $r = Invoke-LauncherFile (Join-Path $d 'install-pre-commit-hook.ps1') $repo '-Force' $env:PATH
+      $r.ExitCode | Should -Be 1
+      $r.Stdout | Should -Be ''
+      $r.Stderr.Trim() | Should -Be $script:Refused
+      foreach ($slot in $script:Slots) { Test-Path -LiteralPath (Get-HookPath $repo $slot) | Should -BeFalse }
+    }
+
+    It 'runs the real module in session: -Hooks index,close-gate writes pre-commit and pre-push only, and -Hooks bogus exits 2' {
+      $d = New-Repo 'launch-real'
+      Copy-Installers $d
+      $launcher = Join-Path (Join-Path (Join-Path $d '.aai') 'scripts') 'install-pre-commit-hook.ps1'
+      $r = Invoke-LauncherSession $launcher $d '-Hooks index,close-gate' $env:PATH
+      $r.ExitCode | Should -Be 0 -Because "stderr: $($r.Stderr)"
+      Test-Path -LiteralPath (Get-HookPath $d 'pre-commit') | Should -BeTrue
+      Test-Path -LiteralPath (Get-HookPath $d 'pre-push') | Should -BeTrue
+      Test-Path -LiteralPath (Get-HookPath $d 'reference-transaction') | Should -BeFalse
+      $bad = New-Repo 'launch-real-bogus'
+      Copy-Installers $bad
+      $badLauncher = Join-Path (Join-Path (Join-Path $bad '.aai') 'scripts') 'install-pre-commit-hook.ps1'
+      $r2 = Invoke-LauncherSession $badLauncher $bad '-Hooks bogus' $env:PATH
+      $r2.ExitCode | Should -Be 2
+      foreach ($slot in $script:Slots) { Test-Path -LiteralPath (Get-HookPath $bad $slot) | Should -BeFalse }
     }
   }
 }

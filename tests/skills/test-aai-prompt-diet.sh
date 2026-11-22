@@ -1040,7 +1040,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 67057 -> 67480: pr-ceremony-friction-fixes (+423 B: SKILL_PR steps 4 and 5b --sync-ready wiring +284 B, VALIDATION step 6 evidence-name sentence +139 B; credited 1:1).
   # Then 67480 -> 67702: bootstrap-on-node (+222 B: SKILL_BOOTSTRAP Default Path gains the two PowerShell launcher lines and the Node.js 22 sentence; measured against 34fad51b; credited 1:1).
   # Then 67702 -> 67884: update-on-node (+182 B: SKILL_UPDATE step 1 launcher/Node.js 22 sentence and step 3 exit 1 bullet; measured against 30c983ef; credited 1:1).
-  local want_growth=67884
+  # Then 67884 -> 68174: pre-commit-installer-on-node (+290 B: SKILL_UPDATE step 4 paragraph names the installer module, Node.js 22, the three hooks and the check-every-slot refusal; measured against bf0148d6; credited 1:1).
+  local want_growth=68174
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

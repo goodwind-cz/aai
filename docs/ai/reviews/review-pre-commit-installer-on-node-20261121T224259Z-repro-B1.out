@@ -1,0 +1,13 @@
+== in-process helper (runMod): TEST-3988 'a hook made non-executable ...'
+not ok 1 - TEST-3988 writes, upgrade, modes and attestation
+# pass 0
+# fail 1
+files written outside the scratch root, in /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//review-b1-victim.dIZObo:
+pre-commit
+pre-push
+reference-transaction
+== spawn helper (runInstaller): TEST-3986 'hooksPath unset, ...' under the same environment
+    not ok 1 - TEST-3986 hooksPath unset, relative and not yet existing, absolute: the hooks land where git resolves them
+      error: 'the hooks path /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/review-b1-victim.dIZObo/pre-commit lies outside the scratch root /private/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hk-paths-unset-0M6QZO'
+files in /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//review-b1-victim.dIZObo after the spawn-helper run: 0
+RESULT: in-process helper wrote 3 file(s) outside the scratch root; spawn helper wrote 0

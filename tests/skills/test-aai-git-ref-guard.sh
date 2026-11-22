@@ -78,6 +78,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 . "$SCRIPT_DIR/lib/companion-assert.sh"
 INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
 INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
+INSTALLER_MJS="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.mjs"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 UPDATE_PROMPT="$PROJECT_ROOT/.aai/SKILL_UPDATE.prompt.md"
 MODEL_ROUTING="$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml"
@@ -161,6 +162,28 @@ new_repo() {
 install_guard() {
   local d="$1"; shift
   (cd "$d" && bash "$INSTALLER" "$@")
+}
+
+# git_isolated <cmd...> — runs the command with no system git config and an empty global one, so a caller's
+# core.hooksPath can never redirect an installer run (pre-commit-installer-on-node, D-SAFETY).
+git_isolated() {
+  [[ -n "${TMP_ROOT:-}" && "$TMP_ROOT" == /* ]] || { echo "git_isolated: no scratch root" >&2; return 1; }
+  : > "$TMP_ROOT/empty-gitconfig"
+  env GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$TMP_ROOT/empty-gitconfig" "$@"
+}
+
+# install_module <dir> [installer args...] — the Node module itself, run against ONLY <dir>.
+install_module() {
+  local d="$1"; shift
+  [[ -n "$d" && "$d" == /* ]] || { echo "install_module: fixture path must be absolute" >&2; return 1; }
+  (cd "$d" && git_isolated node "$INSTALLER_MJS" "$@")
+}
+
+# install_ps1 <dir> [installer args...] — the .ps1 launcher under pwsh against ONLY <dir>; callers check pwsh first.
+install_ps1() {
+  local d="$1"; shift
+  [[ -n "$d" && "$d" == /* ]] || { echo "install_ps1: fixture path must be absolute" >&2; return 1; }
+  (cd "$d" && git_isolated pwsh -NoProfile -File "$INSTALLER_PS1" "$@")
 }
 
 # commit_det <dir> <msg> [extra env "NAME=value" pairs...] — a deterministic,
@@ -643,9 +666,9 @@ test_314_print_flag() {
     log_fail "TEST-314: an actually-unknown flag stopped being rejected (got $rc2, want 2) — --print was wired as a catch-all, not a specific case"; ok=0
   fi
 
-  # The foreign-hook guidance itself must name a flag that now exists.
-  grep -qE -- '--print' "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" \
-    || { log_fail "TEST-314: the installer no longer mentions --print anywhere"; ok=0; }
+  # (pre-commit-installer-on-node, TEST-314 re-homed) The text pin on the .sh is gone - the .sh is a launcher
+  # that names no flag outside its comments. The property it stood for, that the guidance names a flag which
+  # exists, is the behaviour above: --print exits 0 and prints the body, an unknown flag exits 2.
 
   [[ $ok -eq 1 ]] && log_pass "TEST-314 --print emits the real pre-commit hook body read-only (exit 0, no writes), an unknown flag still exits 2" \
     || log_fail "TEST-314 --print flag"
@@ -772,14 +795,10 @@ test_315_effective_hooks_path() {
 # the body). The body is now a template, .aai/templates/git-hooks/
 # reference-transaction.sh, shared by both installers (spec-git-hook-bodies-
 # single-source, D-MSG), so the body pins read the template and the
-# effective-path pins keep reading the .ps1. One refusal message serves every
+# effective-path proof runs the .ps1 launcher (pre-commit-installer-on-node). One refusal message serves every
 # shell, so it names BOTH the POSIX and the PowerShell commands.
 test_309_ps1_twin_static() {
   local tpl="$PROJECT_ROOT/.aai/templates/git-hooks/reference-transaction.sh"
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-309: $INSTALLER_PS1 not found"
-    return
-  fi
   local ok=1
   local reftx_body
   reftx_body="$(cat "$tpl" 2>/dev/null || true)"
@@ -794,8 +813,7 @@ test_309_ps1_twin_static() {
   # mentions it: the body carries a comment and a refusal message that spell
   # out "refs/heads/main" and "AAI_GIT_WRITE" in full, so a bare substring grep
   # passes even when the guard watches the wrong ref or tests the variable
-  # backwards. Windows has no live arm in this suite, so this static check
-  # stands between an inverted guard and a shipped release.
+  # backwards.
   local reftx_code
   reftx_code="$(printf '%s\n' "$reftx_body" \
     | awk '/<<'"'"'AAI_REF_GUARD_MSG'"'"'/ { inmsg=1 } inmsg { if ($0 ~ /^AAI_REF_GUARD_MSG$/) inmsg=0; next } { print }' \
@@ -809,23 +827,9 @@ test_309_ps1_twin_static() {
   grep -qF 'if [ "$AAI_GIT_WRITE" = "1" ]; then' <<<"$reftx_code" \
     || { log_fail "TEST-309: the template does not gate on AAI_GIT_WRITE = 1 (an inverted or absent comparison would ship a guard that is backwards)"; ok=0; }
 
-  # The ASSIGNMENT that decides where the hook is written. PR #302 Codex P2
-  # moved the target off $repoRoot to $gitCommonDir; PR #304 Codex P1 moved it
-  # again, because $gitCommonDir does not know about core.hooksPath. The write
-  # target is whatever git itself resolves, so this pins BOTH halves: the
-  # assignment reads from the resolver, and the resolver asks git.
-  grep -qE "^\\\$reftxPath[[:space:]]*=[[:space:]]*Resolve-HookPath 'reference-transaction'" "$INSTALLER_PS1" \
-    || { log_fail "TEST-309: .ps1 does not ASSIGN \$reftxPath from Resolve-HookPath 'reference-transaction' (the SYNOPSIS mentioning the hook is not the write target)"; ok=0; }
-  grep -qF 'git rev-parse --git-path "hooks/$Name"' "$INSTALLER_PS1" \
-    || { log_fail "TEST-309: .ps1's Resolve-HookPath does not ask git for the EFFECTIVE hooks path (git rev-parse --git-path) — a path derived any other way misses core.hooksPath"; ok=0; }
-  grep -qF 'Join-Path $gitCommonDir "hooks/reference-transaction"' "$INSTALLER_PS1" \
-    && { log_fail "TEST-309: .ps1 still writes the guard to \$gitCommonDir/hooks — that path ignores core.hooksPath (PR #304 Codex P1)"; ok=0; }
-
   # The hook's OWN refusal message is read wherever the update happens (any
-  # shell on the machine), so it names both uninstall commands (an operator on
-  # Windows has Git Bash, which git itself runs the hooks with) and both
-  # forms of the AAI_GIT_WRITE escape. PowerShell has no `VAR=value command`
-  # prefix; the child-process form was verified on pwsh 7.6.3.
+  # shell on the machine), so it names both uninstall commands and both forms
+  # of the AAI_GIT_WRITE escape.
   grep -qF 'Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall' <<<"$reftx_body" \
     || { log_fail "TEST-309: the refusal message does not give the POSIX uninstall command"; ok=0; }
   grep -qF '(PowerShell: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall)' <<<"$reftx_body" \
@@ -835,7 +839,27 @@ test_309_ps1_twin_static() {
   grep -qF 'POSIX shell:  AAI_GIT_WRITE=1 git commit ...' <<<"$reftx_body" \
     || { log_fail "TEST-309: the refusal message gives no POSIX form of the AAI_GIT_WRITE escape"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-309 the shared reference-transaction template carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check and a refusal naming both uninstall commands and both escape forms; the .ps1 writes to the EFFECTIVE hooks path git resolves (never \$gitCommonDir/hooks)"
+  # pre-commit-installer-on-node (D-REHOME run 6): the .ps1 is a launcher, so the write target is proved by behaviour.
+  # The effective hooks path is what git resolves (core.hooksPath), never <git-common-dir>/hooks, and a run from a
+  # subdirectory writes the hook there too.
+  if command -v pwsh >/dev/null 2>&1; then
+    local d; d="$(new_repo t309ps1)"
+    git -C "$d" config core.hooksPath custom-hooks
+    mkdir -p "$d/sub/dir"
+    local out rc
+    out="$(cd "$d/sub/dir" && git_isolated pwsh -NoProfile -File "$INSTALLER_PS1" 2>&1)"; rc=$?
+    [[ $rc -eq 0 ]] || { log_fail "TEST-309: the .ps1 launcher from a subdirectory expected exit 0, got $rc: $out"; ok=0; }
+    [[ -f "$d/custom-hooks/reference-transaction" ]] \
+      || { log_fail "TEST-309: the .ps1 did not write the reference-transaction hook into the core.hooksPath directory: $out"; ok=0; }
+    grep -qF "AAI:REF-GUARD" "$d/custom-hooks/reference-transaction" 2>/dev/null \
+      || { log_fail "TEST-309: the hook in core.hooksPath does not carry the AAI:REF-GUARD marker"; ok=0; }
+    [[ ! -e "$d/.git/hooks/reference-transaction" ]] \
+      || { log_fail "TEST-309: the .ps1 also wrote to the git-common-dir hooks directory, which ignores core.hooksPath"; ok=0; }
+  else
+    log_info "TEST-309: pwsh not available on this host -- the .ps1 launcher's effective-hooks-path behaviour not exercised this run"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-309 the shared reference-transaction template carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check and a refusal naming both uninstall commands and both escape forms; the .ps1 launcher writes to the EFFECTIVE hooks path git resolves from a subdirectory (never the git-common-dir hooks)"
 }
 
 # --- TEST-310 (Spec-AC-06) — aai-doctor category -----------------------------
@@ -1149,40 +1173,37 @@ test_607_uninstall_selection() {
 
 # --- TEST-608 (Spec-AC-01) — .ps1 twin, static (mirrors TEST-309) -----------
 test_608_ps1_hooks_static() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-608: $INSTALLER_PS1 not found"
-    return
+  # pre-commit-installer-on-node (D-REHOME run 6): the .ps1 is a launcher of the Node module, so the -Hooks selection is
+  # proved by running it under pwsh: `-Hooks index` writes pre-commit only, `-Hooks bogus` exits 2 naming the closed set
+  # and writes nothing, and the default selection writes every hook.
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-608: pwsh not available on this host -- the .ps1 launcher's -Hooks selection not exercised this run"
+    return 0
   fi
-  local ok=1
+  local ok=1 d out rc
+  d="$(new_repo t608a)"
+  out="$(install_ps1 "$d" -Hooks index 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-608: -Hooks index expected exit 0, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/pre-commit" ]] || { log_fail "TEST-608: -Hooks index did not write pre-commit"; ok=0; }
+  [[ ! -e "$d/.git/hooks/reference-transaction" ]] || { log_fail "TEST-608: -Hooks index also wrote reference-transaction"; ok=0; }
+  [[ ! -e "$d/.git/hooks/pre-push" ]] || { log_fail "TEST-608: -Hooks index also wrote pre-push"; ok=0; }
 
-  grep -qE "\\[string\\]\\\$Hooks[[:space:]]*=[[:space:]]*'all'" "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 does not declare a -Hooks parameter defaulting to 'all'"; ok=0; }
-  grep -qF "'index'" "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 -Hooks validation does not name 'index'"; ok=0; }
-  grep -qF "'ref-guard'" "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 -Hooks validation does not name 'ref-guard'"; ok=0; }
-  grep -qF '$wantIndex' "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 has no \$wantIndex selection variable"; ok=0; }
-  grep -qF '$wantRefGuard' "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 has no \$wantRefGuard selection variable"; ok=0; }
+  local d2; d2="$(new_repo t608b)"
+  out="$(install_ps1 "$d2" -Hooks bogus 2>&1)"; rc=$?
+  [[ $rc -eq 2 ]] || { log_fail "TEST-608: -Hooks bogus expected exit 2, got $rc: $out"; ok=0; }
+  grep -qF 'closed set: index, ref-guard, close-gate, all' <<<"$out" \
+    || { log_fail "TEST-608: -Hooks bogus does not name the closed set: $out"; ok=0; }
+  local f
+  for f in pre-commit reference-transaction pre-push; do
+    [[ ! -e "$d2/.git/hooks/$f" ]] || { log_fail "TEST-608: -Hooks bogus wrote $f"; ok=0; }
+  done
 
-  # Both write blocks must be guarded by the selection variables — pinned on
-  # the CODE (the `if ($want...)` wrapping the Set-Content call), mirroring
-  # TEST-309's discipline of asserting on code shape, not merely on the file
-  # mentioning the words somewhere.
-  grep -qE 'if \(\$wantIndex\)' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 pre-commit write block is not guarded by \$wantIndex"; ok=0; }
-  grep -qE 'if \(\$wantRefGuard\)' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 reference-transaction write block is not guarded by \$wantRefGuard"; ok=0; }
-  grep -qF 'Write-BytesViaTemp -Path $hookPath -Bytes $preCommitBytes' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 no longer writes the pre-commit hook via Write-BytesViaTemp -Path \$hookPath"; ok=0; }
-  grep -qF 'Write-BytesViaTemp -Path $reftxPath -Bytes $reftxBytes' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 no longer writes the reference-transaction hook via Write-BytesViaTemp -Path \$reftxPath"; ok=0; }
+  local d3; d3="$(new_repo t608c)"
+  out="$(install_ps1 "$d3" -Hooks ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 && -f "$d3/.git/hooks/reference-transaction" && ! -e "$d3/.git/hooks/pre-commit" ]] \
+    || { log_fail "TEST-608: -Hooks ref-guard did not write reference-transaction alone (rc=$rc): $out"; ok=0; }
 
-  # An unrecognised -Hooks token must exit 2 naming the closed set.
-  # shipped-guards-have-no-downstream-trigger D7 widened the closed set with close-gate.
-  grep -qF 'closed set: index, ref-guard, close-gate, all' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 unknown -Hooks value message does not name the closed set"; ok=0; }
-  grep -qF 'exit 2' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 has no exit 2 path for an unrecognised -Hooks token"; ok=0; }
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-608 .ps1 declares -Hooks defaulting to 'all', validates 'index'/'ref-guard'/'all' into \$wantIndex/\$wantRefGuard naming the closed set on a miss (exit 2), and both write blocks are guarded by those selection variables"
+  [[ $ok -eq 1 ]] && log_pass "TEST-608 the .ps1 launcher's -Hooks index writes pre-commit only, -Hooks ref-guard the reference-transaction hook only, and -Hooks bogus exits 2 naming the closed set and writing nothing"
 }
 
 # --- TEST-609 (Spec-AC-02) — foreign file in an UNSELECTED slot -------------
@@ -1487,120 +1508,114 @@ test_621_update_prompt_names_both_hooks() {
 # behavioural check on this twin; this suite verified the SAME assertions
 # behaviourally via a local pwsh 7.6.3 run, per the TDD run's own report). --
 test_631_ps1_decline_arm_params_static() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-631: $INSTALLER_PS1 not found"
-    return
+  # pre-commit-installer-on-node (D-REHOME run 6): proved by behaviour through the .ps1 launcher under pwsh.
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-631: pwsh not available on this host -- the .ps1 launcher's decline/arm surface not exercised this run"
+    return 0
   fi
-  local ok=1
+  local ok=1 d out rc
+  d="$(new_repo t631)"
+  install_ps1 "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-631 (setup)" "$d" || return
+  out="$(install_ps1 "$d" -DeclineRefGuard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-631: -DeclineRefGuard expected exit 0, got $rc: $out"; ok=0; }
+  [[ ! -e "$d/.git/hooks/reference-transaction" ]] || { log_fail "TEST-631: -DeclineRefGuard left the guard installed"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard: declined$' "$d/docs/ai/docs-audit.yaml" 2>/dev/null || { log_fail "TEST-631: -DeclineRefGuard did not record declined"; ok=0; }
+  out="$(install_ps1 "$d" -ArmRefGuard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-631: -ArmRefGuard expected exit 0, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] || { log_fail "TEST-631: -ArmRefGuard did not install the guard"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard: armed$' "$d/docs/ai/docs-audit.yaml" 2>/dev/null || { log_fail "TEST-631: -ArmRefGuard did not record armed"; ok=0; }
+  # the contradiction exits 2 naming it, and changes nothing
+  local before after
+  before="$(manifest_of "$d")"
+  out="$(install_ps1 "$d" -DeclineRefGuard -ArmRefGuard 2>&1)"; rc=$?
+  after="$(manifest_of "$d")"
+  [[ $rc -eq 2 ]] || { log_fail "TEST-631: -DeclineRefGuard -ArmRefGuard expected exit 2, got $rc: $out"; ok=0; }
+  grep -qF 'contradictory' <<<"$out" || { log_fail "TEST-631: the contradiction refusal does not name it: $out"; ok=0; }
+  [[ "$before" == "$after" ]] || { log_fail "TEST-631: the contradiction changed the repository"; ok=0; }
 
-  grep -qF '[switch]$DeclineRefGuard' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 does not declare a -DeclineRefGuard switch"; ok=0; }
-  grep -qF '[switch]$ArmRefGuard' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 does not declare a -ArmRefGuard switch"; ok=0; }
-
-  # The contradiction refusal exits 2, matching the .sh twin's closed-set
-  # discipline ([Console]::Error, not Write-Error, per the known
-  # $ErrorActionPreference='Stop' trap -- a specific exit code needs the
-  # direct stderr write).
-  grep -qE '\$DeclineRefGuard -and \$ArmRefGuard' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 has no -DeclineRefGuard/-ArmRefGuard contradiction check"; ok=0; }
-  grep -qF 'contradictory' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 contradiction check does not name it as such"; ok=0; }
-
-  # Both dispatch arms call the functions that do the real work, and both
-  # are pinned to the CODE (an `if` guarding the call), not merely to a
-  # mention of the flag somewhere in prose.
-  grep -qE 'if \(\$DeclineRefGuard\)' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 has no if (\$DeclineRefGuard) dispatch arm"; ok=0; }
-  grep -qF 'Disable-RefGuard' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 does not call Disable-RefGuard"; ok=0; }
-  grep -qE 'if \(\$ArmRefGuard\)' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 has no if (\$ArmRefGuard) dispatch arm"; ok=0; }
-  grep -qF 'Enable-RefGuard' "$INSTALLER_PS1" \
-    || { log_fail "TEST-631: .ps1 does not call Enable-RefGuard"; ok=0; }
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-631 .ps1 declares -DeclineRefGuard/-ArmRefGuard, refuses the contradiction (exit 2), and dispatches to Disable-RefGuard/Enable-RefGuard before the -Hooks flow" \
-    || log_fail "TEST-631 .ps1 decline/arm params"
+  [[ $ok -eq 1 ]] && log_pass "TEST-631 the .ps1 launcher's -DeclineRefGuard and -ArmRefGuard each exit 0 and record their policy, and both together exit 2 naming the contradiction and changing nothing" \
+    || log_fail "TEST-631 .ps1 decline/arm"
 }
 
 # --- TEST-632 (Spec-AC-06, Amendment 1) — .ps1's reader fails CLOSED over
 # the SAME key the .sh twin reads/writes (static parse) --------------------
 test_632_ps1_policy_reader_fails_closed_static() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-632: $INSTALLER_PS1 not found"
-    return
-  fi
   local ok=1
+  # pre-commit-installer-on-node (D-REHOME run 6): both installers are the one Node module, which imports the shared
+  # reader and holds no ref_guard regex of its own; the reader's fail-closed cases are exercised through it.
+  grep -qF 'readRefGuardPolicy' "$INSTALLER_MJS" \
+    || { log_fail "TEST-632: the installer module does not import readRefGuardPolicy"; ok=0; }
+  if /usr/bin/grep -qE '\^ref_guard|ref_guard:\\s|ref_guard:\[' "$INSTALLER_MJS"; then
+    log_fail "TEST-632: the installer module holds a ref_guard regex of its own"; ok=0
+  fi
+  grep -qF 'writeRefGuardPolicy' "$INSTALLER_MJS" \
+    || { log_fail "TEST-632: the installer module does not write the key through writeRefGuardPolicy"; ok=0; }
+  # the key one config serves on either platform: the shared writer spells the column-0 literal
+  grep -qF 'ref_guard: ${value}' "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" \
+    || { log_fail "TEST-632: guard-config's writer no longer spells the key 'ref_guard: <value>'"; ok=0; }
 
-  # The default return, reached for an absent file AND falls through for
-  # every non-matching line, must be 'armed' -- pinned on the actual
-  # function body, not a substring anywhere in the file.
-  local reader_body
-  reader_body="$(awk '/^function Read-RefGuardPolicy \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
-  [[ -n "$reader_body" ]] || { log_fail "TEST-632: could not extract the Read-RefGuardPolicy function body"; ok=0; }
-  grep -qF "return 'armed'" <<<"$reader_body" || { log_fail "TEST-632: Read-RefGuardPolicy's absent-file arm does not return 'armed'"; ok=0; }
-  # 'declined' is matched ONLY via a column-0-anchored regex against the
-  # LITERAL value 'declined' -- an unanchored or substring match would read
-  # an indented/commented line as declined, the exact D3 inversion this row
-  # guards.
-  grep -qE -- "-match '\^ref_guard:.*declined" <<<"$reader_body" \
-    || { log_fail "TEST-632: Read-RefGuardPolicy does not column-0-anchor the 'declined' match"; ok=0; }
-  # The LAST line reached (after the loop, for every non-'declined' line)
-  # must default to 'armed', not 'declined' -- pins the fail-CLOSED
-  # direction itself, not just the two literals' presence.
-  local reader_tail
-  reader_tail="$(printf '%s\n' "$reader_body" | tail -3)"
-  grep -qF "return 'armed'" <<<"$reader_tail" \
-    || { log_fail "TEST-632: Read-RefGuardPolicy's fall-through (after the loop) does not default to 'armed': $reader_tail"; ok=0; }
+  local verdict
+  verdict="$(GC="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" node --input-type=module -e '
+    import fs from "node:fs";
+    import os from "node:os";
+    import path from "node:path";
+    const { readRefGuardPolicy } = await import(process.env.GC);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aai-t632."));
+    const bad = [];
+    try {
+      const read = (text) => {
+        const d = fs.mkdtempSync(path.join(root, "c."));
+        if (text !== null) fs.writeFileSync(path.join(d, "docs-audit.yaml"), text);
+        return readRefGuardPolicy(d, { warn: () => {} });
+      };
+      const cases = [
+        ["an absent file", null, "armed"], ["an empty file", "", "armed"], ["declined at column 0", "ref_guard: declined\n", "declined"],
+        ["an indented key", "  ref_guard: declined\n", "armed"], ["a commented key", "# ref_guard: declined\n", "armed"],
+        ["a typo value", "ref_guard: decline\n", "armed"], ["a mixed-case value", "ref_guard: Declined\n", "armed"],
+        ["the key inside another key", "x_ref_guard: declined\n", "armed"], ["no key at all", "close_gate: enforce\n", "armed"],
+      ];
+      for (const [what, text, want] of cases) { const got = read(text); if (got !== want) bad.push(what + " read " + got + ", want " + want); }
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+    process.stdout.write(bad.length ? bad.join("; ") : "ok");
+  ' 2>&1)" || verdict="the reader probe failed: $verdict"
+  [[ "$verdict" == ok ]] || { log_fail "TEST-632: the fail-closed reader: $verdict"; ok=0; }
 
-  # The IDENTICAL key: both twins must spell the same column-0 literal, so
-  # one docs/ai/docs-audit.yaml serves a repo checked out on either
-  # platform (Amendment 1's own wording) -- checked by grepping the SAME
-  # literal out of BOTH scripts, not asserted once and trusted for both.
-  grep -qF 'ref_guard: $Value' "$INSTALLER_PS1" \
-    || { log_fail "TEST-632: .ps1's writer does not spell the key as 'ref_guard: \$Value'"; ok=0; }
-  grep -qF "printf 'ref_guard: %s\\n'" "$INSTALLER" \
-    || { log_fail "TEST-632: .sh's writer no longer spells the key the .ps1 twin mirrors (cross-twin key drift)"; ok=0; }
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-632 .ps1's Read-RefGuardPolicy defaults to 'armed' (absent file and fall-through alike), recognizes 'declined' only via a column-0-anchored match, and both twins spell the identical ref_guard key" \
-    || log_fail "TEST-632 .ps1 policy reader fails closed"
+  [[ $ok -eq 1 ]] && log_pass "TEST-632 the installer module imports readRefGuardPolicy and writeRefGuardPolicy and holds no ref_guard regex of its own; the shared reader returns armed for an absent file and for every line that is not column-0 declined, and declined only for that" \
+    || log_fail "TEST-632 policy reader fails closed"
 }
 
 # --- TEST-633 (Amendment 1 hazard) — the foreign-reftx refusal text lives
 # in exactly ONE place in the .ps1, never a second literal copy a recorded
 # mutation could miss (the fu-duplicate-message-collides-mutation class) ---
 test_633_ps1_foreign_refusal_shared_helper() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-633: $INSTALLER_PS1 not found"
-    return
-  fi
   local ok=1
-
-  grep -qF 'function Show-ForeignReftxRefusal' "$INSTALLER_PS1" \
-    || { log_fail "TEST-633: .ps1 has no Show-ForeignReftxRefusal function"; ok=0; }
-
-  # Exactly one literal copy of the $reftxPath refusal sentence -- inside
-  # the shared function itself.
+  # pre-commit-installer-on-node (D-REHOME run 6): the foreign reference-transaction refusal sentence lives in exactly one
+  # place of the Node module (never a second literal copy a recorded mutation could miss, the
+  # fu-duplicate-message-collides-mutation class), and both entry points still print it.
   local n
-  n="$(/usr/bin/grep -cF '$reftxPath already exists and is not AAI-managed' "$INSTALLER_PS1")"
+  n="$(/usr/bin/grep -cF "ERROR: \${repo.paths['ref-guard']} already exists and is not AAI-managed" "$INSTALLER_MJS" || true)"
   if [[ "$n" != "1" ]]; then
-    log_fail "TEST-633: .ps1 carries $n literal copies of the reftx refusal sentence (want exactly 1, in the shared function)"
+    log_fail "TEST-633: the module carries $n literal copies of the reference-transaction refusal sentence (want exactly 1)"
     ok=0
   fi
+  local d; d="$(new_repo t633)"
+  mkdir -p "$d/.git/hooks"
+  printf '#!/bin/sh\necho foreign-reftx\n' > "$d/.git/hooks/reference-transaction"
+  local before; before="$(cat "$d/.git/hooks/reference-transaction")"
+  local out rc
+  out="$(install_module "$d" 2>&1)"; rc=$?
+  [[ $rc -eq 1 ]] || { log_fail "TEST-633: a plain install over a foreign reference-transaction expected exit 1, got $rc: $out"; ok=0; }
+  grep -qF ".git/hooks/reference-transaction already exists and is not AAI-managed" <<<"$out" \
+    || { log_fail "TEST-633: the plain install does not name the foreign hook: $out"; ok=0; }
+  out="$(install_module "$d" --decline-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 1 ]] || { log_fail "TEST-633: --decline-ref-guard over a foreign reference-transaction expected exit 1, got $rc: $out"; ok=0; }
+  grep -qF ".git/hooks/reference-transaction already exists and is not AAI-managed" <<<"$out" \
+    || { log_fail "TEST-633: the decline path does not name the foreign hook: $out"; ok=0; }
+  [[ "$(cat "$d/.git/hooks/reference-transaction")" == "$before" ]] || { log_fail "TEST-633: the foreign hook was modified"; ok=0; }
 
-  # The shared function is CALLED from at least two sites -- the normal
-  # selection-aware write-path check AND the decline/arm surface -- proving
-  # it is actually shared, not merely defined and unused from one call site.
-  local calls
-  calls="$(/usr/bin/grep -cF 'Show-ForeignReftxRefusal' "$INSTALLER_PS1")"
-  # 1 definition + >=2 call sites.
-  if [[ "$calls" -lt 3 ]]; then
-    log_fail "TEST-633: Show-ForeignReftxRefusal appears $calls times total (want >=3: 1 definition + >=2 call sites)"
-    ok=0
-  fi
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-633 the foreign-reftx refusal text lives in exactly one place (Show-ForeignReftxRefusal), called from >=2 sites" \
-    || log_fail "TEST-633 .ps1 foreign-refusal shared helper"
+  [[ $ok -eq 1 ]] && log_pass "TEST-633 the foreign-reftx refusal sentence lives once in the module and both the plain install and the decline path refuse a foreign hook by name without touching it" \
+    || log_fail "TEST-633 foreign refusal"
 }
 
 # --- TEST-634 (Spec-AC-05, validation round 1 B1) — write_ref_guard_policy's
@@ -1724,32 +1739,26 @@ test_636_plain_reinstall_honours_decline() {
 # only real behavioural check on this twin; round 2 verified the SAME
 # assertion behaviourally by hand on pwsh 7.6.3) ---------------------------
 test_637_ps1_plain_reinstall_honours_decline_static() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-637: $INSTALLER_PS1 not found"
-    return
+  # pre-commit-installer-on-node (D-REHOME run 6): the .ps1 twin of TEST-636 by behaviour through the launcher under pwsh.
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-637: pwsh not available on this host -- the .ps1 launcher's honouring of a declined policy not exercised this run"
+    return 0
   fi
-  local ok=1
+  local ok=1 d out rc
+  d="$(new_repo t637)"
+  mkdir -p "$d/docs/ai"
+  printf 'ref_guard: declined\n' > "$d/docs/ai/docs-audit.yaml"
+  out="$(install_ps1 "$d" 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-637: a plain .ps1 run on a declined config expected exit 0, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/pre-commit" ]] || { log_fail "TEST-637: the plain run did not install the other hooks"; ok=0; }
+  [[ ! -e "$d/.git/hooks/reference-transaction" ]] || { log_fail "TEST-637: a plain .ps1 run installed the guard despite a declared decline"; ok=0; }
+  grep -qF 'ref_guard: declined' <<<"$out" || { log_fail "TEST-637: the skip is not disclosed on stdout: $out"; ok=0; }
+  [[ "$(cat "$d/docs/ai/docs-audit.yaml")" == 'ref_guard: declined' ]] || { log_fail "TEST-637: the plain run touched the declaration"; ok=0; }
+  # -Force overrides for the run only
+  out="$(install_ps1 "$d" -Force 2>&1)"; rc=$?
+  [[ $rc -eq 0 && -f "$d/.git/hooks/reference-transaction" ]] || { log_fail "TEST-637: -Force did not install the guard over a declared decline (rc=$rc): $out"; ok=0; }
 
-  local cond="if (\$wantRefGuard -and (-not \$Force) -and ((Read-RefGuardPolicy -ConfigPath \$configPath) -eq 'declined')) {"
-  grep -qF "$cond" "$INSTALLER_PS1" \
-    || { log_fail "TEST-637: .ps1's plain -Hooks flow does not gate the ref-guard install on a declined policy"; ok=0; }
-
-  # Anchored on the skip's OWN site (validation round 2, NB2 — this arm was
-  # DEFEATED: the bare literal '$wantRefGuard = $false' also occurs at the
-  # pre-existing selection-boolean initializer near the top of the script,
-  # independent of this feature, so asserting it ANYWHERE in the file proved
-  # nothing — a mutation that deleted the skip's own assignment left that
-  # unrelated literal standing and the row stayed green). Grabbing the lines
-  # immediately after the condition just checked and requiring the
-  # assignment WITHIN that slice (mirroring TEST-632's function-body
-  # extraction discipline) pins the skip's actual effect, not merely the
-  # literal's existence somewhere in the corpus.
-  local skip_block
-  skip_block="$(grep -A3 -F "$cond" "$INSTALLER_PS1")"
-  grep -qF '$wantRefGuard = $false' <<<"$skip_block" \
-    || { log_fail "TEST-637: .ps1 does not clear \$wantRefGuard INSIDE the declined-skip block (the bare literal exists elsewhere in the file, e.g. the selection initializer, which does not count)"; ok=0; }
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-637 .ps1's plain -Hooks flow (mirroring the .sh twin) also skips the ref-guard hook when the declared policy is declined, unless -Force is given" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-637 a plain .ps1 launcher run skips the ref-guard hook when the declared policy is declined, discloses it and leaves the declaration; -Force installs it for the run" \
     || log_fail "TEST-637 .ps1 plain reinstall honours decline"
 }
 
@@ -1880,38 +1889,38 @@ test_640_decline_arm_corrects_stray_value() {
 # pwsh when available on this host, exactly as TEST-638 already does for
 # --hooks '' -----------------------------------------------------------------
 test_641_ps1_write_policy_corrects_stray_value() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-641: $INSTALLER_PS1 not found"
-    return
-  fi
   local ok=1
-
-  local writer_body
-  writer_body="$(awk '/^function Write-RefGuardPolicy \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
-  [[ -n "$writer_body" ]] || { log_fail "TEST-641: could not extract the Write-RefGuardPolicy function body"; ok=0; }
-  grep -qF -- "-match '^ref_guard:\s*\S'" <<<"$writer_body" \
-    || { log_fail "TEST-641: Write-RefGuardPolicy's replace match is not the widened any-token grammar (still closed to armed|declined -- the B2 defect)"; ok=0; }
-  grep -qF '(armed|declined)' <<<"$writer_body" \
-    && { log_fail "TEST-641: Write-RefGuardPolicy still carries the closed-vocabulary replace match"; ok=0; }
+  # pre-commit-installer-on-node (D-REHOME run 6): the correction is proved on the Node module under node, always, so it
+  # no longer depends on pwsh being installed (closes fu-test641-passes-without-pwsh); the launcher arm runs when pwsh is.
+  local d; d="$(new_repo t641)"
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  mkdir -p "$(dirname "$cfg")"
+  printf 'ref_guard: bogus\n' > "$cfg"
+  local out rc
+  out="$(install_module "$d" --arm-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-641: the module --arm-ref-guard on a pre-existing invalid value expected exit 0, got $rc: $out"; ok=0; }
+  local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
+  [[ "$count" -eq 1 ]] || { log_fail "TEST-641: $cfg carries $count ref_guard: lines after the module arms a typoed value, want 1"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard: armed$' "$cfg" \
+    || { log_fail "TEST-641: $cfg does not read back as armed after the module corrects a typo"; ok=0; }
 
   if command -v pwsh >/dev/null 2>&1; then
-    local d; d="$(new_repo t641)"
-    local cfg="$d/docs/ai/docs-audit.yaml"
-    mkdir -p "$(dirname "$cfg")"
-    printf 'ref_guard: bogus\n' > "$cfg"
-    local out rc
-    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -ArmRefGuard 2>&1)"; rc=$?
+    local d2; d2="$(new_repo t641ps1)"
+    local cfg2="$d2/docs/ai/docs-audit.yaml"
+    mkdir -p "$(dirname "$cfg2")"
+    printf 'ref_guard: bogus\n' > "$cfg2"
+    out="$(install_ps1 "$d2" -ArmRefGuard 2>&1)"; rc=$?
     [[ $rc -eq 0 ]] || { log_fail "TEST-641: pwsh -ArmRefGuard on a pre-existing invalid value expected exit 0, got $rc: $out"; ok=0; }
-    local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
-    [[ "$count" -eq 1 ]] || { log_fail "TEST-641: $cfg carries $count ref_guard: lines after the .ps1 twin arms a typoed value, want 1"; ok=0; }
-    /usr/bin/grep -qE '^ref_guard: armed$' "$cfg" \
-      || { log_fail "TEST-641: $cfg does not read back as armed after the .ps1 twin corrects a typo"; ok=0; }
+    count="$(/usr/bin/grep -c '^ref_guard:' "$cfg2")"
+    [[ "$count" -eq 1 ]] || { log_fail "TEST-641: $cfg2 carries $count ref_guard: lines after the launcher arms a typoed value, want 1"; ok=0; }
+    /usr/bin/grep -qE '^ref_guard: armed$' "$cfg2" \
+      || { log_fail "TEST-641: $cfg2 does not read back as armed after the launcher corrects a typo"; ok=0; }
   else
-    log_info "TEST-641: pwsh not available on this host -- the .ps1 twin's correcting behaviour not re-verified this run (pinned statically above)"
+    log_info "TEST-641: pwsh not available on this host -- the launcher arm not exercised; the module arm above proves the correction"
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-641 the .ps1 twin's Write-RefGuardPolicy replace match is the same any-token grammar as the .sh gate, so a pre-existing invalid value is corrected in place rather than appended behind" \
-    || log_fail "TEST-641 .ps1 write policy corrects a stray value"
+  [[ $ok -eq 1 ]] && log_pass "TEST-641 a pre-existing invalid ref_guard value is corrected in place by the Node module (always) and by the .ps1 launcher (when pwsh is present), never appended behind" \
+    || log_fail "TEST-641 write policy corrects a stray value"
 }
 
 # --- TEST-642 (Spec-AC-05, code review 20260924T124304Z B1) — the .ps1
@@ -1926,47 +1935,34 @@ test_641_ps1_write_policy_corrects_stray_value() {
 # pwsh-conditional behavioural reproduction of the review's own repro, per
 # TEST-638/641's pattern ------------------------------------------------
 test_642_ps1_decline_orders_write_before_removal() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-642: $INSTALLER_PS1 not found"
-    return
-  fi
   local ok=1
-
-  local fn_body
-  fn_body="$(awk '/^function Disable-RefGuard \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
-  [[ -n "$fn_body" ]] || { log_fail "TEST-642: could not extract the Disable-RefGuard function body"; ok=0; }
-  local write_line remove_line
-  write_line="$(grep -nF 'Write-RefGuardPolicy -ConfigPath $configPath' <<<"$fn_body" | qhead -1 | cut -d: -f1)"
-  remove_line="$(grep -nF 'Remove-Item -LiteralPath $reftxPath' <<<"$fn_body" | qhead -1 | cut -d: -f1)"
-  [[ -n "$write_line" && -n "$remove_line" ]] || { log_fail "TEST-642: could not locate both the write and the remove call in Disable-RefGuard"; ok=0; }
-  if [[ -n "$write_line" && -n "$remove_line" && "$write_line" -gt "$remove_line" ]]; then
-    log_fail "TEST-642: Disable-RefGuard still removes the hook BEFORE writing the declaration (B1)"
-    ok=0
+  # pre-commit-installer-on-node (D-REHOME run 6): proved on the Node module (POSIX, non-root: permission bits are the
+  # unwritable condition). The declaration is written BEFORE the hook is removed, so a write failure keeps the guard.
+  if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(id -u)" == 0 ]]; then
+    log_info "TEST-642: skipped on Windows or as root -- the unwritable-directory condition needs POSIX permission bits"
+    return 0
   fi
+  local d; d="$(new_repo t642)"
+  install_module "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-642 (setup)" "$d" || return
+  local cfgdir="$d/docs/ai" cfg="$d/docs/ai/docs-audit.yaml"
+  mkdir -p "$cfgdir"
+  printf 'close_gate: enforce\n' > "$cfg"
+  chmod 555 "$cfgdir"
+  chmod 444 "$cfg"
 
-  if command -v pwsh >/dev/null 2>&1; then
-    local d; d="$(new_repo t642)"
-    (cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" >/dev/null 2>&1)
-    require_guard_installed "TEST-642 (setup)" "$d" || return
-    local cfg="$d/docs/ai/docs-audit.yaml"
-    mkdir -p "$(dirname "$cfg")"
-    printf 'close_gate: enforce\n' > "$cfg"
-    chmod 444 "$cfg"
+  local out rc
+  out="$(install_module "$d" --decline-ref-guard 2>&1)"; rc=$?
+  chmod 755 "$cfgdir"
+  chmod 644 "$cfg"
+  [[ $rc -eq 1 ]] || { log_fail "TEST-642: the module --decline-ref-guard against an unwritable config directory expected exit 1, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] \
+    || { log_fail "TEST-642: a failed decline write left the guard removed (disarmed with no record) -- $out"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" \
+    && { log_fail "TEST-642: the config claims declined despite the write failing"; ok=0; }
 
-    local out rc
-    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard 2>&1)"; rc=$?
-    chmod 644 "$cfg"
-    [[ $rc -ne 0 ]] || { log_fail "TEST-642: pwsh -DeclineRefGuard against an unwritable config expected non-zero, got 0: $out"; ok=0; }
-    [[ -f "$d/.git/hooks/reference-transaction" ]] \
-      || { log_fail "TEST-642: a failed .ps1 decline write left the guard removed (disarmed with no record) -- $out"; ok=0; }
-    /usr/bin/grep -qE '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" \
-      && { log_fail "TEST-642: the config claims declined despite the .ps1 write failing"; ok=0; }
-  else
-    log_info "TEST-642: pwsh not available on this host -- the .ps1 twin's ordering not re-verified behaviourally this run (pinned statically above)"
-  fi
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-642 the .ps1 twin's Disable-RefGuard writes the declaration BEFORE removing the guard (source order, plus a pwsh reproduction of the code review's read-only-config repro), so a write failure leaves the guard installed and armed rather than disarmed with no record" \
-    || log_fail "TEST-642 .ps1 decline write-before-removal ordering"
+  [[ $ok -eq 1 ]] && log_pass "TEST-642 the module's decline against an unwritable config directory exits 1 and keeps the guard installed and armed, with no declared decline on record" \
+    || log_fail "TEST-642 decline write-before-removal ordering"
 }
 
 # --- TEST-643 (Spec-AC-05, code review 20260924T124304Z B2) — the mere
@@ -2032,45 +2028,38 @@ test_643_decline_seeds_or_discloses_new_config() {
 # plus a pwsh-conditional behavioural run of Branch A (template present),
 # per TEST-638/641's pattern -------------------------------------------
 test_644_ps1_decline_seeds_or_discloses_new_config() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-644: $INSTALLER_PS1 not found"
-    return
-  fi
   local ok=1
+  # pre-commit-installer-on-node (D-REHOME run 6): the module, run directly under node, seeds an absent config from the
+  # template and prints SEED, or prints NOTE when the template is absent -- never a silent creation.
+  local d; d="$(new_repo t644)"
+  install_module "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-644 (setup)" "$d" || return
+  mkdir -p "$d/.aai/templates"
+  cp "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml" "$d/.aai/templates/docs-audit.template.yaml"
+  local out rc
+  out="$(install_module "$d" --decline-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-644: the module --decline-ref-guard on an absent config with a template present expected exit 0, got $rc: $out"; ok=0; }
+  grep -qF 'SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml' <<<"$out" \
+    || { log_fail "TEST-644: the module printed no SEED disclosure: $out"; ok=0; }
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  grep -qF 'CHANGE-0121' "$cfg" \
+    || { log_fail "TEST-644: the created config does not carry the template's own content"; ok=0; }
+  local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
+  [[ "$count" -eq 1 ]] || { log_fail "TEST-644: $cfg carries $count ref_guard: lines after the module seeds it, want 1"; ok=0; }
 
-  local fn_body
-  fn_body="$(awk '/^function Write-RefGuardPolicy \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
-  [[ -n "$fn_body" ]] || { log_fail "TEST-644: could not extract the Write-RefGuardPolicy function body"; ok=0; }
-  grep -qF 'docs-audit.template.yaml' <<<"$fn_body" \
-    || { log_fail "TEST-644: Write-RefGuardPolicy does not reference the docs-audit template at all"; ok=0; }
-  grep -qF 'SEED docs/ai/docs-audit.yaml' <<<"$fn_body" \
-    || { log_fail "TEST-644: Write-RefGuardPolicy does not print the SEED disclosure"; ok=0; }
-  grep -qF 'NOTE: creating docs/ai/docs-audit.yaml' <<<"$fn_body" \
-    || { log_fail "TEST-644: Write-RefGuardPolicy does not print the no-template NOTE fallback"; ok=0; }
+  local d2; d2="$(new_repo t644notpl)"
+  install_module "$d2" >/dev/null 2>&1
+  require_guard_installed "TEST-644 (setup, no template)" "$d2" || return
+  [[ -d "$d2/.aai/templates" ]] && rm -rf "$d2/.aai/templates/docs-audit.template.yaml"
+  local out2 rc2
+  out2="$(install_module "$d2" --decline-ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-644: the module --decline-ref-guard with no template expected exit 0, got $rc2: $out2"; ok=0; }
+  grep -qF 'NOTE: creating docs/ai/docs-audit.yaml' <<<"$out2" \
+    || { log_fail "TEST-644: the module printed no NOTE when the template is absent: $out2"; ok=0; }
+  [[ -f "$d2/docs/ai/docs-audit.yaml" ]] || { log_fail "TEST-644: no config was created without a template"; ok=0; }
 
-  if command -v pwsh >/dev/null 2>&1; then
-    local d; d="$(new_repo t644)"
-    (cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" >/dev/null 2>&1)
-    require_guard_installed "TEST-644 (setup)" "$d" || return
-    mkdir -p "$d/.aai/templates"
-    cp "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml" "$d/.aai/templates/docs-audit.template.yaml"
-
-    local out rc
-    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard 2>&1)"; rc=$?
-    [[ $rc -eq 0 ]] || { log_fail "TEST-644: pwsh -DeclineRefGuard on an absent config with a template present expected exit 0, got $rc: $out"; ok=0; }
-    grep -qF 'SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml' <<<"$out" \
-      || { log_fail "TEST-644: pwsh run printed no SEED disclosure: $out"; ok=0; }
-    local cfg="$d/docs/ai/docs-audit.yaml"
-    grep -qF 'CHANGE-0121' "$cfg" \
-      || { log_fail "TEST-644: the .ps1-created config does not carry the template's own content"; ok=0; }
-    local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
-    [[ "$count" -eq 1 ]] || { log_fail "TEST-644: $cfg carries $count ref_guard: lines after the .ps1 twin seeds it, want 1"; ok=0; }
-  else
-    log_info "TEST-644: pwsh not available on this host -- the .ps1 twin's seed-or-disclose behaviour not re-verified this run (pinned statically above)"
-  fi
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-644 the .ps1 twin's Write-RefGuardPolicy carries the same seed-from-template-or-NOTE branch as the .sh gate, so a first write to an absent config is never silent there either" \
-    || log_fail "TEST-644 .ps1 decline seeds or discloses a new config"
+  [[ $ok -eq 1 ]] && log_pass "TEST-644 the Node module's decline on an absent config seeds it from the template and prints SEED, or prints NOTE when the template is absent, with exactly one ref_guard: line" \
+    || log_fail "TEST-644 decline seeds or discloses a new config"
 }
 
 # --- TEST-645 (Spec-AC-01/05, code review 20260924T124304Z D-1) — the
@@ -2108,32 +2097,23 @@ test_645_hooks_contradicts_decline_arm() {
 # $PSBoundParameters (mirroring TEST-608/631-633's discipline), plus a
 # pwsh-conditional behavioural run, per TEST-638/641's pattern -------------
 test_646_ps1_hooks_contradicts_decline_arm() {
-  if [[ ! -f "$INSTALLER_PS1" ]]; then
-    log_fail "TEST-646: $INSTALLER_PS1 not found"
-    return
+  # pre-commit-installer-on-node (D-REHOME run 6): the text pins on the .ps1 are gone; the behaviour arm runs the launcher.
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-646: pwsh not available on this host -- the .ps1 launcher's contradiction refusal not exercised this run"
+    return 0
   fi
   local ok=1
+  local d; d="$(new_repo t646)"
+  local out rc
+  out="$(install_ps1 "$d" -DeclineRefGuard -Hooks ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 2 ]] || { log_fail "TEST-646: pwsh -DeclineRefGuard -Hooks ref-guard expected exit 2, got $rc: $out"; ok=0; }
+  [[ -f "$d/docs/ai/docs-audit.yaml" ]] && { log_fail "TEST-646: the .ps1 contradiction still wrote a config"; ok=0; }
 
-  grep -qF "PSBoundParameters.ContainsKey('Hooks')" "$INSTALLER_PS1" \
-    || { log_fail "TEST-646: .ps1 has no explicit-Hooks detection at all"; ok=0; }
-  grep -qF '($DeclineRefGuard -or $ArmRefGuard) -and $hooksExplicit' "$INSTALLER_PS1" \
-    || { log_fail "TEST-646: .ps1's contradiction check does not gate on DeclineRefGuard/ArmRefGuard plus explicit Hooks"; ok=0; }
+  local out2 rc2
+  out2="$(install_ps1 "$d" -DeclineRefGuard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-646: a bare pwsh -DeclineRefGuard (no explicit -Hooks) expected exit 0, got $rc2: $out2"; ok=0; }
 
-  if command -v pwsh >/dev/null 2>&1; then
-    local d; d="$(new_repo t646)"
-    local out rc
-    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard -Hooks ref-guard 2>&1)"; rc=$?
-    [[ $rc -eq 2 ]] || { log_fail "TEST-646: pwsh -DeclineRefGuard -Hooks ref-guard expected exit 2, got $rc: $out"; ok=0; }
-    [[ -f "$d/docs/ai/docs-audit.yaml" ]] && { log_fail "TEST-646: the .ps1 contradiction still wrote a config"; ok=0; }
-
-    local out2 rc2
-    out2="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard 2>&1)"; rc2=$?
-    [[ $rc2 -eq 0 ]] || { log_fail "TEST-646: a bare pwsh -DeclineRefGuard (no explicit -Hooks) expected exit 0, got $rc2: $out2"; ok=0; }
-  else
-    log_info "TEST-646: pwsh not available on this host -- the .ps1 twin's contradiction refusal not re-verified behaviourally this run (pinned statically above)"
-  fi
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-646 the .ps1 twin's -Hooks contradiction check mirrors the .sh gate (\$PSBoundParameters, not the Hooks default value), exiting 2 when -Hooks is explicit alongside -DeclineRefGuard/-ArmRefGuard and 0 on a bare decline/arm" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-646 the .ps1 launcher's -Hooks contradiction check exits 2 when -Hooks is explicit alongside -DeclineRefGuard and writes nothing, and a bare -DeclineRefGuard exits 0" \
     || log_fail "TEST-646 .ps1 -Hooks contradicts decline/arm"
 }
 
@@ -2180,25 +2160,18 @@ test_647_arm_ref_guard_creates_missing_hooks_dir() {
     log_fail "TEST-647: the misleading 'Installed' line printed even though the write failed: $out2"; ok=0
   fi
 
-  # (c) .ps1 twin.
-  if [[ -f "$INSTALLER_PS1" ]]; then
-    grep -qF "function Confirm-HooksDir" "$INSTALLER_PS1" \
-      || { log_fail "TEST-647: .ps1 has no Confirm-HooksDir helper"; ok=0; }
-    grep -qF "if (-not (Confirm-HooksDir)) { return \$false }" "$INSTALLER_PS1" \
-      || { log_fail "TEST-647: .ps1's Enable-RefGuard does not call Confirm-HooksDir before writing"; ok=0; }
-    if command -v pwsh >/dev/null 2>&1; then
-      local d3; d3="$(new_repo t647c)"
-      git -C "$d3" config core.hooksPath missing-hooks-dir
-      local out3 rc3
-      out3="$(cd "$d3" && pwsh -NoProfile -File "$INSTALLER_PS1" -ArmRefGuard 2>&1)"; rc3=$?
-      [[ $rc3 -eq 0 ]] || { log_fail "TEST-647: .ps1 -ArmRefGuard against a missing core.hooksPath dir expected exit 0, got $rc3: $out3"; ok=0; }
-      [[ -f "$d3/missing-hooks-dir/reference-transaction" ]] \
-        || { log_fail "TEST-647: .ps1 did not write the effective hook to missing-hooks-dir: $out3"; ok=0; }
-    else
-      log_info "TEST-647: pwsh not available on this host -- the .ps1 twin's directory-creation fix not re-verified behaviourally this run (pinned statically above)"
-    fi
+  # (c) .ps1 twin, through the launcher under pwsh (pre-commit-installer-on-node, D-REHOME run 6: the text pins on the
+  # .ps1 are gone; the behaviour arm stays).
+  if command -v pwsh >/dev/null 2>&1; then
+    local d3; d3="$(new_repo t647c)"
+    git -C "$d3" config core.hooksPath missing-hooks-dir
+    local out3 rc3
+    out3="$(install_ps1 "$d3" -ArmRefGuard 2>&1)"; rc3=$?
+    [[ $rc3 -eq 0 ]] || { log_fail "TEST-647: .ps1 -ArmRefGuard against a missing core.hooksPath dir expected exit 0, got $rc3: $out3"; ok=0; }
+    [[ -f "$d3/missing-hooks-dir/reference-transaction" ]] \
+      || { log_fail "TEST-647: .ps1 did not write the effective hook to missing-hooks-dir: $out3"; ok=0; }
   else
-    log_fail "TEST-647: $INSTALLER_PS1 not found"; ok=0
+    log_info "TEST-647: pwsh not available on this host -- the .ps1 launcher's directory-creation behaviour not exercised this run"
   fi
 
   [[ $ok -eq 1 ]] && log_pass "TEST-647 --arm-ref-guard/-ArmRefGuard create the effective hooks directory before writing (core.hooksPath naming a missing dir), and a write failure never prints the 'Installed' line (both twins)" \
