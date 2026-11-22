@@ -333,10 +333,13 @@ export function readStickyProfile(target) {
 // parseCoreList(text): the entries of the manifest's core block (DR-10): the block opens at the line "core:"
 // exactly, closes at the next line that starts with a character other than a space, and its entries are the lines
 // starting with two spaces, a dash and a space, trailing spaces, tabs and CR removed; empty entries are dropped.
+// A CR before the line feed ends the line and is no part of it (DR-34): a Windows checkout (core.autocrlf) holds the
+// manifest with CRLF, and the PowerShell twin read it line by line without the CR.
 export function parseCoreList(text) {
   const entries = [];
   let inBlock = false;
-  for (const line of text.split('\n')) {
+  for (const raw of text.split('\n')) {
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
     if (line === 'core:') {
       inBlock = true;
       continue;

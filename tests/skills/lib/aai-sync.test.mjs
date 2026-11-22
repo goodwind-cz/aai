@@ -914,13 +914,14 @@ describe('TEST-4003 roots and the refusals before any write', () => {
     const emptyList = makeSource(root, 'S2', { profiles: 'core:\nextended:\n  - .aai/x.md\n' });
     const noBlock = makeSource(root, 'S3', { profiles: 'extended:\n  - .aai/x.md\n' });
     const crlf = makeSource(root, 'S4', { profiles: 'core:\r\n  - .aai/AGENTS.md\r\n' });
+    const crlfEmpty = makeSource(root, 'S4b', { profiles: 'core:\r\nextended:\r\n  - .aai/x.md\r\n' });
     prepareEnv(root);
     const before = snapshotTree(root);
     let r = runSync({ argv: [target, '--profile', 'core'], root, target, script: noManifest.script });
     assert.equal(r.status, 1);
     assert.equal(r.stderr, `ERROR: --profile core requires the manifest: ${path.join(noManifest.src, '.aai', 'system', 'PROFILES.yaml')}\n`);
     assert.equal(r.stdout, header(noManifest.src));
-    for (const s of [emptyList, noBlock, crlf]) {
+    for (const s of [emptyList, noBlock, crlfEmpty]) {
       r = runSync({ argv: [target, '--profile', 'core'], root, target, script: s.script });
       assert.equal(r.status, 1, s.src);
       assert.equal(r.stderr, `ERROR: no core entries found in ${path.join(s.src, '.aai', 'system', 'PROFILES.yaml')}\n`);
@@ -935,6 +936,10 @@ describe('TEST-4003 roots and the refusals before any write', () => {
     const ok = makeSource(root, 'S5', { profiles: PROFILES_OK });
     r = runSync({ argv: [target, '--profile', 'core'], root, target, script: ok.script });
     assert.ok(!/requires the manifest|no core entries/.test(r.stderr), r.stderr);
+    // DR-34: the same list with CRLF line ends (a Windows checkout) passes them as well; an empty CRLF core block still does not
+    r = runSync({ argv: [target, '--profile', 'core'], root, target, script: crlf.script });
+    assert.ok(!/requires the manifest|no core entries/.test(r.stderr), r.stderr);
+    assert.equal(r.status, 0, r.stderr);
   });
 
   test('TEST-4003 the sticky profile is read from the pin before the refusals of the core profile', () => {
@@ -975,7 +980,11 @@ describe('TEST-4003 roots and the refusals before any write', () => {
     assert.deepEqual(parseCoreList('core:\n  - a\n\n  - b\n'), ['a', 'b'], 'a blank line does not close the block');
     assert.deepEqual(parseCoreList('core:\n  - a\n\t- b\n  - c\n'), ['a'], 'a tab-indented line closes the block');
     assert.deepEqual(parseCoreList('core:  \n  - a\n'), [], 'core: followed by spaces does not open it');
-    assert.deepEqual(parseCoreList('core:\r\n  - a\r\n'), [], 'a CR after core: does not open it');
+    // DR-34: a checkout with CRLF line ends (core.autocrlf on Windows) reads as the LF text does; the CR is no part of a line
+    assert.deepEqual(parseCoreList('core:\r\n  - a\r\n'), ['a'], 'a CR after core: is the end of the line, not a character of it');
+    assert.deepEqual(parseCoreList('core:\r\n  - a\r\n\r\n  - b \t\r\nextended:\r\n  - z\r\n'), ['a', 'b'], 'a CRLF manifest: blank lines stay inside, the next key closes the block');
+    assert.deepEqual(parseCoreList('core:\r\n  - a\r\n\tx\r\n  - c\r\n'), ['a'], 'a CRLF tab-indented line still closes the block');
+    assert.deepEqual(parseCoreList('core: \r\n  - a\r\n'), [], 'core: with a trailing space does not open the block under CRLF either');
     assert.deepEqual(parseCoreList('core:\n  - a\r\nextended:\n  - z\ncore:\n  - c\n'), ['a', 'c']);
     assert.deepEqual(parseCoreList('core:\n  - \n  -   \n  - d\n'), ['d'], 'empty entries are dropped');
   });
