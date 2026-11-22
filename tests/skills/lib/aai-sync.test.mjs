@@ -36,6 +36,7 @@ const NEW_TEST_FILES = [
   path.join(HERE, 'aai-sync.test.mjs'),
   path.join(HERE, 'sync-reference.mjs'),
   path.join(HERE, 'resolve-base.test.mjs'),
+  path.join(HERE, 'git-env-scrub.sh'),
 ];
 
 const scratchDirs = [];
@@ -124,7 +125,7 @@ export function runSync({ argv = [], root, target = null, cwd = root, env = {}, 
 // The scrubbed environment goes in as io.env; the child seam records and never starts anything real unless spawn is given.
 // The module is imported from scriptPath (a scratch copy has its own root); ledger collects the conflicts and deletions the
 // run records; onOut sees each printed text as it is printed.
-async function runInProcess({ argv = [], root, target = null, cwd = root, env = {}, scriptPath = MODULE, spawn = null, ledger = null, onOut = null }) {
+async function runInProcess({ argv = [], root, target = null, cwd = root, env = {}, scriptPath = MODULE, spawn = null, ledger = null, onOut = null, now = null, platform = null }) {
   const runEnv = prepareEnv(root, { PWD: cwd, ...env });
   assertTargetUnderRoot(target, root, cwd, argv);
   const { run } = await import(pathToFileURL(scriptPath).href);
@@ -133,7 +134,7 @@ async function runInProcess({ argv = [], root, target = null, cwd = root, env = 
   const calls = [];
   const seam = spawn ?? ((file, args) => { calls.push([file, args]); return { status: 1, stdout: '', stderr: '' }; });
   const code = await run(argv, {
-    out: (s) => { out.push(s); if (onOut) onOut(s); }, err: (s) => err.push(s), env: runEnv, cwd, spawn: seam, scriptPath, ...(ledger ? { ledger } : {}),
+    out: (s) => { out.push(s); if (onOut) onOut(s); }, err: (s) => err.push(s), env: runEnv, cwd, spawn: seam, scriptPath, ...(ledger ? { ledger } : {}), ...(now ? { now } : {}), ...(platform ? { platform } : {}),
   });
   return { code, stdout: out.join(''), stderr: err.join(''), calls };
 }
@@ -432,7 +433,8 @@ describe('TEST-4000 scratch safety and the frozen references', () => {
   test('TEST-4000 every sync invocation sets the git environment and asserts the target under the scratch root', () => {
     for (const file of NEW_TEST_FILES) {
       const src = readFileSync(file, 'utf8');
-      const problems = file.endsWith('.sh') ? shellInvocationProblems(src) : invocationProblems(src);
+      // git-env-scrub.sh runs no sync entry point (only the suite test-aai-sync-node.sh does): the forbidden-call scan covers it
+      const problems = file.endsWith('git-env-scrub.sh') ? [] : file.endsWith('.sh') ? shellInvocationProblems(src) : invocationProblems(src);
       assert.deepEqual(problems, [], path.basename(file));
     }
     const mine = readFileSync(path.join(HERE, 'aai-sync.test.mjs'), 'utf8');
@@ -1385,7 +1387,7 @@ const comparableRows = (target) => snapshotTree(target).filter((row) => {
   return !ENGINE_NAME.test(path.basename(rel)) && rel !== '.gitignore' && !rel.startsWith('docs/ai/reports') && rel !== '.aai/system/AAI_PIN.md';
 });
 
-const RUN3_LINE = /^ {2}(PROFILE core|WARN core-listed|WARN could not remove|PRESERVE|CLEAN|SEED|SKIP|SYNC \.claude-plugin|SYNC \.cursor)/;
+const RUN3_LINE = /^ {2}(PROFILE core|WARN core-listed|WARN could not remove|PRESERVE|CLEAN|SEED|SKIP|SYNC \.claude-plugin|SYNC \.cursor|SYNC \.github|SYNC hooks|MERGE|WARN hooks)/;
 // run3Lines(stdout, ...pairs): the narrative lines of the steps of run 3, each path replaced by its placeholder.
 function run3Lines(stdout, pairs) {
   const engine = (l) => ENGINE_NAME.test(path.basename(l.trim().split(' ').pop()));
@@ -2055,6 +2057,406 @@ describe('TEST-4009 skill trees, indexes, knowledge, seeds and root shims', () =
     assert.equal(lstatSync(path.join(t, 'AGENTS.md')).isFile(), true);
     assert.equal(readFileSync(path.join(t, 'AGENTS.md'), 'utf8'), 'root agents\n');
     assert.ok(r.stdout.includes('Syncing AAI from:'));
+    assertChangesUnder(before, snapshotTree(root), 't');
+  });
+});
+
+// --- TEST-4010 and TEST-4011 (run 4): the Copilot shim, the hooks merge, the advisory and the pin ------------------------
+
+const sha256Hex = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
+// the normalized hash the list holds: every CR removed, trailing LFs dropped
+const shimHash = (text) => sha256Hex(text.replace(/\r/g, '').replace(/\n+$/, ''));
+const SHIM_NEW = 'Copilot shim v2\nsecond line\n';
+const SHIM_OLD = 'Copilot shim v1\nold line\n';
+const OV_START = '<!-- AAI-PROJECT-OVERRIDES:START -->';
+const OV_END = '<!-- AAI-PROJECT-OVERRIDES:END -->';
+const OV_FILE = 'docs/ai/project-overrides/copilot-instructions.project.md';
+const shimLayer = { files: { '.github/copilot-instructions.md': SHIM_NEW, '.aai/system/COPILOT_SHIM_SHIPPED.list': `# shipped\n${shimHash(SHIM_OLD)}\r\n` } };
+const mergedShim = (rules, eol = '\n') => `${SHIM_NEW}\n---\n## Project Overrides (auto-merged)\n\n${OV_START}${eol}${rules}${eol}${OV_END}${eol}`;
+
+const hooksJson = (cmd, extra = {}) => `${JSON.stringify({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: cmd, async: false, ...extra }] }] } }, null, 2)}\n`;
+const hookCmd = (flag) => `"\${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh" ${flag}`;
+const hooksLayer = {
+  files: {
+    'hooks/session-start.sh': { text: '#!/bin/sh\necho hi\n', mode: 0o644 },
+    'hooks/session-start.ps1': 'ps1\n',
+    'hooks/.hidden-hook.sh': 'hidden\n',
+    'hooks/hooks.json': hooksJson(hookCmd('--v2')),
+    'hooks/hooks.windows.json': hooksJson('pwsh "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.ps1" --v2'),
+  },
+};
+
+describe('TEST-4010 the Copilot shim and the session hooks', () => {
+  test('TEST-4010 K15: every Copilot shim flow equals the frozen bash twin (lines, tree, recorded conflicts) and is not vacuous', async () => {
+    const root = scratch('k15-');
+    const cases = [
+      ['absent', {}, null],
+      ['identical', { '.github/copilot-instructions.md': SHIM_NEW }, null],
+      ['older shipped shim (listed hash)', { '.github/copilot-instructions.md': SHIM_OLD }, 'SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)'],
+      ['older shipped shim with CRLF', { '.github/copilot-instructions.md': SHIM_OLD.replace(/\n/g, '\r\n') }, 'SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)'],
+      ['project overrides block', { '.github/copilot-instructions.md': mergedShim('my rule\nsecond rule') }, 'MERGE preserved project overrides in:'],
+      ['CRLF block without a final newline', { '.github/copilot-instructions.md': `${SHIM_NEW}\r\n${OV_START}\r\nmy rule\r\n${OV_END}` }, 'MERGE preserved project overrides in:'],
+      ['no markers, the whole file is the overrides', { '.github/copilot-instructions.md': 'my own copilot file\n' }, 'MERGE preserved project overrides in:'],
+      ['end marker before start marker', { '.github/copilot-instructions.md': `${OV_END}\n${OV_START}\nmy rule\n` }, 'SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)'],
+      ['empty block, override file fallback', { '.github/copilot-instructions.md': `${OV_START}\n${OV_END}\n`, [OV_FILE]: 'file rule\n' }, 'MERGE preserved project overrides in:'],
+      ['whitespace only, no override file', { '.github/copilot-instructions.md': '  \n\n' }, 'SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)'],
+    ];
+    for (const [label, prepared, line] of cases) {
+      const d = await diffRun(root, `k15-${cases.findIndex((c) => c[0] === label)}`, { layer: shimLayer, prepare: (t) => writeTree(t, prepared) });
+      assertSameRun(d, `K15 ${label}`);
+      const stdout = d.mod.stdout;
+      if (line === null) assert.ok(!stdout.includes('copilot-instructions'), `${label}: no shim line`);
+      else assert.ok(stdout.split('\n').some((l) => l.includes(line)), `${label}: the line ${line}`);
+      const shim = readFileSync(path.join(d.tm, '.github/copilot-instructions.md'), 'utf8');
+      if (line !== null && line.startsWith('SYNC')) assert.equal(shim, SHIM_NEW, `${label}: replaced by the shim`);
+      if (line !== null && line.startsWith('MERGE')) {
+        assert.ok(shim.startsWith(`${SHIM_NEW}\n---\n## Project Overrides (auto-merged)\n\n${OV_START}\n`), `${label}: the merged bytes`);
+        assert.ok(existsSync(path.join(d.tm, OV_FILE)), `${label}: the override file is written`);
+        assert.deepEqual(d.ledger.conflicts.filter((c) => c.path.includes('copilot')), [], `${label}: a merge records no conflict`);
+      }
+    }
+  });
+
+  test('TEST-4010 DR-17 the merged shim and the override file are the bash bytes (no trim, a final newline)', async () => {
+    const root = scratch('dr17-');
+    const { script } = makeLayer(root, 'S', { engine: 'module', ...shimLayer });
+    const t = path.join(root, 't');
+    writeTree(t, { '.github/copilot-instructions.md': `${SHIM_NEW}\n${OV_START}\n  indented rule  \n\n${OV_END}\n` });
+    await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(readFileSync(path.join(t, OV_FILE), 'utf8'), '  indented rule  \n', 'the override file: the text, one newline');
+    assert.equal(readFileSync(path.join(t, '.github/copilot-instructions.md'), 'utf8'), mergedShim('  indented rule  '));
+    assert.ok(!readFileSync(path.join(t, '.github/copilot-instructions.md')).subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])), 'no BOM');
+  });
+
+  test('TEST-4010 copilotShimIsShipped answers for listed, unlisted, empty and CRLF texts and never reads "not shipped" for a missing hash tool (DR-19)', async () => {
+    const { copilotShimIsShipped, extractCopilotOverrides } = await import(MODULE_URL);
+    const root = scratch('shipped-');
+    const list = path.join(root, 'shipped.list');
+    writeFileSync(list, `# comment\n${shimHash(SHIM_OLD)}\r\n${'0'.repeat(64)}\n`);
+    assert.equal(copilotShimIsShipped(SHIM_OLD.replace(/\n+$/, ''), list), true, 'listed');
+    assert.equal(copilotShimIsShipped(SHIM_OLD, list), true, 'trailing LFs do not count');
+    assert.equal(copilotShimIsShipped(SHIM_OLD.replace(/\n/g, '\r\n'), list), true, 'CRLF');
+    assert.equal(copilotShimIsShipped('my own rule', list), false, 'unlisted');
+    assert.equal(copilotShimIsShipped('', list), true, 'empty');
+    assert.equal(copilotShimIsShipped(' \t\n \n', list), true, 'whitespace only');
+    assert.equal(copilotShimIsShipped('my own rule', path.join(root, 'missing.list')), false, 'no list: not shipped');
+    assert.equal(copilotShimIsShipped('', path.join(root, 'missing.list')), true, 'empty needs no list');
+    writeFileSync(list, `${shimHash('café')}\n`);
+    assert.equal(copilotShimIsShipped('café', list), true, 'the hash is over the UTF-8 bytes');
+    assert.equal(extractCopilotOverrides(`a\n${OV_START}\nx\r\ny\n${OV_END}\nz\n`), 'x\ny', 'the block, CR removed');
+    assert.equal(extractCopilotOverrides('no markers\r\nhere\n'), 'no markers\r\nhere', 'no markers: the whole text');
+    assert.equal(extractCopilotOverrides(`${OV_START}\nonly start\n`), `${OV_START}\nonly start`, 'a start without an end: the whole text');
+    assert.equal(extractCopilotOverrides(`${OV_END}\n${OV_START}\nx\n`), '', 'an end before a start: nothing');
+  });
+
+  test('TEST-4010 K16: every hooks flow equals the frozen bash twin (lines, tree, recorded conflicts) and is not vacuous', async () => {
+    const root = scratch('k16-');
+    const cases = {
+      'a target-only hook': { prepared: { 'hooks/merge-guard.sh': 'mine\n' }, expect: ['  PRESERVE target-only hook: hooks/merge-guard.sh', '  SYNC hooks/'], conflicts: 0 },
+      'b hooks.json absent': { prepared: {}, expect: ['  MERGE hooks/hooks.json: 1 hook(s) added, 0 updated, 0 already present, 0 left as-is -> hooks/hooks.json'], conflicts: 0 },
+      'c malformed hooks.json': { prepared: { 'hooks/hooks.json': '{not json\n' }, expect: ['  WARN hooks/hooks.json registration merge refused (target left untouched): existing hooks/hooks.json is not valid JSON'], conflicts: 1 },
+      'd user-modified entry': {
+        prepared: { 'hooks/hooks.json': hooksJson(hookCmd('--old'), { timeout: 5 }), '.aai/cache/hooks-shipped/hooks.json': hooksJson(hookCmd('--old')) },
+        expect: ['0 hook(s) added, 0 updated, 0 already present, 1 left as-is'], conflicts: 1,
+      },
+      'e updated in place': {
+        prepared: { 'hooks/hooks.json': hooksJson(hookCmd('--old')), '.aai/cache/hooks-shipped/hooks.json': hooksJson(hookCmd('--old')) },
+        expect: ['0 hook(s) added, 1 updated, 0 already present, 0 left as-is'], conflicts: 0,
+      },
+      'f snapshot not recordable': {
+        prepared: { '.aai/cache/hooks-shipped': 'a file where the snapshot directory belongs\n' },
+        expect: ['  WARN hooks/hooks.json merged, but the shipped snapshot could not be recorded: ', '  WARN hooks/hooks.windows.json merged, but the shipped snapshot could not be recorded: '], conflicts: 2,
+      },
+    };
+    let n = 0;
+    for (const [label, c] of Object.entries(cases)) {
+      n += 1;
+      const d = await diffRun(root, `k16-${n}`, { layer: hooksLayer, prepare: (t) => writeTree(t, c.prepared) });
+      assertSameRun(d, `K16 ${label}`);
+      for (const piece of c.expect) assert.ok(d.mod.stdout.includes(piece) || d.mod.stdout.split(d.tm).join('').includes(piece), `${label}: ${piece}`);
+      assert.equal(d.ledger.conflicts.filter((x) => x.path.startsWith('hooks/')).length, c.conflicts, `${label}: the recorded hooks conflicts`);
+      // the dotfile hook is copied (K16e) and session-start.sh is executable afterwards (K16f)
+      assert.equal(readFileSync(path.join(d.tm, 'hooks/.hidden-hook.sh'), 'utf8'), 'hidden\n', `${label}: the dotfile hook`);
+      assert.equal(statSync(path.join(d.tm, 'hooks/session-start.sh')).mode & 0o111, 0o111, `${label}: session-start.sh executable`);
+      assert.equal(d.mod.code, 0, `${label}: exit 0`);
+    }
+  });
+
+  test('TEST-4010 a malformed registration is left untouched byte for byte, and the in-process merge lines equal the library CLI', async () => {
+    const root = scratch('merge-lines-');
+    const { src, script } = makeLayer(root, 'S', { engine: 'module', ...hooksLayer });
+    const files = {
+      'hooks/hooks.json': hooksJson(hookCmd('--old'), { timeout: 5 }),
+      '.aai/cache/hooks-shipped/hooks.json': hooksJson(hookCmd('--old')),
+      'hooks/hooks.windows.json': '[1, 2\n',
+    };
+    const t = path.join(root, 't');
+    const c = path.join(root, 'c');
+    for (const dir of [t, c]) writeTree(dir, files);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(readFileSync(path.join(t, 'hooks/hooks.windows.json'), 'utf8'), '[1, 2\n', 'the malformed registration is untouched');
+    const lib = path.join(ROOT, '.aai', 'scripts', 'lib', 'merge-hooks-json.mjs');
+    const scrub = (s) => s.split(`${c}${path.sep}`).join('').split(`${src}${path.sep}`).join('<source>/');
+    const cli = spawnSync(process.execPath, [lib, path.join(src, 'hooks/hooks.json'), path.join(c, 'hooks/hooks.json'), '--shipped', path.join(c, '.aai/cache/hooks-shipped/hooks.json')], { encoding: 'utf8' });
+    assert.equal(cli.status, 0);
+    const want = `  MERGE hooks/hooks.json: ${scrub(cli.stdout.replace(/\n+$/, ''))}\n`;
+    assert.ok(r.stdout.split(t + path.sep).join('').includes(want), `the MERGE line equals the library CLI output: ${want}`);
+    assert.equal(readFileSync(path.join(t, 'hooks/hooks.json'), 'utf8'), readFileSync(path.join(c, 'hooks/hooks.json'), 'utf8'), 'the merged bytes equal the CLI merged bytes');
+    assert.ok(r.calls.every(([file]) => file === 'git'), 'the merge is in process: the only children are the pin\'s git calls');
+  });
+
+  test('TEST-4010 session-start.sh gets its execute bits when it is a regular file, never through a link; every write lies under the target', async () => {
+    const root = scratch('exec-');
+    const { script } = makeLayer(root, 'S', { engine: 'module', ...hooksLayer });
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    prepareEnv(root);
+    const before = snapshotTree(root);
+    await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(statSync(path.join(t, 'hooks/session-start.sh')).mode & 0o777, 0o755);
+    assertChangesUnder(before, snapshotTree(root), 't');
+    // a source without a session-start.sh in hooks/ chmods nothing and does not fail
+    const bare = makeLayer(root, 'S2', { engine: 'module', files: { 'hooks/other.sh': 'x\n' } });
+    const t2 = path.join(root, 't2');
+    mkdirSync(t2);
+    const r2 = await runInProcess({ argv: [t2], root, target: t2, scriptPath: bare.script });
+    assert.equal(r2.code, 0);
+    assert.equal(existsSync(path.join(t2, 'hooks/session-start.sh')), false);
+  });
+
+  test('TEST-4010 a hooks.json that is a link is refused (never written through) and recorded; the target of the link is unchanged', async () => {
+    const root = scratch('hooks-link-');
+    const { script } = makeLayer(root, 'S', { engine: 'module', ...hooksLayer });
+    const t = path.join(root, 't');
+    const outside = path.join(root, 'outside.json');
+    writeFileSync(outside, hooksJson(hookCmd('--x')));
+    mkdirSync(path.join(t, 'hooks'), { recursive: true });
+    symlinkSync(outside, path.join(t, 'hooks/hooks.json'));
+    const ledger = { conflicts: [], deletions: [] };
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script, ledger });
+    assert.equal(readFileSync(outside, 'utf8'), hooksJson(hookCmd('--x')), 'the link target is unchanged');
+    assert.equal(r.code, 0);
+    assert.ok(ledger.conflicts.some((x) => x.path === 'hooks/hooks.json' && x.text.startsWith('Hook-registration merge was refused and the target was left untouched: ')));
+  });
+});
+
+// advisoryText(generated, src, items): the bash advisory text written out literally.
+const advisoryText = (generated, src, { conflicts = [], deletions = [] } = {}) => [
+  '# Sync Conflict Advisory',
+  '',
+  `- Generated at (UTC): ${generated}`,
+  `- Source: ${src}`,
+  '',
+  'The following target files/directories had local content that differed from sync source and were overwritten.',
+  'Use an AI agent to decide merge strategy per item.',
+  '',
+  '## Recommended AI workflow',
+  '1. Inspect each item with `git diff -- <path>` in the target project.',
+  '2. Ask AI to extract project-specific guidance and place it into project-owned docs (for example `docs/ai/project-overrides/`).',
+  '3. Keep sync-managed files as baseline templates to reduce future conflicts.',
+  '',
+  '## Overwritten items',
+  ...conflicts.flatMap((c) => ['', `- Path: ${c.path}`, `- Recommendation: ${c.text}`]),
+  ...(deletions.length > 0 ? ['', '## Deleted items', ...deletions.flatMap((p) => ['', `- Path: ${p}`])] : []),
+  '',
+].join('\n');
+
+const fakeGit = (answers) => (file, args, opts) => {
+  fakeGit.calls.push({ file, args, opts });
+  const sub = args[0] === '-C' ? args.slice(2) : args;
+  const key = sub.join(' ');
+  const answer = answers[key];
+  return answer === undefined ? { status: 128, stdout: '', stderr: 'fatal' } : { status: 0, stdout: answer, stderr: '' };
+};
+fakeGit.calls = [];
+
+describe('TEST-4011 the advisory report, the pin and the closing lines', () => {
+  test('TEST-4011 renderAdvisory: the name and the stamp come from one clock read, the bash text, LF, no BOM; none for a quiet run', async () => {
+    const { renderAdvisory } = await import(MODULE_URL);
+    const now = new Date('2026-03-04T05:06:07.891Z');
+    const items = { conflicts: [{ path: 'AGENTS.md', text: 'Target file contains local changes.' }, { path: 'hooks/hooks.json', text: 'left as-is' }], deletions: ['.aai/old.md', '.claude/skills/aai-gone'] };
+    const adv = renderAdvisory({ ...items, src: '/the/source', now });
+    assert.equal(adv.name, 'sync-conflicts-20260304-050607.md');
+    assert.equal(adv.text, advisoryText('2026-03-04T05:06:07Z', '/the/source', items));
+    assert.ok(!adv.text.includes('\r') && !adv.text.startsWith('﻿'), 'LF, no BOM');
+    assert.equal(renderAdvisory({ conflicts: [], deletions: [], src: '/s', now }), null, 'a quiet run writes none');
+    const only = renderAdvisory({ conflicts: [], deletions: ['.aai/x'], src: '/s', now });
+    assert.equal(only.text, advisoryText('2026-03-04T05:06:07Z', '/s', { deletions: ['.aai/x'] }), 'a deletion alone is enough');
+    const midnight = renderAdvisory({ conflicts: [{ path: 'a', text: 'b' }], deletions: [], src: '/s', now: new Date('2026-12-31T23:59:59.999Z') });
+    assert.equal(midnight.name, 'sync-conflicts-20261231-235959.md');
+    assert.match(midnight.text, /- Generated at \(UTC\): 2026-12-31T23:59:59Z\n/);
+  });
+
+  test('TEST-4011 renderPin: the bash text, one space after Template version, the tag fallback, UNKNOWN, one clock read, the DR-22 environment', async () => {
+    const { renderPin } = await import(MODULE_URL);
+    const root = scratch('pin-');
+    const src = path.join(root, 'S');
+    mkdirSync(path.join(src, 'docs/ai'), { recursive: true });
+    const now = new Date('2026-03-04T05:06:07.891Z');
+    const env = { PATH: process.env.PATH, GIT_DIR: '/x', GIT_WORK_TREE: '/x', GIT_INDEX_FILE: '/x', GIT_COMMON_DIR: '/x', GIT_OBJECT_DIRECTORY: '/x', GIT_ALTERNATE_OBJECT_DIRECTORIES: '/x', GIT_NAMESPACE: 'x', KEEP: '1' };
+    const answers = { 'rev-parse HEAD': 'abc123\n', 'config --get remote.origin.url': 'https://example.invalid/aai.git\n', 'describe --tags --abbrev=0': 'v1.2.3\n' };
+    const pin = (version, extra = {}) => `# AAI Pin\n\n- Source path: ${src}\n- Template version: ${version}\n- Template commit: ${extra.commit ?? 'abc123'}\n- Canonical repo: ${extra.url ?? 'https://example.invalid/aai.git'}\n- Profile: ${extra.profile ?? 'core'}\n- Synced at (UTC): 2026-03-04T05:06:07Z\n\nNotes:\n- This project intentionally vendors the AAI files (self-contained).\n- Project-specific docs (requirements/specs/decisions/releases/issues/project-sessions) are not synced by this script.\n- docs/TECHNOLOGY.md is seeded from template only when missing and becomes project-owned after generation.\n`;
+    // a version file: the value after the last "Version:" with spaces, tabs and a CR trimmed
+    writeFileSync(path.join(src, 'docs/ai/AAI_VERSION.md'), '# AAI\n- Version:  \t4.5.6 \t\r\nVersion: 9.9.9\n');
+    fakeGit.calls = [];
+    const text = renderPin({ src, profile: 'core', now, spawn: fakeGit(answers), env });
+    assert.equal(text, pin('4.5.6'));
+    assert.ok(text.includes('- Template version: 4.5.6\n') && !text.includes('version:  '), 'one space');
+    for (const call of fakeGit.calls) {
+      assert.equal(call.file, 'git');
+      assert.deepEqual(call.args.slice(0, 2), ['-C', src], 'git -C <source>');
+      for (const v of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_NAMESPACE']) assert.ok(!(v in call.opts.env), `${v} is removed for the child`);
+      assert.equal(call.opts.env.KEEP, '1', 'the rest of the environment stays');
+      assert.equal(call.opts.stdio[0], 'ignore', 'stdin ignored');
+      assert.equal(call.opts.stdio[1], 'pipe', 'stdout piped');
+    }
+    assert.deepEqual(env.GIT_DIR, '/x', 'the caller environment object is not changed');
+    // no version file: the tag fallback
+    rmSync(path.join(src, 'docs/ai/AAI_VERSION.md'));
+    assert.equal(renderPin({ src, profile: 'extended', now, spawn: fakeGit(answers), env }), pin('v1.2.3 (tag)', { profile: 'extended' }));
+    // a version file without a Version line also falls back to the tag
+    writeFileSync(path.join(src, 'docs/ai/AAI_VERSION.md'), '# no version here\n\tVersion: tab led is not a version line\nx Version: neither is this\n');
+    assert.equal(renderPin({ src, profile: 'core', now, spawn: fakeGit(answers), env }), pin('v1.2.3 (tag)'));
+    rmSync(path.join(src, 'docs/ai/AAI_VERSION.md'));
+    // no git at all: every git-derived value is UNKNOWN
+    const none = renderPin({ src, profile: 'core', now, spawn: () => ({ status: null, error: new Error('ENOENT'), stdout: '' }), env });
+    assert.equal(none, pin('UNKNOWN', { commit: 'UNKNOWN', url: 'UNKNOWN' }));
+    // an empty remote url is UNKNOWN too
+    const emptyUrl = renderPin({ src, profile: 'core', now, spawn: fakeGit({ ...answers, 'config --get remote.origin.url': '\n' }), env });
+    assert.equal(emptyUrl, pin('v1.2.3 (tag)', { url: 'UNKNOWN' }));
+    assert.ok(!none.includes('\r') && !none.startsWith('﻿'), 'LF, no BOM');
+  });
+
+  test('TEST-4011 a run with GIT_DIR exported stamps the commit of the source, not of the repository the variable names (DR-22)', async () => {
+    const root = scratch('gitdir-');
+    const { src, script } = makeLayer(root, 'S', { engine: 'module', files: { 'docs/ai/AAI_VERSION.md': '- Version: 7.8.9\n' } });
+    const other = path.join(root, 'other');
+    mkdirSync(other);
+    writeFileSync(path.join(other, 'f.txt'), 'other\n');
+    const git = (cwd, args) => {
+      const r = spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', '-c', 'commit.gpgsign=false', ...args], { cwd, env: prepareEnv(root), encoding: 'utf8' });
+      assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+      return r.stdout.trim();
+    };
+    git(other, ['init', '-q', '-b', 'main']);
+    git(other, ['add', '-A']);
+    git(other, ['commit', '-q', '-m', 'other']);
+    git(src, ['init', '-q', '-b', 'main']);
+    git(src, ['add', '-A']);
+    git(src, ['commit', '-q', '-m', 'source']);
+    const srcSha = git(src, ['rev-parse', 'HEAD']);
+    const otherSha = git(other, ['rev-parse', 'HEAD']);
+    assert.notEqual(srcSha, otherSha);
+    // the control: with the variable set, a plain git call names the other repository
+    const control = spawnSync('git', ['-C', src, 'rev-parse', 'HEAD'], { env: { ...prepareEnv(root), GIT_DIR: path.join(other, '.git') }, encoding: 'utf8' });
+    assert.equal(control.stdout.trim(), otherSha, 'the variable really redirects git here');
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script, env: { GIT_DIR: path.join(other, '.git') }, spawn: (f, a, o) => spawnSync(f, a, o) });
+    assert.equal(r.code, 0, r.stderr);
+    const pin = readFileSync(path.join(t, '.aai/system/AAI_PIN.md'), 'utf8');
+    assert.ok(pin.includes(`- Template commit: ${srcSha}\n`), 'the pin names the commit of the source');
+    assert.ok(pin.includes('- Template version: 7.8.9\n'));
+  });
+
+  test('TEST-4011 K30: no AAI_VERSION.md gives the tag fallback, a source without git gives UNKNOWN', async () => {
+    const root = scratch('k30-');
+    const tagged = makeLayer(root, 'Stag', { engine: 'module' });
+    const git = (args) => {
+      const r = spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', '-c', 'commit.gpgsign=false', ...args], { cwd: tagged.src, env: prepareEnv(root), encoding: 'utf8' });
+      assert.equal(r.status, 0, r.stderr);
+    };
+    git(['init', '-q', '-b', 'main']);
+    git(['add', '-A']);
+    git(['commit', '-q', '-m', 'x']);
+    git(['tag', 'v9.9.9']);
+    const t1 = path.join(root, 't1');
+    mkdirSync(t1);
+    const r1 = await runInProcess({ argv: [t1], root, target: t1, scriptPath: tagged.script, spawn: (f, a, o) => spawnSync(f, a, o) });
+    assert.equal(r1.code, 0, r1.stderr);
+    assert.ok(readFileSync(path.join(t1, '.aai/system/AAI_PIN.md'), 'utf8').includes('- Template version: v9.9.9 (tag)\n'));
+    const plain = makeLayer(root, 'Splain', { engine: 'module' });
+    const t2 = path.join(root, 't2');
+    mkdirSync(t2);
+    const r2 = await runInProcess({ argv: [t2], root, target: t2, scriptPath: plain.script, spawn: (f, a, o) => spawnSync(f, a, o) });
+    assert.equal(r2.code, 0, r2.stderr);
+    const pin = readFileSync(path.join(t2, '.aai/system/AAI_PIN.md'), 'utf8');
+    for (const line of ['- Template version: UNKNOWN', '- Template commit: UNKNOWN', '- Canonical repo: UNKNOWN', '- Profile: extended']) assert.ok(pin.split('\n').includes(line), line);
+  });
+
+  test('TEST-4011 a sync that records a conflict and a deletion writes the bash advisory and pin; the closing lines end the run', async () => {
+    const root = scratch('report-');
+    const prepare = (t) => writeTree(t, { 'AGENTS.md': 'local agents\n', '.aai/knowledge/K.md': 'extended only\n' });
+    const d = await diffRun(root, 'rep', { prepare, steps: [['--profile', 'core']] });
+    const reportOf = (stdout) => {
+      const m = /^ {2}Advisory report: (.*)$/m.exec(stdout);
+      assert.ok(m, 'an Advisory report line is printed');
+      return m[1];
+    };
+    const mask = (text, srcDir) => text.split(srcDir).join('<S>').replace(/- Generated at \(UTC\): .*/, '- Generated at (UTC): <T>');
+    const refText = mask(readFileSync(reportOf(d.ref.stdout), 'utf8'), d.sb);
+    const modPath = reportOf(d.mod.stdout);
+    assert.ok(modPath.startsWith(path.join(d.tm, 'docs/ai/reports', 'sync-conflicts-')), 'the report lies in the target');
+    assert.match(path.basename(modPath), /^sync-conflicts-\d{8}-\d{6}\.md$/);
+    const modText = readFileSync(modPath, 'utf8');
+    assert.equal(mask(modText, d.sm), refText, 'the advisory equals the bash advisory');
+    assert.ok(modText.includes('## Deleted items') && modText.includes('- Path: .aai/knowledge/K.md'), 'the deletion is listed');
+    assert.ok(modText.includes('- Path: AGENTS.md'), 'the conflict is listed');
+    // the pin: the bash lines except the version spacing (DR-21), the stamp and the path
+    const pinLines = (p) => readFileSync(p, 'utf8').split('\n').filter((l) => !/^- (Synced at|Template version|Source path)/.test(l));
+    assert.deepEqual(pinLines(path.join(d.tm, '.aai/system/AAI_PIN.md')), pinLines(path.join(d.tb, '.aai/system/AAI_PIN.md')), 'the pin equals the bash pin');
+    assert.ok(readFileSync(path.join(d.tm, '.aai/system/AAI_PIN.md'), 'utf8').includes(`- Source path: ${d.sm}\n`));
+    // the closing lines are the bash lines
+    assert.ok(d.mod.stdout.endsWith(`Sync complete. Review changes in ${d.tm}:\n  cd ${d.tm} && git status && git diff\n`), 'the closing lines');
+    assert.ok(d.ref.stdout.endsWith(`Sync complete. Review changes in ${d.tb}:\n  cd ${d.tb} && git status && git diff\n`));
+    assert.equal(d.mod.code, 0);
+  });
+
+  test('TEST-4011 a quiet run writes no advisory and prints no Advisory report line; the injected clock stamps the report and the pin from one read', async () => {
+    const root = scratch('quiet-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    // a fresh target records the two index directories the up-front mkdir made (as the bash twin does); the second run is quiet
+    const first = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(first.code, 0);
+    assert.ok(first.stdout.includes('Advisory report:'), 'the fresh run recorded the index conflicts');
+    rmSync(path.join(t, 'docs/ai/reports'), { recursive: true });
+    const quiet = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(quiet.code, 0);
+    assert.ok(!quiet.stdout.includes('Advisory report:'), 'a quiet run prints no advisory line');
+    assert.equal(existsSync(path.join(t, 'docs/ai/reports')), false, 'a quiet run writes no advisory (the reports directory is not even created)');
+    writeFileSync(path.join(t, 'AGENTS.md'), 'now a local change\n');
+    let reads = 0;
+    const now = () => { reads += 1; return new Date('2026-05-06T07:08:09.999Z'); };
+    const loud = await runInProcess({ argv: [t], root, target: t, scriptPath: script, now });
+    assert.equal(reads, 1, 'the clock is read once per run');
+    assert.ok(loud.stdout.includes(`  Advisory report: ${path.join(t, 'docs/ai/reports/sync-conflicts-20260506-070809.md')}\n`));
+    assert.ok(readFileSync(path.join(t, 'docs/ai/reports/sync-conflicts-20260506-070809.md'), 'utf8').includes('- Generated at (UTC): 2026-05-06T07:08:09Z\n'));
+    assert.ok(readFileSync(path.join(t, '.aai/system/AAI_PIN.md'), 'utf8').includes('- Synced at (UTC): 2026-05-06T07:08:09Z\n'));
+  });
+
+  test('TEST-4011 DR-23 native paths: with platform win32 the source path in the pin and the closing lines are the path as the platform gives it', async () => {
+    const root = scratch('win-');
+    const { src, script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script, platform: 'win32' });
+    assert.equal(r.code, 0, r.stderr);
+    assert.ok(readFileSync(path.join(t, '.aai/system/AAI_PIN.md'), 'utf8').includes(`- Source path: ${src}\n`));
+    assert.ok(r.stdout.includes(`Syncing AAI from: ${src}\n`));
+    assert.ok(!/^\/[a-z]\//m.test(readFileSync(path.join(t, '.aai/system/AAI_PIN.md'), 'utf8')), 'no /c/ style path');
+  });
+
+  test('TEST-4011 every write and delete of the report and the pin lies under the target', async () => {
+    const root = scratch('under-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    writeTree(t, { 'AGENTS.md': 'local\n' });
+    prepareEnv(root);
+    const before = snapshotTree(root);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(r.code, 0);
     assertChangesUnder(before, snapshotTree(root), 't');
   });
 });

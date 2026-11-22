@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-sync-on-node | specs | implementing | 9 done, 13 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
+| spec-sync-on-node | specs | implementing | 12 done, 10 planned | docs/specs/SPEC-DRAFT-spec-sync-on-node.md |
 
 ## Canonical layer (0)
 
@@ -796,7 +796,7 @@ _None._
 
 _None._
 
-## Broken references (605)
+## Broken references (607)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -821,6 +821,8 @@ _None._
 | tests/skills/lib/aai-sync.test.mjs | docs/ai/DYNAMIC_SKILLS.md | NOT FOUND |
 | tests/skills/lib/aai-sync.test.mjs | docs/ai/LOCKS.md | NOT FOUND |
 | tests/skills/lib/aai-sync.test.mjs | docs/ai/SUPERPOWERS_INTEGRATION.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/project-overrides/copilot-instructions.project.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/reports/sync-conflicts-20260506-070809.md | NOT FOUND |
 | tests/skills/lib/aai-sync.test.mjs | docs/knowledge/NEW.md | NOT FOUND |
 | tests/skills/lib/aai-sync.test.mjs | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
 | tests/skills/lib/aai-sync.test.mjs | docs/roles/role.md | NOT FOUND |

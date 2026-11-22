@@ -2,7 +2,8 @@
 #
 # Test: aai-sync-node
 # (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
-# them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006, run 3 TEST-4007..4009)
+# them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006, run 3 TEST-4007..4009,
+# run 4 TEST-4010..4012)
 #
 # The layer sync is one Node module (.aai/scripts/aai-sync.mjs) behind thin sh/ps1 launchers, compared against
 # frozen copies of both old twins (tests/fixtures/sync-reference/). Every case works in scratch directories this
@@ -380,8 +381,72 @@ test_4009_surfaces() {
   log_pass "TEST-4009: the skill trees, indexes, knowledge files, seeds and root shims equal the bash twin for a differing and a fresh target (lines, tree, recorded conflicts), isRetiredSkillWrapper accepts only the shipped shape and keeps every near miss, the sentinel is case-sensitive"
 }
 
+# --- run 4: the Copilot shim and the hooks merge, the advisory and the pin, the installer suites' git environment (TEST-4010 to TEST-4012) ---
+
+test_4010_copilot_and_hooks() {
+  run_node_tests TEST-4010
+  log_pass "TEST-4010: the K15 Copilot shim flows and the K16 hooks flows equal the frozen bash twin (lines, tree, recorded conflicts), the merged shim and override file are the bash bytes, copilotShimIsShipped and extractCopilotOverrides answer for listed, unlisted, empty and CRLF texts, the in-process merge lines equal the library CLI output, a malformed registration or a link is left untouched, session-start.sh is executable"
+}
+
+test_4011_report_and_pin() {
+  run_node_tests TEST-4011
+  log_pass "TEST-4011: renderAdvisory and renderPin write the bash text from one clock read (LF, one space after Template version, tag fallback, UNKNOWN), a run with GIT_DIR exported stamps the commit of the source, a quiet run writes no advisory, the closing lines end the run, native paths under platform win32"
+}
+
+# scrub_case <label> <suite file> <selector> <injection>: runs one selector of an installer suite from the checkout root with
+# core.hooksPath injected through the caller's git environment ("config" = GIT_CONFIG_COUNT, KEY_0 and VALUE_0; "parameters" =
+# GIT_CONFIG_PARAMETERS) pointing at an empty scratch victim directory (never a repository); the run must exit 0 and the
+# victim must still be empty afterwards.
+scrub_case() {
+  local label="$1" suite="$2" selector="$3" mode="$4" victim rc=0 log
+  victim="$(mktemp -d "$TEST_DIR/victim.XXXXXX")" || log_fail "TEST-4012: mktemp failed"
+  [[ -n "$victim" && "$victim" == "$TEST_DIR"/* && -d "$victim" ]] || log_fail "TEST-4012: the victim directory is not under the suite scratch root"
+  log="$TEST_DIR/scrub-${label}-${mode}.log"
+  case "$mode" in
+    config)
+      ( cd "$PROJECT_ROOT" && env -u AAI_ROLE GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0="$victim" bash "$suite" "$selector" ) >"$log" 2>&1 || rc=$?
+      ;;
+    parameters)
+      ( cd "$PROJECT_ROOT" && env -u AAI_ROLE GIT_CONFIG_PARAMETERS="'core.hooksPath'='$victim'" bash "$suite" "$selector" ) >"$log" 2>&1 || rc=$?
+      ;;
+    *) log_fail "TEST-4012: unknown injection $mode" ;;
+  esac
+  if [[ "$rc" != 0 ]]; then
+    tail -20 "$log" >&2
+    log_fail "TEST-4012: $label $selector with core.hooksPath injected through $mode exited $rc"
+  fi
+  [[ -z "$(ls -A "$victim")" ]] || { ls -A "$victim" >&2; log_fail "TEST-4012: $label $selector with core.hooksPath injected through $mode wrote into the victim directory"; }
+  rmdir "$victim" || log_fail "TEST-4012: the victim directory could not be removed"
+}
+
+test_4012_git_env_scrub() {
+  local repro="$PROJECT_ROOT/docs/ai/reviews/review-pre-commit-installer-on-node-20261122T000337Z-repro-N1.sh" rc=0 log="$TEST_DIR/repro-n1.log" f
+  [[ -f "$repro" ]] || log_fail "TEST-4012: the recorded repro does not exist: $repro"
+  ( cd "$PROJECT_ROOT" && env -u AAI_ROLE bash "$repro" ) >"$log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$log" >&2; log_fail "TEST-4012: the recorded repro N1 exited $rc (0 once the defect is gone)"; }
+  [[ -f "$PROJECT_ROOT/tests/skills/lib/git-env-scrub.sh" ]] || log_fail "TEST-4012: tests/skills/lib/git-env-scrub.sh does not exist"
+  local mode
+  for mode in config parameters; do
+    scrub_case hygiene tests/skills/test-aai-hygiene-pack.sh test_618_ref_guard_grep_conformance "$mode"
+    scrub_case doctor tests/skills/test-aai-doctor.sh test_1344_cat17_seam1_installed_hook_passes "$mode"
+    scrub_case pre-commit-checks tests/skills/test-aai-pre-commit-checks.sh test_3453_large_debug_list "$mode"
+  done
+  # the four suites source the helper, run their installers through aai_git_scrubbed and assert the hooks path
+  for f in test-aai-git-ref-guard.sh test-aai-hygiene-pack.sh test-aai-doctor.sh test-aai-pre-commit-checks.sh; do
+    local file="$PROJECT_ROOT/tests/skills/$f" bare
+    /usr/bin/grep -qF 'lib/git-env-scrub.sh' "$file" || log_fail "TEST-4012: $f does not source lib/git-env-scrub.sh"
+    /usr/bin/grep -qF 'aai_assert_hooks_under' "$file" || log_fail "TEST-4012: $f never calls aai_assert_hooks_under"
+    # every line that runs an installer for real (not --print, --help or a text probe) goes through aai_git_scrubbed
+    bare="$(/usr/bin/grep -nE '(bash|pwsh|node)[^|;&]* +("?\$[A-Za-z_{}]*INSTALL[A-Z_]*"?|[^ ]*install-pre-commit-hook\.(sh|ps1|mjs))' "$file" | /usr/bin/grep -vE '^[0-9]+: *#|--print|--help|--this-flag|grep -qF|aai_git_scrubbed' || true)"
+    [[ -z "$bare" ]] || { printf '%s\n' "$bare" >&2; log_fail "TEST-4012: $f runs an installer outside aai_git_scrubbed"; }
+  done
+  # the false comment of the ref-guard suite is gone
+  if /usr/bin/grep -qF 'can never redirect an installer run' "$PROJECT_ROOT/tests/skills/test-aai-git-ref-guard.sh"; then log_fail "TEST-4012: the false comment in test-aai-git-ref-guard.sh is still there"; fi
+  log_pass "TEST-4012: the recorded repro exits 0, core.hooksPath injected through GIT_CONFIG_COUNT/KEY_0/VALUE_0 and GIT_CONFIG_PARAMETERS reaches none of hygiene test_618, the doctor suite and the pre-commit-checks suite (the victim stays empty, rc 0), and the four suites run their installers through aai_git_scrubbed with aai_assert_hooks_under"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4009)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4012)"
   check_deps
   setup_fixture
   test_4000_scratch_safety
@@ -394,6 +459,9 @@ main() {
   test_4007_core_prune
   test_4008_copy_and_guard
   test_4009_surfaces
+  test_4010_copilot_and_hooks
+  test_4011_report_and_pin
+  test_4012_git_env_scrub
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

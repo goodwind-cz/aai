@@ -19,14 +19,14 @@
 // retired skill wrappers), under a target root it has verified again. Kept: the pointer to migrate-state-to-local,
 // printed by lib/gitignore-block.mjs when it appends the runtime-state patterns.
 //
-// STATE OF THE PORT (run 3 of the ride): arguments, help, usage, the roots and their refusals (DR-5 to DR-8), the
-// profile and the core list, the core copy and prune, the extended copy, the skill trees, the indexes, the knowledge
-// files, the seeds and the root shims are here, in the step order of the bash twin, with the shared base resolution
-// (lib/resolve-base.mjs) and the .gitignore reconcile (lib/gitignore-block.mjs). The Copilot shim, the hooks merge, the
-// advisory report and the pin (run 4) are named steps that refuse with "not implemented yet" at their place in the
-// order; the module is not reachable from a launcher before the launcher swap.
+// STATE OF THE PORT (run 4 of the ride): the module completes a whole sync: arguments, help, usage, the roots and their
+// refusals (DR-5 to DR-8), the profile and the core list, the core copy and prune, the extended copy, the skill trees, the
+// indexes, the knowledge files, the seeds and the root shims, the Copilot shim and the session hooks (the registration merge
+// runs in process), the .gitignore reconcile, the advisory report and the pin, in the step order of the bash twin. The module
+// is not reachable from a launcher before the launcher swap.
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -319,11 +319,6 @@ export function parseCoreList(text) {
   }
   return entries;
 }
-
-// notYet(name, run): the exported name of a step that a later run implements; calling it refuses.
-const notYet = (name, run) => () => {
-  throw new Error(`${name} is not implemented yet (run ${run} of the ride)`);
-};
 
 // --- the file system helpers of the steps ---------------------------------------------------------------------------
 
@@ -819,13 +814,285 @@ function stepGitignore(ctx) {
   });
 }
 
-// The step names of run 4, at the place the twin runs them; each refuses until its run.
-const PENDING = ['the Copilot shim', 'the session hooks', 'the advisory report', 'the pin'];
+// --- the Copilot shim and the session hooks (D-SURFACES, D-HOOKS) -------------------------------------------------------
 
-export const copilotShimIsShipped = notYet('copilotShimIsShipped', 4);
-export const extractCopilotOverrides = notYet('extractCopilotOverrides', 4);
-export const renderAdvisory = notYet('renderAdvisory', 4);
-export const renderPin = notYet('renderPin', 4);
+const OVERRIDES_START = '<!-- AAI-PROJECT-OVERRIDES:START -->';
+const OVERRIDES_END = '<!-- AAI-PROJECT-OVERRIDES:END -->';
+const stripTrailingLf = (text) => text.replace(/\n+$/, '');
+
+// extractCopilotOverrides(text): the project overrides of a target's Copilot shim as the bash twin's extraction read them
+// (the trailing line feeds of a command substitution removed): when the text holds both markers anywhere, the lines between
+// the start line and the end line (each line's CR removed; the first end line stops the scan, even one that comes before the
+// start line); else the whole text.
+export function extractCopilotOverrides(text) {
+  if (!text.includes(OVERRIDES_START) || !text.includes(OVERRIDES_END)) return stripTrailingLf(text);
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  const kept = [];
+  let inBlock = false;
+  for (const raw of lines) {
+    const line = raw.replace(/\r$/, '');
+    if (line === OVERRIDES_START) {
+      inBlock = true;
+      continue;
+    }
+    if (line === OVERRIDES_END) break;
+    if (inBlock) kept.push(line);
+  }
+  return stripTrailingLf(kept.map((l) => `${l}\n`).join(''));
+}
+
+// shippedBytes(bytes, listFile): the work of copilotShimIsShipped on a text held one character per byte (latin1): every CR
+// removed; empty or whitespace only is shipped; else the sha256 (node:crypto, always computed, DR-19) of the bytes against the
+// list's rows (CR removed), a missing list meaning not shipped.
+function shippedBytes(bytes, listFile) {
+  const norm = stripTrailingLf(bytes.replace(/\r/g, ''));
+  if (/^[ \t\n\v\f]*$/.test(norm)) return true;
+  let list = '';
+  try {
+    if (!statOrNull(listFile)?.isFile()) return false;
+    list = fs.readFileSync(listFile, 'latin1');
+  } catch {
+    return false;
+  }
+  const hash = createHash('sha256').update(Buffer.from(norm, 'latin1')).digest('hex');
+  const rows = list.split('\n');
+  if (rows[rows.length - 1] === '') rows.pop();
+  return rows.some((row) => row.replace(/\r$/, '') === hash);
+}
+
+// copilotShimIsShipped(text, listFile): true when the project-override text of a target's Copilot shim is empty or whitespace
+// only, or its normalized hash (every CR removed, trailing LFs dropped, sha256 of the UTF-8 bytes) is a row of the list.
+export function copilotShimIsShipped(text, listFile) {
+  return shippedBytes(Buffer.from(text, 'utf8').toString('latin1'), listFile);
+}
+
+// writeManaged(roots, abs, bytes): a file written under the guard; a destination that is a link is removed first (the link,
+// never what it points to), a regular destination is truncated in place (its mode is kept).
+function writeManaged(roots, abs, bytes) {
+  mustGuard(roots, abs);
+  if (lstatOrNull(abs)?.isSymbolicLink()) fs.unlinkSync(abs);
+  fs.writeFileSync(abs, bytes);
+}
+
+function stepCopilot(ctx) {
+  const { roots, out, src } = ctx;
+  const srcShim = path.join(src, '.github', 'copilot-instructions.md');
+  if (!isFile(srcShim)) return;
+  const dstShim = path.join(roots.target, '.github', 'copilot-instructions.md');
+  if (!(isFile(dstShim) && fileDiffers(srcShim, dstShim))) {
+    copyReplace(srcShim, dstShim, roots);
+    return;
+  }
+  const overrideDir = path.join(roots.target, 'docs', 'ai', 'project-overrides');
+  const overrideFile = path.join(overrideDir, 'copilot-instructions.project.md');
+  let overrides = extractCopilotOverrides(fs.readFileSync(dstShim, 'latin1'));
+  if (overrides === '' && isFile(overrideFile)) overrides = stripTrailingLf(fs.readFileSync(overrideFile, 'latin1'));
+  if (shippedBytes(overrides, path.join(src, '.aai', 'system', 'COPILOT_SHIM_SHIPPED.list'))) {
+    copyReplace(srcShim, dstShim, roots);
+    out('  SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)\n');
+    return;
+  }
+  makeDir(roots, overrideDir);
+  writeManaged(roots, overrideFile, Buffer.from(`${overrides}\n`, 'latin1'));
+  const merged = Buffer.concat([
+    fs.readFileSync(srcShim),
+    Buffer.from(`\n---\n## Project Overrides (auto-merged)\n\n${OVERRIDES_START}\n${overrides}\n${OVERRIDES_END}\n`, 'latin1'),
+  ]);
+  writeManaged(roots, dstShim, merged);
+  out(`  MERGE preserved project overrides in: ${overrideFile}\n`);
+}
+
+// mergeRegistration(ctx, name): hooks/<name> merged in process (the library throws before it writes); the MERGE line and the
+// advisory entries as the bash twin made them from the library CLI's output, the target prefix removed and the source prefix
+// replaced by <source>/.
+function mergeRegistration(ctx, name) {
+  const { roots, out, src } = ctx;
+  const srcHook = path.join(src, 'hooks', name);
+  const dstHook = path.join(roots.target, 'hooks', name);
+  const shipped = path.join(roots.target, '.aai', 'cache', 'hooks-shipped', name);
+  mustGuard(roots, dstHook);
+  mustGuard(roots, shipped);
+  const scrub = (text) => text.split(`${roots.target}${path.sep}`).join('').split(`${src}${path.sep}`).join('<source>/');
+  let res = null;
+  let refused = '';
+  try {
+    res = mergeHooksJson(srcHook, dstHook, { shipped });
+  } catch (e) {
+    refused = scrub(e.message || String(e));
+  }
+  if (res === null) {
+    conflictOf(ctx, `hooks/${name}`, `Hook-registration merge was refused and the target was left untouched: ${refused} Merge the registration manually.`);
+    out(`  WARN hooks/${name} registration merge refused (target left untouched): ${refused}\n`);
+    return;
+  }
+  const lines = [formatSummary(res, dstHook), ...formatConflicts(res), ...formatSnapshotError(res, shipped)];
+  const text = scrub(lines.join('\n'));
+  out(`  MERGE hooks/${name}: ${text}\n`);
+  for (const line of text.split('\n')) {
+    if (line.startsWith('LEFT-AS-IS ')) {
+      conflictOf(ctx, `hooks/${name}`, `A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). ${line.slice('LEFT-AS-IS '.length)}`);
+    } else if (line.startsWith('SNAPSHOT-NOT-RECORDED ')) {
+      const detail = line.slice('SNAPSHOT-NOT-RECORDED '.length);
+      conflictOf(ctx, `hooks/${name}`, `The registration merge was applied to the target, but the engine could not record what it shipped (${detail}), so the next sync can only report a changed source-owned entry as left as-is, never update it, until that path is writable. Fix the snapshot path under .aai/cache/hooks-shipped/ and re-sync.`);
+      out(`  WARN hooks/${name} merged, but the shipped snapshot could not be recorded: ${detail}\n`);
+    }
+  }
+}
+
+// hookNames(dir): every entry of dir, dotfiles included, in the byte order of the C locale.
+function hookNames(dir) {
+  try {
+    return fs.readdirSync(dir).sort();
+  } catch {
+    return [];
+  }
+}
+
+function stepHooks(ctx) {
+  const { roots, out, src } = ctx;
+  const srcDir = path.join(src, 'hooks');
+  if (!isDir(srcDir)) return;
+  const dstDir = path.join(roots.target, 'hooks');
+  makeDir(roots, dstDir);
+  for (const name of hookNames(srcDir)) {
+    const srcHook = path.join(srcDir, name);
+    if (!fs.existsSync(srcHook)) continue;
+    if (name === 'hooks.json' || name === 'hooks.windows.json') mergeRegistration(ctx, name);
+    else copyReplace(srcHook, path.join(dstDir, name), roots);
+  }
+  for (const name of hookNames(dstDir)) {
+    if (fs.existsSync(path.join(dstDir, name)) && !fs.existsSync(path.join(srcDir, name))) out(`  PRESERVE target-only hook: hooks/${name}\n`);
+  }
+  const session = path.join(dstDir, 'session-start.sh');
+  const st = lstatOrNull(session);
+  if (st !== null && st.isFile()) {
+    mustGuard(roots, session);
+    fs.chmodSync(session, st.mode & 0o7777 | 0o111);
+  }
+  out('  SYNC hooks/\n');
+}
+
+// --- the advisory report and the pin (D-REPORT) -------------------------------------------------------------------------
+
+// The variables that select a repository; removed from the environment of every git child (DR-22).
+const GIT_SELECTORS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_NAMESPACE'];
+
+const two = (n) => String(n).padStart(2, '0');
+// utcStamp(now): the UTC fields of one clock read, to the second.
+function utcStamp(now) {
+  const date = `${now.getUTCFullYear()}${two(now.getUTCMonth() + 1)}${two(now.getUTCDate())}`;
+  const time = `${two(now.getUTCHours())}${two(now.getUTCMinutes())}${two(now.getUTCSeconds())}`;
+  const iso = `${now.getUTCFullYear()}-${two(now.getUTCMonth() + 1)}-${two(now.getUTCDate())}T${two(now.getUTCHours())}:${two(now.getUTCMinutes())}:${two(now.getUTCSeconds())}Z`;
+  return { name: `${date}-${time}`, iso };
+}
+
+// renderAdvisory({ conflicts, deletions, src, now }): { name, text } for the advisory report of a run that recorded a conflict or
+// a deletion (the bash text, LF, no BOM; the name and the Generated-at stamp from the one clock read now), else null.
+export function renderAdvisory({ conflicts, deletions, src, now }) {
+  if (conflicts.length === 0 && deletions.length === 0) return null;
+  const stamp = utcStamp(now);
+  const lines = [
+    '# Sync Conflict Advisory',
+    '',
+    `- Generated at (UTC): ${stamp.iso}`,
+    `- Source: ${src}`,
+    '',
+    'The following target files/directories had local content that differed from sync source and were overwritten.',
+    'Use an AI agent to decide merge strategy per item.',
+    '',
+    '## Recommended AI workflow',
+    '1. Inspect each item with `git diff -- <path>` in the target project.',
+    '2. Ask AI to extract project-specific guidance and place it into project-owned docs (for example `docs/ai/project-overrides/`).',
+    '3. Keep sync-managed files as baseline templates to reduce future conflicts.',
+    '',
+    '## Overwritten items',
+  ];
+  for (const c of conflicts) lines.push('', `- Path: ${c.path}`, `- Recommendation: ${c.text}`);
+  if (deletions.length > 0) {
+    lines.push('', '## Deleted items');
+    for (const d of deletions) lines.push('', `- Path: ${d}`);
+  }
+  return { name: `sync-conflicts-${stamp.name}.md`, text: `${lines.join('\n')}\n` };
+}
+
+// gitOut(startChild, env, src, args): the standard output of one git child (git -C src args; the repository-selecting variables
+// removed, stdin ignored, stdout piped) with its trailing line feeds removed, or '' when it failed.
+function gitOut(startChild, env, src, args) {
+  const childEnv = { ...env };
+  for (const name of GIT_SELECTORS) delete childEnv[name];
+  let r = null;
+  try {
+    r = startChild('git', ['-C', src, ...args], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+  } catch {
+    return '';
+  }
+  if (!r || r.error || r.status !== 0 || typeof r.stdout !== 'string') return '';
+  return stripTrailingLf(r.stdout);
+}
+
+// versionOf(src): the value after the last "Version:" on the first line of docs/ai/AAI_VERSION.md that matches ^-? *Version:, with
+// spaces, tabs and a CR trimmed; '' when there is no such line or the file cannot be read.
+function versionOf(src) {
+  let text = '';
+  try {
+    text = fs.readFileSync(path.join(src, 'docs', 'ai', 'AAI_VERSION.md'), 'utf8');
+  } catch {
+    return '';
+  }
+  for (const line of text.split('\n')) {
+    if (/^-? *Version:/.test(line)) return line.slice(line.lastIndexOf('Version:') + 'Version:'.length).replace(/^[ \t]+|[ \t\r]+$/g, '');
+  }
+  return '';
+}
+
+// renderPin({ src, profile, now, spawn, env }): the text of .aai/system/AAI_PIN.md: the version (the source's version file, else
+// the newest reachable tag with " (tag)", else UNKNOWN), the commit, the canonical url (UNKNOWN on failure), the profile and the
+// run's clock to the second. LF, no BOM.
+export function renderPin({ src, profile, now, spawn, env }) {
+  const git = (args) => gitOut(spawn, env, src, args);
+  const commit = git(['rev-parse', 'HEAD']) || 'UNKNOWN';
+  const canonical = git(['config', '--get', 'remote.origin.url']) || 'UNKNOWN';
+  let version = versionOf(src) || 'UNKNOWN';
+  if (version === 'UNKNOWN') {
+    const tag = git(['describe', '--tags', '--abbrev=0']);
+    if (tag !== '') version = `${tag} (tag)`;
+  }
+  return [
+    '# AAI Pin',
+    '',
+    `- Source path: ${src}`,
+    `${PIN_VERSION_PREFIX}${version}`,
+    `- Template commit: ${commit}`,
+    `- Canonical repo: ${canonical}`,
+    `- Profile: ${profile}`,
+    `- Synced at (UTC): ${utcStamp(now).iso}`,
+    '',
+    'Notes:',
+    '- This project intentionally vendors the AAI files (self-contained).',
+    '- Project-specific docs (requirements/specs/decisions/releases/issues/project-sessions) are not synced by this script.',
+    '- docs/TECHNOLOGY.md is seeded from template only when missing and becomes project-owned after generation.',
+    '',
+  ].join('\n');
+}
+
+// stepReport(ctx, io, profile): the advisory (only when a conflict or a deletion was recorded), then the pin, then the closing
+// lines. The clock is read once.
+function stepReport(ctx, io, profile) {
+  const { roots, out, src } = ctx;
+  const now = (io.now ?? (() => new Date()))();
+  const advisory = renderAdvisory({ conflicts: ctx.conflicts, deletions: ctx.deletions, src, now });
+  if (advisory !== null) {
+    const dir = path.join(roots.target, 'docs', 'ai', 'reports');
+    makeDir(roots, dir);
+    const report = path.join(dir, advisory.name);
+    writeManaged(roots, report, advisory.text);
+    out(`  Advisory report: ${report}\n`);
+  }
+  makeDir(roots, path.join(roots.target, '.aai', 'system'));
+  writeManaged(roots, path.join(roots.target, '.aai', 'system', 'AAI_PIN.md'), renderPin({ src, profile, now, spawn: io.spawn, env: io.env ?? process.env }));
+  out(`Sync complete. Review changes in ${roots.target}:\n  cd ${roots.target} && git status && git diff\n`);
+}
 
 // --- run -----------------------------------------------------------------------------------------------------------
 
@@ -887,17 +1154,16 @@ async function runSteps(argv, io) {
   stepKnowledge(ctx);
   stepSeeds(ctx);
   stepRootShims(ctx);
-  // the Copilot shim (run 4) runs here
+  stepCopilot(ctx);
   stepIndex(ctx, '.codex/skills', 'Codex', 'Target Codex skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.');
   stepIndex(ctx, '.gemini/skills', 'Gemini', 'Target Gemini skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.');
   stepSkillTree(ctx, '.agents/skills');
   stepFile(ctx, '.claude-plugin/plugin.json', 'SYNC .claude-plugin/plugin.json');
-  // the session hooks (run 4) run here
+  stepHooks(ctx);
   stepFile(ctx, '.cursor/rules/aai.mdc', 'SYNC .cursor/rules/aai.mdc');
   stepGitignore(ctx);
-  // the advisory report and the pin (run 4) run here
-  err(`aai-sync: internal error: ${PENDING.join(', ')} are not implemented yet (run 4 of the ride); the steps before them ran.\n`);
-  return EXIT_FAIL;
+  stepReport(ctx, io, profile);
+  return 0;
 }
 
 // run(argv, io): resolves to the exit code. io holds out and err (string sinks), env, cwd, spawn, now, platform and
