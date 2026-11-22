@@ -176,6 +176,8 @@ pairs:
     status: done
   - capability: test-residue-files-and-processes
     status: done
+  - capability: installer-l3-protected
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
