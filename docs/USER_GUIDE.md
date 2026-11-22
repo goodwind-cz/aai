@@ -55,6 +55,13 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
    ./.aai/scripts/aai-sync.sh /path/to/your-project
    ```
 
+   Both `aai-sync.sh` and `aai-sync.ps1` are launchers of one Node module,
+   `aai-sync.mjs`, that needs Node.js 22 or later (a launcher refuses without
+   it, exit 1, nothing changed). `--profile core|extended` picks the file set;
+   the sync refuses before writing anything when the target is the source or
+   lies inside it, and when a managed path in the target is a symbolic link
+   that leaves the target.
+
 2. **Bootstrap your project (one-time):**
    ```bash
    cd /path/to/your-project
