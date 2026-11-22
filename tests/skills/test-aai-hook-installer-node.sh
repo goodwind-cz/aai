@@ -643,7 +643,7 @@ test_3995_parity_hooks() {
     if (sh.args[0] !== "/hk/.aai/scripts/install-pre-commit-hook.sh") bad.push("sh argv " + sh.args[0]);
     const ps = m.TWINS.ps1.argv(hk, ctx);
     if (!ps.args.includes("/hk/.aai/scripts/install-pre-commit-hook.ps1")) bad.push("ps1 argv " + ps.args.join(" "));
-    const odd = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && !["update", "bootstrap", "hooks"].includes(s.op)).map((s) => s.id);
+    const odd = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && !["update", "bootstrap", "hooks", "sync"].includes(s.op)).map((s) => s.id);
     if (odd.length) bad.push("node runs " + odd.join(","));
     process.stdout.write(bad.length ? bad.join("; ") : "ok");
   ')"

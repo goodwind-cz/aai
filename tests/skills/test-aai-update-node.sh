@@ -477,10 +477,10 @@ test_3975_parity_update() {
     process.stdout.write(bad.length ? bad.join("; ") : "ok");
   ' "$work/up.json")" || log_fail "TEST-3975: cannot read the driver report"
   [[ "$verdict" == ok ]] || { cat "$work/up.out" >&2; log_fail "TEST-3975: $verdict"; }
-  # node only on update, bootstrap and hooks scenarios
+  # node only on update, bootstrap, hooks and (since sync-on-node run 6c) sync scenarios
   verdict="$(AAI_PARITY_DRIVER_PATH="$PARITY_DRIVER" node --input-type=module -e '
     const m = await import(process.env.AAI_PARITY_DRIVER_PATH);
-    const bad = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && s.op !== "update" && s.op !== "bootstrap" && s.op !== "hooks").map((s) => s.id);
+    const bad = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && s.op !== "update" && s.op !== "bootstrap" && s.op !== "hooks" && s.op !== "sync").map((s) => s.id);
     process.stdout.write(bad.length ? "node runs " + bad.join(",") : "ok");
   ')"
   [[ "$verdict" == ok ]] || log_fail "TEST-3975: $verdict"

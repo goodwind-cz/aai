@@ -624,8 +624,173 @@ test_4015_sh_launcher() {
   log_pass "TEST-4015: the sh launcher is at most 20 ASCII lines, mode 100755, holds no policy token, passes every argument and the exit code through under bash, sh and dash, refuses with the exact line, exit 1 and an unchanged target without node or the module; the bash library is gone, PROFILES core lists the module and both libs, check-vendored-script-deps exits 0, the bash-side re-homed selectors exit 0 and the run 6a contract records exist"
 }
 
+# --- run 6b: the ps1 launcher, the PowerShell-side re-homes and the Pester launcher context (TEST-4016) ----------
+PS1_LAUNCHER="$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
+PESTER_FILE="$PROJECT_ROOT/tests/skills/aai-sync.Tests.ps1"
+
+# ps1_problems <file>: prints one line per way the launcher text breaks D-LAUNCH.
+ps1_problems() {
+  local f="$1" lines body token
+  lines="$(wc -l < "$f" | tr -d ' ')"
+  [[ "$lines" -le 20 ]] || echo "the launcher has $lines lines, at most 20 allowed"
+  if LC_ALL=C /usr/bin/grep -q '[^ -~	]' "$f"; then echo "the launcher holds a non-ASCII byte"; fi
+  if /usr/bin/grep -qi '^[[:space:]]*param[[:space:]]*(' "$f"; then echo "the launcher holds a param block"; fi
+  body="$(/usr/bin/grep -v '^#' "$f")"
+  for token in 'rev-parse' 'PROFILES' 'profile' 'Profile' '.gitignore' 'exit 2' 'TargetRoot' 'core' 'extended' 'Remove-Item'; do
+    [[ "$body" != *"$token"* ]] || echo "the launcher holds the policy token: $token"
+  done
+  if printf '%s\n' "$body" | qgrep -qE '(^|[^A-Za-z-])git([^A-Za-z-]|$)'; then echo "the launcher names git"; fi
+}
+
+# run_pester <label> <work dir> [<full name filter>]: Invoke-Pester on the sync Pester file in the project root; prints
+# "PESTER passed=N skipped=N failed=N containers=N" and fails the test when Pester did not run.
+run_pester() {
+  local label="$1" work="$2" filter="${3:-}" out
+  ( cd "$PROJECT_ROOT" && AAI_PESTER_FILTER="$filter" env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command '
+    Import-Module Pester -MinimumVersion 5.0
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = "tests/skills/aai-sync.Tests.ps1"
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "None"
+    if ($env:AAI_PESTER_FILTER) { $cfg.Filter.FullName = $env:AAI_PESTER_FILTER }
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Output ("PESTER passed=" + $r.PassedCount + " skipped=" + $r.SkippedCount + " failed=" + $r.FailedCount + " containers=" + $r.FailedContainersCount)
+  ' ) > "$work/pester.log" 2>&1 || { cat "$work/pester.log" >&2; log_fail "$label: Invoke-Pester did not run"; }
+  out="$(tail -n 1 "$work/pester.log")"
+  [[ "$out" =~ ^PESTER\ passed=([0-9]+)\ skipped=([0-9]+)\ failed=([0-9]+)\ containers=([0-9]+)$ ]] || { cat "$work/pester.log" >&2; log_fail "$label: unreadable Pester summary: $out"; }
+  printf '%s\n' "$out"
+}
+
+# need_pester <TEST id>: 0 when pwsh has Pester 5 or later; fail on CI when it has not; named SKIP-CASE otherwise.
+need_pester() {
+  need_tool "$1" pwsh || return 1
+  if env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -ge 5 }) { exit 0 } else { exit 1 }' >/dev/null 2>&1; then return 0; fi
+  [[ -z "${CI:-}" ]] || log_fail "$1: Pester 5 is required on CI but pwsh has none"
+  echo "SKIP-CASE: $1 needs Pester 5, which pwsh here does not have"
+  return 1
+}
+
+# amend_count <list json> <spec id fragment> <what prefix>: prints the number of contract records of ref sync-on-node.
+amend_count() {
+  node -e '
+    const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const hit = d.items.filter((i) => i.ref_id === "sync-on-node" && i.amendment_class === "contract" && i.spec.includes(process.argv[1]) && i.what.startsWith(process.argv[2]));
+    process.stdout.write(String(hit.length));
+  ' "$2" "$3" <<<"$1"
+}
+
+test_4016_ps1_launcher() {
+  [[ -f "$PS1_LAUNCHER" ]] || log_fail "TEST-4016: .aai/scripts/aai-sync.ps1 does not exist"
+  local problems work counts pair rc out json id
+  problems="$(ps1_problems "$PS1_LAUNCHER")"
+  [[ -z "$problems" ]] || log_fail "TEST-4016: $problems"
+  need_pester TEST-4016 || return 0
+  work="$(new_own_scratch pester-launcher)"
+  counts="$(run_pester TEST-4016 "$work" '*launcher (sync-on-node)*')"
+  [[ "$counts" == "PESTER passed=5 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-4016: Pester summary '$counts', expected 5 passed, 0 skipped, 0 failed, 0 failed containers"; }
+  safe_rm_own "$work"
+  # the PowerShell-side re-homed selectors (run 6b): each exits 0 and none skips a part
+  for pair in \
+    "test-aai-sync-seed.sh test_template_and_parity" \
+    "test-aai-sync-seed.sh test_audit_template_single_source" \
+    "test-aai-sync-seed.sh test_ps1_seeds_all_patterns" \
+    "test-aai-sync-seed.sh test_ps1_second_run_idempotent" \
+    "test-aai-sync-seed.sh test_ps1_preserves_user_lines_and_seeds_commented_pattern" \
+    "test-aai-sync-seed.sh test_legacy_marker_no_duplicate_across_engines" \
+    "test-aai-sync-seed.sh test_marker_prefix_pinned_across_call_sites" \
+    "test-aai-sync-seed.sh test_runtime_ignore_header_consumer_accuracy" \
+    "test-aai-sync-seed.sh test_git_status_clean_after_spool_creation" \
+    "test-aai-sync-seed.sh test_agents_skills_mirror_synced" \
+    "test-aai-sync-seed.sh test_628_compare_fails_closed" \
+    "test-aai-sync-seed.sh test_779_ps1_engine_hooks_parity" \
+    "test-aai-sync-seed.sh test_788_ps1_engine_update_and_left_as_is_parity" \
+    "test-aai-sync-seed.sh test_790_ps1_user_edited_matcher_and_fields_preserved" \
+    "test-aai-sync-seed.sh test_791_hooks_dotfiles_synced_and_preserved_cross_engine" \
+    "test-aai-sync-seed.sh test_795_sync_cache_equivalence" \
+    "test-aai-sync-seed.sh test_829_ps1_retired_removal_parity" \
+    "test-aai-sync-seed.sh test_830_ps1_preservation_parity" \
+    "test-aai-sync-seed.sh test_833_ps1_delete_failure_warns_and_continues" \
+    "test-aai-layer-profiles.sh test_ps1_parity" \
+    "test-aai-layer-drift.sh test_ps1_parity" \
+    "test-aai-harness-shims.sh test_3011_sync_ps1_installs_agents_md"; do
+    rc=0
+    out="$(env -u AAI_ROLE -u AAI_GIT_WRITE bash "$PROJECT_ROOT/tests/skills/${pair%% *}" "${pair#* }" 2>&1)" || rc=$?
+    [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4016: ${pair%% *} ${pair#* } exited $rc"; }
+    [[ "$out" != *"SKIP"* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4016: ${pair%% *} ${pair#* } skipped a part"; }
+  done
+  # no re-homed function reads the .ps1's text
+  local f
+  for f in test-aai-sync-seed.sh test-aai-layer-profiles.sh test-aai-layer-drift.sh; do
+    if /usr/bin/grep -E '(grep|egrep|fgrep|awk|sed|cat|head|tail)[^|#]*\$\{?SYNC_PS1' "$PROJECT_ROOT/tests/skills/$f" | /usr/bin/grep -vE 'pwsh|^[[:space:]]*#' >/dev/null; then
+      log_fail "TEST-4016: $f still reads the .ps1's text"
+    fi
+  done
+  work="$(new_own_scratch pester-whole)"
+  counts="$(run_pester TEST-4016 "$work")"
+  [[ "$counts" == "PESTER passed=5 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-4016: whole-file Pester summary '$counts', expected 5 passed with 0 skips, 0 failures and 0 failed containers"; }
+  safe_rm_own "$work"
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4016: spec-amend list failed"
+  id="SPEC-0253-|TEST-3011 re-homed"
+  out="$(amend_count "$json" "${id%%|*}" "${id#*|}")"
+  [[ "$out" == 1 ]] || log_fail "TEST-4016: contract records of ref sync-on-node for $id: $out, want 1"
+  log_pass "TEST-4016: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, the five Pester launcher cases pass with 0 skips, 0 failures and 0 failed containers, the PowerShell-side re-homed selectors exit 0 with no assertion reading the .ps1 text, and the TEST-3011 record exists"
+}
+
+# --- run 6c: the parity third twin (TEST-4017) ----------------------------------------------------------------------
+PARITY_DRIVER="$PROJECT_ROOT/tests/skills/lib/install-parity.mjs"
+PARITY_TEST="$PROJECT_ROOT/tests/skills/lib/install-parity.test.mjs"
+BOOTSTRAP_TEST="$PROJECT_ROOT/tests/skills/lib/aai-bootstrap.test.mjs"
+
+test_4017_parity_sync() {
+  need_tool TEST-4017 pwsh || return 0
+  local work rc=0 verdict json args id
+  work="$(new_own_scratch parity-sync)"
+  args=()
+  for id in SY-01 SY-02 SY-03 SY-04 SY-05 SY-06 SY-07; do args+=(--scenario "$id"); done
+  env -u AAI_ROLE -u AAI_GIT_WRITE node "$PARITY_DRIVER" run --matrix full --twins sh,ps1,node "${args[@]}" --json "$work/sy.json" > "$work/sy.out" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$work/sy.out" >&2; log_fail "TEST-4017: the driver run over SY-01 to SY-07 exited $rc"; }
+  verdict="$(node -e '
+    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const bad = [];
+    if (r.verdict !== "PASS") bad.push("verdict " + r.verdict);
+    for (const id of ["SY-01", "SY-02", "SY-03", "SY-04", "SY-05", "SY-06", "SY-07"]) {
+      const s = r.scenarios.find((x) => x.id === id);
+      if (!s) { bad.push(id + " missing"); continue; }
+      const twins = [...new Set(s.steps.map((x) => x.twin))].sort().join(",");
+      if (twins !== "node,ps1,sh") bad.push(id + " ran twins " + twins);
+    }
+    const cross = r.pairs.filter((p) => p.split(":")[0] !== p.split(":")[1]).sort().join(" ");
+    if (cross !== "ps1:node sh:node sh:ps1") bad.push("pairs " + cross);
+    if (r.uncovered.length) bad.push("uncovered " + JSON.stringify(r.uncovered));
+    process.stdout.write(bad.length ? bad.join("; ") : "ok");
+  ' "$work/sy.json")" || log_fail "TEST-4017: cannot read the driver report"
+  [[ "$verdict" == ok ]] || { cat "$work/sy.out" >&2; log_fail "TEST-4017: $verdict"; }
+  # the sh and ps1 argv name syref
+  verdict="$(AAI_PARITY_DRIVER_PATH="$PARITY_DRIVER" node --input-type=module -e '
+    const m = await import(process.env.AAI_PARITY_DRIVER_PATH);
+    const bad = [];
+    const ctx = { src: "/s", target: "/t", bash: "bash", ps: "pwsh", syref: "/sy" };
+    const sy = { op: "sync", profile: "core", flags: [] };
+    const sh = m.TWINS.sh.argv(sy, ctx);
+    if (sh.args[0] !== "/sy/.aai/scripts/aai-sync.sh") bad.push("sh argv " + sh.args[0]);
+    const ps = m.TWINS.ps1.argv(sy, ctx);
+    if (!ps.args.includes("/sy/.aai/scripts/aai-sync.ps1")) bad.push("ps1 argv " + ps.args.join(" "));
+    process.stdout.write(bad.length ? bad.join("; ") : "ok");
+  ')"
+  [[ "$verdict" == ok ]] || log_fail "TEST-4017: $verdict"
+  run_node_tests TEST-4017 "$PARITY_TEST"
+  run_node_tests TEST-3956 "$BOOTSTRAP_TEST"
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4017: spec-amend list failed"
+  for id in "SPEC-0284-|D-SEAM sync twins run the frozen references" "SPEC-0306-|TEST-3956 node twin operations"; do
+    verdict="$(amend_count "$json" "${id%%|*}" "${id#*|}")"
+    [[ "$verdict" == 1 ]] || log_fail "TEST-4017: contract records of ref sync-on-node for $id: $verdict, want 1"
+  done
+  safe_rm_own "$work"
+  log_pass "TEST-4017: the parity driver passes SY-01 to SY-07 with twins sh, ps1 and node on all three pairs against the allowlist, the sh and ps1 twins run the frozen references from syref, the unit tests and TEST-3956 hold, and the SPEC-0284 and SPEC-0306 records exist"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4015)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4017)"
   check_deps
   setup_fixture
   test_4000_scratch_safety
@@ -644,6 +809,8 @@ main() {
   test_4013_corpus_bash
   test_4014_corpus_powershell
   test_4015_sh_launcher
+  test_4016_ps1_launcher
+  test_4017_parity_sync
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
