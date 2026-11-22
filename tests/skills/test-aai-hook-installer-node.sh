@@ -901,7 +901,7 @@ test_3997_wiring() {
   ' "$PROJECT_ROOT/.github/workflows/ps1-quality.yml")"
   [[ -z "$out" ]] || log_fail "TEST-3997: ps1-quality.yml: $out"
   safe_rm_own "$work"
-  log_pass "TEST-3997: select-suites routes every installer file to the suite, every row naming install-pre-commit-hook.sh names the module, the weights rows and fallback lines hold, test_090, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1, PROFILES core lists the module, both ps1-quality path lists are identical and hold the D-WIRE entries"
+  log_pass "TEST-3997: select-suites routes the reference twins and test helpers to the suite and escalates the installer module and both launchers to FULL_RUN protected-l3, every row naming install-pre-commit-hook.sh names the module, the weights rows and fallback lines hold, test_090, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1, PROFILES core lists the module, both ps1-quality path lists are identical and hold the D-WIRE entries"
 }
 
 main() {

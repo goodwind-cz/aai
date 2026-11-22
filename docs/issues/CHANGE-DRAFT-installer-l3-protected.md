@@ -2,7 +2,7 @@
 id: installer-l3-protected
 type: change
 number: null
-status: draft
+status: done
 links:
   pr: []
   commits: []
