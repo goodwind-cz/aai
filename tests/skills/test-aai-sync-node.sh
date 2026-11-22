@@ -3,7 +3,7 @@
 # Test: aai-sync-node
 # (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
 # them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006, run 3 TEST-4007..4009,
-# run 4 TEST-4010..4012, run 5 TEST-4013..4014, run 6 TEST-4015..4017)
+# run 4 TEST-4010..4012, run 5 TEST-4013..4014, run 6 TEST-4015..4017, run 7 TEST-4018..4019)
 #
 # The layer sync is one Node module (.aai/scripts/aai-sync.mjs) behind thin sh/ps1 launchers, compared against
 # frozen copies of both old twins (tests/fixtures/sync-reference/). Every case works in scratch directories this
@@ -789,8 +789,21 @@ test_4017_parity_sync() {
   log_pass "TEST-4017: the parity driver passes SY-01 to SY-07 with twins sh, ps1 and node on all three pairs against the allowlist, the sh and ps1 twins run the frozen references from syref, the unit tests and TEST-3956 hold, and the SPEC-0284 and SPEC-0306 records exist"
 }
 
+UPGRADE_TEST="$PROJECT_ROOT/tests/skills/lib/sync-upgrade.test.mjs"
+
+# TEST-4018 (D-UPGRADE): the upgrade proof in scratch trees. The old layer is `git archive` of the last commit before the ride
+# (read-only) extracted into the suite's own scratch root; every source, target and cwd of the cases lies under that root.
+test_4018_upgrade() {
+  local work
+  need_tool TEST-4018 pwsh || true
+  work="$(new_own_scratch upgrade)"
+  AAI_SYNC_UPGRADE_ROOT="$work" run_node_tests TEST-4018 "$UPGRADE_TEST"
+  safe_rm_own "$work"
+  log_pass "TEST-4018: U0 fresh install, U1 old install updated by the new updater, U2 old engine over a new tree, U3 the pre-ride-10 updater and U4 the PowerShell runner (named skip without pwsh) vendor the module and both libs, keep the core profile, prune exactly the old core files the new list lacks and run the target's own sync, update, hook installer and bootstrap launchers; no node refuses with the D-LAUNCH line and an unchanged target"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4017)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4019)"
   check_deps
   setup_fixture
   test_4000_scratch_safety
@@ -811,6 +824,7 @@ main() {
   test_4015_sh_launcher
   test_4016_ps1_launcher
   test_4017_parity_sync
+  test_4018_upgrade
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

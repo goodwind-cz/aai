@@ -1968,6 +1968,7 @@ suites:
       - tests/skills/lib/aai-sync-fixtures.mjs
       - tests/skills/lib/resolve-base.test.mjs
       - tests/skills/lib/sync-reference.mjs
+      - tests/skills/lib/sync-upgrade.test.mjs
       - tests/skills/lib/git-env-scrub.sh
       - tests/skills/lib/pipe-safe.sh
       - tests/skills/aai-sync.Tests.ps1
