@@ -453,7 +453,7 @@ test_4012_git_env_scrub() {
     /usr/bin/grep -qF 'lib/git-env-scrub.sh' "$file" || log_fail "TEST-4012: $f does not source lib/git-env-scrub.sh"
     /usr/bin/grep -qF 'aai_assert_hooks_under' "$file" || log_fail "TEST-4012: $f never calls aai_assert_hooks_under"
     # every line that runs an installer for real (not --print, --help or a text probe) goes through aai_git_scrubbed
-    bare="$(/usr/bin/grep -nE '(bash|pwsh|node)[^|;&]* +("?\$[A-Za-z_{}]*INSTALL[A-Z_]*"?|[^ ]*install-pre-commit-hook\.(sh|ps1|mjs))' "$file" | /usr/bin/grep -vE '^[0-9]+: *#|--print|--help|--this-flag|grep -qF|aai_git_scrubbed' || true)"
+    bare="$(/usr/bin/grep -nE '(bash|pwsh|node)[^|;&]* +("?\$[A-Za-z_{}]*INSTALL[A-Z_]*"?|[^ ]*install-pre-commit-hook\.(sh|ps1|mjs))' "$file" | /usr/bin/grep -vE '^[0-9]+: *#|--print|--help|--this-flag|grep -[q]F|aai_git_scrubbed' || true)"
     [[ -z "$bare" ]] || { printf '%s\n' "$bare" >&2; log_fail "TEST-4012: $f runs an installer outside aai_git_scrubbed"; }
   done
   # the false comment of the ref-guard suite is gone
