@@ -811,12 +811,16 @@ test_3997_wiring() {
   local work f out rc sel rows
   work="$(new_own_scratch wiring)"
   # the order keeps a name ending in sh from standing before another installer name (the D-SAFETY line scan)
-  for f in .aai/scripts/install-pre-commit-hook.mjs .aai/scripts/install-pre-commit-hook.ps1 \
-    tests/fixtures/hook-installer-reference/install-pre-commit-hook.ps1 .aai/scripts/install-pre-commit-hook.sh \
+  for f in tests/fixtures/hook-installer-reference/install-pre-commit-hook.ps1 \
     tests/fixtures/hook-installer-reference/install-pre-commit-hook.sh tests/skills/lib/hook-installer-reference.mjs \
     tests/skills/lib/install-pre-commit-hook.test.mjs tests/skills/install-pre-commit-hook.Tests.ps1 tests/skills/lib/vendor-hook-installer.sh; do
     printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
     qgrep -q "^SELECTED aai-hook-installer-node " < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not route $f to aai-hook-installer-node"; }
+  done
+  # the installer itself is on protected_paths_l3 (spec-installer-l3-protected): a change to it runs every suite
+  for f in .aai/scripts/install-pre-commit-hook.mjs .aai/scripts/install-pre-commit-hook.ps1 .aai/scripts/install-pre-commit-hook.sh; do
+    printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
+    qgrep -q "^FULL_RUN reason=protected-l3 path=$f" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate $f to FULL_RUN protected-l3"; }
   done
   # guard-config.mjs lives under .aai/scripts/lib/, a shared-lib glob: a change to it escalates straight to FULL_RUN,
   # which runs every suite and so this one; the row also lists it for a suite-only selection
@@ -897,7 +901,7 @@ test_3997_wiring() {
   ' "$PROJECT_ROOT/.github/workflows/ps1-quality.yml")"
   [[ -z "$out" ]] || log_fail "TEST-3997: ps1-quality.yml: $out"
   safe_rm_own "$work"
-  log_pass "TEST-3997: select-suites routes every installer file to the suite, every row naming install-pre-commit-hook.sh names the module, the weights rows and fallback lines hold, test_090, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1, PROFILES core lists the module, both ps1-quality path lists are identical and hold the D-WIRE entries"
+  log_pass "TEST-3997: select-suites routes the reference twins and test helpers to the suite and escalates the installer module and both launchers to FULL_RUN protected-l3, every row naming install-pre-commit-hook.sh names the module, the weights rows and fallback lines hold, test_090, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1, PROFILES core lists the module, both ps1-quality path lists are identical and hold the D-WIRE entries"
 }
 
 main() {
