@@ -677,6 +677,50 @@ test_008_planning_step10() {
   log_pass "PLANNING: ceremony-level declaration inside step 10, numbering intact (TEST-008)"
 }
 
+# --- TEST-4001/4002: the hook installer is an L3 protected surface -------------
+# spec-installer-l3-protected. The seven paths: the installer module, its two
+# launchers and the four hook body templates it installs.
+INSTALLER_L3_PATHS=".aai/scripts/install-pre-commit-hook.mjs .aai/scripts/install-pre-commit-hook.sh .aai/scripts/install-pre-commit-hook.ps1 .aai/templates/git-hooks/pre-commit-index.sh .aai/templates/git-hooks/pre-commit-guard-checks.sh .aai/templates/git-hooks/reference-transaction.sh .aai/templates/git-hooks/pre-push.sh"
+
+test_4001_installer_on_both_l3_lists() {  # Spec-AC-01
+  log_info "Test: the live config (loadConfig) and the seed template both list the hook installer paths (TEST-4001)..."
+  node -e '
+    const fs = require("fs");
+    const [root, ...want] = process.argv.slice(1);
+    import(root + "/.aai/scripts/lib/docs-audit-core.mjs").then((m) => {
+      const live = m.loadConfig(root).protected_paths_l3 || [];
+      const tpl = [];
+      let inBlock = false;
+      for (const line of fs.readFileSync(root + "/.aai/templates/docs-audit.template.yaml", "utf8").split("\n")) {
+        if (/^protected_paths_l3:\s*$/.test(line)) { inBlock = true; continue; }
+        if (!inBlock) continue;
+        const it = /^\s+-\s+(\S+)\s*$/.exec(line);
+        if (it) { tpl.push(it[1]); continue; }
+        if (line.trim() === "" || /^\s*#/.test(line)) continue;
+        break;
+      }
+      const miss = [];
+      for (const p of want) {
+        if (!live.includes(p)) miss.push("live:" + p);
+        if (!tpl.includes(p)) miss.push("template:" + p);
+      }
+      if (miss.length) { console.error("missing from protected_paths_l3: " + miss.join(" ")); process.exit(1); }
+    }).catch((e) => { console.error(String(e)); process.exit(1); });
+  ' "$PROJECT_ROOT" $INSTALLER_L3_PATHS || log_fail "TEST-4001: the hook installer paths must be on both protected_paths_l3 lists"
+  log_pass "TEST-4001: the hook installer paths are on the live and the seed protected_paths_l3 lists"
+}
+
+test_4002_workflow_names_hook_installer() {  # Spec-AC-03
+  log_info "Test: WORKFLOW.md protected surfaces carry the hook installer bullet (TEST-4002)..."
+  local w="$PROJECT_ROOT/.aai/workflow/WORKFLOW.md" block n
+  block="$(awk '/^- hook installer:/{f=1; print; next} f && /^  /{print; next} {f=0}' "$w")"
+  [[ -n "$block" ]] || log_fail "TEST-4002: WORKFLOW.md must carry a '- hook installer:' protected-surface bullet"
+  for n in install-pre-commit-hook.mjs install-pre-commit-hook.sh install-pre-commit-hook.ps1 .aai/templates/git-hooks/; do
+    assert_payload_contains "$block" "$n" "TEST-4002: the hook installer bullet must name $n, got: $block"
+  done
+  log_pass "TEST-4002: WORKFLOW.md names the hook installer among the protected surfaces"
+}
+
 # --- TEST-009: WORKFLOW gate table + protected_paths_l3 config -------------------
 
 test_009_workflow_and_config() {
@@ -1310,6 +1354,8 @@ main() {
   test_007_spec_template
   test_008_planning_step10
   test_009_workflow_and_config
+  test_4001_installer_on_both_l3_lists
+  test_4002_workflow_names_hook_installer
   # test_011..017 run before test_010. Historically test_010 re-ran
   # tests/skills/test-aai-prompt-diet.sh, which carried a documented
   # PRE-EXISTING byte-budget shortfall (LEARNED 2026-07-17) that aborted this
