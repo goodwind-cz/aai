@@ -216,9 +216,10 @@ export function resolveRoots(args, io = {}) {
   return roots;
 }
 
-// The managed top-level paths of a target (DR-7): none of them may be a link that leaves the target or enters the source.
+// The managed top-level paths of a target (DR-7, and the .gitignore the runs append to, DR-29): none of them may be a link that leaves
+// the target or enters the source.
 const MANAGED_TOP = ['.aai', '.agents', '.agents/skills', '.claude', '.claude/skills', '.claude-plugin', '.codex', '.codex/skills', '.cursor',
-  '.gemini', '.gemini/skills', '.github', 'docs', 'docs/ai', 'docs/knowledge', 'hooks'];
+  '.gemini', '.gemini/skills', '.github', 'docs', 'docs/ai', 'docs/knowledge', 'hooks', '.gitignore'];
 
 // managedLinkRefusal(roots): the refusal for the first managed top-level path that is a symbolic link whose real path
 // (the link text resolved when it dangles) lies outside the target or inside the source, else null. Reads only.
@@ -343,10 +344,11 @@ const isDir = (p) => statOrNull(p)?.isDirectory() === true;
 const isFile = (p) => statOrNull(p)?.isFile() === true;
 const exists = (p) => lstatOrNull(p) !== null;
 
-// globNames(dir): the entries a shell glob of dir/* names (dotfiles are not matched), in the byte order of the C locale.
+// globNames(dir): the entries a shell glob of dir/* names (dotfiles are not matched), in the byte order of the C locale. An entry
+// that does not exist once its link is followed (a dangling link) is skipped, the bash `[[ -e ]]` test of every glob loop (DR-27).
 function globNames(dir) {
   try {
-    return fs.readdirSync(dir).filter((n) => !n.startsWith('.')).sort();
+    return fs.readdirSync(dir).filter((n) => !n.startsWith('.') && fs.existsSync(path.join(dir, n))).sort();
   } catch {
     return [];
   }
@@ -476,8 +478,8 @@ export function planPrune(files, coreSet, srcHas) {
   return plan;
 }
 
-// aaiFiles(target): every regular file and link under <target>/.aai in a stable order (a directory is never listed, a link
-// is listed and never followed; the cache is not walked).
+// aaiFiles(target): every regular file and link under <target>/.aai in one byte order of the whole relative path (DR-26: the bash
+// find order is undefined; a directory is never listed, a link is listed and never followed; the cache is not walked).
 function aaiFiles(target) {
   const found = [];
   const walk = (dir, rel) => {
@@ -497,7 +499,7 @@ function aaiFiles(target) {
     }
   };
   walk(path.join(target, '.aai'), '.aai');
-  return found;
+  return found.sort();
 }
 
 // removeEmptyDirs(ctx): directories under .aai left empty, deepest first; .aai itself and .aai/cache are never removed.
@@ -572,7 +574,7 @@ function stepExtended(ctx) {
   mustReverify(roots);
   for (const name of globNames(aaiDst)) {
     if (name === 'scripts' || name === 'cache') continue;
-    if (!exists(path.join(aaiSrc, name))) {
+    if (!fs.existsSync(path.join(aaiSrc, name))) {
       mustGuard(roots, path.join(aaiDst, name));
       fs.rmSync(path.join(aaiDst, name), { recursive: true, force: true });
       ctx.deletions.push(`.aai/${name}`);
@@ -582,7 +584,7 @@ function stepExtended(ctx) {
   makeDir(roots, path.join(aaiDst, 'scripts'));
   for (const name of globNames(path.join(aaiSrc, 'scripts'))) copyReplace(path.join(aaiSrc, 'scripts', name), path.join(aaiDst, 'scripts', name), roots);
   for (const name of globNames(path.join(aaiDst, 'scripts'))) {
-    if (!exists(path.join(aaiSrc, 'scripts', name))) out(`  PRESERVE target-only script: .aai/scripts/${name}\n`);
+    if (!fs.existsSync(path.join(aaiSrc, 'scripts', name))) out(`  PRESERVE target-only script: .aai/scripts/${name}\n`);
   }
 }
 

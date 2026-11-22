@@ -3,7 +3,7 @@ id: spec-sync-on-node
 type: spec
 number: null
 status: implementing
-frozen_sha256: 0ada1a5d8863cbddd7fab68d54c1ac4feeb6a86430d61b96cf675d3b0869b896
+frozen_sha256: a55d555a5909570e932d80e9f1dc3a07f4150d7ec063d15baf16165d26ed7eb5
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -314,7 +314,10 @@ shared by two paths lives in one function).
 - Base directory: `resolveFromBase` (D-BASE). Target: `resolveFromBase(<arg>,
   env, cwd)`, lexically against the trusted base (the bash `cd` reading); it
   must exist as a directory, else the bash line `ERROR: Target directory does
-  not exist: <arg>` and exit 1.
+  not exist: <arg>` and exit 1 (DR-30: the bash twin tested `-d` on the physical
+  path and then read the logical one with `cd`, so a relative target through a
+  symbolic-link working directory that exists only logically was refused; the
+  module reads it logically, once).
 - Source root: the parent of the parent of `dirname(scriptPath)`, where
   `scriptPath` is `process.argv[1]` as the launcher passed it (a logical
   path); it is used only when its `.aai/scripts/aai-sync.mjs` names the same
@@ -334,6 +337,10 @@ shared by two paths lives in one function).
     `docs/ai`, `docs/knowledge`, `hooks`) that is a symbolic link whose real
     path lies outside `targetReal` or inside `srcReal` (both twins wrote and
     pruned through it; closes `fu-sync-symlinked-tree-root`).
+  - DR-29: the target's `.gitignore` is checked like the managed top-level
+    paths of DR-7 (the reconcile appends to it, which follows a link; both
+    twins wrote through a link that left the target); a link that stays inside
+    the target is allowed.
 - `underRoot(roots, abs)` (DR-8): true only when the real path of the parent
   directory of `abs` (the nearest existing ancestor for a path about to be
   created) lies under `targetReal` and not under `srcReal`, and the target's
@@ -459,7 +466,10 @@ ported from the bash twin and `lib/gitignore-block.sh` byte for byte:
   `Set` built once; the lookup reads no pipe and no child, so the size of
   the list cannot change a verdict (the hazard class of the measured
   layer-profiles flake). Each prune prints `  PROFILE prune (not in core):
-  <rel>` and is recorded in the advisory's Deleted items.
+  <rel>` and is recorded in the advisory's Deleted items. The candidates, and so
+  the prune and PRESERVE lines and the Deleted items, are in the byte order of
+  the whole relative path (DR-26: the bash `find` order is undefined and the
+  `.ps1` had its own).
 - After the prune, directories under `.aai/` left empty are removed deepest
   first; `.aai/` itself and `.aai/cache/` are never removed.
 
@@ -479,7 +489,12 @@ ported from the bash twin and `lib/gitignore-block.sh` byte for byte:
   the source after the copy), because `fs.cpSync` reads a dangling top-level
   link through `stat` and fails on it under Node 22.23. A dangling source
   link is copied as a link (DR-15: `cp -a` did; the `.ps1` crashed, closing
-  `fu-sync-ps1-dangling-src-symlink`). Kept for parity: a copy-replaced
+  `fu-sync-ps1-dangling-src-symlink`). A dangling link that is itself a
+  top-level entry of a directory the sync globs (the source's `.aai/*` and
+  `.aai/scripts/*`, the skill trees, `docs/knowledge`, the indexes, `hooks/`, and
+  the target's `.aai/*` and `.aai/scripts/*`) is skipped, as the bash `[[ -e ]]`
+  test of each glob loop skipped it (DR-27); the stale-entry test of the clean
+  step follows the link the same way. Kept for parity: a copy-replaced
   directory loses files the target added inside it (the advisory records the
   conflict where the twins did).
 - Temp files (the self-heal, the advisory, the pin) are created with the
@@ -569,7 +584,10 @@ ported from the bash twin and `lib/gitignore-block.sh` byte for byte:
   after `Version:` with spaces, tabs and a CR trimmed; else `git describe
   --tags --abbrev=0` plus ` (tag)`; else `UNKNOWN`. `- Template commit:` from
   `git rev-parse HEAD`, `- Canonical repo:` from `git config --get
-  remote.origin.url`, each `UNKNOWN` on failure. `- Synced at (UTC):` from
+  remote.origin.url`, each `UNKNOWN` on failure (DR-28: in a source repository
+  without a commit the bash twin's `git rev-parse HEAD` printed the word `HEAD`
+  before its `|| echo UNKNOWN`, so the commit line held two lines; the module
+  writes `UNKNOWN`). `- Synced at (UTC):` from
   the run's clock to the second (DR-21 for the `.ps1`'s seven fraction
   digits). LF, no BOM (DR-21, the pin part of `fu-parity-win-ps1-crlf-bom`).
 - DR-22: every git child runs `git -C <src> ...` with the repository-selecting
@@ -637,6 +655,11 @@ the `migrate-state-to-local` pointer (D-GITIGNORE, DR-14).
 | DR-23 | Git Bash paths `/c/...` on Windows | native | native | the module's platform (closes fu-parity-win-source-path) | TEST-4011, H2 |
 | DR-24 | closing lines `in <t>:` and `&&` | ` :` and `;` | the bash lines | one text | TEST-4011, P01 |
 | DR-25 | not applicable | a missing `-TargetRoot` prompts in an interactive host | usage, exit 2, never a prompt | a sync must not block on input | TEST-4002, P12 |
+| DR-26 | prune lines, PRESERVE lines and the advisory's Deleted items in `find` order, which differs per file system | `Get-ChildItem` order | the byte order of the whole relative path (`LC_ALL=C sort`) | one reproducible order on every host | TEST-4007, TEST-4013 K04 and K31b, TEST-4014 P04 |
+| DR-27 | a dangling link that is a top-level entry of a globbed directory (`.aai/*`, `.aai/scripts/*`, the skill trees, `docs/knowledge`, the indexes, `hooks/`) is skipped in the source and the target (`[[ -e ]]`) | `Copy-Item` crashes | skipped the same way; a link nested in a copied entry stays DR-15 | the bash reading; a link that leads nowhere is not a layer file | TEST-4008, TEST-4013 K31a and K31b, TEST-4014 P17 |
+| DR-28 | a source repository without a commit: `git rev-parse HEAD` prints the word `HEAD` on stdout, so the pin's commit holds `HEAD` and `UNKNOWN` on two lines | `UNKNOWN` | `UNKNOWN` | a stray line broke the pin's shape | TEST-4011, TEST-4013 K30b |
+| DR-29 | a `.gitignore` that is a link leaving the target (or entering the source) is appended through | same | the whole run refused before any write, exit 1 (the DR-7 line) | the reconcile wrote outside the target | TEST-4008, TEST-4013 K32a and K32b |
+| DR-30 | a relative target through a symbolic-link working directory: the directory test reads the physical path and `cd` then reads the logical one, so a target present only on the logical reading is refused | resolved by the host | resolved once against the trusted logical base (D-BASE), as `cd` does | one reading, no refusal of a path the user can `cd` to | TEST-4013 K29 and K29b |
 
 Kept for parity, pinned as rules and not drifts: the `^\.aai/` prefix reading
 of the `.aai/` ignore line; a copy-replaced directory loses target-added
@@ -714,15 +737,28 @@ plus `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL` an empty scratch file,
   tree's snapshot before and after (unchanged, except in K25 on the bash
   side) and the `TMPDIR` listing. Rewrites before comparing, each registered
   per case on one side, a registered rewrite that changes nothing failing
-  the case: DR-14 (the pointer line), DR-21 (the Template version spacing,
-  BSD sed only), DR-4 (an `ERROR:` line moved from stdout to stderr).
+  the case (an order rewrite, which only sorts, may change nothing, because the
+  bash order is undefined): DR-14 (the pointer line), DR-21 (the Template
+  version spacing, BSD sed only), DR-4 (an `ERROR:` line moved from stdout to
+  stderr), DR-26 (the bash prune lines and Deleted items sorted), DR-28 (the
+  two-line commit). Every line that names an engine file of either side (a
+  prune, PRESERVE or missing-listed line and a Deleted item) is dropped from
+  both sides, because each side's own engine files differ by construction.
 - PowerShell side (TEST-4014): `pwsh -NoProfile -NonInteractive -File
   <S>/.aai/scripts/aai-sync.ps1 <PowerShell-form args>` against the module
-  with the same arguments. Compared: exit code and the target snapshot; the
-  asserted divergences below are compared to an expected value.
+  with the same arguments. Compared: exit code and the target snapshot after
+  four registered projections, each a DR the module took from the bash side:
+  the `.gitignore` reduced to its set of pattern lines (order, blank lines,
+  comment headers and marker text, DR-11), the report without backticks and
+  the pin without the Template version spacing (DR-20, DR-21), the report's
+  Deleted items sorted (DR-26) and the hook files without their execute bits
+  (DR-18); the asserted divergences below are compared to an expected value.
+  Where pwsh is absent the suite skips the side with a named reason and the
+  Windows CI job (`ps1-quality`) runs it.
 - Asserted divergences (not rewritten): K17 and P15 (DR-13), K18 and P11
   (DR-1), K19 to K23 and P13 (DR-2), P12 (DR-25), K25 and K26 (DR-5), K27
-  (DR-7), P06 (DR-11), P07 (DR-17), P08 (DR-18), P10 (DR-16), P16 (DR-15).
+  (DR-7), K29b (DR-30), K32a (DR-29), P06 (DR-11), P07 (DR-17), P08 (DR-18),
+  P10 (DR-16), P16 (DR-15), P17 (DR-27).
 
 Bash-side cases (K):
 
@@ -742,7 +778,8 @@ Bash-side cases (K):
   every managed block twice (self-heal); K09d only `.aai/cache/` present (the
   prefix reading); K09e a 200 KB `.gitignore` with the managed lines at the
   top; K09f the `.ps1` marker text already present; K09g no list in the
-  source (the target's list is used); K09h no list anywhere (the note).
+  source (the target's list is used); K09h no list anywhere (the note); K09i
+  no `.gitignore` at all.
 - K10 skill trees: a differing template `SKILL.md` (conflict), an
   `aai-project-x` skill kept, a retired wrapper removed, a near-miss wrapper
   (one changed byte) kept, a symbolic-link entry kept; K11 differing
@@ -765,8 +802,15 @@ Bash-side cases (K):
 - K25 the target is `S` itself; K26 the target is `S/sub`; K27 a target whose
   `.claude/skills` is a link to a directory outside the target.
 - K28 a target path holding a space and `[ ]`; K29 a relative `../t` from a
-  symlinked cwd with `PWD` the logical path; K30 no `AAI_VERSION.md` (the
-  tag fallback) and a source without git (UNKNOWN).
+  symlinked cwd with `PWD` the logical path, present on both readings, K29b
+  present only logically (DR-30); K30a no `AAI_VERSION.md` (the tag fallback),
+  K30b a source repository without a commit (DR-28), K30c a source without git
+  (UNKNOWN), K30d neither a tag nor a version file.
+- K31a dangling links at the top level of the source's and the target's
+  globbed directories and one nested in a copied directory (DR-27, DR-15);
+  K31b extended then core with links in the target's `.aai`; K32a a
+  `.gitignore` that is a link leaving the target (DR-29), K32b one that stays
+  inside it.
 - KR1 and KR2: a committed scratch copy of this checkout's tracked files as
   the source, extended and core, into empty targets (the whole layer, once
   each).
@@ -779,7 +823,9 @@ PowerShell-side cases (P), PowerShell-form arguments:
   P09 skill conflicts and a retired wrapper; P10 a knowledge file holding
   `aai-template` in lower case; P11 `-h`; P12 no `-TargetRoot` (pwsh with
   `-NonInteractive`); P13 `-Profile bogus`; P14 a missing target; P15 the
-  K17 legacy layout; P16 a dangling link in the source's `.claude/skills`.
+  K17 legacy layout; P16 a dangling link nested in a source skill (DR-15);
+  P17 a dangling link as a top-level entry of the source's `.claude/skills`
+  (DR-27).
 
 After every case the case's scratch root holds no entry besides its
 fixtures, the logs and the marker, and no path outside the case directory
@@ -1325,8 +1371,8 @@ legacy moves are named with the manual cleanup.
 | Spec-AC-10 | WHEN the Copilot shim and the hooks are synced the system SHALL replace an absent, identical or listed-shipped shim and merge a project-overrides block or override file in the bash bytes, hash through node:crypto, copy every hook entry including dotfiles, merge hooks.json and hooks.windows.json in process with the MERGE, LEFT-AS-IS and SNAPSHOT-NOT-RECORDED lines and advisory entries of the bash twin, refuse a malformed registration leaving it untouched, and make hooks/session-start.sh executable. | done | TEST-4010 red docs/ai/tdd/sync-on-node/red/TEST-4010.log; TEST-4010 green docs/ai/tdd/sync-on-node/green/TEST-4010.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4010.txt | — | D-SURFACES, D-HOOKS, DR-17 to DR-19 |
 | Spec-AC-11 | WHEN a sync ends the system SHALL write the advisory only when a conflict or deletion was recorded, name it and stamp it from one UTC clock read to the second, write the pin with one space after Template version, the version, tag fallback, commit, canonical URL and profile per D-REPORT, run its git children with the DR-22 variables removed, write LF without a BOM, and print the bash closing lines. | done | TEST-4011 red docs/ai/tdd/sync-on-node/red/TEST-4011.log; TEST-4011 green docs/ai/tdd/sync-on-node/green/TEST-4011.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4011.txt | — | D-REPORT, DR-20 to DR-24 |
 | Spec-AC-12 | WHEN the recorded repro docs/ai/reviews/review-pre-commit-installer-on-node-20261122T000337Z-repro-N1.sh and the D-GITENV injections against hygiene test_618, the doctor suite and the pre-commit-checks suite run the system SHALL exit 0 with the victim directory empty, and the installer invocation helpers of those four suites SHALL go through aai_git_scrubbed with aai_assert_hooks_under. | done | TEST-4012 red docs/ai/tdd/sync-on-node/red/TEST-4012.log; TEST-4012 green docs/ai/tdd/sync-on-node/green/TEST-4012.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4012.txt | — | D-GITENV |
-| Spec-AC-13 | WHEN the D-CORPUS bash-side cases run the system SHALL give exit code, stdout, stderr, the target snapshot, the unchanged source snapshot and the TMPDIR listing byte-equal between the frozen bash reference and the module after only the registered normalization and rewrites, each registered rewrite changing at least one byte, and the asserted divergences SHALL hold. | planned | — | — | D-CORPUS bash side |
-| Spec-AC-14 | WHEN the D-CORPUS PowerShell-side cases run with pwsh the system SHALL give exit code and the target snapshot equal between the frozen PowerShell reference and the module on the same PowerShell-form arguments, and the asserted divergences SHALL hold. | planned | — | — | D-CORPUS PowerShell side |
+| Spec-AC-13 | WHEN the D-CORPUS bash-side cases run the system SHALL give exit code, stdout, stderr, the target snapshot, the unchanged source snapshot and the TMPDIR listing byte-equal between the frozen bash reference and the module after only the registered normalization and rewrites, each registered rewrite changing at least one byte, and the asserted divergences SHALL hold. | done | TEST-4013 red docs/ai/tdd/sync-on-node/red/TEST-4013.log; TEST-4013 green docs/ai/tdd/sync-on-node/green/TEST-4013.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4013.txt | — | D-CORPUS bash side, DR-26 to DR-30 |
+| Spec-AC-14 | WHEN the D-CORPUS PowerShell-side cases run with pwsh the system SHALL give exit code and the target snapshot equal between the frozen PowerShell reference and the module on the same PowerShell-form arguments, and the asserted divergences SHALL hold. | done | TEST-4014 red docs/ai/tdd/sync-on-node/red/TEST-4014.log; TEST-4014 green docs/ai/tdd/sync-on-node/green/TEST-4014.log, mutation docs/ai/tdd/spec-sync-on-node/mutation-TEST-4014.txt | — | D-CORPUS PowerShell side, DR-26 and DR-27 |
 | Spec-AC-15 | .aai/scripts/aai-sync.sh SHALL be the D-LAUNCH text (at most 20 lines, ASCII, mode 100755, no policy token) and WHEN run by bash, sh and dash beside a stub module it SHALL pass every argument and the exit code through, and without node or the module exit 1 with the D-LAUNCH line on stderr leaving the target unchanged; .aai/scripts/lib/gitignore-block.sh SHALL be absent, PROFILES core SHALL list the module and both libs, check-vendored-script-deps SHALL exit 0, the bash-side D-REHOME selectors SHALL each exit 0, and spec-amend list SHALL hold the run 6a records. | planned | — | — | D-LAUNCH, D-REHOME run 6a |
 | Spec-AC-16 | .aai/scripts/aai-sync.ps1 SHALL be the D-LAUNCH text (at most 20 lines, ASCII, no param block, no policy token); tests/skills/aai-sync.Tests.ps1 run with Invoke-Pester under pwsh 7 SHALL pass the five D-PESTER cases with 0 skipped, 0 failed and 0 failed containers; the PowerShell-side D-REHOME selectors SHALL each exit 0 with no assertion reading the .ps1's text. | planned | — | — | D-PESTER, D-REHOME run 6b; H1 for 5.1 and 7 on Windows |
 | Spec-AC-17 | WHEN the parity driver runs the seven SY scenarios with twins sh, ps1 and node against the committed allowlist the system SHALL exit 0 with verdict PASS, pairs sh:ps1, sh:node and ps1:node in each sync scenario, the sh and ps1 twins running the frozen references from syref, and only the D-PARITY allowlist changes; a fake node twin that writes one more byte into the pin SHALL fail naming sh:node; the real-registry unit test and aai-bootstrap.test.mjs TEST-3956 SHALL pass and spec-amend list SHALL hold the SPEC-0284 and SPEC-0306 records. | planned | — | — | D-PARITY; H2 on Windows |
@@ -1413,8 +1459,8 @@ with `-Name:value`; Windows paths (H2, H3).
 | TEST-4010 | Spec-AC-10 | unit | tests/skills/test-aai-sync-node.sh | test_4010_copilot_and_hooks runs run_node_tests TEST-4010: the K15 and K16 flows compared with the bash reference, copilotShimIsShipped on listed, unlisted, empty and CRLF texts, the in-process merge lines equal to the library CLI's output on the same files, a malformed registration untouched, session-start.sh executable | `sed:s/import \{ mergeHooksJson, formatSummary, formatConflicts, formatSnapshotError \} from '.\/lib\/merge-hooks-json.mjs';/import { mergeHooksJson, formatSummary, formatSnapshotError } from '.\/lib\/merge-hooks-json.mjs'; const formatConflicts = () => [];/` on .aai/scripts/aai-sync.mjs | green |
 | TEST-4011 | Spec-AC-11 | unit | tests/skills/test-aai-sync-node.sh | test_4011_report_and_pin runs run_node_tests TEST-4011: renderAdvisory and renderPin with an injected clock and spawn (name and stamps from one read, the bash text, LF, one space after Template version, the tag fallback and UNKNOWN), a run with GIT_DIR exported pointing at another scratch repository stamping the source's commit, no advisory on a quiet run, the closing lines, and native paths with platform win32 | `sed:s/const PIN_VERSION_PREFIX = '- Template version: ';/const PIN_VERSION_PREFIX = '- Template version:  ';/` on .aai/scripts/aai-sync.mjs | green |
 | TEST-4012 | Spec-AC-12 | integration | tests/skills/test-aai-sync-node.sh | test_4012_git_env_scrub runs the recorded repro (exit 0), then injects core.hooksPath through GIT_CONFIG_COUNT, KEY_0 and VALUE_0 and through GIT_CONFIG_PARAMETERS into one selector each of test-aai-hygiene-pack.sh test_618, test-aai-doctor.sh and test-aai-pre-commit-checks.sh with a scratch victim directory and requires it empty, and scans the four suites' installer helpers for aai_git_scrubbed and aai_assert_hooks_under | `sed:s/  \(cd "\$d" && aai_git_scrubbed node "\$INSTALLER_MJS" "\$@"\)/  (cd "$d" && node "$INSTALLER_MJS" "$@")/` on tests/skills/test-aai-git-ref-guard.sh | green |
-| TEST-4013 | Spec-AC-13 | integration | tests/skills/test-aai-sync-node.sh | test_4013_corpus_bash needs bash and git and runs run_node_tests TEST-4013: every bash-side D-CORPUS case with the normalization and registered rewrites, the asserted divergences, a failure for a registered rewrite that changes nothing, and KR1 and KR2 on a committed scratch copy of this checkout | `sed:s/Sync complete. Review changes in/Sync complete; review changes in/` on .aai/scripts/aai-sync.mjs | pending |
-| TEST-4014 | Spec-AC-14 | integration | tests/skills/test-aai-sync-node.sh | test_4014_corpus_powershell needs pwsh (need_tool) and runs run_node_tests TEST-4014: every PowerShell-side D-CORPUS case against the frozen PowerShell reference with the module on the same PowerShell-form arguments, comparing exit and the target snapshot, with the asserted divergences | `sed:s/const PS_NAMES = \{ '-targetroot': 'target', '-profile': '--profile' \};/const PS_NAMES = { '-profile': '--profile' };/` on .aai/scripts/aai-sync.mjs | pending |
+| TEST-4013 | Spec-AC-13 | integration | tests/skills/test-aai-sync-node.sh | test_4013_corpus_bash needs bash and git and runs run_node_tests TEST-4013: every bash-side D-CORPUS case with the normalization and registered rewrites, the asserted divergences, a failure for a registered rewrite that changes nothing, and KR1 and KR2 on a committed scratch copy of this checkout | `sed:s/Sync complete. Review changes in/Sync complete; review changes in/` on .aai/scripts/aai-sync.mjs | green |
+| TEST-4014 | Spec-AC-14 | integration | tests/skills/test-aai-sync-node.sh | test_4014_corpus_powershell needs pwsh (need_tool) and runs run_node_tests TEST-4014: every PowerShell-side D-CORPUS case against the frozen PowerShell reference with the module on the same PowerShell-form arguments, comparing exit and the target snapshot, with the asserted divergences | `sed:s/const PS_NAMES = \{ '-targetroot': 'target', '-profile': '--profile' \};/const PS_NAMES = { '-profile': '--profile' };/` on .aai/scripts/aai-sync.mjs | green |
 | TEST-4015 | Spec-AC-15 | integration | tests/skills/test-aai-sync-node.sh | test_4015_sh_launcher checks the launcher text (at most 20 lines, ASCII, mode 100755, no policy token outside the comment lines), runs a copy beside a stub module under bash, sh and dash (need_tool) with both argument forms and -h requiring the argv and exit 7 through, then with PATH holding only dirname and with the module removed requires exit 1, the exact refusal line and an unchanged target; requires lib/gitignore-block.sh absent and PROFILES core to list the module and both libs, runs check-vendored-script-deps (exit 0) and the bash-side D-REHOME selectors (each exit 0), and reads spec-amend list --json for the run 6a records | `sed:s/exec node "\$MODULE" "\$@"/exec node "$MODULE"/` on .aai/scripts/aai-sync.sh | pending |
 | TEST-4016 | Spec-AC-16 | integration | tests/skills/test-aai-sync-node.sh | test_4016_ps1_launcher checks the .ps1 text (at most 20 lines, ASCII, no param block, no policy token outside the comment lines), then needs pwsh and Pester 5 and runs Invoke-Pester on tests/skills/aai-sync.Tests.ps1 under env -u AAI_ROLE requiring 5 passed, 0 skipped, 0 failed and 0 failed containers, and runs the PowerShell-side D-REHOME selectors (each exit 0, no grep, awk or sed over the .ps1 left in them) | `sed:s/exit \$LASTEXITCODE/exit 0/` on .aai/scripts/aai-sync.ps1 | pending |
 | TEST-4017 | Spec-AC-17 | integration | tests/skills/test-aai-sync-node.sh | test_4017_parity_sync needs pwsh, runs the driver with the seven SY scenarios and twins sh,ps1,node into a scratch report and requires exit 0, verdict PASS, the three pairs per sync scenario, the sh and ps1 argv naming syref; runs run_node_tests TEST-4017 in install-parity.test.mjs (a fake node twin writing one more byte into the pin fails naming sh:node; the real-registry argv test; the widened rows and the one new row) and aai-bootstrap.test.mjs TEST-3956; requires the SPEC-0284 and SPEC-0306 records | `sed:s/ops: \['bootstrap', 'update', 'hooks', 'sync'\]/ops: ['bootstrap', 'update', 'hooks']/` on tests/skills/lib/install-parity.mjs | pending |

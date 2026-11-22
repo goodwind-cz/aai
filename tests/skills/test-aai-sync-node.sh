@@ -3,7 +3,7 @@
 # Test: aai-sync-node
 # (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
 # them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006, run 3 TEST-4007..4009,
-# run 4 TEST-4010..4012)
+# run 4 TEST-4010..4012, run 5 TEST-4013..4014)
 #
 # The layer sync is one Node module (.aai/scripts/aai-sync.mjs) behind thin sh/ps1 launchers, compared against
 # frozen copies of both old twins (tests/fixtures/sync-reference/). Every case works in scratch directories this
@@ -393,6 +393,22 @@ test_4011_report_and_pin() {
   log_pass "TEST-4011: renderAdvisory and renderPin write the bash text from one clock read (LF, one space after Template version, tag fallback, UNKNOWN), a run with GIT_DIR exported stamps the commit of the source, a quiet run writes no advisory, the closing lines end the run, native paths under platform win32"
 }
 
+# --- run 5: the differential corpora (TEST-4013, TEST-4014) ---
+
+test_4013_corpus_bash() {
+  need_tool TEST-4013 bash || return 0
+  need_tool TEST-4013 git || return 0
+  run_node_tests TEST-4013
+  log_pass "TEST-4013: the bash-side corpus (K01 to K32, KR1 and KR2) gives exit code, stdout, stderr, the target snapshot, the source snapshot and the TMPDIR listing equal to the frozen bash twin after the registered normalization and rewrites (DR-4, DR-14, DR-21, DR-26, DR-28), a registered rewrite that changes nothing fails its case, and the asserted divergences (DR-1, DR-2, DR-5, DR-7, DR-13, DR-29, DR-30) hold"
+}
+
+test_4014_corpus_powershell() {
+  need_tool TEST-4014 pwsh || return 0
+  need_tool TEST-4014 git || return 0
+  run_node_tests TEST-4014
+  log_pass "TEST-4014: the PowerShell-side corpus (P01 to P17) gives the exit code and the target snapshot of the frozen PowerShell twin after the projections (DR-11, DR-18, DR-20, DR-21, DR-26), and the asserted divergences (DR-1, DR-2, DR-11, DR-13, DR-15, DR-16, DR-17, DR-18, DR-25, DR-27) hold"
+}
+
 # scrub_case <label> <suite file> <selector> <injection>: runs one selector of an installer suite from the checkout root with
 # core.hooksPath injected through the caller's git environment ("config" = GIT_CONFIG_COUNT, KEY_0 and VALUE_0; "parameters" =
 # GIT_CONFIG_PARAMETERS) pointing at an empty scratch victim directory (never a repository); the run must exit 0 and the
@@ -446,7 +462,7 @@ test_4012_git_env_scrub() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4012)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4014)"
   check_deps
   setup_fixture
   test_4000_scratch_safety
@@ -462,6 +478,8 @@ main() {
   test_4010_copilot_and_hooks
   test_4011_report_and_pin
   test_4012_git_env_scrub
+  test_4013_corpus_bash
+  test_4014_corpus_powershell
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

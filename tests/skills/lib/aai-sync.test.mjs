@@ -112,13 +112,13 @@ export function assertTargetUnderRoot(target, root, cwd, argv = []) {
 // runSync({ argv, root, target, cwd, env, script }): the one way these tests start the sync as a process: the module
 // (default) or a copy of it under the root; exe is the interpreter (node by default, bash for the frozen bash
 // reference). The streams are returned as strings.
-export function runSync({ argv = [], root, target = null, cwd = root, env = {}, script = MODULE, exe = process.execPath }) {
+export function runSync({ argv = [], root, target = null, cwd = root, env = {}, script = MODULE, exe = process.execPath, exeArgs = [], encoding = 'utf8' }) {
   const runEnv = prepareEnv(root, { PWD: cwd, ...env });
   assert.equal(runEnv.GIT_CONFIG_NOSYSTEM, '1');
   assert.equal(readFileSync(runEnv.GIT_CONFIG_GLOBAL, 'utf8'), '', 'GIT_CONFIG_GLOBAL is an empty file');
   assertTargetUnderRoot(target, root, cwd, argv);
   assert.ok(script === MODULE || under(script, root), `the script ${script} is neither the module nor under the scratch root`);
-  return spawnSync(exe, [script, ...argv], { cwd, env: runEnv, encoding: 'utf8' });
+  return spawnSync(exe, [...exeArgs, script, ...argv], { cwd, env: runEnv, encoding, maxBuffer: 256 * 1024 * 1024 });
 }
 
 // runInProcess({ argv, root, target, cwd, env, scriptPath, spawn, ledger, onOut }): the one way these tests call the module's run().
@@ -1843,15 +1843,17 @@ describe('TEST-4008 copy semantics, the extended flow and the path guard', () =>
     assert.equal(readFileSync(foreign, 'utf8'), 'not made by this run\n', 'the foreign temp file is never deleted');
   });
 
-  test('TEST-4008 a source entry that is a dangling link is copied as a link into the skill tree (DR-15)', async () => {
+  test('TEST-4008 a dangling link nested in a source skill is copied as a link (DR-15); a dangling top-level entry of the skill tree is skipped as bash skips it (DR-27)', async () => {
     const root = scratch('dangle-');
-    const { script } = makeLayer(root, 'S', { engine: 'module', files: { '.claude/skills/aai-dangling': { link: path.join(root, 'nowhere') } } });
+    const { script } = makeLayer(root, 'S', { engine: 'module', files: { '.claude/skills/aai-two/dangling': { link: path.join(root, 'nowhere') }, '.claude/skills/aai-dangling': { link: path.join(root, 'nowhere') } } });
     const t = path.join(root, 't');
     mkdirSync(t);
     prepareEnv(root);
     const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
     assert.ok(!/internal error: .*(ENOENT|dangling)/.test(r.stderr), r.stderr);
-    assert.equal(readlinkSync(path.join(t, '.claude/skills/aai-dangling')), path.join(root, 'nowhere'));
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(readlinkSync(path.join(t, '.claude/skills/aai-two/dangling')), path.join(root, 'nowhere'));
+    assert.equal(lstatOrNull(path.join(t, '.claude/skills/aai-dangling')), null, 'the top-level dangling link is not copied');
   });
 });
 
@@ -2459,4 +2461,699 @@ describe('TEST-4011 the advisory report, the pin and the closing lines', () => {
     assert.equal(r.code, 0);
     assertChangesUnder(before, snapshotTree(root), 't');
   });
+});
+
+// --- TEST-4013 and TEST-4014 (run 5): the differential corpora of D-CORPUS ------------------------------------------------
+//
+// A case is { id, title, steps, src, tgt, tname, noGit, noTag, noCommit, cwdLink, kit, rw, asserted, engine }:
+//   steps     one argument list per run (tokens <T> <S> <C> stand for the target, the source and the case directory)
+//   src(h)    changes the source before it is committed;  tgt(h)  prepares the target
+//   rw        the registered rewrites of the case: names of CORPUS_REWRITES, each of which must change at least one byte
+//             (an order rewrite may change nothing: its DR says the bash order is undefined)
+//   asserted  (ref, mod, c) replaces the byte comparison with the asserted divergence of the DR it names
+// Both sides are built at the same absolute path (root/case) one after the other, the first side's tree renamed away.
+
+const CORPUS_ENV = { LC_ALL: 'C' };
+const CORPUS_GIT_ID = {
+  GIT_AUTHOR_NAME: 'corpus', GIT_AUTHOR_EMAIL: 'corpus@example.invalid', GIT_COMMITTER_NAME: 'corpus', GIT_COMMITTER_EMAIL: 'corpus@example.invalid',
+  GIT_AUTHOR_DATE: '2026-01-02T03:04:05Z', GIT_COMMITTER_DATE: '2026-01-02T03:04:05Z',
+};
+const pwshAvailable = spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0']).status === 0;
+const bashAvailable = spawnSync('bash', ['-c', 'exit 0']).status === 0;
+const gitAvailable = spawnSync('git', ['--version']).status === 0;
+// BSD sed has no \s: the bash twin's Template version line keeps two spaces there (DR-21)
+const bsdSed = spawnSync('sed', ['-E', 's/a\\s*b/X/'], { input: 'a  b', encoding: 'utf8' }).stdout.trim() !== 'X';
+
+function corpusGit(cwd, root, args) {
+  assert.ok(under(realpathSync(cwd), realpathSync(root)), `the git working directory ${cwd} lies outside the scratch root`);
+  const r = spawnSync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', ...args], { cwd, env: prepareEnv(root, CORPUS_GIT_ID), encoding: 'utf8' });
+  assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+  return r.stdout;
+}
+
+const CORPUS_CORE = [...CORE_REAL, '.aai/roles/ROLE.md', '.aai/knowledge/K.md', '.aai/templates/update-config.template.yaml', '.aai/templates/docs-audit.template.yaml'];
+// corpusFiles(): the synthetic source S (D-CORPUS): a small .aai with a 12-entry PROFILES core list, the real list files and merge library,
+// one skill in each skill tree, the indexes, the plugin manifest, the cursor rule, the Copilot shim, the hooks, a sentinel knowledge file,
+// the version file, the five root shims and README.md.
+function corpusFiles() {
+  return {
+    ...layerFiles({ core: CORPUS_CORE }),
+    ...shimLayer.files,
+    ...hooksLayer.files,
+    '.aai/extra/only.md': 'extended only\n',
+    '.aai/scripts/lib/merge-hooks-json.mjs': { text: readFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'merge-hooks-json.mjs')), mode: 0o644 },
+    'docs/ai/AAI_VERSION.md': '# AAI\n- Version: v9.9.9\n',
+  };
+}
+
+// copyCheckout(dir): the tracked files of this checkout (working tree bytes, modes and links) copied into dir.
+function copyCheckout(dir) {
+  const r = spawnSync('git', ['-C', ROOT, 'ls-files', '-z'], { env: prepareEnv(dir.replace(/\/[^/]*$/, '')), encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 });
+  assert.equal(r.status, 0, 'git ls-files failed');
+  for (const rel of r.stdout.toString('utf8').split('\0').filter(Boolean)) {
+    const from = path.join(ROOT, rel);
+    const st = lstatOrNull(from);
+    if (st === null) continue;
+    const to = path.join(dir, rel);
+    mkdirSync(path.dirname(to), { recursive: true });
+    if (st.isSymbolicLink()) symlinkSync(readlinkSync(from), to);
+    else if (st.isFile()) {
+      copyFileSync(from, to);
+      chmodSync(to, st.mode & 0o777);
+    }
+  }
+}
+
+const ENGINE_ANY = new Set([...ENGINE_FILES_REFERENCE, ...ENGINE_FILES_MODULE]);
+
+// buildCorpusSide(c, side, root): the case directory root/case holding S and T for one side; returns the handle h.
+function buildCorpusSide(c, side, root) {
+  const C = path.join(root, 'case');
+  mkdirSync(C);
+  const S = path.join(C, 'S');
+  const T = path.join(C, c.tname ?? 'T');
+  const base = { S, T, C };
+  const h = {
+    ...base,
+    w(which, rel, content, mode) {
+      const p = path.join(base[which], rel);
+      mkdirSync(path.dirname(p), { recursive: true });
+      rmSync(p, { recursive: true, force: true });
+      writeFileSync(p, content);
+      if (mode !== undefined) chmodSync(p, mode);
+      return p;
+    },
+    link(which, rel, text) {
+      const p = path.join(base[which], rel);
+      mkdirSync(path.dirname(p), { recursive: true });
+      rmSync(p, { recursive: true, force: true });
+      symlinkSync(text, p);
+      return p;
+    },
+    mkdir(which, rel) { mkdirSync(path.join(base[which], rel), { recursive: true }); },
+    rm(which, rel) { rmSync(path.join(base[which], rel), { recursive: true, force: true }); },
+  };
+  mkdirSync(S);
+  if (c.kit === 'checkout') copyCheckout(S);
+  else writeTree(S, corpusFiles());
+  if (c.src) c.src(h);
+  if (!c.noGit) {
+    corpusGit(S, root, ['init', '-q', '-b', 'main']);
+    if (!c.noCommit) {
+      corpusGit(S, root, ['add', '--all']);
+      corpusGit(S, root, ['commit', '-q', '-m', 'corpus source']);
+      if (!c.noTag) corpusGit(S, root, ['tag', 'v1.0.0']);
+    }
+  }
+  const scripts = path.join(S, '.aai', 'scripts');
+  if (side === 'mod') {
+    mkdirSync(path.join(scripts, 'lib'), { recursive: true });
+    copyFileSync(MODULE, path.join(scripts, 'aai-sync.mjs'));
+    for (const lib of MODULE_LIBS) copyFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', lib), path.join(scripts, 'lib', lib));
+    for (const name of ['aai-sync.sh', 'aai-sync.ps1']) {
+      copyFileSync(path.join(ROOT, '.aai', 'scripts', name), path.join(scripts, name));
+      chmodSync(path.join(scripts, name), lstatSync(path.join(ROOT, '.aai', 'scripts', name)).mode & 0o777);
+    }
+  } else {
+    materializeSyncReference(S);
+    mkdirSync(path.join(scripts, 'lib'), { recursive: true });
+    copyFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'merge-hooks-json.mjs'), path.join(scripts, 'lib', 'merge-hooks-json.mjs'));
+  }
+  if (!c.noTgt) {
+    mkdirSync(T);
+    if (!c.noTgtGit) corpusGit(T, root, ['init', '-q', '-b', 'main']);
+  }
+  if (c.tgt) c.tgt(h);
+  return h;
+}
+
+// corpusSnapshot(dir): path -> "type:mode:bytes" for every path under dir (links by their text, never followed) except a top-level
+// .git directory; the engine files of either side are returned apart.
+function corpusSnapshot(dir) {
+  const rows = {};
+  const engine = [];
+  const walk = (d, rel) => {
+    for (const name of readdirSync(d).sort()) {
+      const key = rel === '' ? name : `${rel}/${name}`;
+      if (rel === '' && name === '.git') continue;
+      const p = path.join(d, name);
+      const st = lstatSync(p);
+      if (ENGINE_ANY.has(key)) {
+        engine.push(key);
+        continue;
+      }
+      if (st.isSymbolicLink()) rows[key] = `link:${readlinkSync(p)}`;
+      else if (st.isDirectory()) {
+        rows[key] = `dir:${(st.mode & 0o777).toString(8)}`;
+        walk(p, key);
+      } else if (st.isFile()) rows[key] = `file:${(st.mode & 0o777).toString(8)}:${readFileSync(p).toString('latin1')}`;
+      else rows[key] = `other:${st.mode}`;
+    }
+  };
+  if (lstatOrNull(dir)?.isDirectory()) walk(dir, '');
+  else rows['<absent>'] = 'absent';
+  return { rows, engine };
+}
+
+// The registered normalization (not a divergence): the stamps of the report name, the report's Generated at and the pin's Synced at.
+// and the lines that name the engine files of either side (each side's own files differ by construction, asserted per side)
+const ENGINE_PATH = String.raw`\.aai/scripts/(?:aai-sync\.(?:sh|ps1|mjs)|lib/(?:gitignore-block\.(?:sh|mjs)|resolve-base\.mjs))`;
+const ENGINE_LINE = new RegExp(`^ {2}(?:PROFILE prune \\(not in core\\)|PRESERVE target-only script|WARN core-listed file missing in source \\(skipped\\)): ${ENGINE_PATH}\\n`, 'gm');
+const ENGINE_ITEM = new RegExp(`\\n\\n- Path: ${ENGINE_PATH}(?=\\n|$)`, 'g');
+const normStamp = (s) => s.replace(/sync-conflicts-\d{8}-\d{6}\.md/g, 'sync-conflicts-<STAMP>.md').replace(/^(- (?:Synced|Generated) at \(UTC\):).*$/gm, '$1 <STAMP>')
+  .replace(ENGINE_LINE, '').replace(ENGINE_ITEM, '');
+const normRows = (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [normStamp(k), normStamp(v)]));
+
+const BASH_POINTER_2 = '        run bash .aai/scripts/migrate-state-to-local.sh in the target project.\n';
+const sortBlock = (text, re, keyOf) => {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length;) {
+    if (!re.test(lines[i])) {
+      out.push(lines[i]);
+      i += 1;
+      continue;
+    }
+    const block = [];
+    while (i < lines.length && re.test(lines[i])) block.push(lines[i++]);
+    out.push(...block.sort((a, b) => (keyOf(a) < keyOf(b) ? -1 : keyOf(a) > keyOf(b) ? 1 : 0)));
+  }
+  return out.join('\n');
+};
+const PRUNE_LINE = /^ {2}(PROFILE prune \(not in core\)|PRESERVE target-only script): /;
+// the registered rewrites of D-CORPUS, each named by the DR it carries; text works on every stream of every step, snap on the target snapshot
+const CORPUS_REWRITES = {
+  // DR-14: the pointer under the runtime-state block names both launchers (module) where the bash text named one
+  'DR-14': { side: 'mod', text: (s) => s.replace(POINTER_2, BASH_POINTER_2) },
+  // DR-21: BSD sed leaves two spaces after "Template version:" (the bash side on a host with BSD sed only)
+  'DR-21': bsdSed ? { side: 'ref', snap: (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, v.replace(/^- Template version:  /m, '- Template version: ')])) } : null,
+  // DR-4: an ERROR line the bash twin prints on stdout is on stderr in the module
+  'DR-4': { side: 'mod', text: null, steps: (st) => ({ ...st, stdout: st.stdout + st.stderr, stderr: '' }) },
+  // DR-26: find order is undefined; the module prunes in byte order, so the bash prune lines and the advisory's deleted items are sorted
+  'DR-26': {
+    side: 'ref', mayNoop: true,
+    text: (s) => sortBlock(s, PRUNE_LINE, (l) => l.slice(l.indexOf(': ') + 2)),
+    snap: (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, /sync-conflicts-/.test(k) ? sortDeleted(v) : v])),
+  },
+  // DR-28: a source repository without a commit: bash printed the word HEAD before UNKNOWN as the commit
+  'DR-28': { side: 'ref', snap: (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, v.replace('- Template commit: HEAD\nUNKNOWN\n', '- Template commit: UNKNOWN\n')])) },
+};
+function sortDeleted(text) {
+  const at = text.indexOf('\n## Deleted items\n');
+  if (at < 0) return text;
+  const head = text.slice(0, at + '\n## Deleted items\n'.length);
+  const items = text.slice(head.length).split('\n\n').map((x) => x.trim()).filter(Boolean);
+  items.sort();
+  return `${head}\n${items.join('\n\n')}\n`;
+}
+
+// runCorpusSide(c, side, root, kind): builds the case for one side, runs every step, snapshots, renames the tree away.
+function runCorpusSide(c, side, root, kind) {
+  const h = buildCorpusSide(c, side, root);
+  const tmp = path.join(root, `tmp-${side}`);
+  mkdirSync(tmp);
+  const outside = () => snapshotTree(root).filter((r) => !/^(case|tmp-|tree-)/.test(r));
+  const outsideBefore = outside();
+  let cwd = h.C;
+  if (c.cwdLink) {
+    mkdirSync(path.join(h.C, 'real', 'deep'), { recursive: true });
+    symlinkSync(path.join('real', 'deep'), path.join(h.C, 'lnk'));
+    cwd = path.join(h.C, 'lnk');
+  }
+  const entry = side === 'mod' ? path.join(h.S, '.aai', 'scripts', 'aai-sync.mjs') : path.join(h.S, '.aai', 'scripts', kind === 'bash' ? 'aai-sync.sh' : 'aai-sync.ps1');
+  const exe = side === 'mod' ? process.execPath : (kind === 'bash' ? 'bash' : 'pwsh');
+  const exeArgs = side === 'ref' && kind === 'ps1' ? ['-NoProfile', '-NonInteractive', '-File'] : [];
+  const srcBefore = corpusSnapshot(h.S);
+  const watchDir = c.watch ? path.join(h.C, c.watch) : null;
+  const watchBefore = watchDir ? corpusSnapshot(watchDir).rows : null;
+  const steps = [];
+  for (const raw of c.steps) {
+    const argv = raw.map((a) => a.split('<T>').join(h.T).split('<S>').join(h.S).split('<C>').join(h.C));
+    const targetArg = lstatOrNull(h.T)?.isDirectory() ? h.T : null;
+    const r = runSync({ argv, root, target: targetArg, cwd, env: { ...CORPUS_ENV, TMPDIR: tmp }, script: entry, exe, exeArgs, encoding: 'buffer' });
+    assert.ok(r.error === undefined, `${c.id} ${side}: ${r.error}`);
+    steps.push({ code: r.status, stdout: r.stdout.toString('latin1'), stderr: r.stderr.toString('latin1') });
+  }
+  const tgt = corpusSnapshot(h.T);
+  const srcAfter = corpusSnapshot(h.S);
+  const result = { steps, tgt: tgt.rows, tgtEngine: tgt.engine, srcBefore: srcBefore.rows, src: srcAfter.rows, tmp: readdirSync(tmp).sort(), h, watchBefore, watch: watchDir ? corpusSnapshot(watchDir).rows : null };
+  assert.deepEqual(outside(), outsideBefore, `${c.id} ${side}: a path outside the case directory changed`);
+  renameSync(h.C, path.join(root, `tree-${side}`));
+  return result;
+}
+
+// applyCorpusRewrites(c, side, result): the registered rewrites of this side; returns the names of those that changed nothing.
+function applyCorpusRewrites(c, side, result) {
+  const idle = [];
+  for (const name of c.rw ?? []) {
+    const rw = CORPUS_REWRITES[name];
+    if (rw === null || rw === undefined || rw.side !== side) continue;
+    let changed = false;
+    if (rw.snap) {
+      const next = rw.snap(result.tgt);
+      changed = JSON.stringify(next) !== JSON.stringify(result.tgt);
+      result.tgt = next;
+    }
+    if (rw.text || rw.steps) {
+      for (const st of result.steps) {
+        const before = JSON.stringify(st);
+        const next = rw.steps ? rw.steps(st) : { ...st, stdout: rw.text(st.stdout), stderr: rw.text(st.stderr) };
+        Object.assign(st, next);
+        if (JSON.stringify(st) !== before) changed = true;
+      }
+      if (rw.text) {
+        for (const k of Object.keys(result.tgt)) {
+          const next = rw.text(result.tgt[k]);
+          if (next !== result.tgt[k]) changed = true;
+          result.tgt[k] = next;
+        }
+      }
+    }
+    if (!changed && !rw.mayNoop) idle.push(name);
+  }
+  return idle;
+}
+
+function corpusStreams(res, keys) {
+  return {
+    steps: res.steps.map((s) => Object.fromEntries(keys.map((k) => [k, typeof s[k] === 'string' ? normStamp(s[k]) : s[k]]))),
+    tgt: normRows(res.tgt),
+    ...(keys.includes('stdout') ? { src: normRows(res.src), tmp: res.tmp } : {}),
+  };
+}
+
+// runCorpusCase(c, kind): the whole differential run of one case; returns both results (after rewrites and normalization).
+function runCorpusCase(c, kind, keys, project = (x) => x) {
+  const root = scratch(`corpus-${c.id.toLowerCase()}-`);
+  try {
+    const ref = runCorpusSide(c, 'ref', root, kind);
+    const mod = runCorpusSide(c, 'mod', root, kind);
+    assert.deepEqual([...applyCorpusRewrites(c, 'ref', ref), ...applyCorpusRewrites(c, 'mod', mod)], [], `${c.id}: a registered rewrite changed nothing`);
+    for (const [side, res, list] of [['reference', ref, ENGINE_FILES_REFERENCE], ['module', mod, ENGINE_FILES_MODULE]]) {
+      if (c.kit !== 'checkout') assert.ok(res.tgtEngine.every((f) => list.includes(f)), `${c.id}: the ${side} target holds an engine file of the other side: ${res.tgtEngine}`);
+      if (c.engine === 'all') assert.deepEqual([...res.tgtEngine].sort(), [...list].sort(), `${c.id}: the ${side} target holds exactly the engine files of its side`);
+      if (!c.mutatesSource) assert.deepEqual(res.src, res.srcBefore, `${c.id}: the ${side} run changed the source`);
+    }
+    if (c.asserted) c.asserted(ref, mod, c);
+    else assert.deepEqual(project(corpusStreams(mod, keys)), project(corpusStreams(ref, keys)), `${c.id}: the module differs from the frozen ${kind === 'bash' ? 'bash' : 'PowerShell'} twin`);
+    if (c.also) c.also(ref, mod);
+    // after every case the scratch root holds no entry besides the marker, the global git config, the per-side TMPDIRs and the two trees
+    const allowed = new Set([OWN_MARKER_FILE, 'gitconfig', 'tmp', 'tmp-ref', 'tmp-mod', 'tree-ref', 'tree-mod']);
+    for (const name of readdirSync(root)) assert.ok(allowed.has(name), `${c.id}: unexpected entry ${name} in the case scratch root`);
+    return { ref, mod };
+  } finally {
+    const at = scratchDirs.indexOf(root);
+    if (at >= 0) scratchDirs.splice(at, 1);
+    removeOwnScratch(root);
+  }
+}
+
+// managedGitignore(): the .gitignore the frozen bash twin writes into an empty target, computed once.
+let managedCache = null;
+function managedGitignore() {
+  if (managedCache !== null) return managedCache;
+  const root = scratch('managed-');
+  const src = refSource(root);
+  const t = path.join(root, 't');
+  mkdirSync(t);
+  refSync(root, src, t);
+  managedCache = readFileSync(path.join(t, '.gitignore'), 'utf8');
+  const at = scratchDirs.indexOf(root);
+  if (at >= 0) scratchDirs.splice(at, 1);
+  removeOwnScratch(root);
+  return managedCache;
+}
+
+const CORPUS_LEGACY = { 'ai/x': 'legacy\n', 'scripts/tool.sh': 'old tool\n', 'scripts/ai-os-old.sh': 'old\n', 'PLAYBOOK.md': 'play\n', 'docs/workflow/x.txt': 'wf\n', 'docs/ai/LOCKS.md': 'locks\n', 'docs/knowledge/PATTERNS_UNIVERSAL.md': 'pu\n' };
+const writeAll = (h, which, files) => { for (const [rel, text] of Object.entries(files)) h.w(which, rel, text); };
+
+// bashCases(): K01 to K32 (and KR1, KR2); each case is a function of nothing, built lazily so the managed text is computed on use.
+function bashCases(managed) {
+  const m = managed;
+  const T = '<T>';
+  const k = (id, title, steps, extra = {}) => ({ id, title, steps, rw: ['DR-21'], ...extra });
+  const gi = (text) => ({ tgt: (h) => h.w('T', '.gitignore', Buffer.from(text, 'latin1')) });
+  const crlf = (t) => t.replace(/\n/g, '\r\n');
+  const cases = [
+    k('K01', 'a fresh empty git init target, default profile', [[T]], { engine: 'all' }),
+    k('K02', 'K01 twice: the second run writes no advisory and nothing changes', [[T], [T]], { engine: 'all' }),
+    k('K03', '--profile core, fresh', [[T, '--profile', 'core']]),
+    k('K04', 'extended then core: extended-only files pruned, a target-only script and the cache kept', [[T], [T, '--profile', 'core']], {
+      rw: ['DR-21', 'DR-26'],
+      src: (h) => { for (const f of ['b.md', 'a.md', 'a.b.md', 'a/c.md', 'a-d.md']) h.w('S', `.aai/extra/${f}`, `${f}\n`); h.w('S', '.aai/workflow/Z.md', 'z\n'); },
+      tgt: (h) => { h.w('T', '.aai/scripts/x.sh', '#!/bin/sh\n', 0o755); h.w('T', '.aai/cache/keep', 'cache\n'); },
+      also: (ref, mod) => {
+        // DR-26: the module's prune lines are in byte order of the whole relative path, so the order is the same on every host
+        const lines = stepOf(mod, 1).stdout.split('\n').filter((l) => /^ {2}PROFILE prune /.test(l)).map((l) => l.slice(l.indexOf(': ') + 2));
+        assert.ok(lines.includes('.aai/extra/a/c.md') && lines.length >= 8, 'the prune lines are there');
+        assert.deepEqual(lines, [...lines].sort(), 'prune lines are in byte order');
+        assert.ok(lines.indexOf('.aai/extra/a.md') < lines.indexOf('.aai/extra/a/c.md') && lines.indexOf('.aai/extra/a-d.md') < lines.indexOf('.aai/extra/a.b.md'), 'the whole path is sorted, not each directory');
+        assert.ok(mod.tgt['.aai/cache/keep'] !== undefined && mod.tgt['.aai/scripts/x.sh'] !== undefined && mod.tgt['.aai/extra'] === undefined, 'the cache and the target-only script stay, the emptied directory goes');
+      },
+    }),
+    k('K05', 'core then no flag (sticky core)', [[T, '--profile', 'core'], [T]]),
+    k('K05b', 'core, no flag, then --profile extended', [[T, '--profile', 'core'], [T], [T, '--profile', 'extended']]),
+    k('K06a', 'a pin whose first Profile line reads bogus', [[T]], { tgt: (h) => h.w('T', '.aai/system/AAI_PIN.md', '# AAI Pin\n- Profile: bogus\n- Profile: core\n') }),
+    k('K06b', 'a CRLF pin recording core', [[T]], { tgt: (h) => h.w('T', '.aai/system/AAI_PIN.md', '# AAI Pin\r\n- Profile: core\r\n') }),
+    k('K07', 'the core list padded with 20,000 fake entries', [[T, '--profile', 'core'], [T, '--profile', 'core']], {
+      src: (h) => h.w('S', '.aai/system/PROFILES.yaml', profilesText([...CORPUS_CORE, ...Array.from({ length: 20000 }, (_, i) => `.aai/fake/f${String(i).padStart(5, '0')}.md`)])),
+    }),
+    k('K08', 'extended with a stale .aai/OLD.md and a target-only script', [[T]], { tgt: (h) => { h.w('T', '.aai/OLD.md', 'old\n'); h.w('T', '.aai/scripts/own.sh', '#!/bin/sh\n', 0o755); } }),
+  ];
+  const g = (id, title, text, extra = {}) => cases.push(k(id, title, [[T]], { ...gi(text), ...extra }));
+  g('K09a', 'an LF .gitignore without the managed lines', 'node_modules/\ndist/\n');
+  g('K09a2', 'no final newline', 'node_modules/\ndist');
+  g('K09b', 'a CRLF .gitignore', crlf('node_modules/\n.agents/skills/\n.claude/skills/\ndocs/ai/STATE.yaml\n'));
+  g('K09c', 'every managed block twice (self-heal)', `${m}\n${m}`, { rw: ['DR-21'] });
+  g('K09c2', 'every managed block twice with blank runs and a project line', `build/\n\n\n${m}\n\nmine.log\n${m}\n\n\n`, { rw: ['DR-21'] });
+  g('K09c3', 'every managed block twice, CRLF', crlf(`${m}${m}`), { rw: ['DR-21'] });
+  g('K09d', 'only .aai/cache/ present (the prefix reading)', 'src/\n.aai/cache/\n');
+  g('K09e', 'a 200 KB .gitignore with the managed lines at the top', `${m}${'padding/line/of/a/large/ignore/file\n'.repeat(5800)}`, { rw: ['DR-21'] });
+  g('K09f', 'the .ps1 marker text already present', `${PS1_MARKER}\nlogs/\n`);
+  g('K09g', 'no list in the source', 'x/\n', { rw: ['DR-14', 'DR-21'], src: (h) => h.rm('S', '.aai/system/RUNTIME_IGNORE.list'), tgt: (h) => { h.w('T', '.gitignore', 'x/\n'); h.w('T', '.aai/system/RUNTIME_IGNORE.list', 'custom/one\n'); } });
+  g('K09h', 'no list anywhere (the note)', 'x/\n', { rw: ['DR-14', 'DR-21'], src: (h) => h.rm('S', '.aai/system/RUNTIME_IGNORE.list') });
+  cases.push(
+    k('K09i', 'no .gitignore at all', [[T]], {}),
+    k('K10', 'skill trees: a differing template skill, a project skill, a retired wrapper, a near miss, a link entry', [[T]], {
+      tgt: (h) => {
+        for (const tree of ['.claude/skills', '.agents/skills']) {
+          h.w('T', `${tree}/aai-alive/SKILL.md`, 'local\n');
+          h.w('T', `${tree}/aai-project-x/SKILL.md`, 'mine\n');
+          h.w('T', `${tree}/aai-gone/SKILL.md`, wrapperText('aai-gone', 'GONE'));
+          h.w('T', `${tree}/aai-near/SKILL.md`, wrapperText('aai-near', 'GONE').replace('follow', 'folloW'));
+          h.link('T', `${tree}/aai-link`, '../elsewhere');
+        }
+        h.w('T', '.claude/skills/aai-two/aux/extra.md', 'changed\n');
+      },
+    }),
+    k('K11', 'differing .codex/skills and .gemini/skills, skills.local kept', [[T]], {
+      tgt: (h) => { h.w('T', '.codex/skills/README.md', 'local codex\n'); h.w('T', '.gemini/skills/README.md', 'local gemini\n'); h.w('T', '.codex/skills.local/keep.md', 'k\n'); },
+    }),
+    k('K12', 'knowledge: a sentinel file replaced, one without it skipped', [[T]], { tgt: (h) => { h.w('T', 'docs/knowledge/FACTS.md', 'AAI-TEMPLATE old\n'); h.w('T', 'docs/knowledge/PATTERNS.md', 'mine\n'); } }),
+    k('K13a', 'the three seeds absent (seeded)', [[T]], {}),
+    k('K13b', 'the three seeds present (kept)', [[T]], { tgt: (h) => { h.w('T', 'docs/TECHNOLOGY.md', 'mine\n'); h.w('T', 'docs/ai/update-config.yaml', 'mine\n'); h.w('T', 'docs/ai/docs-audit.yaml', 'mine\n'); } }),
+    k('K14', 'differing root shims and README_AAI.md (conflicts)', [[T]], { tgt: (h) => { for (const f of ['AGENTS.md', 'CLAUDE.md', 'CODEX.md', 'GEMINI.md', 'SKILLS.md', 'README_AAI.md']) h.w('T', f, `local ${f}\n`); } }),
+    k('K15a', 'the Copilot shim absent', [[T]], {}),
+    k('K15b', 'the Copilot shim identical', [[T]], { tgt: (h) => h.w('T', '.github/copilot-instructions.md', SHIM_NEW) }),
+    k('K15c', 'an older shipped shim (hash listed)', [[T]], { tgt: (h) => h.w('T', '.github/copilot-instructions.md', SHIM_OLD) }),
+    k('K15d', 'a project-overrides block (merged)', [[T]], { tgt: (h) => h.w('T', '.github/copilot-instructions.md', mergedShim('my rule\nsecond rule')) }),
+    k('K15e', 'an empty block with the override file fallback', [[T]], { tgt: (h) => { h.w('T', '.github/copilot-instructions.md', `${OV_START}\n${OV_END}\n`); h.w('T', OV_FILE, 'file rule\n'); } }),
+    k('K16a', 'a target-only hook kept', [[T]], { tgt: (h) => h.w('T', 'hooks/merge-guard.sh', '#!/bin/sh\n', 0o755) }),
+    k('K16b', 'hooks.json absent', [[T]], {}),
+    k('K16c', 'a malformed hooks.json (refused, untouched)', [[T]], { tgt: (h) => h.w('T', 'hooks/hooks.json', '{bad') }),
+    k('K16d', 'a user-modified hook entry (left as-is)', [[T]], { tgt: (h) => h.w('T', 'hooks/hooks.json', hooksJson(hookCmd('--old'))) }),
+    k('K16e', 'the dotfile hook replaced', [[T]], { tgt: (h) => h.w('T', 'hooks/.hidden-hook.sh', 'old\n') }),
+    k('K16f', 'session-start.sh executable afterwards', [[T]], { tgt: (h) => h.w('T', 'hooks/session-start.sh', 'old\n', 0o600) }),
+    k('K17', 'a legacy-layout target (the moves are dropped, DR-13)', [[T]], { tgt: (h) => writeAll(h, 'T', CORPUS_LEGACY) }),
+    k('K18', '-h', [['-h']], { rw: [] }),
+    k('K19', '--bogus with a target', [['--bogus', T]], { rw: [] }),
+    k('K20', 'no argument', [[]], { rw: [] }),
+    k('K21', 'two positionals', [[T, '<C>/second']], { rw: [] }),
+    k('K22', 'a bare --profile', [[T, '--profile']], { rw: [] }),
+    k('K23', '--profile=bogus then the target', [['--profile=bogus', T]], { rw: [] }),
+    k('K24', 'a missing target directory', [['<C>/missing']], { rw: ['DR-4'] }),
+    k('K25', 'the target is the source itself (DR-5)', [['<S>']], { rw: [], mutatesSource: true, noTgt: true }),
+    k('K26', 'the target lies inside the source (DR-5)', [['<S>/sub']], { rw: [], mutatesSource: true, noTgt: true, src: (h) => h.w('S', 'sub/.keep', '') }),
+    k('K27', 'a target whose .claude/skills is a link out of the target (DR-7)', [[T]], { rw: [], watch: 'outside', asserted: 'K27', tgt: (h) => { h.mkdir('C', 'outside'); h.link('T', '.claude/skills', '../../outside'); } }),
+    k('K28', 'a target path holding a space and brackets', [[T]], { tname: 't [x] y' }),
+    k('K29', 'a relative ../t from a symbolic-link working directory, the target present on both readings', [['../t']], { tname: 't', cwdLink: true, tgt: (h) => h.mkdir('C', 'real/t') }),
+    k('K29b', 'a relative ../t that exists only on the logical reading (DR-30)', [['../t']], { tname: 't', cwdLink: true, rw: [], asserted: 'K29b' }),
+    k('K30a', 'no AAI_VERSION.md (the tag fallback)', [[T]], { rw: [], src: (h) => h.rm('S', 'docs/ai/AAI_VERSION.md') }),
+    k('K30b', 'a source repository without a commit (DR-28)', [[T]], { noCommit: true, rw: ['DR-21', 'DR-28'] }),
+    k('K30c', 'a source without git (UNKNOWN)', [[T]], { noGit: true }),
+    k('K30d', 'no tag and no version file', [[T]], { rw: [], noTag: true, src: (h) => h.rm('S', 'docs/ai/AAI_VERSION.md') }),
+    k('K31a', 'dangling links: top-level entries of the source and the target, and a nested one (DR-27, DR-15)', [[T]], {
+      src: (h) => { for (const rel of ['.aai/dangle.md', '.aai/scripts/dangle.sh', '.claude/skills/aai-dangling', '.agents/skills/aai-dangling2', 'hooks/dangle.sh', '.aai/workflow/nested']) h.link('S', rel, 'nowhere'); },
+      tgt: (h) => { h.link('T', '.aai/stale-dangle.md', 'nowhere'); h.link('T', '.aai/scripts/t-dangle.sh', 'nowhere'); h.link('T', '.claude/skills/aai-tdangle', 'nowhere'); },
+      also: (ref, mod) => {
+        // DR-27: a dangling link that is a top-level entry of a globbed directory is skipped, in the source and the target
+        for (const rel of ['.aai/dangle.md', '.aai/scripts/dangle.sh', '.claude/skills/aai-dangling', '.agents/skills/aai-dangling2', 'hooks/dangle.sh']) assert.equal(mod.tgt[rel], undefined, `${rel} was not copied`);
+        for (const rel of ['.aai/stale-dangle.md', '.aai/scripts/t-dangle.sh', '.claude/skills/aai-tdangle']) assert.equal(mod.tgt[rel], 'link:nowhere', `${rel} was left alone`);
+        // DR-15: a dangling link nested in a copied directory is copied as a link
+        assert.equal(mod.tgt['.aai/workflow/nested'], 'link:nowhere');
+      },
+    }),
+    k('K31b', 'extended then core with a dangling link in the target .aai', [[T], [T, '--profile', 'core']], {
+      rw: ['DR-21', 'DR-26'],
+      tgt: (h) => { h.link('T', '.aai/extra/lnk', 'only.md'); h.link('T', '.aai/extra/dang', 'nowhere'); h.link('T', '.aai/workflow/lnk2', 'WORKFLOW.md'); },
+    }),
+    k('K32a', 'a .gitignore that is a link leaving the target (DR-29)', [[T]], { rw: [], watch: 'outside', asserted: 'K32a', tgt: (h) => { h.mkdir('C', 'outside'); h.w('C', 'outside/ig', 'outside\n'); h.link('T', '.gitignore', '../outside/ig'); } }),
+    k('K32b', 'a .gitignore that is a link inside the target', [[T]], { tgt: (h) => { h.w('T', 'real.ign', 'inside\n'); h.link('T', '.gitignore', 'real.ign'); } }),
+    k('KR1', 'the checkout as the source, extended', [[T]], { kit: 'checkout' }),
+    k('KR2', 'the checkout as the source, core', [[T, '--profile', 'core']], { kit: 'checkout' }),
+  );
+  return cases;
+}
+
+const BASH_KEYS = ['code', 'stdout', 'stderr'];
+const PS_KEYS = ['code'];
+
+const utf8 = (latin1) => Buffer.from(latin1, 'latin1').toString('utf8');
+const USAGE_LINE = 'Usage: .aai/scripts/aai-sync.sh <path-to-target-project> [--profile core|extended]\n';
+const hasNone = (rows, prefixes) => Object.keys(rows).filter((k) => prefixes.some((p) => k === p || k.startsWith(`${p}/`)));
+const same = (a, b, why) => assert.deepEqual(a, b, why);
+// stepOf(res, n): the n-th step of a side
+const stepOf = (res, n = 0) => res.steps[n];
+// moduleRefused(mod, text): the module's whole refusal: exit 1, nothing on stdout but the banner, the named text on stderr, the target and source untouched
+function moduleRefused(mod, id, text) {
+  const st = stepOf(mod);
+  assert.equal(st.code, 1, `${id}: exit 1`);
+  assert.ok(st.stderr.startsWith('ERROR: '), `${id}: an ERROR line on stderr: ${st.stderr}`);
+  assert.ok(st.stderr.includes(text), `${id}: stderr names ${text}: ${st.stderr}`);
+  assert.ok(st.stderr.includes('nothing was written'), `${id}: stderr says nothing was written`);
+  assert.deepEqual(mod.src, mod.srcBefore, `${id}: the source is unchanged`);
+}
+
+// The asserted divergences of the bash side: each compares both sides to the expected values of the DR it names.
+const BASH_ASSERTED = {
+  K17(ref, mod) {
+    const gone = ['ai', 'scripts', 'docs/workflow', 'PLAYBOOK.md', 'docs/ai/LOCKS.md', 'docs/knowledge/PATTERNS_UNIVERSAL.md'];
+    assert.ok(stepOf(ref).stdout.includes('  MIGRATE removed legacy: ai/\n') && stepOf(ref).stdout.includes('  Legacy paths migrated to .aai/ structure.\n'), 'the bash twin migrates');
+    assert.deepEqual(hasNone(ref.tgt, ['ai', 'scripts', 'PLAYBOOK.md', 'docs/ai/LOCKS.md', 'docs/knowledge/PATTERNS_UNIVERSAL.md']), [], 'the bash twin deleted the legacy paths');
+    assert.ok(!/MIGRATE|Legacy paths/.test(stepOf(mod).stdout), 'the module prints no MIGRATE or Legacy line');
+    for (const [rel, text] of Object.entries(CORPUS_LEGACY)) assert.equal(mod.tgt[rel], `file:644:${text}`, `the module keeps ${rel} byte for byte`);
+    const strip = (res, drop) => {
+      const rows = Object.fromEntries(Object.entries(res.tgt).filter(([k]) => !hasNone({ [k]: 1 }, gone).length));
+      const lines = stepOf(res).stdout.split('\n').filter((l) => !(drop && /^ {2}(MIGRATE|Legacy paths)/.test(l))).join('\n');
+      return { rows: normRows(rows), lines: normStamp(lines), code: stepOf(res).code, stderr: stepOf(res).stderr };
+    };
+    same(strip(mod, false), strip(ref, true), 'everything else is equal');
+  },
+  K18(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'the bash twin takes -h as a target');
+    assert.equal(stepOf(ref).stdout, 'ERROR: Target directory does not exist: -h\n');
+    assert.deepEqual({ ...stepOf(mod), stdout: utf8(stepOf(mod).stdout) }, { code: 0, stdout: expectedHelp(), stderr: '' }, 'the module prints the help on stdout, exit 0');
+    same(mod.tgt, ref.tgt);
+  },
+  K19(ref, mod, c) {
+    assert.equal(stepOf(ref).code, 1);
+    assert.ok(stepOf(ref).stdout.startsWith('ERROR: unexpected argument: '), 'the bash twin took --bogus as the target');
+    assert.deepEqual(stepOf(mod), { code: 2, stdout: '', stderr: `ERROR: unexpected argument: --bogus\n${USAGE_LINE}` });
+    same(mod.tgt, ref.tgt);
+  },
+  K20(ref, mod) {
+    assert.equal(stepOf(ref).code, 1);
+    assert.equal(stepOf(ref).stdout, `Usage: ${ref.h.S}/.aai/scripts/aai-sync.sh <path-to-target-project> [--profile core|extended]\n`);
+    assert.deepEqual(stepOf(mod), { code: 2, stdout: '', stderr: USAGE_LINE });
+    same(mod.tgt, ref.tgt);
+  },
+  K21(ref, mod) {
+    assert.equal(stepOf(ref).code, 1);
+    assert.ok(stepOf(ref).stdout.startsWith(`ERROR: unexpected argument: ${ref.h.C}/second\n`));
+    assert.deepEqual(stepOf(mod), { code: 2, stdout: '', stderr: `ERROR: unexpected argument: ${mod.h.C}/second\n${USAGE_LINE}` });
+    same(mod.tgt, ref.tgt);
+  },
+  K22(ref, mod) {
+    assert.deepEqual([stepOf(ref).code, stepOf(ref).stdout], [1, 'ERROR: --profile needs a value (core|extended)\n']);
+    assert.deepEqual(stepOf(mod), { code: 2, stdout: '', stderr: `ERROR: --profile needs a value (core|extended)\n${USAGE_LINE}` });
+    same(mod.tgt, ref.tgt);
+  },
+  K23(ref, mod) {
+    assert.deepEqual([stepOf(ref).code, stepOf(ref).stdout], [1, 'ERROR: invalid --profile value: bogus (allowed: core|extended)\n']);
+    assert.deepEqual(stepOf(mod), { code: 2, stdout: '', stderr: `ERROR: invalid --profile value: bogus (allowed: core|extended)\n${USAGE_LINE}` });
+    same(mod.tgt, ref.tgt);
+  },
+  K25(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'the bash twin fails after copying over itself');
+    assert.notDeepEqual(ref.src, ref.srcBefore, 'the bash twin damaged its source');
+    assert.equal(ref.src['.aai/AGENTS.md'], undefined, 'the bash twin lost a source file');
+    moduleRefused(mod, 'K25', mod.h.S);
+    assert.equal(stepOf(mod).stdout, '');
+  },
+  K26(ref, mod) {
+    assert.equal(stepOf(ref).code, 0, 'the bash twin syncs into a directory inside its source');
+    assert.ok(ref.src['sub/.aai/AGENTS.md'] !== undefined, 'the bash twin wrote a layer into the source tree');
+    moduleRefused(mod, 'K26', `${mod.h.S}/sub`);
+    assert.equal(stepOf(mod).stdout, '');
+  },
+  K27(ref, mod) {
+    assert.ok(Object.keys(ref.watch).some((k) => k.startsWith('.claude') === false && k !== ''), 'the bash twin wrote through the link');
+    assert.notDeepEqual(ref.watch, ref.watchBefore);
+    moduleRefused(mod, 'K27', '.claude/skills');
+    assert.deepEqual(mod.watch, mod.watchBefore, 'nothing was written through the link');
+    assert.equal(stepOf(mod).stdout, '', 'nothing printed before the refusal');
+    assert.deepEqual(Object.keys(mod.tgt).sort(), ['.claude', '.claude/skills'], 'the target holds only what the case put there');
+  },
+  K29b(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'the bash twin tests -d on the physical path');
+    assert.equal(stepOf(ref).stdout, 'ERROR: Target directory does not exist: ../t\n');
+    assert.equal(stepOf(mod).code, 0, 'the module resolves ../t from the logical working directory, as cd does');
+    assert.ok(stepOf(mod).stdout.includes(`Target project:     ${mod.h.C}/t\n`));
+  },
+  K32a(ref, mod) {
+    assert.equal(stepOf(ref).code, 0, 'the bash twin appended through the link');
+    assert.notDeepEqual(ref.watch, ref.watchBefore, 'the file outside the target changed');
+    moduleRefused(mod, 'K32a', '.gitignore');
+    assert.deepEqual(mod.watch, mod.watchBefore, 'the file outside the target is unchanged');
+    assert.equal(stepOf(mod).stdout, '', 'nothing printed before the refusal');
+    assert.deepEqual(Object.keys(mod.tgt), ['.gitignore'], 'the target holds only the link');
+  },
+};
+
+const bashSkip = process.platform === 'win32' ? 'the bash-side corpus runs on POSIX hosts' : !bashAvailable ? 'bash is not installed here' : !gitAvailable ? 'git is not installed here' : false;
+const pwshSkip = process.platform === 'win32' ? 'the PowerShell-side corpus runs on POSIX hosts' : !pwshAvailable ? 'pwsh is not installed on this host; the Windows CI job (ps1-quality) runs the PowerShell-side corpus' : !gitAvailable ? 'git is not installed here' : false;
+
+describe('TEST-4013 the bash-side corpus K01 to K32, KR1 and KR2 against the frozen bash reference', { skip: bashSkip }, () => {
+  const cases = bashCases(managedGitignore());
+  for (const c of cases) if (BASH_ASSERTED[c.id]) c.asserted = BASH_ASSERTED[c.id]; else delete c.asserted;
+  test('TEST-4013 the corpus holds every K case with its lettered variants and KR1 and KR2, each registered rewrite names a DR, and no case is filtered away', () => {
+    const ids = cases.map((c) => c.id);
+    assert.equal(new Set(ids).size, ids.length);
+    const want = ['K01', 'K02', 'K03', 'K04', 'K05', 'K05b', 'K06a', 'K06b', 'K07', 'K08', 'K09a', 'K09a2', 'K09b', 'K09c', 'K09c2', 'K09c3', 'K09d', 'K09e', 'K09f', 'K09g', 'K09h', 'K09i',
+      'K10', 'K11', 'K12', 'K13a', 'K13b', 'K14', 'K15a', 'K15b', 'K15c', 'K15d', 'K15e', 'K16a', 'K16b', 'K16c', 'K16d', 'K16e', 'K16f', 'K17', 'K18', 'K19', 'K20', 'K21', 'K22', 'K23', 'K24',
+      'K25', 'K26', 'K27', 'K28', 'K29', 'K29b', 'K30a', 'K30b', 'K30c', 'K30d', 'K31a', 'K31b', 'K32a', 'K32b', 'KR1', 'KR2'];
+    assert.deepEqual(ids, want);
+    for (const c of cases) for (const name of c.rw ?? []) assert.ok(name in CORPUS_REWRITES, `${c.id}: the rewrite ${name} is not registered`);
+    for (const id of ['K17', 'K18', 'K19', 'K20', 'K21', 'K22', 'K23', 'K25', 'K26', 'K27', 'K29b', 'K32a']) assert.equal(typeof cases.find((c) => c.id === id).asserted, 'function', `${id} is an asserted divergence`);
+  });
+  test('TEST-4013 a registered rewrite that changes nothing fails the case', () => {
+    const k01 = cases.find((c) => c.id === 'K01');
+    assert.throws(() => runCorpusCase({ ...k01, rw: ['DR-14'] }, 'bash', BASH_KEYS), /a registered rewrite changed nothing/);
+  });
+  for (const c of cases) {
+    test(`TEST-4013 ${c.id} ${c.title}`, () => {
+      runCorpusCase(c, 'bash', BASH_KEYS);
+    });
+  }
+});
+
+// psCases(): P01 to P16, PowerShell-form arguments; compared on exit code and the target snapshot (DR-11, DR-20 and DR-21 projected away).
+function psCases() {
+  const TR = (...more) => ['-TargetRoot', '<T>', ...more];
+  const p = (id, title, steps, extra = {}) => ({ id, title, steps, rw: [], ...extra });
+  return [
+    p('P01', 'a fresh -TargetRoot', [TR()]),
+    p('P02', 'twice', [TR(), TR()]),
+    p('P03', '-Profile core', [TR('-Profile', 'core')]),
+    p('P04', 'extended then core', [TR(), TR('-Profile', 'core')]),
+    p('P05', 'core then sticky', [TR('-Profile', 'core'), TR()]),
+    p('P06', 'a CRLF .gitignore with duplicates (DR-11)', [TR()], { tgt: (h) => h.w('T', '.gitignore', `node_modules/\r\ndocs/ai/STATE.yaml\r\ndocs/ai/STATE.yaml\r\n.wrangler/\r\n.wrangler/\r\n`) }),
+    p('P07', 'a Copilot overrides block (DR-17)', [TR()], { tgt: (h) => h.w('T', '.github/copilot-instructions.md', mergedShim('  my rule  \n')) }),
+    p('P08', 'a hooks.json merge and session-start.sh (DR-18)', [TR()], { tgt: (h) => h.w('T', 'hooks/hooks.json', hooksJson(hookCmd('--old'))) }),
+    p('P09', 'skill conflicts and a retired wrapper', [TR()], {
+      tgt: (h) => { h.w('T', '.claude/skills/aai-alive/SKILL.md', 'local\n'); h.w('T', '.claude/skills/aai-gone/SKILL.md', wrapperText('aai-gone', 'GONE')); h.w('T', '.agents/skills/aai-project-x/SKILL.md', 'mine\n'); },
+    }),
+    p('P10', 'a knowledge file holding aai-template in lower case (DR-16)', [TR()], { tgt: (h) => { h.w('T', 'docs/knowledge/FACTS.md', 'aai-template lower case\n'); h.w('T', 'docs/knowledge/PATTERNS.md', 'mine\n'); } }),
+    p('P11', '-h (DR-1)', [['-h']]),
+    p('P12', 'no -TargetRoot, under -NonInteractive (DR-25)', [[]]),
+    p('P13', '-Profile bogus (DR-2)', [TR('-Profile', 'bogus')]),
+    p('P14', 'a missing target', [['-TargetRoot', '<C>/missing']]),
+    p('P15', 'the K17 legacy layout (DR-13)', [TR()], { tgt: (h) => writeAll(h, 'T', CORPUS_LEGACY) }),
+    p('P16', 'a dangling link nested in a source skill (DR-15)', [TR()], { src: (h) => h.link('S', '.claude/skills/aai-alive/dangling', 'nowhere') }),
+    p('P17', 'a dangling link as a top-level entry of the source .claude/skills (DR-27)', [TR()], { src: (h) => h.link('S', '.claude/skills/aai-dangling', 'nowhere') }),
+  ];
+}
+
+// The projections of the PowerShell side (DR-11, DR-18, DR-20, DR-21): what the module took from the bash side and the .ps1 wrote
+// differently is reduced to what both write (the order of the deleted items is DR-26 on this side too): the .gitignore to its set of pattern lines (order, blank lines, comment headers and
+// the marker text are DR-11), the report without its backticks (DR-20), the pin without the Template version spacing (DR-21), and the hook
+// files without their execute bits (DR-18).
+const PS_PROJECTIONS = {
+  'DR-11': (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, k === '.gitignore'
+    ? `gitignore:${[...new Set(v.replace(/^file:\d+:/, '').split(/\r?\n/).filter((l) => l !== '' && !l.startsWith('#')))].sort().join('\n')}`
+    : v])),
+  'DR-20': (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, /^docs\/ai\/reports\/sync-conflicts-/.test(k) ? v.replace(/`/g, '') : v])),
+  'DR-21': (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, k === '.aai/system/AAI_PIN.md' ? v.replace(/^- Template version: +/m, '- Template version: ') : v])),
+  'DR-26': (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, /^docs\/ai\/reports\/sync-conflicts-/.test(k) ? sortDeleted(v) : v])),
+  'DR-18': (rows) => Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, /^hooks\/[^/]+\.sh$/.test(k) ? v.replace(/^file:\d+:/, 'file:<MODE>:') : v])),
+};
+const psProject = (streams) => ({ ...streams, tgt: Object.values(PS_PROJECTIONS).reduce((rows, f) => f(rows), streams.tgt) });
+
+const psDrop = (streams, prefixes) => ({ ...streams, tgt: Object.fromEntries(Object.entries(streams.tgt).filter(([k]) => !prefixes.some((p) => k === p || k.startsWith(`${p}/`)))) });
+// psRest(ref, mod, drop): everything but the dropped rows is equal after the projections
+const psRest = (ref, mod, drop = []) => same(psProject(psDrop(corpusStreams(mod, PS_KEYS), drop)), psProject(psDrop(corpusStreams(ref, PS_KEYS), drop)), 'the rest of the run is equal');
+const rowOf = (res, rel) => res.tgt[rel];
+
+// The asserted divergences of the PowerShell side: the exit code and the target of each DR it names, the rest equal.
+const PS_ASSERTED = {
+  P06(ref, mod) {
+    assert.ok(rowOf(ref, '.gitignore').includes(PS1_MARKER), 'the .ps1 writes its own marker text');
+    assert.ok(rowOf(mod, '.gitignore').includes('# AAI runtime sidecars (seeded from .aai/system/RUNTIME_IGNORE.list; per-dev, never commit)') && !rowOf(mod, '.gitignore').includes(PS1_MARKER), 'the module writes the bash marker text');
+    assert.notEqual(rowOf(mod, '.gitignore'), rowOf(ref, '.gitignore'), 'the bytes differ');
+    assert.ok(rowOf(mod, '.gitignore').includes('\r\n'), 'a CRLF file stays CRLF');
+    psRest(ref, mod);
+  },
+  P07(ref, mod) {
+    assert.equal(rowOf(ref, OV_FILE), 'file:644:my rule\n', 'the .ps1 trims the overrides');
+    assert.equal(rowOf(mod, OV_FILE), 'file:644:  my rule  \n', 'the module keeps the bash bytes');
+    assert.notEqual(rowOf(mod, '.github/copilot-instructions.md'), rowOf(ref, '.github/copilot-instructions.md'));
+    assert.ok(rowOf(mod, '.github/copilot-instructions.md').endsWith('<!-- AAI-PROJECT-OVERRIDES:END -->\n'), 'the merged shim ends with a final newline');
+    psRest(ref, mod, [OV_FILE, '.github/copilot-instructions.md']);
+  },
+  P08(ref, mod) {
+    assert.ok(rowOf(ref, 'hooks/session-start.sh').startsWith('file:644:'), 'the .ps1 leaves session-start.sh non-executable');
+    assert.ok(rowOf(mod, 'hooks/session-start.sh').startsWith('file:755:'), 'the module makes it executable');
+    psRest(ref, mod);
+  },
+  P10(ref, mod) {
+    assert.equal(rowOf(ref, 'docs/knowledge/FACTS.md'), 'file:644:AAI-TEMPLATE facts\n', 'the .ps1 matches the sentinel in any case and replaces the file');
+    assert.equal(rowOf(mod, 'docs/knowledge/FACTS.md'), 'file:644:aai-template lower case\n', 'the module is case-sensitive and keeps it');
+    psRest(ref, mod, ['docs/knowledge/FACTS.md']);
+  },
+  P11(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'a binding error');
+    assert.deepEqual({ ...stepOf(mod), stdout: utf8(stepOf(mod).stdout) }, { code: 0, stdout: expectedHelp(), stderr: '' });
+    same(mod.tgt, ref.tgt);
+  },
+  P12(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'the .ps1 fails under -NonInteractive');
+    assert.deepEqual(stepOf(mod), { code: 2, stdout: '', stderr: USAGE_LINE });
+    same(mod.tgt, ref.tgt);
+  },
+  P13(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'the .ps1 throws');
+    assert.deepEqual(stepOf(mod), { code: 2, stdout: '', stderr: `ERROR: invalid --profile value: bogus (allowed: core|extended)\n${USAGE_LINE}` });
+    same(mod.tgt, ref.tgt);
+  },
+  P15(ref, mod) {
+    for (const rel of ['ai/x', 'scripts/tool.sh', 'PLAYBOOK.md', 'docs/ai/LOCKS.md', 'docs/knowledge/PATTERNS_UNIVERSAL.md']) {
+      assert.equal(rowOf(ref, rel), undefined, `the .ps1 deleted ${rel}`);
+      assert.equal(rowOf(mod, rel), `file:644:${CORPUS_LEGACY[rel]}`, `the module kept ${rel}`);
+    }
+    psRest(ref, mod, ['ai', 'scripts', 'PLAYBOOK.md', 'docs/ai/LOCKS.md', 'docs/knowledge/PATTERNS_UNIVERSAL.md', 'docs/workflow']);
+  },
+  P16(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'Copy-Item crashes on the dangling link');
+    assert.equal(stepOf(mod).code, 0);
+    assert.equal(rowOf(mod, '.claude/skills/aai-alive/dangling'), 'link:nowhere', 'the module copies it as a link');
+  },
+  P17(ref, mod) {
+    assert.equal(stepOf(ref).code, 1, 'Copy-Item crashes on the dangling link');
+    assert.equal(stepOf(mod).code, 0);
+    assert.equal(rowOf(mod, '.claude/skills/aai-dangling'), undefined, 'the module skips a dangling top-level entry, as bash does');
+  },
+};
+
+describe('TEST-4014 the PowerShell-side corpus P01 to P17 against the frozen PowerShell reference', { skip: pwshSkip }, () => {
+  const cases = psCases();
+  for (const c of cases) if (PS_ASSERTED[c.id]) c.asserted = PS_ASSERTED[c.id];
+  test('TEST-4014 the corpus holds P01 to P17 and no case is filtered away', () => {
+    assert.deepEqual(cases.map((c) => c.id), Array.from({ length: 17 }, (_, i) => `P${String(i + 1).padStart(2, '0')}`));
+    for (const id of ['P06', 'P07', 'P08', 'P10', 'P11', 'P12', 'P13', 'P15', 'P16', 'P17']) assert.equal(typeof cases.find((c) => c.id === id).asserted, 'function', `${id} is an asserted divergence`);
+  });
+  for (const c of cases) {
+    test(`TEST-4014 ${c.id} ${c.title}`, () => {
+      runCorpusCase(c, 'ps1', PS_KEYS, psProject);
+    });
+  }
 });
