@@ -12,8 +12,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync,
-  symlinkSync, writeFileSync,
+  chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync,
+  rmSync, statSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -120,17 +120,21 @@ export function runSync({ argv = [], root, target = null, cwd = root, env = {}, 
   return spawnSync(exe, [script, ...argv], { cwd, env: runEnv, encoding: 'utf8' });
 }
 
-// runInProcess({ argv, root, target, cwd, env, scriptPath, spawn }): the one way these tests call the module's run().
+// runInProcess({ argv, root, target, cwd, env, scriptPath, spawn, ledger, onOut }): the one way these tests call the module's run().
 // The scrubbed environment goes in as io.env; the child seam records and never starts anything real unless spawn is given.
-async function runInProcess({ argv = [], root, target = null, cwd = root, env = {}, scriptPath = MODULE, spawn = null }) {
+// The module is imported from scriptPath (a scratch copy has its own root); ledger collects the conflicts and deletions the
+// run records; onOut sees each printed text as it is printed.
+async function runInProcess({ argv = [], root, target = null, cwd = root, env = {}, scriptPath = MODULE, spawn = null, ledger = null, onOut = null }) {
   const runEnv = prepareEnv(root, { PWD: cwd, ...env });
   assertTargetUnderRoot(target, root, cwd, argv);
-  const { run } = await import(MODULE_URL);
+  const { run } = await import(pathToFileURL(scriptPath).href);
   const out = [];
   const err = [];
   const calls = [];
   const seam = spawn ?? ((file, args) => { calls.push([file, args]); return { status: 1, stdout: '', stderr: '' }; });
-  const code = await run(argv, { out: (s) => out.push(s), err: (s) => err.push(s), env: runEnv, cwd, spawn: seam, scriptPath });
+  const code = await run(argv, {
+    out: (s) => { out.push(s); if (onOut) onOut(s); }, err: (s) => err.push(s), env: runEnv, cwd, spawn: seam, scriptPath, ...(ledger ? { ledger } : {}),
+  });
   return { code, stdout: out.join(''), stderr: err.join(''), calls };
 }
 
@@ -866,7 +870,7 @@ describe('TEST-4003 roots and the refusals before any write', () => {
     // the extended profile never reads the manifest: a missing one passes the refusals
     r = runSync({ argv: [target, '--profile', 'extended'], root, target, script: noManifest.script });
     assert.ok(!/requires the manifest|no core entries/.test(r.stderr), r.stderr);
-    assert.ok(r.stdout.endsWith('Profile:            extended\n'), r.stdout);
+    assert.match(r.stdout, /^Profile: {12}extended$/m);
     // a valid core list passes them too
     const ok = makeSource(root, 'S5', { profiles: PROFILES_OK });
     r = runSync({ argv: [target, '--profile', 'core'], root, target, script: ok.script });
@@ -884,10 +888,10 @@ describe('TEST-4003 roots and the refusals before any write', () => {
     assert.equal(r.stderr, `ERROR: no core entries found in ${path.join(src, '.aai', 'system', 'PROFILES.yaml')}\n`);
     // the flag wins over the pin; an invalid pin value falls back to extended
     r = runSync({ argv: [target, '--profile', 'extended'], root, target, script });
-    assert.ok(r.stdout.endsWith('Profile:            extended\n'), r.stdout);
+    assert.match(r.stdout, /^Profile: {12}extended$/m);
     writeFileSync(path.join(target, '.aai', 'system', 'AAI_PIN.md'), '- Profile: bogus\n- Profile: core\n');
     r = runSync({ argv: [target], root, target, script });
-    assert.ok(r.stdout.endsWith('Profile:            extended\n'), r.stdout);
+    assert.match(r.stdout, /^Profile: {12}extended$/m);
   });
 
   test('TEST-4003 readStickyProfile and parseCoreList read the pin and the manifest as the bash twin did', async () => {
@@ -1213,13 +1217,14 @@ const DROPPED_TOKENS = [
   'MIGRATE', 'Legacy', 'PLAYBOOK', 'AUTONOMOUS_LOOP', 'SUPERPOWERS_INTEGRATION', 'DYNAMIC_SKILLS', 'PATTERNS_UNIVERSAL',
   'ai-os-', 'docs/workflow', 'docs/roles', 'docs/templates', 'docs/ai/PRICING', 'docs/ai/AAI_PIN', 'docs/ai/LOCKS',
 ];
-const MANAGED_TOP = new Set(['.aai', '.agents', '.claude', '.claude-plugin', '.codex', '.cursor', '.gemini', '.github', '.gitignore', 'hooks']);
-
-// outsideManaged(dir): the snapshot rows of every path outside the managed set (the advisory directory docs/ai/reports
-// is part of it).
+// outsideManaged(dir): the snapshot rows of the legacy layout and of the project-owned paths around it. The module now
+// writes the managed set (the layer, the shims, the seeds), so only the paths the dropped moves reached are compared.
+const LEGACY_ROOTS = ['ai', 'scripts', 'PLAYBOOK.md', 'README.md', 'docs/workflow', 'docs/roles', 'docs/templates', 'docs/specs',
+  'docs/ai/AUTONOMOUS_LOOP.md', 'docs/ai/SUPERPOWERS_INTEGRATION.md', 'docs/ai/DYNAMIC_SKILLS.md', 'docs/ai/PRICING.yaml',
+  'docs/ai/AAI_PIN.md', 'docs/ai/LOCKS.md', 'docs/knowledge/PATTERNS_UNIVERSAL.md'];
 const outsideManaged = (dir) => snapshotTree(dir).filter((row) => {
   const rel = row.split('\t')[0];
-  return !MANAGED_TOP.has(rel.split('/')[0]) && !rel.startsWith('docs/ai/reports');
+  return LEGACY_ROOTS.some((r) => rel === r || rel.startsWith(`${r}/`));
 });
 
 function writeLegacy(target) {
@@ -1271,5 +1276,785 @@ describe('TEST-4006 the legacy-layout moves are dropped', () => {
     assert.ok(readFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'gitignore-block.mjs'), 'utf8').includes('migrate-state-to-local.sh'));
     // negative control: the scan is not vacuous
     assert.ok(DROPPED_TOKENS.some((tok) => readFileSync(path.join(ROOT, 'tests', 'fixtures', 'sync-reference', 'aai-sync.sh'), 'utf8').includes(tok)), 'the bash twin holds the tokens');
+  });
+});
+
+// --- run 3: the profile, the core copy and prune, the extended copy, the path guard, the skill trees, the indexes,
+// --- the knowledge files, the seeds and the root shims (TEST-4007 to TEST-4009) ---------------------------------------
+
+// writeTree(dir, files): files maps a relative path to a string, { text, mode } or { link }.
+function writeTree(dir, files) {
+  for (const [rel, spec] of Object.entries(files)) {
+    const full = path.join(dir, rel);
+    mkdirSync(path.dirname(full), { recursive: true });
+    if (typeof spec === 'string') writeFileSync(full, spec);
+    else if (spec.link !== undefined) symlinkSync(spec.link, full);
+    else {
+      writeFileSync(full, spec.text);
+      chmodSync(full, spec.mode);
+    }
+  }
+}
+
+const lstatOrNull = (p) => {
+  try {
+    return lstatSync(p);
+  } catch {
+    return null;
+  }
+};
+
+const EM_DASH = '\u2014';
+// wrapperText(name, prompt, opts): the text of a template skill wrapper as the layer ships it.
+function wrapperText(name, prompt, { eol = '\n', stop = false, descr = 'Delegating wrapper.' } = {}) {
+  const lines = ['---', `name: ${name}`, `description: ${descr}`, '---', ''];
+  if (stop) lines.push('<SUBAGENT-STOP>', 'You are a subagent.', '</SUBAGENT-STOP>', '');
+  lines.push(
+    `Read the file \`.aai/SKILL_${prompt}.prompt.md\` from the current project root and follow its instructions exactly. Invoke this as \`/${name}\`.`,
+    '',
+    `If \`.aai/SKILL_${prompt}.prompt.md\` does not exist, say: "SKILL_${prompt} not found ${EM_DASH} are you in an AAI project? Expected: .aai/SKILL_${prompt}.prompt.md"`,
+    '',
+  );
+  return lines.join(eol);
+}
+
+const CORE_REAL = [
+  '.aai/AGENTS.md', '.aai/workflow/WORKFLOW.md', '.aai/SKILL_ALIVE.prompt.md', '.aai/scripts/tool.sh', '.aai/scripts/lib/merge-hooks-json.mjs',
+  '.aai/system/PROFILES.yaml', '.aai/system/RUNTIME_IGNORE.list', '.aai/templates/TECHNOLOGY_TEMPLATE.md',
+];
+const profilesText = (core) => `core:\n${core.map((c) => `  - ${c}`).join('\n')}\nextended:\n  - .aai/x.md\n`;
+
+// layerFiles({ core }): the files of a small layer source. The engine files are added by makeLayer.
+function layerFiles({ core = [...CORE_REAL, '.aai/MISSING.md'] } = {}) {
+  return {
+    '.aai/AGENTS.md': 'agents\n',
+    '.aai/workflow/WORKFLOW.md': 'workflow\n',
+    '.aai/workflow/OTHER.md': 'other workflow\n',
+    '.aai/roles/ROLE.md': 'role\n',
+    '.aai/knowledge/K.md': 'knowledge\n',
+    '.aai/SKILL_ALIVE.prompt.md': 'alive prompt\n',
+    '.aai/templates/TECHNOLOGY_TEMPLATE.md': '# tech\n',
+    '.aai/templates/update-config.template.yaml': 'auto: false\n',
+    '.aai/templates/docs-audit.template.yaml': 'dials: report-only\n',
+    '.aai/system/PROFILES.yaml': profilesText(core),
+    '.aai/system/RUNTIME_IGNORE.list': readFileSync(REAL_LIST, 'utf8'),
+    '.aai/scripts/tool.sh': { text: '#!/bin/sh\necho tool\n', mode: 0o755 },
+    '.aai/scripts/other.sh': '#!/bin/sh\necho other\n',
+    '.claude/skills/aai-alive/SKILL.md': wrapperText('aai-alive', 'ALIVE'),
+    '.claude/skills/aai-two/SKILL.md': 'two\n',
+    '.claude/skills/aai-two/aux/extra.md': 'extra\n',
+    '.agents/skills/aai-alive/SKILL.md': wrapperText('aai-alive', 'ALIVE'),
+    '.codex/skills/README.md': 'codex index\n',
+    '.gemini/skills/README.md': 'gemini index\n',
+    '.claude-plugin/plugin.json': '{"name":"aai"}\n',
+    '.cursor/rules/aai.mdc': 'cursor rules\n',
+    'docs/knowledge/FACTS.md': 'AAI-TEMPLATE facts\n',
+    'docs/knowledge/PATTERNS.md': 'AAI-TEMPLATE patterns\n',
+    'docs/knowledge/NEW.md': 'AAI-TEMPLATE new\n',
+    'AGENTS.md': 'root agents\n',
+    'CLAUDE.md': 'root claude\n',
+    'CODEX.md': 'root codex\n',
+    'GEMINI.md': 'root gemini\n',
+    'SKILLS.md': 'root skills\n',
+    'README.md': 'readme\n',
+  };
+}
+
+// makeLayer(root, name, { engine, core, files }): a scratch layer source. engine 'module' vendors the module and its three
+// libs, 'reference' the two frozen twins and the bash library (plus the merge library, so the trees match).
+function makeLayer(root, name, { engine = 'module', core, files = {} } = {}) {
+  const src = path.join(root, name);
+  writeTree(src, { ...layerFiles(core === undefined ? {} : { core }), ...files });
+  const scripts = path.join(src, '.aai', 'scripts');
+  mkdirSync(path.join(scripts, 'lib'), { recursive: true });
+  if (engine === 'module') {
+    copyFileSync(MODULE, path.join(scripts, 'aai-sync.mjs'));
+    for (const lib of MODULE_LIBS) copyFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', lib), path.join(scripts, 'lib', lib));
+    return { src, script: path.join(scripts, 'aai-sync.mjs') };
+  }
+  materializeSyncReference(src);
+  copyFileSync(path.join(ROOT, '.aai', 'scripts', 'lib', 'merge-hooks-json.mjs'), path.join(scripts, 'lib', 'merge-hooks-json.mjs'));
+  return { src, script: path.join(scripts, 'aai-sync.sh') };
+}
+
+const ENGINE_NAME = /^(aai-sync\.|gitignore-block\.|resolve-base\.mjs)/;
+// comparableRows(target): the snapshot rows both engines write in run 3: not the engine files, the pin, the advisory,
+// the .gitignore and the sync-written Copilot/hooks surfaces (later runs).
+const comparableRows = (target) => snapshotTree(target).filter((row) => {
+  const rel = row.split('\t')[0];
+  return !ENGINE_NAME.test(path.basename(rel)) && rel !== '.gitignore' && !rel.startsWith('docs/ai/reports') && rel !== '.aai/system/AAI_PIN.md';
+});
+
+const RUN3_LINE = /^ {2}(PROFILE core|WARN core-listed|WARN could not remove|PRESERVE|CLEAN|SEED|SKIP|SYNC \.claude-plugin|SYNC \.cursor)/;
+// run3Lines(stdout, ...pairs): the narrative lines of the steps of run 3, each path replaced by its placeholder.
+function run3Lines(stdout, pairs) {
+  const engine = (l) => ENGINE_NAME.test(path.basename(l.trim().split(' ').pop()));
+  return stdout.split('\n').filter((l) => RUN3_LINE.test(l) && !l.includes('AAI_PIN.md') && !engine(l)).map((l) => {
+    let line = l;
+    for (const [from, to] of pairs) line = line.split(from).join(to);
+    return line;
+  });
+}
+
+// advisoryRows(target): the conflicts and deletions the bash twin wrote into its advisory report.
+function advisoryRows(target) {
+  const dir = path.join(target, 'docs', 'ai', 'reports');
+  if (!existsSync(dir)) return { conflicts: [], deletions: [] };
+  const name = readdirSync(dir).filter((n) => n.startsWith('sync-conflicts-')).sort().pop();
+  if (name === undefined) return { conflicts: [], deletions: [] };
+  const text = readFileSync(path.join(dir, name), 'utf8');
+  const [over, del = ''] = text.split('\n## Deleted items\n');
+  return {
+    conflicts: [...over.matchAll(/^- Path: (.*)\n- Recommendation: (.*)$/gm)].map((m) => ({ path: m[1], text: m[2] })),
+    deletions: [...del.matchAll(/^- Path: (.*)$/gm)].map((m) => m[1]),
+  };
+}
+
+// diffRun(root, label, { layer, prepare, steps }): the frozen bash twin and the module sync one layer into two targets; each
+// step is an argument list (run in turn, both sides). Returns what the comparison needs.
+async function diffRun(root, label, { layer = {}, prepare = () => {}, steps = [[]] } = {}) {
+  const b = makeLayer(root, `${label}-Sb`, { engine: 'reference', ...layer });
+  const m = makeLayer(root, `${label}-Sm`, { engine: 'module', ...layer });
+  const tb = path.join(root, `${label}-Tb`);
+  const tm = path.join(root, `${label}-Tm`);
+  for (const t of [tb, tm]) {
+    mkdirSync(t);
+    prepare(t);
+  }
+  let ref = null;
+  let mod = null;
+  const ledger = { conflicts: [], deletions: [] };
+  for (const argv of steps) {
+    // the advisory of an earlier step is not this step's (scratch only)
+    rmSync(path.join(tb, 'docs', 'ai', 'reports'), { recursive: true, force: true });
+    ledger.conflicts.length = 0;
+    ledger.deletions.length = 0;
+    ref = runSync({ argv: [tb, ...argv], root, target: tb, script: b.script, exe: 'bash' });
+    assert.equal(ref.status, 0, `the bash reference failed: ${ref.stderr}`);
+    mod = await runInProcess({ argv: [tm, ...argv], root, target: tm, scriptPath: m.script, ledger });
+  }
+  return { ref, mod, tb, tm, sb: b.src, sm: m.src, ledger, advisory: advisoryRows(tb) };
+}
+
+// assertSameRun(d): the run-3 lines, the comparable tree and the recorded conflicts and deletions equal the twin's.
+function assertSameRun(d, label, { sortLines = false } = {}) {
+  const norm = (x) => (sortLines ? [...x].sort() : x);
+  const refLines = run3Lines(d.ref.stdout, [[d.tb, '<T>'], [d.sb, '<S>']]);
+  const modLines = run3Lines(d.mod.stdout, [[d.tm, '<T>'], [d.sm, '<S>']]);
+  assert.deepEqual(norm(modLines), norm(refLines), `${label}: the narrative lines`);
+  const strip = (rows, base) => rows.map((r) => r.split(base).join('<T>'));
+  assert.deepEqual(strip(comparableRows(d.tm), d.tm), strip(comparableRows(d.tb), d.tb), `${label}: the target tree`);
+  assert.deepEqual(d.ledger.conflicts, d.advisory.conflicts, `${label}: the recorded conflicts`);
+  const notEngine = (x) => x !== '.aai/system/AAI_PIN.md' && !ENGINE_NAME.test(path.basename(x));
+  assert.deepEqual([...d.ledger.deletions].filter(notEngine).sort(), [...d.advisory.deletions].filter(notEngine).sort(), `${label}: the recorded deletions`);
+}
+
+// changedPaths(before, after): the paths whose rows differ between two snapshots of one root.
+function changedPaths(before, after) {
+  const mb = new Map(before.map((r) => [r.split('\t')[0], r]));
+  const ma = new Map(after.map((r) => [r.split('\t')[0], r]));
+  const changed = [];
+  for (const [p, r] of mb) if (ma.get(p) !== r) changed.push(p);
+  for (const p of ma.keys()) if (!mb.has(p)) changed.push(p);
+  return changed;
+}
+// assertChangesUnder(before, after, prefix): every path the run wrote or deleted lies under the target (D-SAFETY): the
+// source, the scratch infrastructure and every sibling are byte-identical.
+function assertChangesUnder(before, after, prefix) {
+  const stray = changedPaths(before, after).filter((p) => !(p === prefix || p.startsWith(`${prefix}/`)));
+  assert.deepEqual(stray, [], 'a path outside the target changed');
+}
+
+const LAYER_DIRS = ['.aai/workflow', '.aai/roles', '.aai/templates', '.aai/scripts', '.aai/system', '.aai/knowledge', '.agents/skills',
+  '.claude/skills', '.claude-plugin', '.codex/skills', '.codex/skills.local', '.cursor/rules', '.gemini/skills', '.gemini/skills.local',
+  '.github', 'docs/knowledge', 'docs/ai', 'hooks'];
+
+// --- TEST-4007 ---------------------------------------------------------------------------------------------------------
+
+describe('TEST-4007 the core profile: resolution, copy and prune', () => {
+  test('TEST-4007 DR-9 and DR-10: the sticky profile and the core block are read the bash way', async () => {
+    const { readStickyProfile, parseCoreList } = await import(MODULE_URL);
+    const root = scratch('p9-');
+    const pinDir = path.join(root, '.aai', 'system');
+    mkdirSync(pinDir, { recursive: true });
+    const pin = (t) => writeFileSync(path.join(pinDir, 'AAI_PIN.md'), t);
+    // DR-9: the FIRST line starting "- Profile: " decides; a value that is not a profile reads as none (never the next line)
+    pin('# AAI Pin\n- Profile: bogus\n- Profile: core\n');
+    assert.equal(readStickyProfile(root), '', 'the first line is read, then validated');
+    pin('- Profile: core \t\r\n- Profile: extended\r\n');
+    assert.equal(readStickyProfile(root), 'core', 'a CRLF pin, trailing blanks removed');
+    pin('  - Profile: core\n- Profile: extended\n');
+    assert.equal(readStickyProfile(root), 'extended', 'an indented line is not the line');
+    pin('- Profile:core\n');
+    assert.equal(readStickyProfile(root), '');
+    // DR-10: the block opens at the line "core:" exactly and closes at the first line that is not indented
+    assert.deepEqual(parseCoreList('core:\n  - a\n  - b  \r\n\textra\n  - c\n'), ['a', 'b'], 'a tab-indented line is not indented: it closes the block');
+    assert.deepEqual(parseCoreList('core: \n  - a\n'), [], 'core: with a trailing space does not open the block');
+    assert.deepEqual(parseCoreList('core:\n  - a\next:\n  - b\n'), ['a'], 'the next top-level key closes it');
+    assert.deepEqual(parseCoreList('core:\n  - a\n\n  - b\n'), ['a', 'b'], 'a blank line stays inside the block');
+    assert.deepEqual(parseCoreList('core:\n  -  spaced\n  - \n  - last\t\n'), [' spaced', 'last'], 'an empty entry is dropped, nothing else is trimmed at the front');
+    assert.deepEqual(parseCoreList('# core:\n  - a\n'), []);
+    assert.deepEqual(parseCoreList(''), []);
+  });
+
+  test('TEST-4007 planCore warns for a listed file missing in the source; planPrune is pure and never nominates a directory or the cache', async () => {
+    const { planCore, planPrune } = await import(MODULE_URL);
+    const root = scratch('plan-');
+    writeTree(root, { 'a/x.md': 'x', 'a/dir/y.md': 'y' });
+    assert.deepEqual(planCore(['a/x.md', 'a/gone.md', 'a/dir', 'a/dir/y.md'], root).map((e) => [e.rel, e.present]),
+      [['a/x.md', true], ['a/gone.md', false], ['a/dir', false], ['a/dir/y.md', true]], 'a directory is not a regular file');
+    const files = ['.aai/AGENTS.md', '.aai/extra.md', '.aai/cache/keep', '.aai/cache/deep/x', '.aai/scripts/own.sh', '.aai/scripts/tool.sh', '.aai/scripts/lib/old.sh', '.aai/system/AAI_PIN.md'];
+    const core = new Set(['.aai/AGENTS.md', '.aai/scripts/tool.sh']);
+    const srcHas = (rel) => rel === '.aai/scripts/tool.sh' || rel === '.aai/scripts/lib/old.sh';
+    const frozen = JSON.stringify(files);
+    const plan = planPrune(files, core, srcHas);
+    assert.equal(JSON.stringify(files), frozen, 'the input is untouched');
+    assert.deepEqual(plan, [
+      { rel: '.aai/extra.md', action: 'prune' },
+      { rel: '.aai/scripts/own.sh', action: 'preserve' },
+      { rel: '.aai/scripts/lib/old.sh', action: 'prune' },
+      { rel: '.aai/system/AAI_PIN.md', action: 'prune' },
+    ], 'core files and the cache are never candidates; a script the source lacks is preserved');
+    assert.throws(() => planPrune(files, new Set(), srcHas), /empty core/, 'an empty core set is a hard failure, never delete everything');
+    assert.throws(() => planPrune(files, [], srcHas), /empty core|core set/);
+  });
+
+  test('TEST-4007 K03: a fresh core sync copies the listed files with their modes and warns for the missing one', async () => {
+    const root = scratch('k03-');
+    const d = await diffRun(root, 'k03', { steps: [['--profile', 'core']] });
+    assertSameRun(d, 'K03');
+    const t = d.tm;
+    for (const rel of CORE_REAL) assert.ok(existsSync(path.join(t, rel)), `${rel} copied`);
+    assert.equal(statSync(path.join(t, '.aai/scripts/tool.sh')).mode & 0o777, 0o755, 'the mode of a core file is kept');
+    assert.equal(existsSync(path.join(t, '.aai/workflow/OTHER.md')), false, 'a file that is not core is not copied');
+    assert.match(d.mod.stdout, /^ {2}PROFILE core: filtered \.aai copy per \.aai\/system\/PROFILES\.yaml$/m);
+    assert.match(d.mod.stdout, /^ {2}WARN core-listed file missing in source \(skipped\): \.aai\/MISSING\.md$/m);
+    // the eighteen directories the twins create up front exist in a core sync too
+    for (const dir of LAYER_DIRS.filter((x) => !['.aai/roles', '.aai/knowledge'].includes(x))) assert.ok(statSync(path.join(t, dir)).isDirectory(), `${dir} created up front`);
+    assert.equal(existsSync(path.join(t, '.aai/roles')), false, 'an up-front directory the core copy left empty is removed again');
+  });
+
+  test('TEST-4007 K04: extended then core prunes the extended-only files, keeps the cache and target-only scripts, removes emptied directories', async () => {
+    const root = scratch('k04-');
+    const prepare = (t) => {
+      // a target-only script, runtime cache and an empty directory under the cache are in place before the first sync
+      writeTree(t, { '.aai/scripts/own.sh': 'own\n', '.aai/cache/keep': 'cache\n', '.aai/cache/sub/also': 'cache2\n' });
+      mkdirSync(path.join(t, '.aai/cache/emptydir'), { recursive: true });
+    };
+    const d = await diffRun(root, 'k04', { prepare, steps: [['--profile', 'extended'], ['--profile', 'core']] });
+    assertSameRun(d, 'K04', { sortLines: true });
+    const t = d.tm;
+    assert.equal(existsSync(path.join(t, '.aai/workflow/OTHER.md')), false, 'the extended-only file is pruned');
+    assert.equal(existsSync(path.join(t, '.aai/roles')), false, 'the directory the prune emptied is removed');
+    assert.equal(existsSync(path.join(t, '.aai/knowledge')), false, 'another emptied directory is removed');
+    assert.equal(readFileSync(path.join(t, '.aai/scripts/own.sh'), 'utf8'), 'own\n', 'a target-only script is preserved');
+    assert.equal(readFileSync(path.join(t, '.aai/cache/keep'), 'utf8'), 'cache\n');
+    assert.ok(statSync(path.join(t, '.aai/cache')).isDirectory(), 'the cache directory itself is never removed');
+    assert.equal(existsSync(path.join(t, '.aai/cache/emptydir')), false, 'parity: an empty directory inside the cache goes with the emptied ones');
+    assert.equal(readFileSync(path.join(t, '.aai/cache/sub/also'), 'utf8'), 'cache2\n');
+    assert.ok(statSync(path.join(t, '.aai')).isDirectory());
+    assert.match(d.mod.stdout, /^ {2}PRESERVE target-only script: \.aai\/scripts\/own\.sh$/m);
+    assert.match(d.mod.stdout, /^ {2}PROFILE prune \(not in core\): \.aai\/workflow\/OTHER\.md$/m);
+    // every prune is recorded as a deletion (the advisory of run 4 lists them): the ledger equals the twin's
+    assert.ok(d.ledger.deletions.includes('.aai/workflow/OTHER.md') && d.ledger.deletions.includes('.aai/roles/ROLE.md'));
+    assert.ok(!d.ledger.deletions.some((p) => p.startsWith('.aai/cache')), 'the cache is not a deletion');
+    // the prune lines come in ascending order
+    const pruned = d.mod.stdout.split('\n').filter((l) => l.startsWith('  PROFILE prune'));
+    assert.deepEqual(pruned, [...pruned].sort());
+  });
+
+  test('TEST-4007 K05: the sticky core profile applies without a flag, and an explicit flag wins over the pin', async () => {
+    const root = scratch('k05-');
+    const { src, script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    writeTree(t, { '.aai/system/AAI_PIN.md': '# AAI Pin\n\n- Profile: core\n', '.aai/workflow/OTHER.md': 'x\n' });
+    prepareEnv(root);
+    let r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.match(r.stdout, /^Profile: {12}core$/m);
+    assert.equal(existsSync(path.join(t, '.aai/workflow/OTHER.md')), false, 'sticky core pruned the extended-only file');
+    assert.equal(existsSync(path.join(t, '.aai/AGENTS.md')), true);
+    r = await runInProcess({ argv: [t, '--profile', 'extended'], root, target: t, scriptPath: script });
+    assert.match(r.stdout, /^Profile: {12}extended$/m);
+    assert.equal(readFileSync(path.join(t, '.aai/workflow/OTHER.md'), 'utf8'), 'other workflow\n', 'the flag overrides the pin: the full layer is copied');
+    assert.ok(src.length > 0);
+  });
+
+  test('TEST-4007 K07: a core list padded with 20,000 entries prunes no core-listed file on either of two runs', async () => {
+    const root = scratch('k07-');
+    const fake = Array.from({ length: 20000 }, (_, i) => `.aai/fake/entry-${i}.md`);
+    const { script } = makeLayer(root, 'S', { engine: 'module', core: [...CORE_REAL, ...fake] });
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    prepareEnv(root);
+    for (const round of [1, 2]) {
+      if (round === 2) writeTree(t, { '.aai/extra-after-first.md': 'gone\n', '.aai/workflow/OTHER.md': 'gone\n' });
+      const before = snapshotTree(root);
+      const r = await runInProcess({ argv: [t, '--profile', 'core'], root, target: t, scriptPath: script });
+      const warns = r.stdout.split('\n').filter((l) => l.startsWith('  WARN core-listed file missing in source')).length;
+      assert.equal(warns, 20000, `round ${round}: one warning per missing listed entry`);
+      for (const rel of CORE_REAL) assert.ok(existsSync(path.join(t, rel)), `round ${round}: ${rel} survives the prune`);
+      assert.ok(!r.stdout.split('\n').some((l) => l.startsWith('  PROFILE prune') && CORE_REAL.some((c) => l.endsWith(c))), `round ${round}: no core-listed file is pruned`);
+      if (round === 2) {
+        assert.equal(existsSync(path.join(t, '.aai/extra-after-first.md')), false, 'a non-core file is still pruned');
+        assert.equal(existsSync(path.join(t, '.aai/workflow/OTHER.md')), false);
+      }
+      assertChangesUnder(before, snapshotTree(root), 't');
+    }
+  });
+
+  test('TEST-4007 a prune never follows a link, a link is pruned as a link, and every deleted path lies under the target', async () => {
+    const root = scratch('prunelink-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    const outside = path.join(root, 'outside');
+    writeTree(outside, { 'precious.txt': 'keep me\n', 'deep/precious2.txt': 'keep me too\n' });
+    writeTree(t, { '.aai/OLD.md': 'stale\n' });
+    symlinkSync(outside, path.join(t, '.aai', 'linked-dir'));
+    symlinkSync(path.join(outside, 'precious.txt'), path.join(t, '.aai', 'linked-file'));
+    symlinkSync(path.join(root, 'nowhere'), path.join(t, '.aai', 'dangling'));
+    prepareEnv(root);
+    const before = snapshotTree(root);
+    const r = await runInProcess({ argv: [t, '--profile', 'core'], root, target: t, scriptPath: script });
+    for (const name of ['linked-dir', 'linked-file', 'dangling']) {
+      assert.equal(lstatOrNull(path.join(t, '.aai', name)), null, `${name} is pruned as a link`);
+      assert.match(r.stdout, new RegExp(`^ {2}PROFILE prune \\(not in core\\): \\.aai/${name}$`, 'm'));
+    }
+    assert.equal(readFileSync(path.join(outside, 'precious.txt'), 'utf8'), 'keep me\n');
+    assert.equal(readFileSync(path.join(outside, 'deep/precious2.txt'), 'utf8'), 'keep me too\n');
+    assertChangesUnder(before, snapshotTree(root), 't');
+  });
+
+  test('TEST-4007 the prune lookup reads no pipe and no child, and a listed-file refusal leaves the target untouched', () => {
+    const text = readFileSync(MODULE, 'utf8');
+    const code = text.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    assert.ok(!/shell\s*:\s*true|execSync|exec\(|\|\s*grep/.test(code), 'no shell, no pipe in the module');
+    assert.equal(text.split('const isCoreListed = (coreSet, rel) => coreSet.has(rel);').length - 1, 1);
+    assert.ok(/isCoreListed\(/.test(code.replace('const isCoreListed', '')), 'the prune asks isCoreListed');
+    // a core list holding a path that leaves the target is refused by the guard before the file is written
+    const root = scratch('escape-');
+    const { script } = makeLayer(root, 'S', { engine: 'module', core: [...CORE_REAL, '../escape.md'] });
+    writeFileSync(path.join(root, 'escape.md'), 'source of the escape\n');
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    prepareEnv(root);
+    const before = snapshotTree(root);
+    const r = runSync({ argv: [t, '--profile', 'core'], root, target: t, script });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /^ERROR: \.\.\/escape\.md resolves outside the target .*; refusing to write or delete there\.\n$/);
+    assert.equal(readFileSync(path.join(root, 'escape.md'), 'utf8'), 'source of the escape\n', 'nothing was written outside the target');
+    assertChangesUnder(before, snapshotTree(root), 't');
+  });
+});
+
+// --- TEST-4008 ---------------------------------------------------------------------------------------------------------
+
+const MANAGED_TOP_PATHS = ['.aai', '.agents', '.agents/skills', '.claude', '.claude/skills', '.claude-plugin', '.codex', '.codex/skills',
+  '.cursor', '.gemini', '.gemini/skills', '.github', 'docs', 'docs/ai', 'docs/knowledge', 'hooks'];
+
+describe('TEST-4008 copy semantics, the extended flow and the path guard', () => {
+  test('TEST-4008 copyReplace keeps modes, timestamps and links, copies a dangling link as a link and replaces any destination', async () => {
+    const { copyReplace, resolveRoots } = await import(MODULE_URL);
+    const root = scratch('copy-');
+    const target = path.join(root, 'target');
+    mkdirSync(target);
+    const env = prepareEnv(root);
+    const roots = resolveRoots({ target, profile: '', outcome: 'run', arg: '' }, { env, cwd: root, scriptPath: MODULE });
+    writeTree(path.join(root, 'in'), {
+      'run.sh': { text: '#!/bin/sh\n', mode: 0o755 },
+      'ro.txt': { text: 'read only\n', mode: 0o444 },
+      'tree/a.txt': 'a\n',
+      'tree/sub/b.txt': { text: 'b\n', mode: 0o700 },
+      'tree/dangling': { link: path.join(root, 'nowhere') },
+      'tree/rel': { link: 'a.txt' },
+    });
+    symlinkSync(path.join(root, 'nowhere-either'), path.join(root, 'in', 'top-dangling'));
+    const old = new Date('2020-01-02T03:04:05Z');
+    utimesSync(path.join(root, 'in', 'run.sh'), old, old);
+    chmodSync(path.join(root, 'in', 'tree', 'sub'), 0o750);
+    copyReplace(path.join(root, 'in', 'run.sh'), path.join(target, 'run.sh'), roots);
+    assert.equal(statSync(path.join(target, 'run.sh')).mode & 0o777, 0o755);
+    assert.equal(statSync(path.join(target, 'run.sh')).mtimeMs, old.getTime(), 'the timestamp is kept');
+    copyReplace(path.join(root, 'in', 'ro.txt'), path.join(target, 'ro.txt'), roots);
+    assert.equal(statSync(path.join(target, 'ro.txt')).mode & 0o777, 0o444);
+    copyReplace(path.join(root, 'in', 'tree'), path.join(target, 'tree'), roots);
+    assert.equal(statSync(path.join(target, 'tree/sub/b.txt')).mode & 0o777, 0o700);
+    assert.equal(statSync(path.join(target, 'tree/sub')).mode & 0o777, 0o750, 'a directory mode is kept');
+    assert.equal(readlinkSync(path.join(target, 'tree/dangling')), path.join(root, 'nowhere'), 'a dangling link inside a tree stays a link');
+    assert.equal(readlinkSync(path.join(target, 'tree/rel')), 'a.txt', 'a relative link keeps its text');
+    copyReplace(path.join(root, 'in', 'top-dangling'), path.join(target, 'top-dangling'), roots);
+    assert.equal(readlinkSync(path.join(target, 'top-dangling')), path.join(root, 'nowhere-either'), 'DR-15: a dangling source link is copied as a link');
+    // a destination of another type is replaced; a copied directory loses what the target added inside it (parity)
+    writeTree(target, { 'tree/target-added.txt': 'mine\n' });
+    copyReplace(path.join(root, 'in', 'tree'), path.join(target, 'tree'), roots);
+    assert.equal(existsSync(path.join(target, 'tree/target-added.txt')), false, 'parity: a copy-replaced directory loses files the target added');
+    mkdirSync(path.join(target, 'was-dir', 'inner'), { recursive: true });
+    copyReplace(path.join(root, 'in', 'run.sh'), path.join(target, 'was-dir'), roots);
+    assert.equal(lstatSync(path.join(target, 'was-dir')).isFile(), true);
+    // a destination link is replaced, never followed
+    const outside = path.join(root, 'outside');
+    writeTree(outside, { 'keep.txt': 'keep\n' });
+    symlinkSync(outside, path.join(target, 'was-link'));
+    copyReplace(path.join(root, 'in', 'tree'), path.join(target, 'was-link'), roots);
+    assert.equal(lstatSync(path.join(target, 'was-link')).isDirectory(), true);
+    assert.deepEqual(readdirSync(outside), ['keep.txt'], 'nothing was written through the link');
+  });
+
+  test('TEST-4008 copyReplace refuses a destination outside the target, in the source or behind a link, and writes nothing', async () => {
+    const root = scratch('guard-');
+    // the module is the scratch copy, so that its source root is a scratch tree and never this checkout
+    const { src, script } = makeLayer(root, 'S', { engine: 'module' });
+    const { copyReplace, resolveRoots, guardMutation } = await import(pathToFileURL(script).href);
+    const target = path.join(root, 'target');
+    const outside = path.join(root, 'outside');
+    mkdirSync(target);
+    writeTree(outside, { 'victim.txt': 'victim\n' });
+    symlinkSync(outside, path.join(target, 'out-link'));
+    writeFileSync(path.join(root, 'payload.txt'), 'payload\n');
+    const env = prepareEnv(root);
+    const roots = resolveRoots({ target, profile: '', outcome: 'run', arg: '' }, { env, cwd: root, scriptPath: script });
+    assert.equal(roots.srcReal, realpathSync(src), 'the source is the scratch layer');
+    const before = snapshotTree(root);
+    for (const dst of [path.join(outside, 'victim.txt'), path.join(outside, 'new.txt'), path.join(target, 'out-link', 'victim.txt'), path.join(src, 'never-written.txt'), path.join(src, '.aai', 'AGENTS.md'), path.join(root, 'sibling.txt')]) {
+      assert.throws(() => copyReplace(path.join(root, 'payload.txt'), dst, roots), (e) => e.code === 1 && /resolves outside the target .*; refusing to write or delete there\.$/.test(e.message), dst);
+      assert.notEqual(guardMutation(roots, dst), null, `${dst} is not a mutation path`);
+    }
+    assert.deepEqual(snapshotTree(root), before, 'nothing was written or deleted');
+  });
+
+  test('TEST-4008 K08: the extended sync copies, cleans stale top-level entries and preserves target-only scripts', async () => {
+    const root = scratch('k08-');
+    const prepare = (t) => writeTree(t, {
+      '.aai/OLD.md': 'stale\n', '.aai/oldtree/inner.md': 'stale tree\n', '.aai/scripts/own.sh': 'own\n', '.aai/scripts/lib/target-only.mjs': 'x\n',
+      '.aai/cache/keep': 'cache\n', '.aai/workflow/extra.md': 'added by the project\n',
+    });
+    const d = await diffRun(root, 'k08', { prepare });
+    assertSameRun(d, 'K08');
+    const t = d.tm;
+    assert.equal(existsSync(path.join(t, '.aai/OLD.md')), false);
+    assert.equal(existsSync(path.join(t, '.aai/oldtree')), false);
+    assert.equal(readFileSync(path.join(t, '.aai/cache/keep'), 'utf8'), 'cache\n', 'the cache survives');
+    assert.equal(existsSync(path.join(t, '.aai/workflow/extra.md')), false, 'parity: a copy-replaced directory loses the target-added file');
+    assert.equal(readFileSync(path.join(t, '.aai/scripts/own.sh'), 'utf8'), 'own\n');
+    assert.equal(existsSync(path.join(t, '.aai/scripts/lib/target-only.mjs')), false, 'parity: scripts/lib is copy-replaced as a whole');
+    assert.equal(statSync(path.join(t, '.aai/scripts/tool.sh')).mode & 0o777, 0o755);
+    assert.match(d.mod.stdout, /^ {2}CLEAN removed stale: \.aai\/OLD\.md$/m);
+    assert.match(d.mod.stdout, /^ {2}CLEAN removed stale: \.aai\/oldtree$/m);
+    assert.match(d.mod.stdout, /^ {2}PRESERVE target-only script: \.aai\/scripts\/own\.sh$/m);
+    assert.deepEqual([...d.ledger.deletions].sort(), ['.aai/OLD.md', '.aai/oldtree']);
+    for (const dir of LAYER_DIRS) assert.ok(statSync(path.join(t, dir)).isDirectory(), `${dir} created up front`);
+  });
+
+  test('TEST-4008 DR-7: a managed top-level path that is a link leaving the target (or entering the source) refuses the whole run before any write', async () => {
+    const root = scratch('dr7-');
+    const { src, script } = makeLayer(root, 'S', { engine: 'module' });
+    const outside = path.join(root, 'outside');
+    writeTree(outside, { 'keep.txt': 'keep\n' });
+    prepareEnv(root);
+    let n = 0;
+    for (const managed of MANAGED_TOP_PATHS) {
+      for (const kind of ['outside', 'source', 'dangling']) {
+        n += 1;
+        const t = path.join(root, `t${n}`);
+        mkdirSync(path.dirname(path.join(t, managed)), { recursive: true });
+        const to = kind === 'outside' ? outside : kind === 'source' ? path.join(src, '.aai') : path.join(root, `nowhere-${n}`);
+        symlinkSync(to, path.join(t, managed));
+        const before = snapshotTree(root);
+        const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+        assert.equal(r.code, 1, `${managed} -> ${kind}`);
+        assert.equal(r.stdout, '', 'nothing is printed before the refusal');
+        assert.match(r.stderr, /^ERROR: [^\n]* nothing was written\.\n$/, `${managed} -> ${kind}`);
+        assert.ok(r.stderr.includes(managed) && r.stderr.includes(path.basename(to)), 'the line names the path and where it leads');
+        assert.deepEqual(snapshotTree(root), before, `${managed} -> ${kind}: nothing changed`);
+        assert.deepEqual(readdirSync(outside), ['keep.txt']);
+      }
+    }
+    assert.equal(n, MANAGED_TOP_PATHS.length * 3);
+    // a link that stays inside the target is not refused, and the layer lands behind it
+    const t = path.join(root, 'inside');
+    mkdirSync(path.join(t, 'real-skills'), { recursive: true });
+    mkdirSync(path.join(t, '.claude'));
+    symlinkSync(path.join(t, 'real-skills'), path.join(t, '.claude', 'skills'));
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.ok(!/nothing was written/.test(r.stderr), r.stderr);
+    assert.equal(readFileSync(path.join(t, 'real-skills', 'aai-two', 'SKILL.md'), 'utf8'), 'two\n');
+    // the same link through the child process (the real entry point)
+    const t2 = path.join(root, 'real-run');
+    mkdirSync(path.join(t2, '.codex'), { recursive: true });
+    symlinkSync(outside, path.join(t2, '.codex', 'skills'));
+    const child = runSync({ argv: [t2], root, target: t2, script });
+    assert.equal(child.status, 1);
+    assert.match(child.stderr, /nothing was written/);
+    assert.deepEqual(readdirSync(outside), ['keep.txt']);
+  });
+
+  test('TEST-4008 DR-8: the target identity is re-read before the prune, and a target swapped mid-run exits 1 with the same line', async () => {
+    const { reverifyTarget, resolveRoots } = await import(MODULE_URL);
+    const root = scratch('dr8-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    writeTree(t, { '.aai/EXTRA.md': 'extra\n', '.aai/system/KEEPME.md': 'would be pruned\n' });
+    prepareEnv(root);
+    const moved = path.join(root, 'moved');
+    let swapped = false;
+    const r = await runInProcess({
+      argv: [t, '--profile', 'core'], root, target: t, scriptPath: script,
+      onOut: (s) => {
+        // the last listed core file is missing in the source: its warning is the last write-free line before the prune
+        if (!swapped && s.includes('core-listed file missing in source (skipped): .aai/MISSING.md')) {
+          swapped = true;
+          renameSync(t, moved);
+          mkdirSync(t);
+        }
+      },
+    });
+    assert.ok(swapped, 'the swap point was reached');
+    assert.equal(r.code, 1);
+    assert.equal(r.stderr, `ERROR: .aai resolves outside the target ${t}; refusing to write or delete there.\n`);
+    assert.equal(readFileSync(path.join(moved, '.aai/EXTRA.md'), 'utf8'), 'extra\n', 'nothing was pruned in the swapped-away directory');
+    assert.deepEqual(readdirSync(t), [], 'nothing was written into the directory that replaced the target');
+    // the helper itself: an unchanged target passes, a replaced one is refused
+    const env = prepareEnv(root);
+    const t3 = path.join(root, 't3');
+    mkdirSync(t3);
+    const roots = resolveRoots({ target: t3, profile: '', outcome: 'run', arg: '' }, { env, cwd: root, scriptPath: MODULE });
+    assert.equal(reverifyTarget(roots), null);
+    renameSync(t3, path.join(root, 't3-moved'));
+    mkdirSync(t3);
+    assert.equal(reverifyTarget(roots).refusal.code, 1);
+    // the three delete phases (the core prune, the extended stale clean, the retired-wrapper removal) each re-read it
+    const source = readFileSync(MODULE, 'utf8');
+    assert.ok(source.split('mustReverify(').length - 1 >= 4, 'one definition and three call sites');
+  });
+
+  test('TEST-4008 a temp file the run did not create is left in place when the self-heal meets it (EEXIST)', async () => {
+    const root = scratch('eexist-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    writeFileSync(path.join(t, '.gitignore'), '.aai/\n.aai/\nproject/\n');
+    const foreign = `${path.join(t, '.gitignore')}.aai-dedup.${process.pid}`;
+    writeFileSync(foreign, 'not made by this run\n');
+    prepareEnv(root);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /aai-sync: internal error: .*EEXIST/);
+    assert.equal(readFileSync(foreign, 'utf8'), 'not made by this run\n', 'the foreign temp file is never deleted');
+  });
+
+  test('TEST-4008 a source entry that is a dangling link is copied as a link into the skill tree (DR-15)', async () => {
+    const root = scratch('dangle-');
+    const { script } = makeLayer(root, 'S', { engine: 'module', files: { '.claude/skills/aai-dangling': { link: path.join(root, 'nowhere') } } });
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    prepareEnv(root);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.ok(!/internal error: .*(ENOENT|dangling)/.test(r.stderr), r.stderr);
+    assert.equal(readlinkSync(path.join(t, '.claude/skills/aai-dangling')), path.join(root, 'nowhere'));
+  });
+});
+
+// --- TEST-4009 ---------------------------------------------------------------------------------------------------------
+
+// retiredCase(root, name, files, opts): a skill tree entry <root>/skills/<name> holding the given files; returns the path.
+function retiredEntry(root, name, files) {
+  const entry = path.join(root, 'skills', name);
+  mkdirSync(entry, { recursive: true });
+  writeTree(entry, files);
+  return entry;
+}
+
+describe('TEST-4009 skill trees, indexes, knowledge, seeds and root shims', () => {
+  test('TEST-4009 K10 to K14: the surfaces of a differing target equal the frozen bash twin (lines, tree and recorded conflicts)', async () => {
+    const root = scratch('k10-');
+    const prepare = (t) => writeTree(t, {
+      '.claude/skills/aai-alive/SKILL.md': 'local edit of a template skill\n',
+      '.claude/skills/aai-two/SKILL.md': 'two\n',
+      '.claude/skills/aai-two/aux/extra.md': 'a different extra\n',
+      '.claude/skills/aai-project-x/SKILL.md': wrapperText('aai-project-x', 'GONE'),
+      '.claude/skills/aai-gone/SKILL.md': wrapperText('aai-gone', 'GONE'),
+      '.claude/skills/aai-near/SKILL.md': wrapperText('aai-near', 'GONE').replace('instructions exactly', 'instruction exactly'),
+      '.claude/skills/aai-link': { link: '../../elsewhere' },
+      '.claude/skills/own-skill/SKILL.md': 'project owned\n',
+      '.agents/skills/aai-gone2/SKILL.md': wrapperText('aai-gone2', 'GONE2', { stop: true }),
+      '.agents/skills/aai-alive/SKILL.md': wrapperText('aai-alive', 'ALIVE'),
+      '.codex/skills/README.md': 'a different codex index\n',
+      '.codex/skills.local/mine.md': 'local index\n',
+      '.gemini/skills/README.md': 'gemini index\n',
+      '.gemini/skills.local/mine.md': 'local index\n',
+      'docs/knowledge/FACTS.md': 'project facts, sentinel removed\n',
+      'docs/knowledge/PATTERNS.md': 'lower case aai-template is no sentinel\n',
+      'docs/knowledge/NEW.md': 'AAI-TEMPLATE still a template\n',
+      'docs/ai/update-config.yaml': 'auto: true\n',
+      'AGENTS.md': 'local agents\n',
+      'CLAUDE.md': 'root claude\n',
+      'README_AAI.md': 'local readme\n',
+    });
+    const d = await diffRun(root, 'k10', { prepare });
+    assertSameRun(d, 'K10 to K14');
+    const t = d.tm;
+    assert.equal(existsSync(path.join(t, '.claude/skills/aai-gone')), false, 'the retired wrapper is removed');
+    assert.equal(existsSync(path.join(t, '.agents/skills/aai-gone2')), false, 'a wrapper with a SUBAGENT-STOP block is removed');
+    for (const kept of ['aai-project-x', 'aai-near', 'own-skill', 'aai-link']) assert.ok(lstatOrNull(path.join(t, '.claude/skills', kept)) !== null, `${kept} kept`);
+    assert.equal(readFileSync(path.join(t, 'docs/knowledge/NEW.md'), 'utf8'), 'AAI-TEMPLATE new\n', 'a file that still holds the sentinel is replaced');
+    assert.equal(readFileSync(path.join(t, 'docs/knowledge/PATTERNS.md'), 'utf8'), 'lower case aai-template is no sentinel\n', 'DR-16: the sentinel is case-sensitive');
+    assert.equal(readFileSync(path.join(t, 'docs/ai/update-config.yaml'), 'utf8'), 'auto: true\n', 'a seed is never overwritten');
+    assert.equal(readFileSync(path.join(t, 'docs/TECHNOLOGY.md'), 'utf8'), '# tech\n');
+    assert.equal(readFileSync(path.join(t, 'docs/ai/docs-audit.yaml'), 'utf8'), 'dials: report-only\n');
+    assert.equal(readFileSync(path.join(t, 'README_AAI.md'), 'utf8'), 'readme\n');
+    assert.equal(readFileSync(path.join(t, 'SKILLS.md'), 'utf8'), 'root skills\n');
+    const texts = d.ledger.conflicts.map((c) => c.path);
+    for (const p of ['.claude/skills/aai-alive/SKILL.md', '.claude/skills/aai-two', 'AGENTS.md', 'README_AAI.md', '.codex/skills/']) assert.ok(texts.includes(p), `a conflict for ${p}`);
+    assert.ok(!texts.includes('CLAUDE.md') && !texts.includes('.gemini/skills/'), 'an identical file or directory is no conflict');
+    assert.ok(!texts.includes('.agents/skills/aai-alive/SKILL.md'));
+    assert.deepEqual([...d.ledger.deletions].sort(), ['.agents/skills/aai-gone2', '.claude/skills/aai-gone']);
+  });
+
+  test('TEST-4009 K10 to K14 on an empty target: every surface is created, nothing is recorded', async () => {
+    const root = scratch('k10b-');
+    const d = await diffRun(root, 'k10b', { steps: [[], []] });
+    assertSameRun(d, 'fresh target, twice');
+    assert.deepEqual(d.ledger.conflicts, []);
+    assert.deepEqual(d.ledger.deletions, []);
+    assert.ok(existsSync(path.join(d.tm, 'docs/TECHNOLOGY.md')));
+  });
+
+  test('TEST-4009 the seed lines, the sentinel lines and the shim and index lines are the bash lines', async () => {
+    const root = scratch('lines-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    writeTree(t, { 'docs/knowledge/FACTS.md': 'mine\n' });
+    prepareEnv(root);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    const has = (line) => assert.ok(r.stdout.split('\n').includes(line), `missing line: ${line}`);
+    has('  SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md');
+    has('  SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml');
+    has('  SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)');
+    has(`  SKIP (project-owned, sentinel removed): ${path.join(t, 'docs/knowledge/FACTS.md')}`);
+    has(`  PRESERVE target-only skills under: ${path.join(t, '.claude/skills')}`);
+    has(`  PRESERVE target-only skills under: ${path.join(t, '.agents/skills')}`);
+    has(`  PRESERVE local Codex dynamic index: ${path.join(t, '.codex/skills.local')}`);
+    has(`  PRESERVE local Gemini dynamic index: ${path.join(t, '.gemini/skills.local')}`);
+    has('  PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)');
+    has('  SYNC .claude-plugin/plugin.json');
+    has('  SYNC .cursor/rules/aai.mdc');
+    // the step order of the twin: the .aai copy, the skill trees, the knowledge, the seeds, the indexes, the plugin, the cursor rules
+    const order = ['  PRESERVE target-only script: .aai/scripts', 'PRESERVE target-only skills under: ', '  SKIP (project-owned', '  SEED docs/TECHNOLOGY.md', '  PRESERVE docs/ai/ runtime data',
+      '  PRESERVE local Codex', '  PRESERVE local Gemini', '  SYNC .claude-plugin', '  SYNC .cursor'];
+    let at = -1;
+    for (const needle of order) {
+      const i = r.stdout.indexOf(needle, at + 1);
+      if (needle.startsWith('  PRESERVE target-only script')) continue; // present only when the target holds a script of its own
+      assert.ok(i > at, `${needle} comes after the previous step`);
+      at = i;
+    }
+    // the .gitignore reconcile runs in its place in the step order (after the cursor rules)
+    const gi = r.stdout.indexOf('Added .aai/ to ');
+    assert.ok(gi > r.stdout.indexOf('  SYNC .cursor/rules/aai.mdc'), 'the reconcile follows the cursor rules');
+    assert.ok(existsSync(path.join(t, '.gitignore')));
+    assert.match(readFileSync(path.join(t, '.gitignore'), 'utf8'), /^\.aai\/$/m);
+  });
+
+  test('TEST-4009 isRetiredSkillWrapper accepts exactly the shipped wrapper shape', async () => {
+    const { isRetiredSkillWrapper } = await import(MODULE_URL);
+    const root = scratch('retired-');
+    const srcRoot = path.join(root, 'src');
+    writeTree(srcRoot, { '.aai/SKILL_ALIVE.prompt.md': 'alive\n' });
+    const ok = (name, files, want = true, label = name) => {
+      const entry = retiredEntry(root, `${name}-${Math.random().toString(36).slice(2, 8)}`, files);
+      assert.equal(isRetiredSkillWrapper(entry, name, srcRoot), want, label);
+    };
+    const W = (name, prompt = 'GONE', o = {}) => wrapperText(name, prompt, o);
+    // accepted shapes
+    ok('aai-gone', { 'SKILL.md': W('aai-gone') });
+    ok('aai-gone', { 'SKILL.md': W('aai-gone', 'GONE', { stop: true }) }, true, 'with a SUBAGENT-STOP block');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone', 'GONE', { eol: '\r\n' }) }, true, 'CRLF');
+    ok('aai-gone', { 'SKILL.md': `${W('aai-gone')}\n\n  \n` }, true, 'trailing blank lines');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone', 'GONE', { descr: 'caf\u0065\u0301 NFD in the description is not compared' }) }, true, 'NFD in the free description');
+    ok('aai-gone-2', { 'SKILL.md': W('aai-gone-2', 'GONE_2') }, true, 'digits and underscore in the prompt name');
+    const pad = W('aai-gone', 'GONE', { descr: 'x' });
+    const exact = pad.replace('description: x', `description: ${'d'.repeat(65536 - Buffer.byteLength(pad) + 1)}`);
+    assert.equal(Buffer.byteLength(exact), 65536);
+    ok('aai-gone', { 'SKILL.md': exact }, true, '65536 bytes');
+    // near misses: each one is kept
+    ok('aai-alive', { 'SKILL.md': W('aai-alive', 'ALIVE') }, false, 'the source still ships the prompt');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('instructions exactly', 'instruction exactly') }, false, 'one changed byte');
+    ok('aai-gone', { 'SKILL.md': `\uFEFF${W('aai-gone')}` }, false, 'a BOM');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('not found', 'not\u200B found') }, false, 'U+200B in the expected line');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace(EM_DASH, `${EM_DASH}\u0301`) }, false, 'a combining mark after the dash (NFD-style)');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace(EM_DASH, '-') }, false, 'an ASCII hyphen for the dash');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('name: aai-gone', 'name: aai-other') }, false, 'another name in the frontmatter');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('name: aai-gone\n', '') }, false, 'no name line');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('---\n\nRead', '\nRead') }, false, 'no closing frontmatter line');
+    ok('aai-gone', { 'SKILL.md': `${W('aai-gone')}Extra trailing line.\n` }, false, 'an extra body line');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('Invoke this as', 'Run it as') }, false, 'no Invoke this as');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('/aai-gone`.', '/aai-gone` in .aai/ please.') }, false, 'a .aai/ path after the prompt');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('`/aai-gone`.', '`/aai-gone`') }, false, 'no final dot');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone', 'gone') }, false, 'a lower-case prompt name');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone', 'GONE', { stop: true }).replace('You are a subagent.\n', '') }, false, 'an empty SUBAGENT-STOP block');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('---\n\nRead', '---\n\nNote.\n\nRead') }, false, 'a third body line');
+    ok('aai-gone', { 'SKILL.md': '' }, false, 'empty file');
+    ok('aai-gone', { 'SKILL.md': `${W('aai-gone')}\0` }, false, 'a NUL byte');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone').replace('description: Delegating wrapper.', `description: ${'d'.repeat(70000)}`) }, false, '65537 bytes and more');
+    ok('aai-gone', { 'SKILL.md': exact.replace('d'.repeat(10), 'd'.repeat(11)) }, false, 'exactly 65537 bytes');
+    ok('aai-gone', { 'SKILL.md': W('aai-gone'), 'other.md': 'a second file\n' }, false, 'a second file');
+    ok('aai-gone', { 'skill.md': W('aai-gone') }, false, 'a lower-case file name');
+    ok('aai-gone', { 'SKILL.md/inner': 'a directory named SKILL.md\n' }, false, 'SKILL.md is a directory');
+    ok('aai-gone', { 'SKILL.md': { link: path.join(root, 'elsewhere.md') } }, false, 'SKILL.md is a link');
+    ok('aai-gone', {}, false, 'an empty directory');
+    ok('aai-project-x', { 'SKILL.md': W('aai-project-x') }, false, 'a project-owned name');
+    for (const bad of ['aai-Gone', 'aai-g\u00e9', 'aai_gone', 'aai-', 'x-aai-gone', 'aai-go ne', 'aai-gone*']) ok(bad, { 'SKILL.md': W(bad) }, false, `name ${bad}`);
+    // the entry itself: a link to a wrapper directory, a file, a missing path
+    const real = retiredEntry(root, 'real-target', { 'SKILL.md': W('aai-gone') });
+    symlinkSync(real, path.join(root, 'skills', 'aai-linked'));
+    assert.equal(isRetiredSkillWrapper(path.join(root, 'skills', 'aai-linked'), 'aai-linked', srcRoot), false, 'a link to a wrapper directory');
+    assert.equal(isRetiredSkillWrapper(path.join(root, 'skills', 'aai-missing'), 'aai-missing', srcRoot), false, 'a missing entry');
+    writeFileSync(path.join(root, 'skills', 'aai-file'), W('aai-file'));
+    assert.equal(isRetiredSkillWrapper(path.join(root, 'skills', 'aai-file'), 'aai-file', srcRoot), false, 'a file');
+  });
+
+  test('TEST-4009 the removal of retired wrappers removes only provable wrappers, records them, and keeps links, near misses and shipped names', async () => {
+    const root = scratch('wrappers-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    const outside = path.join(root, 'outside');
+    writeTree(outside, { 'SKILL.md': wrapperText('aai-linked', 'GONE') });
+    writeTree(t, {
+      '.claude/skills/aai-gone/SKILL.md': wrapperText('aai-gone', 'GONE'),
+      '.claude/skills/aai-two/SKILL.md': wrapperText('aai-two', 'GONE'),
+      '.claude/skills/aai-alive/SKILL.md': wrapperText('aai-alive', 'ALIVE'),
+      '.claude/skills/aai-linked': { link: outside },
+      '.claude/skills/aai-project-keep/SKILL.md': wrapperText('aai-project-keep', 'GONE'),
+      '.claude/skills/aai-exec/SKILL.md': wrapperText('aai-exec', 'GONE').replace('Invoke this as', 'Run as'),
+    });
+    prepareEnv(root);
+    const ledger = { conflicts: [], deletions: [] };
+    const before = snapshotTree(root);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script, ledger });
+    assert.match(r.stdout, /^ {2}CLEAN removed retired skill wrapper: \.claude\/skills\/aai-gone$/m);
+    assert.equal(existsSync(path.join(t, '.claude/skills/aai-gone')), false);
+    // a shipped name is copy-replaced from the source, never removed as a wrapper
+    assert.equal(readFileSync(path.join(t, '.claude/skills/aai-two/SKILL.md'), 'utf8'), 'two\n');
+    assert.deepEqual(ledger.deletions, ['.claude/skills/aai-gone']);
+    for (const kept of ['aai-project-keep', 'aai-exec', 'aai-linked']) assert.ok(lstatOrNull(path.join(t, '.claude/skills', kept)) !== null, `${kept} kept`);
+    assert.equal(readFileSync(path.join(outside, 'SKILL.md'), 'utf8'), wrapperText('aai-linked', 'GONE'), 'a link is never followed');
+    assertChangesUnder(before, snapshotTree(root), 't');
+  });
+
+  test('TEST-4009 a root shim, README_AAI.md, a knowledge file and a seed are written only inside the target', async () => {
+    const root = scratch('shims-');
+    const { script } = makeLayer(root, 'S', { engine: 'module' });
+    const t = path.join(root, 't');
+    mkdirSync(t);
+    const outside = path.join(root, 'outside.md');
+    writeFileSync(outside, 'outside\n');
+    symlinkSync(outside, path.join(t, 'AGENTS.md'));
+    prepareEnv(root);
+    const before = snapshotTree(root);
+    const r = await runInProcess({ argv: [t], root, target: t, scriptPath: script });
+    assert.equal(readFileSync(outside, 'utf8'), 'outside\n', 'a destination link is replaced, never written through');
+    assert.equal(lstatSync(path.join(t, 'AGENTS.md')).isFile(), true);
+    assert.equal(readFileSync(path.join(t, 'AGENTS.md'), 'utf8'), 'root agents\n');
+    assert.ok(r.stdout.includes('Syncing AAI from:'));
+    assertChangesUnder(before, snapshotTree(root), 't');
   });
 });

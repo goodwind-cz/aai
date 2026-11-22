@@ -19,12 +19,12 @@
 // retired skill wrappers), under a target root it has verified again. Kept: the pointer to migrate-state-to-local,
 // printed by lib/gitignore-block.mjs when it appends the runtime-state patterns.
 //
-// STATE OF THE PORT (run 2 of the ride): arguments, help, usage, the roots and their refusals, the profile and
-// the core list are here, with the shared base resolution (lib/resolve-base.mjs) and the .gitignore reconcile
-// (lib/gitignore-block.mjs, called by the step order that run 3 assembles). The copy, prune, surfaces, hooks,
-// report and pin steps (D-PROFILE onward) are exported names that refuse with "not implemented yet" until their
-// runs; the module is not reachable from a launcher before the launcher swap, and a run that passes every pre-write
-// check ends with exit 1 and no write.
+// STATE OF THE PORT (run 3 of the ride): arguments, help, usage, the roots and their refusals (DR-5 to DR-8), the
+// profile and the core list, the core copy and prune, the extended copy, the skill trees, the indexes, the knowledge
+// files, the seeds and the root shims are here, in the step order of the bash twin, with the shared base resolution
+// (lib/resolve-base.mjs) and the .gitignore reconcile (lib/gitignore-block.mjs). The Copilot shim, the hooks merge, the
+// advisory report and the pin (run 4) are named steps that refuse with "not implemented yet" at their place in the
+// order; the module is not reachable from a launcher before the launcher swap.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -211,7 +211,38 @@ export function resolveRoots(args, io = {}) {
   if (path.parse(roots.targetReal).root === roots.targetReal) {
     return refusal(`ERROR: target ${roots.targetReal} is the root of its file system (source ${roots.srcReal}); nothing was written.`);
   }
+  const linked = managedLinkRefusal(roots);
+  if (linked !== null) return linked;
   return roots;
+}
+
+// The managed top-level paths of a target (DR-7): none of them may be a link that leaves the target or enters the source.
+const MANAGED_TOP = ['.aai', '.agents', '.agents/skills', '.claude', '.claude/skills', '.claude-plugin', '.codex', '.codex/skills', '.cursor',
+  '.gemini', '.gemini/skills', '.github', 'docs', 'docs/ai', 'docs/knowledge', 'hooks'];
+
+// managedLinkRefusal(roots): the refusal for the first managed top-level path that is a symbolic link whose real path
+// (the link text resolved when it dangles) lies outside the target or inside the source, else null. Reads only.
+function managedLinkRefusal(roots) {
+  for (const rel of MANAGED_TOP) {
+    const abs = path.join(roots.target, rel);
+    let st = null;
+    try {
+      st = fs.lstatSync(abs);
+    } catch {
+      continue;
+    }
+    if (!st.isSymbolicLink()) continue;
+    let real = '';
+    try {
+      real = fs.realpathSync(abs);
+    } catch {
+      real = path.resolve(path.dirname(abs), fs.readlinkSync(abs));
+    }
+    if (!isUnderOrSame(real, roots.targetReal) || isUnderOrSame(real, roots.srcReal)) {
+      return refusal(`ERROR: ${rel} in the target ${roots.target} is a symbolic link to ${real}, which lies outside the target or inside the source ${roots.srcReal}; nothing was written.`);
+    }
+  }
+  return null;
 }
 
 // underRoot(roots, abs) (DR-8): true only when the real path of the parent directory of abs (the nearest existing
@@ -289,15 +320,508 @@ export function parseCoreList(text) {
   return entries;
 }
 
-// --- steps of later runs (exported names, refusing until their run) -----------------------------------------------
-
+// notYet(name, run): the exported name of a step that a later run implements; calling it refuses.
 const notYet = (name, run) => () => {
   throw new Error(`${name} is not implemented yet (run ${run} of the ride)`);
 };
-export const planCore = notYet('planCore', 3);
-export const planPrune = notYet('planPrune', 3);
-export const copyReplace = notYet('copyReplace', 3);
-export const isRetiredSkillWrapper = notYet('isRetiredSkillWrapper', 3);
+
+// --- the file system helpers of the steps ---------------------------------------------------------------------------
+
+// SyncRefusal: a mutation that fails its guard or a target whose identity changed; run() prints its line on stderr and
+// resolves to its code.
+export class SyncRefusal extends Error {
+  constructor(line, code = EXIT_FAIL) {
+    super(line);
+    this.code = code;
+    this.refusal = { code, line };
+  }
+}
+
+const lstatOrNull = (p) => {
+  try {
+    return fs.lstatSync(p);
+  } catch {
+    return null;
+  }
+};
+const isDir = (p) => statOrNull(p)?.isDirectory() === true;
+const isFile = (p) => statOrNull(p)?.isFile() === true;
+const exists = (p) => lstatOrNull(p) !== null;
+
+// globNames(dir): the entries a shell glob of dir/* names (dotfiles are not matched), in the byte order of the C locale.
+function globNames(dir) {
+  try {
+    return fs.readdirSync(dir).filter((n) => !n.startsWith('.')).sort();
+  } catch {
+    return [];
+  }
+}
+
+// mustGuard(roots, abs): every mutation asks the guard first; a refusal ends the run.
+function mustGuard(roots, abs) {
+  const refused = guardMutation(roots, abs);
+  if (refused !== null) throw new SyncRefusal(refused.refusal.line, refused.refusal.code);
+}
+
+// reverifyTarget(roots): null while the target still names the device and inode captured at the start, else the refusal.
+// Read again before each delete phase (the core prune, the stale clean, the retired-wrapper removal).
+export function reverifyTarget(roots) {
+  if (!sameFile(statOrNull(roots.target), { dev: roots.targetDev, ino: roots.targetIno })) return refuseOutside(roots, path.join(roots.target, '.aai'));
+  return null;
+}
+
+function mustReverify(roots) {
+  const refused = reverifyTarget(roots);
+  if (refused !== null) throw new SyncRefusal(refused.refusal.line, refused.refusal.code);
+}
+
+// makeDir(roots, dir): mkdir -p under the guard.
+function makeDir(roots, dir) {
+  mustGuard(roots, dir);
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+// copyTree(src, dst): the copy of cp -a for the entry kinds a layer holds: a file keeps its mode and timestamps, a directory is
+// created, filled and then given its source mode and timestamps, a link (dangling or not) is copied as a link with its text and
+// never followed. fs.cpSync is not used: Node 22 reads a dangling top-level link through stat and fails on it (DR-15).
+function copyTree(src, dst) {
+  const st = fs.lstatSync(src);
+  if (st.isSymbolicLink()) {
+    fs.symlinkSync(fs.readlinkSync(src), dst);
+  } else if (st.isDirectory()) {
+    fs.mkdirSync(dst);
+    for (const name of fs.readdirSync(src)) copyTree(path.join(src, name), path.join(dst, name));
+    fs.chmodSync(dst, st.mode & 0o7777);
+    fs.utimesSync(dst, st.atime, st.mtime);
+  } else if (st.isFile()) {
+    fs.copyFileSync(src, dst, fs.constants.COPYFILE_EXCL);
+    fs.chmodSync(dst, st.mode & 0o7777);
+    fs.utimesSync(dst, st.atime, st.mtime);
+  } else {
+    throw new Error(`cannot copy ${src}: it is not a file, a directory or a link`);
+  }
+}
+
+// copyReplace(src, dst, roots): the destination (a file, a tree or a link, never followed) is removed, then the source is
+// copied with its modes, timestamps and links (a dangling link as a link). The guard runs first.
+export function copyReplace(src, dst, roots) {
+  mustGuard(roots, dst);
+  fs.rmSync(dst, { recursive: true, force: true });
+  copyTree(src, dst);
+}
+
+// fileDiffers(src, dst): the bash twin's byte compare: different when either is not a regular file or the bytes differ;
+// a read that fails counts as not different (fail closed: a hiccup cannot make the sync rewrite a target).
+function fileDiffers(src, dst) {
+  if (!isFile(src) || !isFile(dst)) return true;
+  try {
+    return !fs.readFileSync(src).equals(fs.readFileSync(dst));
+  } catch {
+    return false;
+  }
+}
+
+// regularFiles(root): the root-relative forward-slash paths of every regular file under root (links not followed).
+function regularFiles(root) {
+  const found = [];
+  const walk = (dir, rel) => {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const full = path.join(dir, name);
+      const r = rel === '' ? name : `${rel}/${name}`;
+      const st = lstatOrNull(full);
+      if (st === null) continue;
+      if (st.isDirectory()) walk(full, r);
+      else if (st.isFile()) found.push(r);
+    }
+  };
+  walk(root, '');
+  return found.sort();
+}
+
+// dirDiffers(src, dst): different when either is not a directory, the relative file lists differ or one file differs.
+function dirDiffers(src, dst) {
+  if (!isDir(src) || !isDir(dst)) return true;
+  const a = regularFiles(src);
+  const b = regularFiles(dst);
+  if (a.length !== b.length || a.some((f, i) => f !== b[i])) return true;
+  return a.some((f) => {
+    try {
+      return !fs.readFileSync(path.join(src, f)).equals(fs.readFileSync(path.join(dst, f)));
+    } catch {
+      return false;
+    }
+  });
+}
+
+// --- profile and core list: the plans (D-PROFILE) -----------------------------------------------------------------------
+
+// planCore(entries, srcRoot): each core entry in order, present when the source holds a regular file at that path.
+export function planCore(entries, srcRoot) {
+  return entries.map((rel) => ({ rel, present: isFile(path.join(srcRoot, rel)) }));
+}
+
+// planPrune(files, coreSet, srcHas) (pure): the target's .aai files (relative, forward-slash, files and links only) that the
+// core profile removes or preserves, in the order given. A file under .aai/cache/ or in the core set is no candidate; a script
+// the source does not have is preserved. An empty or non-Set core set is a hard failure: it would nominate every file.
+export function planPrune(files, coreSet, srcHas) {
+  if (!(coreSet instanceof Set) || coreSet.size === 0) throw new Error('planPrune refused an empty core set: the prune would delete every file under .aai');
+  const plan = [];
+  for (const rel of files) {
+    if (rel.startsWith('.aai/cache/')) continue;
+    if (isCoreListed(coreSet, rel)) continue;
+    if (rel.startsWith('.aai/scripts/') && !srcHas(rel)) plan.push({ rel, action: 'preserve' });
+    else plan.push({ rel, action: 'prune' });
+  }
+  return plan;
+}
+
+// aaiFiles(target): every regular file and link under <target>/.aai in a stable order (a directory is never listed, a link
+// is listed and never followed; the cache is not walked).
+function aaiFiles(target) {
+  const found = [];
+  const walk = (dir, rel) => {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir).sort();
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const r = `${rel}/${name}`;
+      if (r === '.aai/cache') continue;
+      const st = lstatOrNull(path.join(dir, name));
+      if (st === null) continue;
+      if (st.isDirectory()) walk(path.join(dir, name), r);
+      else found.push(r);
+    }
+  };
+  walk(path.join(target, '.aai'), '.aai');
+  return found;
+}
+
+// removeEmptyDirs(ctx): directories under .aai left empty, deepest first; .aai itself and .aai/cache are never removed.
+function removeEmptyDirs(ctx) {
+  const { roots } = ctx;
+  const cache = path.join(roots.target, '.aai', 'cache');
+  const root = path.join(roots.target, '.aai');
+  const walk = (dir) => {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir).sort();
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const full = path.join(dir, name);
+      if (lstatOrNull(full)?.isDirectory()) walk(full);
+    }
+    if (dir === root || dir === cache) return;
+    if (fs.readdirSync(dir).length === 0) {
+      mustGuard(roots, dir);
+      fs.rmdirSync(dir);
+    }
+  };
+  walk(root);
+}
+
+// --- the steps (the twin's order) ------------------------------------------------------------------------------------
+
+const DIRS_UP_FRONT = ['.aai/workflow', '.aai/roles', '.aai/templates', '.aai/scripts', '.aai/system', '.aai/knowledge', '.agents/skills', '.claude/skills',
+  '.claude-plugin', '.codex/skills', '.codex/skills.local', '.cursor/rules', '.gemini/skills', '.gemini/skills.local', '.github', 'docs/knowledge', 'docs/ai', 'hooks'];
+
+const conflictOf = (ctx, rel, text) => ctx.conflicts.push({ path: rel, text });
+
+function stepCore(ctx) {
+  const { roots, out, src } = ctx;
+  out('  PROFILE core: filtered .aai copy per .aai/system/PROFILES.yaml\n');
+  for (const entry of planCore(ctx.coreEntries, src)) {
+    if (!entry.present) {
+      out(`  WARN core-listed file missing in source (skipped): ${entry.rel}\n`);
+      continue;
+    }
+    const dst = path.join(roots.target, entry.rel);
+    mustGuard(roots, dst);
+    makeDir(roots, path.dirname(dst));
+    copyReplace(path.join(src, entry.rel), dst, roots);
+  }
+  mustReverify(roots);
+  const plan = planPrune(aaiFiles(roots.target), ctx.coreSet, (rel) => fs.existsSync(path.join(src, rel)));
+  for (const item of plan) {
+    if (item.action === 'preserve') {
+      out(`  PRESERVE target-only script: ${item.rel}\n`);
+      continue;
+    }
+    const abs = path.join(roots.target, item.rel);
+    mustGuard(roots, abs);
+    fs.rmSync(abs, { force: true });
+    ctx.deletions.push(item.rel);
+    out(`  PROFILE prune (not in core): ${item.rel}\n`);
+  }
+  removeEmptyDirs(ctx);
+}
+
+function stepExtended(ctx) {
+  const { roots, out, src } = ctx;
+  const aaiSrc = path.join(src, '.aai');
+  const aaiDst = path.join(roots.target, '.aai');
+  for (const name of globNames(aaiSrc)) {
+    if (name === 'scripts' || name === 'cache') continue;
+    copyReplace(path.join(aaiSrc, name), path.join(aaiDst, name), roots);
+  }
+  mustReverify(roots);
+  for (const name of globNames(aaiDst)) {
+    if (name === 'scripts' || name === 'cache') continue;
+    if (!exists(path.join(aaiSrc, name))) {
+      mustGuard(roots, path.join(aaiDst, name));
+      fs.rmSync(path.join(aaiDst, name), { recursive: true, force: true });
+      ctx.deletions.push(`.aai/${name}`);
+      out(`  CLEAN removed stale: .aai/${name}\n`);
+    }
+  }
+  makeDir(roots, path.join(aaiDst, 'scripts'));
+  for (const name of globNames(path.join(aaiSrc, 'scripts'))) copyReplace(path.join(aaiSrc, 'scripts', name), path.join(aaiDst, 'scripts', name), roots);
+  for (const name of globNames(path.join(aaiDst, 'scripts'))) {
+    if (!exists(path.join(aaiSrc, 'scripts', name))) out(`  PRESERVE target-only script: .aai/scripts/${name}\n`);
+  }
+}
+
+// isRetiredSkillWrapper(entry, name, srcRoot): true only for a template skill wrapper the source no longer ships: a
+// name that is aai-[a-z0-9-]+ and not aai-project-* (checked before any file system call), a real directory whose only entry is a
+// regular file named SKILL.md byte for byte of 1 to 65536 bytes without NUL, and whose text (every CR removed, read one
+// character per byte) is exactly the frontmatter, the optional SUBAGENT-STOP block and the two delegation lines naming a
+// prompt that srcRoot/.aai does not ship.
+export function isRetiredSkillWrapper(entry, name, srcRoot) {
+  if (!/^aai-[a-z0-9-]+$/.test(name) || name.startsWith('aai-project-')) return false;
+  const st = lstatOrNull(entry);
+  if (st === null || !st.isDirectory()) return false;
+  let names = [];
+  try {
+    names = fs.readdirSync(entry);
+  } catch {
+    return false;
+  }
+  if (names.length !== 1 || names[0] !== 'SKILL.md') return false;
+  const file = path.join(entry, 'SKILL.md');
+  const fst = lstatOrNull(file);
+  if (fst === null || !fst.isFile() || fst.size < 1 || fst.size > 65536) return false;
+  let bytes = null;
+  try {
+    bytes = fs.readFileSync(file);
+  } catch {
+    return false;
+  }
+  if (bytes.includes(0)) return false;
+  const prompt = wrapperPrompt(bytes.toString('latin1').replace(/\r/g, ''), name);
+  return prompt !== '' && !fs.existsSync(path.join(srcRoot, '.aai', `SKILL_${prompt}.prompt.md`));
+}
+
+// The em dash of the expected line is read as its three UTF-8 bytes, one latin1 character each.
+const WRAPPER_DASH = Buffer.from('\u2014', 'utf8').toString('latin1');
+
+// wrapperPrompt(text, name): the prompt name a wrapper text delegates to, or '' when the text is not exactly a wrapper.
+function wrapperPrompt(text, name) {
+  const lines = text.replace(/\n+$/, '').split('\n');
+  let n = lines.length;
+  while (n > 0 && /^[ \t]*$/.test(lines[n - 1])) n -= 1;
+  if (lines[0] !== '---') return '';
+  let close = -1;
+  for (let i = 1; i < n; i += 1) {
+    if (lines[i] === '---') {
+      close = i;
+      break;
+    }
+  }
+  if (close < 0) return '';
+  let named = false;
+  for (let i = 1; i < close; i += 1) if (lines[i] === `name: ${name}`) named = true;
+  if (!named) return '';
+  const body = [];
+  for (let i = close + 1; i < n; i += 1) if (!/^[ \t]*$/.test(lines[i])) body.push(lines[i]);
+  let k = 0;
+  if (body[0] === '<SUBAGENT-STOP>') {
+    k = 1;
+    let j = k;
+    let found = false;
+    while (j < body.length) {
+      if (body[j] === '</SUBAGENT-STOP>') {
+        found = true;
+        break;
+      }
+      j += 1;
+    }
+    if (!found || j === k) return '';
+    k = j + 1;
+  }
+  if (body.length - k !== 2) return '';
+  const pre = 'Read the file `.aai/SKILL_';
+  if (!body[k].startsWith(pre)) return '';
+  let rest = body[k].slice(pre.length);
+  const e = rest.indexOf('.prompt.md`');
+  if (e < 0) return '';
+  const x = rest.slice(0, e);
+  if (!/^[A-Z0-9_]+$/.test(x)) return '';
+  rest = rest.slice(e + '.prompt.md`'.length);
+  const mid = ' from the current project root and follow its instructions exactly';
+  if (!rest.startsWith(mid)) return '';
+  rest = rest.slice(mid.length);
+  if (!rest.includes(' Invoke this as `') || rest.includes('.aai/') || !body[k].endsWith('.')) return '';
+  const want = `If \`.aai/SKILL_${x}.prompt.md\` does not exist, say: "SKILL_${x} not found ${WRAPPER_DASH} are you in an AAI project? Expected: .aai/SKILL_${x}.prompt.md"`;
+  return body[k + 1] === want ? x : '';
+}
+
+// removeRetiredWrappers(ctx, tree): the target's entries of the tree that are provably retired wrappers go; each removal is
+// recorded; a failed removal prints the WARN line and is not recorded.
+function removeRetiredWrappers(ctx, tree) {
+  const { roots, out, src } = ctx;
+  const dstTree = path.join(roots.target, tree);
+  if (!isDir(dstTree)) return;
+  mustReverify(roots);
+  let names = [];
+  try {
+    names = fs.readdirSync(dstTree).sort();
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!/^aai-[a-z0-9-]+$/.test(name)) continue;
+    const dstEntry = path.join(dstTree, name);
+    if (!exists(dstEntry) || exists(path.join(src, tree, name))) continue;
+    if (!isRetiredSkillWrapper(dstEntry, name, src)) continue;
+    mustGuard(roots, dstEntry);
+    try {
+      fs.rmSync(dstEntry, { recursive: true, force: true });
+    } catch {
+      // reported below: the entry still exists
+    }
+    if (!exists(dstEntry)) {
+      ctx.deletions.push(`${tree}/${name}`);
+      out(`  CLEAN removed retired skill wrapper: ${tree}/${name}\n`);
+    } else {
+      out(`  WARN could not remove retired skill wrapper (left in place): ${tree}/${name}\n`);
+    }
+  }
+}
+
+function stepSkillTree(ctx, tree) {
+  const { roots, out, src } = ctx;
+  const srcTree = path.join(src, tree);
+  if (!isDir(srcTree)) return;
+  const dstTree = path.join(roots.target, tree);
+  makeDir(roots, dstTree);
+  for (const name of globNames(srcTree)) {
+    const srcEntry = path.join(srcTree, name);
+    const dstEntry = path.join(dstTree, name);
+    if (fs.existsSync(dstEntry)) {
+      const srcMd = path.join(srcEntry, 'SKILL.md');
+      const dstMd = path.join(dstEntry, 'SKILL.md');
+      if (isFile(srcMd) && isFile(dstMd) && fileDiffers(srcMd, dstMd)) {
+        conflictOf(ctx, `${tree}/${name}/SKILL.md`, `Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example ${tree}/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged.`);
+      } else if (dirDiffers(srcEntry, dstEntry)) {
+        conflictOf(ctx, `${tree}/${name}`, 'Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only.');
+      }
+    }
+    copyReplace(srcEntry, dstEntry, roots);
+  }
+  removeRetiredWrappers(ctx, tree);
+  out(`  PRESERVE target-only skills under: ${dstTree}\n`);
+}
+
+function stepKnowledge(ctx) {
+  const { roots, out, src } = ctx;
+  const srcDir = path.join(src, 'docs', 'knowledge');
+  if (!isDir(srcDir)) return;
+  makeDir(roots, path.join(roots.target, 'docs', 'knowledge'));
+  for (const name of globNames(srcDir)) {
+    const srcFile = path.join(srcDir, name);
+    if (!isFile(srcFile)) continue;
+    const dstFile = path.join(roots.target, 'docs', 'knowledge', name);
+    let holdsSentinel = false;
+    try {
+      holdsSentinel = isFile(dstFile) && fs.readFileSync(dstFile).includes('AAI-TEMPLATE');
+    } catch {
+      holdsSentinel = false;
+    }
+    if (!isFile(dstFile) || holdsSentinel) copyReplace(srcFile, dstFile, roots);
+    else out(`  SKIP (project-owned, sentinel removed): ${dstFile}\n`);
+  }
+}
+
+// seed(ctx, templateRel, targetRel, line, needsDocsAi): copy a template into the target only when the target file is missing.
+function seed(ctx, templateRel, targetRel, line) {
+  const { roots, out, src } = ctx;
+  const template = path.join(src, templateRel);
+  const dst = path.join(roots.target, targetRel);
+  if (!isFile(template) || isFile(dst)) return;
+  makeDir(roots, path.dirname(dst));
+  copyReplace(template, dst, roots);
+  out(`  ${line}\n`);
+}
+
+function stepSeeds(ctx) {
+  seed(ctx, '.aai/templates/TECHNOLOGY_TEMPLATE.md', 'docs/TECHNOLOGY.md', 'SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md');
+  seed(ctx, '.aai/templates/update-config.template.yaml', 'docs/ai/update-config.yaml', 'SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml');
+  seed(ctx, '.aai/templates/docs-audit.template.yaml', 'docs/ai/docs-audit.yaml',
+    'SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)');
+  if (isDir(path.join(ctx.roots.target, 'docs', 'ai'))) {
+    ctx.out('  PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)\n');
+  }
+}
+
+function stepRootShims(ctx) {
+  const { roots, src } = ctx;
+  for (const name of ROOT_SHIMS) {
+    const srcFile = path.join(src, name);
+    const dstFile = path.join(roots.target, name);
+    if (isFile(srcFile) && isFile(dstFile) && fileDiffers(srcFile, dstFile)) {
+      conflictOf(ctx, name, `Target file contains local changes. Use AI agent to merge project-specific instructions into docs/ai/project-overrides/${name} and keep synced shim concise.`);
+    }
+    if (isFile(srcFile)) copyReplace(srcFile, dstFile, roots);
+  }
+  const readme = path.join(src, 'README.md');
+  const readmeAai = path.join(roots.target, 'README_AAI.md');
+  if (isFile(readme) && isFile(readmeAai) && fileDiffers(readme, readmeAai)) {
+    conflictOf(ctx, 'README_AAI.md', 'Target README_AAI.md differs from source README.md. Use AI agent to move project notes into README.md or docs/, and keep README_AAI.md sync-managed.');
+  }
+  if (isFile(readme)) copyReplace(readme, readmeAai, roots);
+}
+
+// stepIndex(ctx, rel, label, text): a skill index (.codex/skills, .gemini/skills) is copy-replaced wholesale.
+function stepIndex(ctx, rel, label, text) {
+  const { roots, out, src } = ctx;
+  const srcDir = path.join(src, rel);
+  const dstDir = path.join(roots.target, rel);
+  if (isDir(srcDir) && isDir(dstDir) && dirDiffers(srcDir, dstDir)) conflictOf(ctx, `${rel}/`, text);
+  if (isDir(srcDir)) copyReplace(srcDir, dstDir, roots);
+  if (isDir(`${dstDir}.local`)) out(`  PRESERVE local ${label} dynamic index: ${dstDir}.local\n`);
+}
+
+// stepFile(ctx, rel, line): a single managed file copy-replaced when the source has it.
+function stepFile(ctx, rel, line) {
+  const srcFile = path.join(ctx.src, rel);
+  if (!isFile(srcFile)) return;
+  copyReplace(srcFile, path.join(ctx.roots.target, rel), ctx.roots);
+  ctx.out(`  ${line}\n`);
+}
+
+function stepGitignore(ctx) {
+  const { roots, out, src } = ctx;
+  mustGuard(roots, path.join(roots.target, '.gitignore'));
+  reconcileGitignore(roots.target, {
+    srcList: path.join(src, '.aai', 'system', 'RUNTIME_IGNORE.list'),
+    targetList: path.join(roots.target, '.aai', 'system', 'RUNTIME_IGNORE.list'),
+    out,
+  });
+}
+
+// The step names of run 4, at the place the twin runs them; each refuses until its run.
+const PENDING = ['the Copilot shim', 'the session hooks', 'the advisory report', 'the pin'];
+
 export const copilotShimIsShipped = notYet('copilotShimIsShipped', 4);
 export const extractCopilotOverrides = notYet('extractCopilotOverrides', 4);
 export const renderAdvisory = notYet('renderAdvisory', 4);
@@ -305,7 +829,8 @@ export const renderPin = notYet('renderPin', 4);
 
 // --- run -----------------------------------------------------------------------------------------------------------
 
-// runSteps(argv, io): the checks in the bash order, each before any write. Returns the exit code.
+// runSteps(argv, io): the checks in the bash order, each before any write, then the steps in the twin's order. Returns the
+// exit code.
 async function runSteps(argv, io) {
   const out = io.out ?? writeFd(1);
   const err = io.err ?? writeFd(2);
@@ -337,19 +862,41 @@ async function runSteps(argv, io) {
   }
   const profile = args.profile || readStickyProfile(roots.targetReal) || 'extended';
   out(`Syncing AAI from: ${roots.src}\nTarget project:     ${roots.target}\nProfile:            ${profile}\n`);
+  let coreEntries = [];
   if (profile === 'core') {
     const manifest = path.join(roots.src, '.aai', 'system', 'PROFILES.yaml');
-    const st = statOrNull(manifest);
-    if (st === null || !st.isFile()) {
+    if (!isFile(manifest)) {
       err(`ERROR: --profile core requires the manifest: ${manifest}\n`);
       return EXIT_FAIL;
     }
-    if (parseCoreList(fs.readFileSync(manifest, 'utf8')).length === 0) {
+    coreEntries = parseCoreList(fs.readFileSync(manifest, 'utf8'));
+    if (coreEntries.length === 0) {
       err(`ERROR: no core entries found in ${manifest}\n`);
       return EXIT_FAIL;
     }
   }
-  err('aai-sync: internal error: the copy, prune and report steps are not implemented yet (run 3 of the ride); no file was changed.\n');
+  const ctx = {
+    roots, out, src: roots.src, coreEntries, coreSet: new Set(coreEntries),
+    conflicts: io.ledger?.conflicts ?? [], deletions: io.ledger?.deletions ?? [],
+  };
+  for (const dir of DIRS_UP_FRONT) makeDir(roots, path.join(roots.target, dir));
+  makeDir(roots, path.join(roots.target, '.aai'));
+  if (profile === 'core') stepCore(ctx);
+  else stepExtended(ctx);
+  stepSkillTree(ctx, '.claude/skills');
+  stepKnowledge(ctx);
+  stepSeeds(ctx);
+  stepRootShims(ctx);
+  // the Copilot shim (run 4) runs here
+  stepIndex(ctx, '.codex/skills', 'Codex', 'Target Codex skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.');
+  stepIndex(ctx, '.gemini/skills', 'Gemini', 'Target Gemini skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.');
+  stepSkillTree(ctx, '.agents/skills');
+  stepFile(ctx, '.claude-plugin/plugin.json', 'SYNC .claude-plugin/plugin.json');
+  // the session hooks (run 4) run here
+  stepFile(ctx, '.cursor/rules/aai.mdc', 'SYNC .cursor/rules/aai.mdc');
+  stepGitignore(ctx);
+  // the advisory report and the pin (run 4) run here
+  err(`aai-sync: internal error: ${PENDING.join(', ')} are not implemented yet (run 4 of the ride); the steps before them ran.\n`);
   return EXIT_FAIL;
 }
 
@@ -360,6 +907,10 @@ export async function run(argv, io = {}) {
   try {
     return await runSteps(argv, { ...io, spawn: io.spawn ?? runChild });
   } catch (e) {
+    if (e instanceof SyncRefusal) {
+      err(`${e.message}\n`);
+      return e.code;
+    }
     err(`aai-sync: internal error: ${e.message}\n`);
     return EXIT_FAIL;
   }

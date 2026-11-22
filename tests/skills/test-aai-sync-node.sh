@@ -2,7 +2,7 @@
 #
 # Test: aai-sync-node
 # (docs/specs/SPEC-DRAFT-spec-sync-on-node.md, TEST-4000..4019; this file holds TEST-4000..4019 as the runs add
-# them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006)
+# them (TEST-4020 to TEST-4022 live in test-aai-sync-docs.sh); run 1 holds TEST-4000..4003, run 2 TEST-4004..4006, run 3 TEST-4007..4009)
 #
 # The layer sync is one Node module (.aai/scripts/aai-sync.mjs) behind thin sh/ps1 launchers, compared against
 # frozen copies of both old twins (tests/fixtures/sync-reference/). Every case works in scratch directories this
@@ -363,8 +363,25 @@ test_4006_legacy_dropped() {
   log_pass "TEST-4006: a legacy-layout target keeps every legacy path byte-identical through the module and the reconcile, no MIGRATE or legacy line is printed, and the module source holds none of the dropped paths"
 }
 
+# --- run 3: the profile, the core copy and prune, the extended copy and the path guard, the surfaces (TEST-4007 to TEST-4009) ---
+
+test_4007_core_prune() {
+  run_node_tests TEST-4007
+  log_pass "TEST-4007: the DR-9 and DR-10 readings, the K03 to K05 flows equal the frozen bash twin (copy, WARN, prune, preserve, cache kept, emptied directories removed, deletions recorded), two core syncs with 20,000 extra list entries leave every core-listed file present, a prune never follows a link, an empty core set is a hard failure and every changed path lies under the target"
+}
+
+test_4008_copy_and_guard() {
+  run_node_tests TEST-4008
+  log_pass "TEST-4008: copyReplace keeps modes, timestamps and links and copies a dangling link as a link, the K08 extended flow equals the bash twin, a managed link leaving the target refuses the whole run before any write (DR-7), an outside path and a swapped target exit 1 with the DR-8 line, an EEXIST temp is left in place"
+}
+
+test_4009_surfaces() {
+  run_node_tests TEST-4009
+  log_pass "TEST-4009: the skill trees, indexes, knowledge files, seeds and root shims equal the bash twin for a differing and a fresh target (lines, tree, recorded conflicts), isRetiredSkillWrapper accepts only the shipped shape and keeps every near miss, the sentinel is case-sensitive"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4006)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4000..4009)"
   check_deps
   setup_fixture
   test_4000_scratch_safety
@@ -374,6 +391,9 @@ main() {
   test_4004_shared_base
   test_4005_gitignore
   test_4006_legacy_dropped
+  test_4007_core_prune
+  test_4008_copy_and_guard
+  test_4009_surfaces
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
