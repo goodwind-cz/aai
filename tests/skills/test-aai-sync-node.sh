@@ -820,8 +820,10 @@ test_4019_wiring() {
   local work f out rc sel rows
   work="$(new_own_scratch wiring)"
   # every file of the ride routes to aai-sync-node; the two shared libs escalate to FULL_RUN (the .aai/scripts/lib/** shared-lib glob)
-  for f in .aai/scripts/aai-sync.mjs .aai/scripts/aai-sync.sh .aai/scripts/aai-sync.ps1 \
-    tests/fixtures/sync-reference/aai-sync.sh tests/fixtures/sync-reference/aai-sync.ps1 tests/fixtures/sync-reference/gitignore-block.sh \
+  # the order keeps a name ending in sh from standing before another entry-point name (the D-SAFETY line scan)
+  for f in .aai/scripts/aai-sync.mjs .aai/scripts/aai-sync.ps1 .aai/scripts/aai-sync.sh \
+    tests/fixtures/sync-reference/aai-sync.ps1 tests/fixtures/sync-reference/aai-sync.sh \
+    tests/fixtures/sync-reference/gitignore-block.sh \
     tests/skills/lib/aai-sync.test.mjs tests/skills/lib/resolve-base.test.mjs tests/skills/lib/sync-reference.mjs tests/skills/lib/sync-upgrade.test.mjs \
     tests/skills/aai-sync.Tests.ps1 tests/skills/lib/git-env-scrub.sh; do
     printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true

@@ -38,6 +38,8 @@ const NEW_TEST_FILES = [
   path.join(HERE, 'resolve-base.test.mjs'),
   path.join(HERE, 'git-env-scrub.sh'),
   path.join(ROOT, 'tests', 'skills', 'aai-sync.Tests.ps1'),
+  path.join(ROOT, 'tests', 'skills', 'test-aai-sync-docs.sh'),
+  path.join(HERE, 'sync-upgrade.test.mjs'),
 ];
 
 const scratchDirs = [];
@@ -424,7 +426,7 @@ describe('TEST-4000 scratch safety and the frozen references', () => {
     const found = [];
     for (const dir of [path.join(ROOT, 'tests', 'skills'), HERE]) {
       for (const name of readdirSync(dir)) {
-        if (/(aai-sync-(node|docs|fixtures)|aai-sync\.(test|Tests)|sync-reference|resolve-base\.test|git-env-scrub)/.test(name) && !exempt.has(name) && statSync(path.join(dir, name)).isFile()) found.push(path.join(dir, name));
+        if (/(aai-sync-(node|docs|fixtures)|aai-sync\.(test|Tests)|sync-reference|sync-upgrade\.test|resolve-base\.test|git-env-scrub)/.test(name) && !exempt.has(name) && statSync(path.join(dir, name)).isFile()) found.push(path.join(dir, name));
       }
     }
     for (const f of found) assert.ok(NEW_TEST_FILES.includes(f), `${f} is a test file of this ride and must be added to NEW_TEST_FILES`);
@@ -434,8 +436,8 @@ describe('TEST-4000 scratch safety and the frozen references', () => {
   test('TEST-4000 every sync invocation sets the git environment and asserts the target under the scratch root', () => {
     for (const file of NEW_TEST_FILES) {
       const src = readFileSync(file, 'utf8');
-      // git-env-scrub.sh runs no sync entry point (only the suite test-aai-sync-node.sh does) and the Pester file runs only the launcher with its own scrubbed environment: the forbidden-call scan covers both
-      const problems = file.endsWith('git-env-scrub.sh') || file.endsWith('.ps1') ? [] : file.endsWith('.sh') ? shellInvocationProblems(src) : invocationProblems(src);
+      // git-env-scrub.sh and test-aai-sync-docs.sh run no sync entry point (only the suite test-aai-sync-node.sh and the upgrade cases do) and the Pester file runs only the launcher with its own scrubbed environment: the forbidden-call scan covers both
+      const problems = file.endsWith('git-env-scrub.sh') || file.endsWith('test-aai-sync-docs.sh') || file.endsWith('.ps1') ? [] : file.endsWith('.sh') ? shellInvocationProblems(src) : invocationProblems(src);
       assert.deepEqual(problems, [], path.basename(file));
     }
     const mine = readFileSync(path.join(HERE, 'aai-sync.test.mjs'), 'utf8');
