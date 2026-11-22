@@ -326,8 +326,9 @@ test_sync_stamps_pin() {
 test_ps1_parity() {
   log_info "TEST-010b: aai-sync.ps1 stamps Canonical repo (static parity)..."
   [[ -f "$SYNC_PS1" ]] || log_fail "aai-sync.ps1 not found: $SYNC_PS1"
-  grep -q "Canonical repo: " "$SYNC_PS1" \
-    || log_fail "aai-sync.ps1 does not stamp '- Canonical repo:'"
+  # re-homed (sync-on-node run 6b): the stamp lives in the module both launchers run
+  grep -qF -- "- Canonical repo: " "$PROJECT_ROOT/.aai/scripts/aai-sync.mjs" \
+    || log_fail "aai-sync.mjs does not stamp '- Canonical repo:'"
   # TEST-010b re-homed (update-on-node D-REHOME): the post-sync evidence keyword list lives in the Node module
   grep -qF "const PIN_KEYWORDS = [" "$UPDATE_MJS" \
     || log_fail "aai-update.mjs does not hold the PIN_KEYWORDS evidence list"

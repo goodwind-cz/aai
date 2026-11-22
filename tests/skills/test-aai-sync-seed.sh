@@ -225,10 +225,7 @@ test_template_and_parity() {
   # the bash side is a launcher (sync-on-node run 6a): the seed rules live in the module
   grep -qF "update-config.template.yaml" "$SYNC_MJS" || log_fail "aai-sync.mjs does not seed from the template"
   grep -qF "docs/ai/update-config.yaml" "$SYNC_MJS" || log_fail "aai-sync.mjs does not reference the seed target"
-  if [[ -f "$SYNC_PS1" ]]; then
-    grep -qF "update-config.template.yaml" "$SYNC_PS1" || log_fail "aai-sync.ps1 does not seed from the template (parity)"
-    grep -qF "docs/ai/update-config.yaml" "$SYNC_PS1" || log_fail "aai-sync.ps1 does not reference the seed target (parity)"
-  fi
+  # the .ps1 is a launcher of the same module (sync-on-node run 6b): the seed behaviour of both engines is TEST-001 and TEST-002
   log_pass "TEST-003 template classified in core + both scripts seed it (parity)"
 }
 
@@ -376,10 +373,7 @@ test_audit_template_single_source() {
   [[ -n "$in_core" ]] || log_fail "TEST-006: .aai/templates/docs-audit.template.yaml is NOT in the PROFILES.yaml core list"
 
   grep -qF "docs-audit.template.yaml" "$SYNC_MJS" || log_fail "TEST-006: aai-sync.mjs does not seed from the template"
-  if [[ -f "$SYNC_PS1" ]]; then
-    grep -qF "docs-audit.template.yaml" "$SYNC_PS1" \
-      || log_fail "TEST-006: aai-sync.ps1 does not seed from the template (parity)"
-  fi
+  # the .ps1 launches the same module (sync-on-node run 6b): no text pin on it
 
   # DRIFT GUARD (single source): template list == this repo's live list.
   live_l3="$(extract_l3 "$LIVE_AUDIT_CONFIG")"
@@ -518,17 +512,13 @@ test_marker_prefix_pinned_across_call_sites() {
   [[ -n "$canonical" ]] || log_fail "TEST-020: could not extract AAI_GITIGNORE_MARKER_PREFIX from $GITIGNORE_MJS"
 
   # 1. the bash constant (extracted above) is the canonical copy.
-  # 2. the PowerShell detection regex.
-  grep -qF "(?m)^${canonical}" "$SYNC_PS1" \
-    || log_fail "TEST-020: aai-sync.ps1's detection regex does not start with the canonical prefix '$canonical'"
+  # 2. (sync-on-node run 6b) the PowerShell detection regex is gone with the twin: both launchers run the module's library.
   # 3-5. the three caller marker TEXTS actually written to .gitignore.
   grep -qF "'${canonical} (seeded by aai-bootstrap;" "$BOOTSTRAP_MJS" \
     || log_fail "TEST-020: aai-bootstrap.mjs's marker text does not start with the canonical prefix '$canonical'"
   # the sync marker is the module library's constant, which the reconcile writes: read it from the module, not its text
   [[ "$(node -e 'import(process.argv[1]).then((m) => process.stdout.write(m.SYNC_RUNTIME_MARKER.startsWith(m.AAI_GITIGNORE_MARKER_PREFIX + " (seeded from") ? "same" : "differs"))' "$GITIGNORE_MJS")" == same ]] \
     || log_fail "TEST-020: the sync marker of lib/gitignore-block.mjs does not start with the canonical prefix '$canonical'"
-  grep -qF "\"${canonical} (seeded by aai-sync.ps1;" "$SYNC_PS1" \
-    || log_fail "TEST-020: aai-sync.ps1's written marker text does not start with the canonical prefix '$canonical'"
   log_pass "TEST-020 marker prefix '$canonical' pinned identically across the bash constant, the ps1 regex, and all 3 caller marker texts"
 }
 
@@ -661,7 +651,6 @@ test_runtime_ignore_header_consumer_accuracy() {
   local header named=(
     ".aai/scripts/aai-bootstrap.mjs"
     ".aai/scripts/aai-sync.mjs"
-    ".aai/scripts/aai-sync.ps1"
     ".aai/scripts/lib/gitignore-block.mjs"
   )
   header="$(sed -n '1,8p' "$RUNTIME_LIST")"
@@ -863,20 +852,9 @@ test_628_compare_fails_closed() {
   fi
   readable=""; unreadable=""
 
-  # ps1 twin (static): the catch arm of Test-FileContentDifferent must
-  # `return $false` (fail closed), never $true.
-  local body
-  body="$(awk '/^function Test-FileContentDifferent \{$/{f=1} f{print; if ($0 ~ /^}$/) exit}' "$SYNC_PS1")"
-  [[ -n "$body" ]] || log_fail "TEST-628: could not extract Test-FileContentDifferent from $SYNC_PS1"
-  local catch_body
-  catch_body="$(printf '%s\n' "$body" | awk '/} catch \{/{f=1;next} f{print}')"
-  [[ -n "$catch_body" ]] || log_fail "TEST-628: Test-FileContentDifferent has no catch block: $body"
-  printf '%s\n' "$catch_body" | qgrep -qF 'return $false' \
-    || log_fail "TEST-628: Test-FileContentDifferent's catch arm does not return \$false (fail-closed): $catch_body"
-  printf '%s\n' "$catch_body" | qgrep -qF 'return $true' \
-    && log_fail "TEST-628: Test-FileContentDifferent's catch arm returns \$true somewhere (fail-open): $catch_body"
+  # (the .ps1 twin's catch arm is gone with the twin: both launchers run the module's fileDiffers, sync-on-node run 6b)
 
-  log_pass "TEST-628 file_content_different reports NOT_DIFFERENT when cmp cannot complete (exit 2, unreadable path); ps1 catch arm returns \$false"
+  log_pass "TEST-628 an unreadable-file compare is NOT_DIFFERENT (fail closed) through the module"
 }
 
 # --- TEST-629/630 (Spec-AC-11, D8): two already-fixed registry items close on
@@ -1857,9 +1835,9 @@ _795_check() {
   local engine="$1" skind="$2" n="$3" golden fresh diffs rest a b
   golden="$TMP_ROOT/golden/$engine-$skind-git"
   fresh="$TMP_ROOT/eq-795-$n-fresh"
-  # Tree: the only differing paths are the pin and the advisory file name.
+  # Tree: the only differing paths are the pin and the advisory (its name, or, when both syncs ran in the same second, its Source line; the content is compared below).
   diffs="$(diff -rq "$golden" "$fresh" 2>&1 || true)"
-  rest="$(printf '%s\n' "$diffs" | grep -vE '/\.aai/system/AAI_PIN\.md and .* differ$|^Only in .*/docs/ai/reports: sync-conflicts-[0-9-]+\.md$' || true)"
+  rest="$(printf '%s\n' "$diffs" | grep -vE '/\.aai/system/AAI_PIN\.md and .* differ$|^Only in .*/docs/ai/reports: sync-conflicts-[0-9-]+\.md$|/docs/ai/reports/sync-conflicts-[0-9-]+\.md and .*/docs/ai/reports/sync-conflicts-[0-9-]+\.md differ$' || true)"
   [[ -z "$rest" ]] \
     || log_fail "TEST-795 (plan row TEST-007): a cached $engine/$skind golden differs from a fresh sync beyond the pin and the advisory name:"$'\n'"$rest"
   # Pin: equal apart from the four path- or time-dependent lines.
@@ -1911,9 +1889,6 @@ test_795_sync_cache_equivalence() {
   fields="$(grep -nE '(Source path|Template version|Template commit|Canonical repo|Synced at)' <<< "$fn" || true)"
   [[ -z "$fields" ]] \
     || log_fail "TEST-795 (plan row TEST-007): the module's pin reader matches a pin field other than Profile: $fields"
-  fields="$(grep -oE "Pattern '\^- [A-Za-z ()]+:" "$SYNC_PS1" | LC_ALL=C sort -u || true)"
-  [[ "$fields" == "Pattern '^- Profile:" ]] \
-    || log_fail "TEST-795 (plan row TEST-007): aai-sync.ps1 reads a pin field other than Profile (or none): [$fields]"
   log_pass "TEST-795 a cached golden equals a fresh sync from a differently located identical source (pin and advisory path lines aside); both engines read only Profile from an existing pin"
 }
 

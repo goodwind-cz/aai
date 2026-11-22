@@ -622,11 +622,8 @@ test_ps1_parity() {
   log_info "TEST-008: aai-sync.ps1 parity (structural + end-to-end when pwsh present)..."
   [[ -f "$SYNC_PS1" ]] || log_fail "aai-sync.ps1 not found"
   # Structural parity of the filter logic (both engines carry the same seams).
-  grep -q '\$Profile' "$SYNC_PS1" || log_fail "ps1 lacks a Profile parameter"
-  grep -q 'PROFILES.yaml' "$SYNC_PS1" || log_fail "ps1 does not read PROFILES.yaml"
-  grep -q -- '- Profile: ' "$SYNC_PS1" || log_fail "ps1 does not stamp '- Profile:' into the pin"
-  grep -q 'PROFILE prune' "$SYNC_PS1" || log_fail "ps1 lacks the prune message seam"
-  grep -q 'PRESERVE target-only script' "$SYNC_PS1" || log_fail "ps1 lacks target-only preservation"
+  # (sync-on-node run 6b) the .ps1 is a launcher of the module: its profile, pin and prune seams are behaviour, run below
+  # (the pin stamp, the file sets) and in TEST-003, TEST-004 and TEST-464.
   # The bash side is a launcher of the Node module (sync-on-node run 6a); its seams are behaviour now: the sh core run
   # below prints the prune line and keeps the same file set (TEST-003, TEST-004, TEST-464).
 

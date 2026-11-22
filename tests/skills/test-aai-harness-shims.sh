@@ -610,14 +610,9 @@ sync_agents_cases() {  # <id> <engine>
   cmp -s "$PROJECT_ROOT/AGENTS.md" "$dst/AGENTS.md" || log_fail "$id: the target's own AGENTS.md must be replaced by the source AGENTS.md"
   out="$(cat "$dst.sync.log")"
   [[ "$out" != *'MIGRATE removed legacy root: AGENTS.md'* ]] || log_fail "$id: the sync must not print 'MIGRATE removed legacy root: AGENTS.md'"
-  if [[ "$engine" == "sh" ]]; then
-    # re-homed (sync-on-node run 6a, DR-13): the legacy-layout moves are dropped, a root PLAYBOOK.md is project-owned and stays
-    [[ "$out" != *'MIGRATE'* && "$(cat "$dst/PLAYBOOK.md" 2>/dev/null)" == '# legacy playbook' ]] \
-      || log_fail "$id: a root PLAYBOOK.md must be left untouched and no MIGRATE line printed (DR-13)"
-  else
-    [[ "$out" == *'MIGRATE removed legacy root: PLAYBOOK.md'* && ! -e "$dst/PLAYBOOK.md" ]] \
-      || log_fail "$id: a legacy root PLAYBOOK.md must still be removed"
-  fi
+  # re-homed (sync-on-node runs 6a and 6b, DR-13): the legacy-layout moves are dropped, a root PLAYBOOK.md is project-owned and stays
+  [[ "$out" != *'MIGRATE'* && "$(cat "$dst/PLAYBOOK.md" 2>/dev/null)" == '# legacy playbook' ]] \
+    || log_fail "$id: a root PLAYBOOK.md must be left untouched and no MIGRATE line printed (DR-13)"
   report=""
   for f in "$dst"/docs/ai/reports/sync-conflicts-*.md; do [[ -f "$f" ]] && report="$f"; done
   [[ -n "$report" ]] || log_fail "$id: no sync conflict advisory was written"
