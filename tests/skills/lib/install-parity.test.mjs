@@ -397,6 +397,33 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(go('/c/elsewhere/project/fx/src', 'C:\\elsewhere\\project\\fx\\src'), 1, 'a directory outside the scratch root stays visible');
     assert.equal(go('/c/Users/x/Temp/aai-parity-run-ab12/fx/other', 'C:\\Users\\x\\Temp\\aai-parity-run-ab12\\fx\\src'), 1, 'a different leaf stays visible');
   });
+  // The frozen twins run from the syref copy of the scratch source and the module from fx/src (SY-01), so on a Windows host the pin and
+  // the report name syref in the POSIX spelling for sh and the Windows spelling for ps1, and fx\src for the module; ps1 writes the pin with LF inside and
+  // CRLF at its end and the report with CRLF throughout, a byte order mark under Windows PowerShell 5.1 and seven fraction digits. Lines are the ones the CI run 45069641354 printed.
+  test('the committed rows cover the syref source path of the frozen twins on a Windows host, for sh:ps1 and for ps1:node', () => {
+    has('applyAllowlist');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
+    const win = { platform: 'win32', utc: true, ps5: true };
+    const run = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-parity-pester-7efbfa2ab524\\aai-parity-run-thDytQ';
+    const posix = '/c/Users/runneradmin/AppData/Local/Temp/aai-parity-pester-7efbfa2ab524/aai-parity-run-thDytQ';
+    const left = (pair, file, onlyA, onlyB) => M.applyAllowlist([{ pair, path: file, kind: 'lines', detail: 'd', onlyA, onlyB }], rows, { scenario: 'SY-01', host: win }).uncovered.length;
+    const pin = '.aai/system/AAI_PIN.md';
+    const report = 'docs/ai/reports/sync-conflicts-<stamp-1>.md';
+    const shPin = ['# AAI Pin', `- Source path: ${posix}/syref`, '- Synced at (UTC): <stamp>'];
+    const psPin = ['\uFEFF# AAI Pin', `- Source path: ${run}\\syref`, '- Synced at (UTC): 2026-11-22T21:02:05.1485042Z'];
+    const nodePin = ['# AAI Pin', `- Source path: ${run}\\fx\\src`, '- Synced at (UTC): <stamp>'];
+    assert.equal(left('sh:ps1', pin, shPin, psPin), 0, 'sh and ps1 both run from syref, in two spellings');
+    assert.equal(left('ps1:node', pin, psPin, nodePin), 0, 'ps1 from syref, the module from fx\\src');
+    const shRep = ['# Sync Conflict Advisory', '- Generated at (UTC): <stamp>', `- Source: ${posix}/syref`];
+    const psRep = ['\uFEFF# Sync Conflict Advisory\r', '- Generated at (UTC): 2026-11-22T21:02:05.0698568Z\r', `- Source: ${run}\\syref\r`];
+    const nodeRep = ['# Sync Conflict Advisory', '- Generated at (UTC): <stamp>', `- Source: ${run}\\fx\\src`];
+    assert.equal(left('sh:ps1', report, shRep, psRep), 0);
+    assert.equal(left('ps1:node', report, psRep, nodeRep), 0);
+    // what stays visible: a syref outside an aai-parity scratch directory, another leaf, and a Source path on one side only
+    assert.equal(left('sh:ps1', pin, ['- Source path: /c/elsewhere/syref'], ['- Source path: C:\\elsewhere\\syref']), 1);
+    assert.equal(left('sh:ps1', pin, [`- Source path: ${posix}/other`], [`- Source path: ${run}\\other`]), 1);
+    assert.equal(left('ps1:node', pin, [`- Source path: ${run}\\syref`], ['# AAI Pin']), 1);
+  });
   test('a bsd-sed row is judged only on a host whose sed is BSD, so a GNU-sed host neither covers nor stales it', () => {
     has('staleRows'); has('probeBsdSed');
     assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1']), []);
