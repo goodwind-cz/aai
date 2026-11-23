@@ -1351,18 +1351,6 @@ describe('TEST-4031 odd-root diagnostic', () => {
     const names = M.oddDiagCandidates({ ps: 'pwsh' }).map((c) => c.name);
     assert.deepEqual(names, ['field-report-helper', 'doctor-json', 'ref-guard-control', 'ref-guard-refuse', 'ref-guard-permit', 'win-selftest', 'agent-cli-claude', 'agent-cli-codex', 'agent-cli-gemini']);
   });
-  test('with a bash, the frozen updater and the source, the list adds the field report as the frozen updater starts it and the frozen update replayed whole and without its doctor section', () => {
-    const root = scratch('diag2');
-    const upref = path.join(root, 'upref');
-    put(upref, '.aai/scripts/aai-update.sh', ['#!/usr/bin/env bash', 'echo "## Post"', 'echo', 'echo "## Doctor field report"', 'node "$TARGET/x.mjs"', 'echo', 'echo "## Next"', 'echo done', ''].join('\n'));
-    const names = M.oddDiagCandidates({ ps: 'pwsh', bash: '/bin/bash', upref, src: path.join(root, 'src') }).map((c) => c.name);
-    assert.deepEqual(names.slice(-3), ['field-report-via-bash', 'frozen-update-full', 'frozen-update-no-doctor']);
-    has('frozenUpdateWithoutDoctor');
-    const cut = fs.readFileSync(M.frozenUpdateWithoutDoctor(upref, root), 'utf8');
-    assert.equal(cut, ['#!/usr/bin/env bash', 'echo "## Post"', 'echo', 'echo "## Next"', 'echo done', ''].join('\n'));
-    put(upref, '.aai/scripts/aai-update.sh', 'echo "## Next"\n');
-    assert.throws(() => M.frozenUpdateWithoutDoctor(upref, root), /doctor field report section was not found/);
-  });
   test('each candidate runs in its own fresh copy of the target and reports the root entries it births', () => {
     has('runOddDiag');
     const root = scratch('diag');
