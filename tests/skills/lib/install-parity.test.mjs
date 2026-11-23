@@ -603,7 +603,7 @@ describe('TEST-3566 third twin seam', () => {
   });
   test('the real registry holds sh and ps1 with the documented argv shapes', () => {
     assert.equal(M.REFERENCE_TWIN, 'sh');
-    assert.deepEqual(Object.keys(M.TWINS), ['sh', 'ps1', 'node']);
+    assert.deepEqual(Object.keys(M.TWINS), ['sh', 'ps1', 'node', 'launcher']);
     const ctx = { src: '/s', target: '/t', bash: 'bash', ps: 'pwsh' };
     const sy = { op: 'sync', profile: 'core', flags: [] };
     const sctx = { ...ctx, syref: '/sy' };
@@ -639,7 +639,7 @@ describe('TEST-3566 third twin seam', () => {
     };
     const rows = M.parseAllowlist(
       fs.readFileSync(ALLOWLIST, 'utf8').split('\n').map((l) => (l.startsWith('#') || !l.trim() ? l : l.split('\t').map((f, i) => (i === 1 ? f.split(',').flatMap((p) => (p === 'sh:ps1' ? ['sh:ps1', 'ps1:mirror'] : [p])).join(',') : f)).join('\t'))).join('\n'),
-      { twins: ['sh', 'ps1', 'mirror', 'skew', 'node'] });
+      { twins: ['sh', 'ps1', 'mirror', 'skew', 'node', 'launcher'] });
     const base = (third) => M.runMatrix({
       scenarios: M.SCENARIOS.filter((s) => s.id === 'SY-01'), twins: [M.TWINS.sh, M.TWINS.ps1, third], rows, matrix: 'smoke', filtered: true,
       ctx: { root: path.join(d, third.name), src: null, bash: 'bash', ps: 'pwsh', host: M.hostInfo() },
@@ -756,7 +756,7 @@ describe('TEST-3569 report timing', () => {
 });
 
 describe('TEST-3570 trackers', () => {
-  const rows = () => M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
+  const rows = () => M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node', 'launcher'] });
   test('the committed allowlist parses and holds the seven seed ids', () => {
     has('parseAllowlist');
     const ids = rows().map((r) => r.id);
@@ -984,7 +984,7 @@ describe('TEST-3975 update peers', () => {
   });
   test('the real registry: the node twin runs bootstrap, update and hooks, peers only sh for update, and the update argv of sh and node', () => {
     assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
-    assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
+    assert.deepEqual(M.TWINS.node.peers, { update: ['sh', 'launcher'] });
     assert.equal(M.TWINS.sh.peers, undefined);
     assert.equal(M.TWINS.ps1.peers, undefined);
     const ctx = { src: '/s', target: '/t', bash: '/bin/bash', ps: 'pwsh', upref: '/u', bsref: '/b' };
@@ -1003,7 +1003,7 @@ describe('TEST-3975 update peers', () => {
     const src = fs.readFileSync(DRIVER, 'utf8');
     const line = "      return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-update.mjs'), '--repo', ctx.src, '--ref', 'main'], cwd: ctx.target, env: { AAI_UPDATE_SYNC_RUNNER: ctx.bash } };";
     assert.equal(src.split(line).length - 1, 1);
-    assert.equal(src.split("peers: { update: ['sh'] }").length - 1, 1);
+    assert.equal(src.split("peers: { update: ['sh', 'launcher'] }").length - 1, 1);
   });
   test('the committed allowlist keeps every row of the update ride, and win-sh-odd-root-dirs is paired sh:ps1,sh:node', () => {
     has('parseAllowlist');
@@ -1068,7 +1068,7 @@ describe('TEST-3995 hook twins', () => {
   });
   test('the real registry: the node twin runs bootstrap, update and hooks with peers for update only, and the hooks argv of the three twins', () => {
     assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
-    assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
+    assert.deepEqual(M.TWINS.node.peers, { update: ['sh', 'launcher'] });
     const ctx = { src: '/s', target: '/t', bash: '/bin/bash', ps: 'pwsh', hkref: '/hk' };
     const hk = { op: 'hooks', profile: null, flags: ['force', 'uninstall', 'decline-ref-guard'] };
     const sh = M.TWINS.sh.argv(hk, ctx);
@@ -1155,7 +1155,7 @@ describe('TEST-4017 sync twins', () => {
   });
   test('the real registry: the node twin runs sync with peers for update only, and the sync argv of the three twins', () => {
     assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
-    assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
+    assert.deepEqual(M.TWINS.node.peers, { update: ['sh', 'launcher'] });
     const ctx = { src: '/s', target: '/t', bash: '/bin/bash', ps: 'pwsh', syref: '/sy' };
     const sy = { op: 'sync', profile: 'core', flags: [] };
     const sh = M.TWINS.sh.argv(sy, ctx);
@@ -1191,5 +1191,315 @@ describe('TEST-4017 sync twins', () => {
     assert.ok(engine, 'sync-engine-files');
     assert.equal(engine.pairs, 'sh:node,ps1:node');
     assert.equal(engine.reason, 'the frozen twins vendor themselves and the bash library; the module side vendors its launchers, the module and its libs');
+  });
+});
+
+// TEST-4030 (node-first-phase5-closeout, Spec-AC-07, D-TWIN): the launcher twin runs the SHIPPED aai-sync.sh and aai-update.sh of
+// the scratch source through the driver's bash, is paired only with node, and passes against node on a real run.
+describe('TEST-4030 launcher twin', () => {
+  const ok = { 'p.txt': 'same\n' };
+  const withPeers = (t) => ({ ...t, peers: M.TWINS[t.name] && M.TWINS[t.name].peers });
+  const upScen = () => scen({ id: 'U-01', op: 'update', steps: [{ op: 'update', profile: null, flags: [], expect: '0' }] });
+  const fourFakes = () => ['sh', 'ps1', 'node', 'launcher'].map((n) => withPeers(fakeTwin(n, { files: ok })));
+  const runFour = (scenarios, setup = (_s, target) => { fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, 'seed.txt'), 'seed\n'); }) => runFake(fourFakes(), scenarios, [], {
+    ctx: { root: scratch('lt'), src: null, upref: '/unused', bash: 'bash', ps: 'pwsh', setup, host: HOST_POSIX },
+  });
+  test('the registry holds launcher fourth with ops sync and update and peers node only; node pairs with launcher for update', () => {
+    assert.deepEqual(Object.keys(M.TWINS), ['sh', 'ps1', 'node', 'launcher']);
+    assert.equal(M.TWINS.launcher.name, 'launcher');
+    assert.deepEqual(M.TWINS.launcher.ops, ['sync', 'update']);
+    assert.deepEqual(M.TWINS.launcher.peers, { sync: ['node'], update: ['node'] });
+    assert.deepEqual(M.TWINS.node.peers, { update: ['sh', 'launcher'] });
+    assert.equal(M.TWINS.sh.peers, undefined);
+    assert.equal(M.TWINS.ps1.peers, undefined);
+  });
+  test('argv runs the shipped launchers of the scratch source through the driver bash with the target as cwd', () => {
+    const ctx = { src: 'C:\\s', target: '/t', bash: '/bin/bash', ps: 'pwsh', syref: '/sy', upref: '/u' };
+    const sy = M.TWINS.launcher.argv({ op: 'sync', profile: 'core', flags: [] }, ctx);
+    assert.deepEqual([sy.file, ...sy.args], ['/bin/bash', 'C:/s/.aai/scripts/aai-sync.sh', '/t', '--profile', 'core']);
+    assert.equal(sy.cwd, '/t');
+    assert.deepEqual(M.TWINS.launcher.argv({ op: 'sync', profile: null, flags: [] }, ctx).args, ['C:/s/.aai/scripts/aai-sync.sh', '/t']);
+    const up = M.TWINS.launcher.argv({ op: 'update', profile: null, flags: [] }, ctx);
+    assert.deepEqual([up.file, ...up.args], ['/bin/bash', 'C:/s/.aai/scripts/aai-update.sh', '--repo', 'C:/s', '--ref', 'main']);
+    assert.equal(up.cwd, '/t');
+    assert.equal(up.env, undefined, 'the shipped aai-update.sh sets its own sync runner; the twin sets none');
+  });
+  test('pairs are emitted in registry order: sync gives node:launcher after ps1:node, update gives node:launcher after sh:node and no ps1:node', () => {
+    has('runMatrix');
+    const sync = runFour([scen()]);
+    assert.deepEqual(sync.pairs, ['sh:ps1', 'sh:node', 'ps1:node', 'node:launcher']);
+    assert.equal(sync.verdict, 'PASS', JSON.stringify(sync.uncovered));
+    const upd = runFour([upScen()]);
+    assert.deepEqual(upd.pairs, ['sh:ps1', 'sh:node', 'node:launcher']);
+    assert.equal(upd.verdict, 'PASS', JSON.stringify(upd.uncovered));
+  });
+  test('a launcher twin that writes one more byte fails naming node:launcher and no other pair', () => {
+    has('runMatrix');
+    const twins = ['sh', 'ps1', 'node'].map((n) => withPeers(fakeTwin(n, { files: ok }))).concat([withPeers(fakeTwin('launcher', { files: { 'p.txt': 'samex\n' } }))]);
+    const rep = runFake(twins, [scen()], [], { ctx: { root: scratch('ltx'), src: null, bash: 'bash', ps: 'pwsh', setup: (_s, target) => { fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, 'seed.txt'), 'x'); }, host: HOST_POSIX } });
+    assert.equal(rep.verdict, 'FAIL');
+    assert.deepEqual([...new Set(rep.uncovered.map((d) => d.pair))], ['node:launcher']);
+  });
+  test('an empty target is a hard failure for the launcher twin (a launcher on an empty directory proves nothing)', () => {
+    has('runMatrix');
+    assert.throws(() => runFour([scen()], fakeSetup), /empty target/);
+  });
+  test('the committed allowlist parses with the four twins, and a row written launcher:node is refused as an order the runner never emits', () => {
+    has('parseAllowlist');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node', 'launcher'] });
+    assert.ok(rows.length > 0);
+    const row = ['r1', 'launcher:node', '*', 'f.txt', 'missing', 'any', 'accepted', '-', 'x'].join('\t');
+    assert.throws(() => M.parseAllowlist(row, { twins: ['sh', 'ps1', 'node', 'launcher'] }), /node:launcher/);
+  });
+  test('the driver source names the launcher twin once', () => {
+    const src = fs.readFileSync(DRIVER, 'utf8');
+    assert.equal(src.split("name: 'launcher'").length - 1, 1);
+  });
+  test('a real run of SY-01 and UP-01 with twins node and launcher into scratch targets exits 0 with verdict PASS and the pair node:launcher in both', () => {
+    const d = scratch('lreal');
+    const json = path.join(d, 'rep.json');
+    const env = { ...process.env, AAI_PARITY_SCRATCH: d };
+    delete env.AAI_ROLE; delete env.AAI_GIT_WRITE;
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--scenario', 'UP-01', '--twins', 'node,launcher', '--json', json], { env });
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    const rep = JSON.parse(fs.readFileSync(json, 'utf8'));
+    assert.equal(rep.verdict, 'PASS');
+    assert.deepEqual(rep.twins, ['node', 'launcher']);
+    for (const id of ['SY-01', 'UP-01']) {
+      const s = rep.scenarios.find((x) => x.id === id);
+      assert.ok(s, id);
+      assert.ok(s.pairs.includes('node:launcher'), `${id} pairs ${JSON.stringify(s.pairs)}`);
+      assert.equal(s.broken.length, 0);
+      assert.ok(s.steps.some((x) => x.twin === 'launcher' && x.code === 0), `${id} launcher step`);
+    }
+  });
+});
+
+// TEST-4031 (Spec-AC-08, D-HOSTCHECK no-odd-root): a root entry with a name outside printable ASCII that a node or launcher twin step
+// birthed fails the run; an entry that existed before the step, an ASCII name and a twin outside the two are not reported.
+describe('TEST-4031 no-odd-root host check', () => {
+  const clean = { 'p.txt': 'same\n' };
+  const seed = (_s, target) => { fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, 'seed.txt'), 'seed\n'); };
+  const runHC = (twins, { setup = seed, scenario = scen() } = {}) => M.runMatrix({
+    scenarios: [scenario], twins, rows: [], matrix: 'smoke', filtered: true,
+    ctx: { root: scratch('hc'), src: null, upref: '/unused', bash: 'bash', ps: 'pwsh', setup, host: HOST_POSIX, platform: 'linux' },
+  });
+  const entry = (rep, id, scenario, twin) => rep.host_checks.filter((e) => e.id === id && e.scenario === scenario && e.twin === twin);
+  test('a fake launcher twin that births a directory with a non-ASCII name fails the check naming its code points; the verdict is FAIL', () => {
+    has('runMatrix');
+    const rep = runHC([fakeTwin('sh', { files: clean }), fakeTwin('node', { files: clean }), fakeTwin('launcher', { files: clean, after: "fs.mkdirSync('caf\\u00e9-\\u4e2d');" })]);
+    const [e] = entry(rep, 'no-odd-root', 'T-01', 'launcher');
+    assert.ok(e, JSON.stringify(rep.host_checks));
+    assert.equal(e.status, 'fail');
+    assert.match(e.detail, /\\u\{e9\}/);
+    assert.match(e.detail, /\\u\{4e2d\}/);
+    assert.equal(rep.verdict, 'FAIL');
+    assert.ok(rep.notes.includes('AAI-HOST-CHECK no-odd-root T-01 launcher fail checked=3'), JSON.stringify(rep.notes));
+    assert.equal(entry(rep, 'no-odd-root', 'T-01', 'node')[0].status, 'pass');
+  });
+  test('the exit code of a report with a failed host check is not 0', () => {
+    has('exitCodeFor');
+    assert.equal(M.exitCodeFor({ verdict: 'FAIL' }), 1);
+    assert.equal(M.exitCodeFor({ verdict: 'PASS', host_checks: [{ status: 'fail' }] }), 1);
+    assert.equal(M.exitCodeFor({ verdict: 'PASS', host_checks: [{ status: 'pass' }, { status: 'bites' }, { status: 'not-applicable' }] }), 0);
+  });
+  test('a clean fake passes with checked equal to the root entries read, on the node twin and the launcher twin', () => {
+    has('runMatrix');
+    const rep = runHC([fakeTwin('sh', { files: clean }), fakeTwin('node', { files: clean }), fakeTwin('launcher', { files: clean })]);
+    assert.equal(rep.verdict, 'PASS', JSON.stringify(rep.uncovered));
+    for (const twin of ['node', 'launcher']) {
+      const [e] = entry(rep, 'no-odd-root', 'T-01', twin);
+      assert.equal(e.status, 'pass');
+      assert.equal(e.checked, 2, 'seed.txt and p.txt');
+    }
+    assert.ok(rep.notes.includes('AAI-HOST-CHECK no-odd-root T-01 node pass checked=2'));
+  });
+  test('an odd entry present before the step is not reported as born', () => {
+    has('runMatrix');
+    const pre = (_s, target) => { seed(_s, target); fs.mkdirSync(path.join(target, 'pre\u00e9')); };
+    const rep = runHC([fakeTwin('sh', { files: clean }), fakeTwin('node', { files: clean }), fakeTwin('launcher', { files: clean })], { setup: pre });
+    for (const twin of ['node', 'launcher']) assert.equal(entry(rep, 'no-odd-root', 'T-01', twin)[0].status, 'pass');
+    assert.equal(rep.verdict, 'PASS', JSON.stringify(rep.uncovered));
+  });
+  test('negative controls: a printable ASCII name with spaces and a twin outside node and launcher are not reported', () => {
+    has('runMatrix');
+    const rep = runHC([fakeTwin('sh', { files: clean, after: "fs.mkdirSync('caf\\u00e9');" }), fakeTwin('node', { files: clean, after: "fs.mkdirSync('a b~c');" }), fakeTwin('launcher', { files: clean })]);
+    assert.equal(entry(rep, 'no-odd-root', 'T-01', 'sh').length, 0, 'the frozen sh twin is not a host-check twin');
+    assert.equal(entry(rep, 'no-odd-root', 'T-01', 'node')[0].status, 'pass');
+  });
+  test('the check follows every sync step of a scenario: an entry born by the second step fails', () => {
+    has('runMatrix');
+    const two = scen({ id: 'T-02', steps: [{ op: 'sync', profile: 'core', flags: [], expect: '0' }, { op: 'sync', profile: null, flags: [], expect: '0' }] });
+    const late = { name: 'launcher', argv(step, ctx) { const t = fakeTwin('launcher', { files: clean, after: step.index === 1 ? "fs.mkdirSync('late\\u00e9');" : '' }); return t.argv(step, ctx); } };
+    const rep = runHC([fakeTwin('sh', { files: clean }), fakeTwin('node', { files: clean }), late], { scenario: two });
+    const [e] = entry(rep, 'no-odd-root', 'T-02', 'launcher');
+    assert.equal(e.status, 'fail');
+    assert.match(e.detail, /step 2/);
+  });
+  test('the driver names the odd-name pattern ODD_NAME once as a constant and tests it by ODD_NAME.test(name)', () => {
+    const src = fs.readFileSync(DRIVER, 'utf8');
+    assert.equal(src.split('const ODD_NAME = /[^\\x20-\\x7e]/;').length - 1, 1);
+    assert.ok(src.includes('ODD_NAME.test(name)'));
+  });
+});
+
+// TEST-4031 (D-ODD step 2): the diagnostic is off by default and, when asked for, runs one candidate at a time in a fresh copy of the
+// target with a root snapshot before and after, printing AAI-ODD-DIAG <candidate> born=<n>.
+describe('TEST-4031 odd-root diagnostic', () => {
+  test('the default candidate list names the doctor helper, the doctor, the three ref-guard arms, the selftest and the agent CLI probes', () => {
+    has('oddDiagCandidates');
+    const names = M.oddDiagCandidates({ ps: 'pwsh' }).map((c) => c.name);
+    assert.deepEqual(names, ['field-report-helper', 'doctor-json', 'ref-guard-control', 'ref-guard-refuse', 'ref-guard-permit', 'win-selftest', 'agent-cli-claude', 'agent-cli-codex', 'agent-cli-gemini']);
+  });
+  test('each candidate runs in its own fresh copy of the target and reports the root entries it births', () => {
+    has('runOddDiag');
+    const root = scratch('diag');
+    const target = path.join(root, 'target');
+    put(target, 'keep.txt', 'k\n');
+    put(target, 'pre\u00e9/x', 'x\n');
+    const born = { name: 'births', run: (copy) => ({ file: process.execPath, args: ['-e', `require('fs').mkdirSync(${JSON.stringify(path.join(copy, 'wide\u4e2d'))})`], cwd: copy }) };
+    const quiet = { name: 'quiet', run: (copy) => ({ file: process.execPath, args: ['-e', '0'], cwd: copy }) };
+    const lines = M.runOddDiag({ root, target, bash: 'bash', env: { ...process.env }, candidates: [born, quiet], scenario: 'UP-01', twin: 'launcher', useBash: false });
+    assert.match(lines[0], /^AAI-ODD-DIAG births born=1 scenario=UP-01 twin=launcher /);
+    assert.match(lines[0], /\\u\{4e2d\}/);
+    assert.match(lines[1], /^AAI-ODD-DIAG quiet born=0 scenario=UP-01 twin=launcher/);
+    assert.equal(fs.existsSync(path.join(target, 'wide\u4e2d')), false, 'the post-step target itself is never written');
+    assert.deepEqual(fs.readdirSync(target).sort(), ['keep.txt', 'pre\u00e9']);
+  });
+  test('the diagnostic is off unless AAI_PARITY_ODD_DIAG is 1: a run over fake twins prints no AAI-ODD-DIAG line', () => {
+    has('runMatrix');
+    const up = scen({ id: 'U-02', op: 'update', steps: [{ op: 'update', profile: null, flags: [], expect: '0' }] });
+    const prev = process.env.AAI_PARITY_ODD_DIAG;
+    delete process.env.AAI_PARITY_ODD_DIAG;
+    try {
+      const rep = runFake([fakeTwin('sh', { files: { 'p.txt': 'a\n' } }), fakeTwin('ps1', { files: { 'p.txt': 'a\n' } })], [up], [], { ctx: { root: scratch('diagoff'), src: null, upref: '/unused', bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX } });
+      assert.ok(!rep.notes.some((n) => n.startsWith('AAI-ODD-DIAG')));
+    } finally { if (prev !== undefined) process.env.AAI_PARITY_ODD_DIAG = prev; }
+  });
+});
+
+// TEST-4032 (Spec-AC-09, D-HOSTCHECK source-path-windows and its control): on win32 every Source path line of the pin and every Source
+// line of a sync-conflicts report that the node and launcher twins wrote must be a drive letter, a colon and a backslash path.
+describe('TEST-4032 source-path-windows host check', () => {
+  const winPin = (n) => Array.from({ length: n }, (_, i) => `- Source path: C:\\Users\\r\\aai-parity-x\\fx\\src${i ? i : ''}\n`).join('');
+  const shPin = '# AAI Pin\n\n- Source path: /c/Users/r/aai-parity-x/syref\n';
+  const report = '# Sync conflicts\n\n- Source: C:\\Users\\r\\aai-parity-x\\fx\\src\n';
+  const files = (pin, rep) => ({ '.aai/system/AAI_PIN.md': pin, ...(rep ? { 'docs/ai/reports/sync-conflicts-20260101-000000.md': rep } : {}) });
+  const seed = (_s, target) => { fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, 'seed.txt'), 'seed\n'); };
+  const sy = (over = {}) => scen({ id: 'SY-01', steps: [{ op: 'sync', profile: 'core', flags: [], expect: '0' }], probes: ['.aai/system/AAI_PIN.md'], ...over });
+  const runWin = (twins, platform = 'win32', scenario = sy()) => M.runMatrix({
+    scenarios: [scenario], twins, rows: [], matrix: 'smoke', filtered: true,
+    ctx: { root: scratch('sp'), src: null, bash: 'bash', ps: 'pwsh', setup: seed, host: HOST_POSIX, platform },
+  });
+  const pick = (rep, id, twin, scenario = 'SY-01') => rep.host_checks.filter((e) => e.id === id && e.scenario === scenario && e.twin === twin);
+  const good = () => [fakeTwin('sh', { files: files(shPin, '# r\n\n- Source: /c/Users/r/aai-parity-x/syref\n') }), fakeTwin('node', { files: files(winPin(1), report) }), fakeTwin('launcher', { files: files(winPin(1), report) })];
+  test('WIN_ABS_RE accepts a drive letter colon backslash path and rejects the Git Bash spelling, a forward slash drive path, a UNC path and a bare drive', () => {
+    assert.ok(M.WIN_ABS_RE.test('C:\\Users\\r\\fx\\src'));
+    assert.ok(M.WIN_ABS_RE.test('d:\\x'));
+    for (const bad of ['/c/Users/r/fx/src', 'C:/Users/r/fx/src', '\\\\server\\share', 'C:', '', 'Users\\r', '1:\\x']) assert.equal(M.WIN_ABS_RE.test(bad), false, JSON.stringify(bad));
+  });
+  test('on win32 the node and launcher twins pass with the pin and the report line checked, and the control on the frozen sh pin reads bites', () => {
+    has('runMatrix');
+    const rep = runWin(good());
+    for (const twin of ['node', 'launcher']) {
+      const es = pick(rep, 'source-path-windows', twin);
+      assert.equal(es.length, 1, twin);
+      assert.equal(es[0].status, 'pass', es[0].detail);
+      assert.equal(es[0].checked, 2);
+    }
+    const c = pick(rep, 'source-path-windows-control', 'sh');
+    assert.equal(c.length, 1);
+    assert.equal(c[0].status, 'bites', c[0].detail);
+    assert.equal(c[0].checked, 1);
+    for (const line of ['AAI-HOST-CHECK source-path-windows SY-01 node pass checked=2', 'AAI-HOST-CHECK source-path-windows SY-01 launcher pass checked=2', 'AAI-HOST-CHECK source-path-windows-control SY-01 sh bites checked=1']) assert.ok(rep.notes.includes(line), line);
+    assert.ok(!rep.host_checks.some((e) => e.status === 'fail'), JSON.stringify(rep.host_checks));
+  });
+  test('SY-01 with fewer than two checked lines is a fail (vacuous), and the verdict is FAIL', () => {
+    has('runMatrix');
+    const rep = runWin([good()[0], fakeTwin('node', { files: files(winPin(1)) }), good()[2]]);
+    const [e] = pick(rep, 'source-path-windows', 'node');
+    assert.equal(e.status, 'fail');
+    assert.equal(e.checked, 1);
+    assert.match(e.detail, /at least 2/);
+    assert.equal(rep.verdict, 'FAIL');
+  });
+  test('a node twin that records the Git Bash spelling fails the predicate on the line it names', () => {
+    has('runMatrix');
+    const rep = runWin([good()[0], fakeTwin('node', { files: files(`${winPin(1)}- Source path: /c/Users/r/fx/src\n`, report) }), good()[2]]);
+    const [e] = pick(rep, 'source-path-windows', 'node');
+    assert.equal(e.status, 'fail');
+    assert.match(e.detail, /\/c\/Users\/r\/fx\/src/);
+    assert.equal(rep.verdict, 'FAIL');
+  });
+  test('the control fails when the frozen sh pin already holds the Windows spelling (the check would not catch the old bug) and when it holds no line', () => {
+    has('runMatrix');
+    const winSh = runWin([fakeTwin('sh', { files: files(winPin(2), report) }), good()[1], good()[2]]);
+    const c1 = pick(winSh, 'source-path-windows-control', 'sh')[0];
+    assert.equal(c1.status, 'fail');
+    assert.equal(winSh.verdict, 'FAIL');
+    const none = runWin([fakeTwin('sh', { files: files('# AAI Pin\n') }), good()[1], good()[2]]);
+    const c2 = pick(none, 'source-path-windows-control', 'sh')[0];
+    assert.equal(c2.status, 'fail');
+    assert.equal(c2.checked, 0);
+  });
+  test('on a POSIX host both entries read not-applicable with detail POSIX host and checked 0, whatever the paths are', () => {
+    has('runMatrix');
+    const rep = runWin([good()[0], fakeTwin('node', { files: files(shPin) }), good()[2]], 'linux');
+    for (const [id, twin] of [['source-path-windows', 'node'], ['source-path-windows', 'launcher'], ['source-path-windows-control', 'sh']]) {
+      const [e] = pick(rep, id, twin);
+      assert.equal(e.status, 'not-applicable', `${id} ${twin}`);
+      assert.equal(e.detail, 'POSIX host');
+      assert.equal(e.checked, 0);
+    }
+    assert.ok(rep.notes.includes('AAI-HOST-CHECK source-path-windows SY-01 node not-applicable checked=0'));
+    assert.ok(!rep.host_checks.some((e) => e.status === 'fail'), JSON.stringify(rep.host_checks));
+  });
+  test('the driver names WIN_ABS_RE as one constant line and reads process.platform itself', () => {
+    const src = fs.readFileSync(DRIVER, 'utf8');
+    assert.equal(src.split('const WIN_ABS_RE = /^[A-Za-z]:\\\\/;').length - 1, 1);
+    assert.ok(src.includes('ctx.platform || process.platform'));
+  });
+  test('install-parity.Tests.ps1 asserts the win32 host checks and the POSIX not-applicable entries and writes every AAI-HOST-CHECK line to the log', () => {
+    const f = fs.readFileSync(path.join(HERE, '..', 'install-parity.Tests.ps1'), 'utf8');
+    for (const c of ['Get-ParityHostCheckProblems', "'source-path-windows'", "'source-path-windows-control'", "'no-odd-root'", "'bites'", "'not-applicable'", 'AAI-HOST-CHECK', 'host_checks']) assert.ok(f.includes(c), c);
+    assert.ok(/Get-ParityHostCheckProblems -Report \$rep -IsWin \$script:IsWin/.test(f), 'the It block calls the function with the host flag');
+  });
+  const pwsh = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'], { encoding: 'utf8' });
+  const havePwsh = pwsh.status === 0;
+  const problems = (rep, win) => {
+    const f = fs.readFileSync(path.join(HERE, '..', 'install-parity.Tests.ps1'), 'utf8');
+    const m = /# BEGIN Get-ParityHostCheckProblems\n([\s\S]*?)# END Get-ParityHostCheckProblems/.exec(f);
+    assert.ok(m, 'the BEGIN and END markers of Get-ParityHostCheckProblems');
+    const r = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', `${m[1]}\n$rep = $env:PARITY_RPT | ConvertFrom-Json\n$p = @(Get-ParityHostCheckProblems -Report $rep -IsWin ($env:PARITY_WIN -eq '1'))\n$p | ForEach-Object { Write-Output ('PROBLEM: ' + $_) }\nWrite-Output ('COUNT=' + $p.Count)`],
+      { encoding: 'utf8', env: { ...process.env, PARITY_RPT: JSON.stringify(rep), PARITY_WIN: win ? '1' : '0' } });
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    return r.stdout.split(/\r?\n/).filter((l) => l.startsWith('PROBLEM: ')).map((l) => l.slice(9));
+  };
+  const hc = (id, scenario, twin, status, checked) => ({ id, scenario, twin, status, checked, detail: '' });
+  const winOk = () => [hc('source-path-windows', 'SY-01', 'launcher', 'pass', 2), hc('source-path-windows', 'SY-01', 'node', 'pass', 3), hc('source-path-windows-control', 'SY-01', 'sh', 'bites', 1), hc('no-odd-root', 'UP-01', 'launcher', 'pass', 12)];
+  const rpt = (host_checks, ids = ['SY-01', 'UP-01']) => ({ verdict: 'PASS', scenarios: ids.map((id) => ({ id })), host_checks });
+  test('the Pester assertion function (run under pwsh): a complete win32 report has no problem; a missing, failing, vacuous, duplicated or absent check on win32 is a problem', (t) => {
+    if (!havePwsh) { assert.ok(!process.env.CI, 'pwsh is required on CI'); t.skip('pwsh is not installed here'); return; }
+    assert.deepEqual(problems(rpt(winOk()), true), []);
+    const without = (pred) => winOk().filter((e) => !pred(e));
+    assert.match(problems(rpt(without((e) => e.id === 'source-path-windows-control')), true).join('\n'), /source-path-windows-control/);
+    assert.match(problems(rpt(without((e) => e.id === 'source-path-windows' && e.twin === 'node')), true).join('\n'), /source-path-windows.*node/);
+    assert.match(problems(rpt(without((e) => e.id === 'no-odd-root')), true).join('\n'), /no-odd-root/);
+    assert.match(problems(rpt(winOk().map((e) => (e.twin === 'launcher' && e.id === 'source-path-windows' ? { ...e, status: 'fail' } : e))), true).join('\n'), /launcher.*fail|fail.*launcher/);
+    assert.match(problems(rpt(winOk().map((e) => (e.twin === 'node' && e.id === 'source-path-windows' ? { ...e, checked: 1 } : e))), true).join('\n'), /checked 1/);
+    assert.match(problems(rpt(winOk().map((e) => (e.id === 'no-odd-root' ? { ...e, checked: 0 } : e))), true).join('\n'), /checked 0/);
+    assert.match(problems(rpt(winOk().map((e) => (e.id === 'source-path-windows-control' ? { ...e, status: 'pass' } : e))), true).join('\n'), /bites/);
+    assert.match(problems(rpt(winOk().concat([hc('source-path-windows', 'SY-01', 'node', 'pass', 5)])), true).join('\n'), /exactly one/);
+    assert.ok(problems({ verdict: 'PASS', scenarios: [{ id: 'SY-01' }] }, true).length > 0, 'a report with no host_checks on win32 is a problem');
+    assert.ok(problems(rpt(winOk(), ['HK-01']), true).length > 0, 'a win32 run that did not run SY-01 and UP-01 is a problem');
+    assert.match(problems(rpt(winOk().concat([hc('no-odd-root', 'UP-01', 'node', 'fail', 4)])), true).join('\n'), /fail/);
+  });
+  test('the Pester assertion function (run under pwsh): on POSIX the two Windows entries must read not-applicable when SY-01 ran, and nothing is asserted for a scenario that did not run', (t) => {
+    if (!havePwsh) { assert.ok(!process.env.CI, 'pwsh is required on CI'); t.skip('pwsh is not installed here'); return; }
+    const posix = () => [hc('source-path-windows', 'SY-01', 'launcher', 'not-applicable', 0), hc('source-path-windows', 'SY-01', 'node', 'not-applicable', 0), hc('source-path-windows-control', 'SY-01', 'sh', 'not-applicable', 0), hc('no-odd-root', 'UP-01', 'launcher', 'pass', 9)];
+    assert.deepEqual(problems(rpt(posix()), false), []);
+    assert.deepEqual(problems(rpt([], ['HK-01']), false), []);
+    assert.match(problems(rpt(posix().map((e) => (e.id === 'source-path-windows-control' ? { ...e, status: 'pass' } : e))), false).join('\n'), /not-applicable/);
+    assert.match(problems(rpt(posix().filter((e) => e.id !== 'no-odd-root')), false).join('\n'), /no-odd-root/);
   });
 });

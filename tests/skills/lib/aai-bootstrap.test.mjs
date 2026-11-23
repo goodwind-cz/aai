@@ -1743,7 +1743,7 @@ describe('TEST-3956 parity harness bootstrap pieces', () => {
   });
 
   test('TEST-3956 the twin registry holds the node twin restricted to bootstrap, update, hooks and sync and the argv lines follow D-PARITY', () => {
-    assert.deepEqual(Object.keys(PARITY.TWINS), ['sh', 'ps1', 'node']);
+    assert.deepEqual(Object.keys(PARITY.TWINS), ['sh', 'ps1', 'node', 'launcher']);
     assert.deepEqual(PARITY.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
     assert.equal(PARITY.TWINS.node.peers?.bootstrap, undefined);
     assert.equal(PARITY.TWINS.sh.ops, undefined);

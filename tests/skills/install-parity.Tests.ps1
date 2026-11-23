@@ -51,6 +51,56 @@ Describe 'install-parity driver, smoke matrix' {
       return $null
     }
 
+    # D-HOSTCHECK (node-first-phase5-closeout): the named host checks the driver puts in its report (host_checks). On win32 every required
+    # entry must be present, pass and have checked something (a missing entry, one that checked zero lines or a duplicate is a failure,
+    # never a pass); on POSIX the two Windows entries must read not-applicable. Both are asserted for the scenarios the report holds.
+    # BEGIN Get-ParityHostCheckProblems
+    function Select-ParityHostCheck {
+      param($Checks, [string]$Id, [string]$Scenario, [string]$Twin)
+      return @($Checks | Where-Object { $_.id -eq $Id -and $_.scenario -eq $Scenario -and $_.twin -eq $Twin })
+    }
+    function Get-ParityHostCheckProblems {
+      param($Report, [bool]$IsWin)
+      $problems = @()
+      $checks = @()
+      if ($Report.PSObject.Properties.Name -contains 'host_checks') { $checks = @($Report.host_checks | ForEach-Object { $_ }) }
+      $ran = @($Report.scenarios | ForEach-Object { $_.id })
+      foreach ($e in $checks) { if ($e.status -eq 'fail') { $problems += ('host check ' + $e.id + ' ' + $e.scenario + ' ' + $e.twin + ' failed: ' + $e.detail) } }
+      if ($IsWin) {
+        foreach ($sc in @('SY-01', 'UP-01')) { if ($ran -notcontains $sc) { $problems += ('win32 run did not run ' + $sc + ', so its host checks are missing') } }
+        foreach ($tw in @('launcher', 'node')) {
+          $m = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows' -Scenario 'SY-01' -Twin $tw
+          if ($m.Count -ne 1) { $problems += ('expected exactly one source-path-windows SY-01 ' + $tw + ' entry, found ' + $m.Count); continue }
+          if ($m[0].status -ne 'pass') { $problems += ('source-path-windows SY-01 ' + $tw + ' is ' + $m[0].status + ', not pass') }
+          if ([int]$m[0].checked -lt 2) { $problems += ('source-path-windows SY-01 ' + $tw + ' checked ' + $m[0].checked + ' lines, at least 2 are required') }
+        }
+        $c = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows-control' -Scenario 'SY-01' -Twin 'sh'
+        if ($c.Count -ne 1) { $problems += ('expected exactly one source-path-windows-control SY-01 sh entry, found ' + $c.Count) }
+        elseif ($c[0].status -ne 'bites') { $problems += ('source-path-windows-control is ' + $c[0].status + ', not bites') }
+        $o = Select-ParityHostCheck -Checks $checks -Id 'no-odd-root' -Scenario 'UP-01' -Twin 'launcher'
+        if ($o.Count -ne 1) { $problems += ('expected exactly one no-odd-root UP-01 launcher entry, found ' + $o.Count) }
+        else {
+          if ($o[0].status -ne 'pass') { $problems += ('no-odd-root UP-01 launcher is ' + $o[0].status + ', not pass') }
+          if ([int]$o[0].checked -lt 1) { $problems += ('no-odd-root UP-01 launcher checked ' + $o[0].checked + ' root entries, at least 1 is required') }
+        }
+      } else {
+        if ($ran -contains 'SY-01') {
+          foreach ($tw in @('launcher', 'node')) {
+            $m = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows' -Scenario 'SY-01' -Twin $tw
+            if ($m.Count -ne 1 -or $m[0].status -ne 'not-applicable') { $problems += ('source-path-windows SY-01 ' + $tw + ' must read not-applicable on a POSIX host') }
+          }
+          $c = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows-control' -Scenario 'SY-01' -Twin 'sh'
+          if ($c.Count -ne 1 -or $c[0].status -ne 'not-applicable') { $problems += 'source-path-windows-control must read not-applicable on a POSIX host' }
+        }
+        if ($ran -contains 'UP-01') {
+          $o = Select-ParityHostCheck -Checks $checks -Id 'no-odd-root' -Scenario 'UP-01' -Twin 'launcher'
+          if ($o.Count -ne 1 -or $o[0].status -ne 'pass' -or [int]$o[0].checked -lt 1) { $problems += 'no-odd-root UP-01 launcher must read pass with at least 1 root entry checked' }
+        }
+      }
+      return $problems
+    }
+    # END Get-ParityHostCheckProblems
+
     $script:Bash = Get-BashPath
     $node = Invoke-NativeCaptured -Exe 'node' -Arguments @('--version')
     $script:NodeCode = $node.Code
@@ -79,9 +129,18 @@ Describe 'install-parity driver, smoke matrix' {
     }
     $r.Code | Should -Be 0
     $rep = Get-Content -LiteralPath $script:Report -Raw | ConvertFrom-Json
-    # Driver notes belong in every run log, green or not.
+    # Driver notes belong in every run log, green or not; the AAI-HOST-CHECK and AAI-ODD-DIAG lines are the ones the hosted run is read for.
     @($rep.notes) | Where-Object { $_ } | ForEach-Object { Write-Host $_ }
     $rep.verdict | Should -Be 'PASS'
+  }
+
+  It 'holds the named host checks the platform requires' {
+    $rep = Get-Content -LiteralPath $script:Report -Raw | ConvertFrom-Json
+    $hostLines = @($rep.notes | Where-Object { $_ -like 'AAI-HOST-CHECK *' })
+    Write-Host ('AAI-HOST-CHECK lines in this run: ' + $hostLines.Count)
+    $problems = @(Get-ParityHostCheckProblems -Report $rep -IsWin $script:IsWin)
+    foreach ($p in $problems) { Write-Host ('HOST-CHECK PROBLEM: ' + $p) }
+    ($problems -join "`n") | Should -Be ''
   }
 
   It 'compares exactly the scenarios the smoke tier lists' {

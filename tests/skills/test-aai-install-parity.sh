@@ -200,7 +200,8 @@ test_3565_default_matrix() {
     if (r.verdict !== "PASS") return "verdict " + r.verdict;
     if (r.uncovered.length || r.stale.length) return "uncovered or stale rows in a PASS report";
     for (const s of r.scenarios) if (s.broken.length) return s.id + " is broken: " + s.broken.join("; ");
-    if (r.twins[0] !== "sh" || !r.twins.includes("ps1")) return "twins " + r.twins.join(",");
+    if (r.twins[0] !== "sh" || !["ps1", "node", "launcher"].every((t) => r.twins.includes(t))) return "twins " + r.twins.join(",");
+    if (!r.pairs.includes("node:launcher")) return "pair node:launcher missing from " + r.pairs.join(" ");
     return true;' || log_fail "TEST-3565: the report is not a clean PASS"
   local want got
   want="$(driver list --matrix "$m")" || log_fail "TEST-3565: list --matrix $m failed"
@@ -341,9 +342,9 @@ test_3568_pester() {
   [[ -n "$line" ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3568: Pester printed no result line (exit $rc)"; }
   [[ "$line" =~ passed=([0-9]+)\ skipped=([0-9]+)\ failed=([0-9]+)\ containers=([0-9]+) ]] || log_fail "TEST-3568: unreadable result line: $line"
   passed="${BASH_REMATCH[1]}"; skipped="${BASH_REMATCH[2]}"; failed="${BASH_REMATCH[3]}"; containers="${BASH_REMATCH[4]}"
-  if [[ "$rc" != 0 || "$passed" -lt 2 || "$skipped" != 0 || "$failed" != 0 || "$containers" != 0 ]]; then
+  if [[ "$rc" != 0 || "$passed" -lt 3 || "$skipped" != 0 || "$failed" != 0 || "$containers" != 0 ]]; then
     printf '%s\n' "$out" >&2
-    log_fail "TEST-3568: Pester exit $rc, $line (want at least 2 passed, 0 skipped, 0 failed, 0 failed containers)"
+    log_fail "TEST-3568: Pester exit $rc, $line (want at least 3 passed, 0 skipped, 0 failed, 0 failed containers)"
   fi
   # inspection: the file's contract (D-PESTER)
   local f="$PESTER_FILE" c
@@ -352,6 +353,10 @@ test_3568_pester() {
   done
   grep -qF -- "'--matrix', 'smoke'" "$f" || log_fail "TEST-3568: the driver call does not run the smoke matrix"
   if grep -qE -- '-Skip|Set-ItResult|-Pending' "$f"; then log_fail "TEST-3568: install-parity.Tests.ps1 skips or pends a case"; fi
+  # D-HOSTCHECK (node-first-phase5-closeout): the win32 host-check assertions are part of the file contract, and the log carries every host-check line
+  for c in 'Get-ParityHostCheckProblems' 'AAI-HOST-CHECK' "'source-path-windows-control'" "'no-odd-root'"; do
+    grep -qF -- "$c" "$f" || log_fail "TEST-3568: install-parity.Tests.ps1 does not mention $c"
+  done
   local n
   n="$(grep -cF 'Invoke-NativeCaptured' "$f" || true)"
   [[ "$n" -ge 4 ]] || log_fail "TEST-3568: only $n Invoke-NativeCaptured uses (the driver, git --exec-path, node and bash probes)"
@@ -417,7 +422,25 @@ test_3569_tiers_and_timing() {
 
 test_3570_trackers() {
   run_node_tests TEST-3570
-  log_pass "TEST-3570: every allowlist tracker is accepted or a known follow-up naming the row's path; the seven seed ids exist"
+  log_pass "TEST-3570: every allowlist tracker is accepted or a known follow-up naming the row's path; the seven seed ids exist; the committed list parses with the four twins sh, ps1, node and launcher"
+}
+
+test_4030_launcher_twin() {
+  need_tool TEST-4030 git || return 0
+  need_tool TEST-4030 bash || return 0
+  run_node_tests TEST-4030
+  log_pass "TEST-4030: the launcher twin is registered fourth, runs the shipped aai-sync.sh and aai-update.sh, pairs only with node, and passes against node on SY-01 and UP-01"
+}
+
+test_4031_no_odd_root() {
+  run_node_tests TEST-4031
+  log_pass "TEST-4031: a node or launcher twin step that births a non-ASCII root entry fails the no-odd-root check; the diagnostic is off by default"
+}
+
+test_4032_source_path_windows() {
+  run_node_tests TEST-4032
+  need_tool TEST-4032 pwsh || return 0
+  log_pass "TEST-4032: the source-path-windows predicate, its control, the POSIX not-applicable entries and the Pester assertions that cannot pass vacuously"
 }
 
 selected_in() {
@@ -517,6 +540,9 @@ main() {
   test_3571_wiring
   test_3572_rfc
   test_3934_odd_name_does_not_crash
+  test_4030_launcher_twin
+  test_4031_no_odd_root
+  test_4032_source_path_windows
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
