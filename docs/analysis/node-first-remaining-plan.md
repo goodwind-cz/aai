@@ -71,6 +71,8 @@ under 5.1 and 7, and a scratch `aai-sync` install proving the launchers.
 | 11 | pre-commit-installer-on-node | (a) one resolved mode and guard policy through guard-config; (b) slot attestation and upgrade; (c) launchers and pin migration | yes |
 | 12 | sync-on-node | (a) gitignore reconcile; (b) profile, copy plan, prune; (c) drop legacy-layout moves; (d) launchers, delete twins | yes |
 
+Status (2026-11-22): rides 1 to 12 are delivered; section 6 re-measures what remains.
+
 Optional later: move only the `iso_*` isolation policy of aai-run-tests
 into Node for testability; supervision stays in bash.
 
@@ -99,3 +101,38 @@ into Node for testability; supervision stays in bash.
 
 Caveat: line counts and timings are single-host measurements on one
 commit; they size the rides, they are not acceptance thresholds.
+
+## 6. Re-measure after ride 12 (2026-11-22)
+
+Measured with the method of section 1 (non-blank, non-comment lines, `/usr/bin/grep -cvE` under bash) over every tracked `.sh` and `.ps1` under `.aai/scripts/`, `lib/` included, on the tree that delivers ride 12 (sync-on-node). A file is a `launcher` when it has 20 code lines or fewer and names no policy (git, a profile, `.gitignore`, `PROFILES`); a `deprecation launcher` when its first lines say RETIRED; `kept native` when the table "Kept native scripts" of RFC-0017 names it with its reason; otherwise `logic`. The table lists every file that is not a `launcher`; the launchers are not listed. Rides 1 to 12 of section 3 are delivered; this section says what is left of phase 5.
+
+| File | Code lines | Class | Reason or next step |
+|---|---|---|---|
+| `.aai/scripts/aai-canonicalize.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/aai-canonicalize.sh` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/aai-release.ps1` | 25 | logic | the PowerShell launcher marshals the parameter block into Node arguments, which is more than the 20-line form of the other launchers. Next step: reduce it to the argument marshalling of aai-sync.ps1 or list it as kept native |
+| `.aai/scripts/aai-run-tests.ps1` | 525 | kept native | a WSL and Git-Bash dispatcher of the bash runner, not a twin of it |
+| `.aai/scripts/aai-run-tests.sh` | 540 | kept native | supervises suite processes, timeouts and orphan cleanup in bash; the per-suite cost is the isolation clone, not the shell |
+| `.aai/scripts/aai-win-selftest.ps1` | 270 | kept native | inherently a PowerShell engine probe |
+| `.aai/scripts/autonomous-loop.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/autonomous-loop.sh` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/claude-hook-gate.sh` | 63 | logic | the bash pre-filter of the hook-gate ride (an L3 protected surface): it starts no Node process for a command that cannot concern a gate. Next step: owner decision to list it as kept native with that reason, or move the pre-filter into the Node module behind a 20-line launcher |
+| `.aai/scripts/lib/append-lock.sh` | 50 | logic | serialised appends to the append-only ledgers in bash; the Node side has lib/append-lock.mjs. Next step: retire with the last bash caller, or list as kept native |
+| `.aai/scripts/lib/git-bash-path.sh` | 45 | logic | in-process Windows to Git Bash path translation, sourced by aai-run-tests.sh. Next step: list as kept native with the runner, or fold into it |
+| `.aai/scripts/lib/repo-tripwire.sh` | 158 | logic | the shipping-repository write tripwire, sourced by aai-run-tests.sh. Next step: as lib/test-residue.sh |
+| `.aai/scripts/lib/test-residue.sh` | 526 | logic | removes the residue one test run provably created, sourced by aai-run-tests.sh. Next step: list it as kept native with the runner it serves, or port it with the optional move of the isolation policy to Node |
+| `.aai/scripts/migrate-yaml-to-jsonl.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/migrate-yaml-to-jsonl.sh` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/pre-commit-checks.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/pre-commit-checks.sh` | 390 | kept native | git hooks always run under Git's shell; an L3 protected surface |
+
+- Twin duplication: 0 code lines (a pair counts only when both files are logic; the only pair left that is not a launcher pair, `aai-run-tests`, is kept native and its `.ps1` is a dispatcher, not a twin).
+- Parity harness and Pester (H1 to H3): pending, read from the pull request's ps1-quality run (the harness with the sync scenarios on pairs sh:ps1, sh:node and ps1:node, `aai-sync.Tests.ps1` with its five cases, and the Windows PowerShell 5.1 smoke through the launcher).
+- Open P1 and P2 follow-ups whose ref is one of the twelve roadmap refs of section 3, `install-path-parity-harness` or starts with `node-first` (from `follow-ups.mjs list --status open --json`; the owner sign-off items `fu-amend-*` are counted by `spec-amend.mjs list`):
+
+| Follow-up | Severity | Ref |
+|---|---|---|
+| `fu-cfshare-redact-escape-robust` | P2 | cloudflare-share-on-node |
+| `fu-parity-win-odd-root-dirs` | P2 | install-path-parity-harness |
+
+Phase 5 is not done: six files still carry logic, two P2 follow-ups of the plan's refs are open and the hosted checks are not yet read. RFC-0017 keeps the status `in progress` and its row names this list.

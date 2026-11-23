@@ -478,7 +478,7 @@ export function moduleShapeProblems(source) {
   for (const m of source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) specs.push(m[1]);
   for (const m of source.matchAll(/\b(?:import|require)\(\s*['"]([^'"]+)['"]/g)) specs.push(m[1]);
   for (const spec of specs) {
-    if (!spec.startsWith('node:')) problems.push(`import of ${spec} is not a node: specifier`);
+    if (!spec.startsWith('node:') && spec !== './lib/resolve-base.mjs') problems.push(`import of ${spec} is not a node: specifier or the shared base library`);
     if (NETWORK_MODULES.includes(spec.replace(/^node:/, ''))) problems.push(`import of the network module ${spec}`);
   }
   if (/[^\x00-\x7f]/.test(source)) problems.push('non-ASCII character');

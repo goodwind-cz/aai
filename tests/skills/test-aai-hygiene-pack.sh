@@ -22,6 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 . "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
+# shellcheck source=lib/git-env-scrub.sh
+. "$SCRIPT_DIR/lib/git-env-scrub.sh"
 
 # Set by test_113 while a disposable detached worktree is live, so the EXIT
 # trap below removes it with a targeted `git worktree remove` (HAZ-WORKTREE)
@@ -1102,8 +1104,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 142 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 142 (pin moved for the aai-hook-installer-node and aai-hook-installer-docs suites) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 144 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 144 (pin moved for the aai-sync-node and aai-sync-docs suites of sync-on-node) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -4362,6 +4364,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   # diff HEAD` either.
   mkdir -p "$wt/tests/skills/lib"
   cp "$PROJECT_ROOT/tests/skills/lib/pipe-safe.sh" "$wt/tests/skills/lib/pipe-safe.sh"
+  cp "$PROJECT_ROOT/tests/skills/lib/git-env-scrub.sh" "$wt/tests/skills/lib/git-env-scrub.sh"
 
   cmp -s "$PROJECT_ROOT/$HSK_GENERATOR_REL" "$wt/$HSK_GENERATOR_REL" \
     || log_fail "test_113: nested worktree did not inherit the current seeded generator bytes"
@@ -4471,6 +4474,7 @@ test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper reg
   # clone.
   mkdir -p "$seeded_root/tests/skills/lib"
   cp "$shipping_root/tests/skills/lib/pipe-safe.sh" "$seeded_root/tests/skills/lib/pipe-safe.sh"
+  cp "$shipping_root/tests/skills/lib/git-env-scrub.sh" "$seeded_root/tests/skills/lib/git-env-scrub.sh"
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
@@ -4904,7 +4908,8 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
     ( cd "$r" && git init -q . )
     [[ -f "$cfgdir/docs-audit.yaml" ]] && cp "$cfgdir/docs-audit.yaml" "$r/docs/ai/docs-audit.yaml"
     vendor_hook_installer "$r" sh
-    ( cd "$r" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$d/gitconfig" bash .aai/scripts/install-pre-commit-hook.sh ) >/dev/null 2>&1 || irc=$?
+    aai_assert_hooks_under "$r" "$TEST_DIR" || log_fail "TEST-618: the hooks path of $r lies outside the scratch root"
+    ( cd "$r" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh ) >/dev/null 2>&1 || irc=$?
     [[ "$irc" == 0 ]] || log_fail "TEST-618: the plain installer run exited $irc in $r"
     [[ -f "$r/.git/hooks/pre-commit" ]] || log_fail "TEST-618: the plain installer run wrote no pre-commit hook in $r"
     if [[ -f "$r/.git/hooks/reference-transaction" ]]; then echo armed; else echo declined; fi
@@ -5017,14 +5022,16 @@ sg_repo() {
 sg_install() {
   local d="$1"; shift
   [[ -n "$d" && "$d" == /* ]] || log_fail "sg_install: fixture path must be absolute and non-empty (got '$d')"
-  (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh "$@")
+  aai_assert_hooks_under "$d" "$TEST_DIR" || return 1
+  (cd "$d" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh "$@")
 }
 
 # sg_install_ps1 <dir> [args...] — the .ps1 twin, same discipline (pwsh only).
 sg_install_ps1() {
   local d="$1"; shift
   [[ -n "$d" && "$d" == /* ]] || log_fail "sg_install_ps1: fixture path must be absolute and non-empty (got '$d')"
-  (cd "$d" && pwsh -NoProfile -File .aai/scripts/install-pre-commit-hook.ps1 "$@")
+  aai_assert_hooks_under "$d" "$TEST_DIR" || return 1
+  (cd "$d" && aai_git_scrubbed pwsh -NoProfile -File .aai/scripts/install-pre-commit-hook.ps1 "$@")
 }
 
 # sg_hook <dir> <name> — the path git itself resolves for hooks/<name>.

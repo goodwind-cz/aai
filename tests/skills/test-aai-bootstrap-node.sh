@@ -445,14 +445,14 @@ test_3956_parity_bootstrap() {
     process.stdout.write(bad.join("; "));
   ' "$work/bs.json")"
   [[ -z "$out" ]] || { cat "$work/bs.out" >&2; log_fail "TEST-3956: $out"; }
-  # the node twin runs on bootstrap scenarios only
+  # the node twin runs the sync scenarios too since sync-on-node run 6c (bootstrap, update, hooks and sync)
   rc=0
   driver_run "$work/sy.json" --matrix smoke --twins sh,ps1,node --scenario SY-01 > "$work/sy.out" 2>&1 || rc=$?
   [[ "$rc" == 0 ]] || { cat "$work/sy.out" >&2; log_fail "TEST-3956: the SY-01 run exited $rc"; }
   out="$(node -e '
     const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const twins = [...new Set(r.scenarios[0].steps.map((x) => x.twin))].sort().join(",");
-    process.stdout.write(twins === "ps1,sh" ? "" : "SY-01 ran twins " + twins);
+    process.stdout.write(twins === "node,ps1,sh" ? "" : "SY-01 ran twins " + twins);
   ' "$work/sy.json")"
   [[ -z "$out" ]] || log_fail "TEST-3956: $out"
   run_node_tests TEST-3956

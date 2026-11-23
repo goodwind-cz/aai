@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-22T12:07:38.081Z",
+  "generatedAt": "2026-11-22T20:37:09.637Z",
   "project": "aai",
   "counts": {
-    "delivered": 379,
+    "delivered": 380,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 208021892
+    "tokens_total": 211994147
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -232,7 +232,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0309-spec-installer-l3-protected.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-installer-l3-protected-r2-20261122T114241Z.md"
+      "review": "docs/ai/reviews/review-installer-l3-protected-r3-20261122T121050Z.md"
+    },
+    {
+      "ref": "sync-on-node",
+      "title": "Run the AAI layer sync as one Node module behind thin launchers",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0265-sync-on-node.md",
+      "closed_on": "2026-11-22",
+      "agent_minutes": 477,
+      "token_total": 3972255,
+      "spec": "docs/specs/SPEC-0310-spec-sync-on-node.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-sync-on-node-20261122T175713Z.md"
     },
     {
       "ref": "update-on-node",
@@ -5186,7 +5199,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0309-spec-installer-l3-protected.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-installer-l3-protected-r2-20261122T114241Z.md"
+          "review": "docs/ai/reviews/review-installer-l3-protected-r3-20261122T121050Z.md"
+        },
+        {
+          "ref": "sync-on-node",
+          "title": "Run the AAI layer sync as one Node module behind thin launchers",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0265-sync-on-node.md",
+          "closed_on": "2026-11-22",
+          "agent_minutes": 477,
+          "token_total": 3972255,
+          "spec": "docs/specs/SPEC-0310-spec-sync-on-node.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-sync-on-node-20261122T175713Z.md"
         },
         {
           "ref": "update-on-node",

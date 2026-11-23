@@ -166,7 +166,9 @@ function writeAtomic(filePath, contents) {
   const dir = path.dirname(filePath);
   const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.tmp`);
   try {
-    fs.writeFileSync(tmp, contents);
+    // a pre-existing entry at the temp name (a link included) is removed, never written through (DR-31)
+    try { fs.unlinkSync(tmp); } catch { /* usually absent */ }
+    fs.writeFileSync(tmp, contents, { flag: 'wx' });
     fs.renameSync(tmp, filePath);
   } catch (err) {
     try { fs.unlinkSync(tmp); } catch { /* the temp file may never have existed */ }
@@ -338,11 +340,15 @@ export function mergeHooksJson(tplPath, dstPath, opts = {}) {
 // untouched" for a target that was written).
 function writeShipped(shippedPath, tplRaw) {
   if (!shippedPath) return null;
+  // DR-31: a snapshot that is a link is replaced by a regular file, never written through (the link may leave the target)
+  let isLink = false;
+  try { isLink = fs.lstatSync(shippedPath).isSymbolicLink(); } catch { /* absent */ }
   try {
-    if (fs.existsSync(shippedPath) && fs.readFileSync(shippedPath, 'utf8') === tplRaw) return null;
+    if (!isLink && fs.existsSync(shippedPath) && fs.readFileSync(shippedPath, 'utf8') === tplRaw) return null;
   } catch { /* unreadable: rewrite below */ }
   try {
     fs.mkdirSync(path.dirname(shippedPath), { recursive: true });
+    if (isLink) fs.unlinkSync(shippedPath);
     fs.writeFileSync(shippedPath, tplRaw);
     return null;
   } catch (err) {

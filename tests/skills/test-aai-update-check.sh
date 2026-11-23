@@ -138,6 +138,10 @@ build_sync_source() {
   local src="$1" origin="${2:-https://example.invalid/goodwind-cz/aai.git}"
   mkdir -p "$src/.aai/scripts"
   cp "$SYNC_SH" "$src/.aai/scripts/aai-sync.sh"
+  # the launcher runs the Node module and the three libs it imports (sync-on-node run 6a)
+  mkdir -p "$src/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/aai-sync.mjs" "$src/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/resolve-base.mjs" "$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.mjs" "$PROJECT_ROOT/.aai/scripts/lib/merge-hooks-json.mjs" "$src/.aai/scripts/lib/"
   echo "marker-from-source" > "$src/.aai/AGENTS.md"
   echo "SYNCED_MARKER_$(date +%s)" > "$src/.aai/system-marker.txt"
   git -C "$src" init -q -b main

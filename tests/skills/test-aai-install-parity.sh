@@ -454,8 +454,8 @@ test_3571_wiring() {
   push="$(awk '/^  push:/{s=1;next} /^  pull_request:/{s=0} s && /^      - /' "$wf")"
   pr="$(awk '/^  pull_request:/{s=1;next} /^  workflow_dispatch/{s=0} s && /^      - /' "$wf")"
   [[ -n "$push" && "$push" == "$pr" ]] || log_fail "TEST-3571: the push and pull_request path lists of ps1-quality.yml differ or are empty"
-  for e in .aai/scripts/aai-sync.sh .aai/scripts/aai-update.sh .aai/scripts/install-pre-commit-hook.sh .aai/scripts/lib/gitignore-block.sh \
-    .aai/scripts/lib/merge-hooks-json.mjs 'hooks/**' tests/skills/lib/install-parity.mjs tests/skills/lib/install-parity-allowlist.tsv; do
+  for e in .aai/scripts/aai-sync.sh .aai/scripts/aai-update.sh .aai/scripts/install-pre-commit-hook.sh .aai/scripts/aai-sync.mjs .aai/scripts/lib/resolve-base.mjs .aai/scripts/lib/gitignore-block.mjs \
+    'tests/fixtures/sync-reference/**' tests/skills/lib/sync-reference.mjs .aai/scripts/lib/merge-hooks-json.mjs 'hooks/**' tests/skills/lib/install-parity.mjs tests/skills/lib/install-parity-allowlist.tsv; do
     [[ $'\n'"$push"$'\n' == *$'\n'"      - '$e'"$'\n'* ]] || log_fail "TEST-3571: the ps1-quality.yml path lists lack $e"
   done
   # The Windows parity Pester runs in its own job (own timeout, own elapsed line) under both engines and is excluded from the

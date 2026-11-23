@@ -102,6 +102,7 @@ core:
   - .aai/scripts/lib/github-checks.mjs
   - .aai/scripts/aai-run-tests.ps1
   - .aai/scripts/aai-run-tests.sh
+  - .aai/scripts/aai-sync.mjs
   - .aai/scripts/aai-sync.ps1
   - .aai/scripts/aai-sync.sh
   - .aai/scripts/aai-update.mjs
@@ -199,7 +200,7 @@ core:
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs
   - .aai/scripts/lib/git-bash-path.sh
-  - .aai/scripts/lib/gitignore-block.sh
+  - .aai/scripts/lib/gitignore-block.mjs
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness-shims.mjs
   - .aai/scripts/lib/harness.mjs
@@ -217,6 +218,7 @@ core:
   # every other shared .aai/scripts/lib/*.mjs entry in this list.
   - .aai/scripts/lib/pr-sweep.mjs
   - .aai/scripts/lib/recheck.mjs
+  - .aai/scripts/lib/resolve-base.mjs
   - .aai/scripts/lib/repo-tripwire.sh
   - .aai/scripts/lib/runtime-file.mjs
   - .aai/scripts/lib/session-lock.mjs

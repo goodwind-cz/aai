@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (46)
+## Product (47)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -61,6 +61,7 @@ _None._
 | roadmap | roadmap | 1 | docs/product/roadmap.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | routing-table-freshness | routing-table-freshness | 1 | docs/product/routing-table-freshness.md |
+| sync-on-node | sync-on-node | 1 | docs/product/sync-on-node.md |
 | telemetry | telemetry | 6 | docs/product/telemetry.md |
 | test-residue-safe-cleanup | test-residue-safe-cleanup | 2 | docs/product/test-residue-safe-cleanup.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
@@ -68,7 +69,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (691)
+## Done (693)
 
 | ID | Type | Path |
 |---|---|---|
@@ -331,6 +332,7 @@ _None._
 | CHANGE-0262 | issues | docs/issues/CHANGE-0262-update-on-node.md |
 | CHANGE-0263 | issues | docs/issues/CHANGE-0263-pre-commit-installer-on-node.md |
 | CHANGE-0264 | issues | docs/issues/CHANGE-0264-installer-l3-protected.md |
+| CHANGE-0265 | issues | docs/issues/CHANGE-0265-sync-on-node.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -761,6 +763,7 @@ _None._
 | SPEC-0307 | specs | docs/specs/SPEC-0307-spec-update-on-node.md |
 | SPEC-0308 | specs | docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md |
 | SPEC-0309 | specs | docs/specs/SPEC-0309-spec-installer-l3-protected.md |
+| SPEC-0310 | specs | docs/specs/SPEC-0310-spec-sync-on-node.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -796,12 +799,10 @@ _None._
 
 _None._
 
-## Broken references (592)
+## Broken references (611)
 
 | Source | Reference | Status |
 |---|---|---|
-| .aai/scripts/aai-sync.ps1 | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
-| .aai/scripts/aai-sync.sh | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
 | .aai/scripts/deslop-unrequested.mjs | docs/ai/validation/validation-20260815T085528Z-...-round5.md | NOT FOUND |
 | .aai/scripts/deslop-unrequested.mjs | docs/issues/CHANGE-0145-...md | NOT FOUND |
 | .aai/scripts/generate-overview.mjs | docs/issues/team/foo.md | NOT FOUND |
@@ -809,11 +810,26 @@ _None._
 | .aai/scripts/lib/repo-tripwire.sh | docs/other.md | NOT FOUND |
 | .aai/scripts/migrate-state-to-local.mjs | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/spec-lint.mjs | docs/analysis/altitude-replay.md | NOT FOUND |
+| tests/fixtures/sync-reference/aai-sync.ps1 | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
+| tests/fixtures/sync-reference/aai-sync.sh | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/lib/aai-bootstrap.test.mjs | docs/other.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/AAI_PIN.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/AUTONOMOUS_LOOP.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/DYNAMIC_SKILLS.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/LOCKS.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/SUPERPOWERS_INTEGRATION.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/project-overrides/copilot-instructions.project.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/ai/reports/sync-conflicts-20260506-070809.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/knowledge/NEW.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/roles/role.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/specs/SPEC-1.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/templates/t.md | NOT FOUND |
+| tests/skills/lib/aai-sync.test.mjs | docs/workflow/flow.md | NOT FOUND |
 | tests/skills/lib/aai-update.test.mjs | docs/ai/reports/sync-conflicts-b.md | NOT FOUND |
 | tests/skills/lib/aai-update.test.mjs | docs/ai/reports/sync-conflicts-m.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/base.md | NOT FOUND |
@@ -1380,6 +1396,12 @@ _None._
 | tests/skills/test-aai-suite-select.sh | docs/project-sessions/x.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/rfc/RFC-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/specs/SPEC-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-sync-docs.sh | docs/ai/AAI_PIN.md | NOT FOUND |
+| tests/skills/test-aai-sync-docs.sh | docs/ai/AUTONOMOUS_LOOP.md | NOT FOUND |
+| tests/skills/test-aai-sync-docs.sh | docs/ai/DYNAMIC_SKILLS.md | NOT FOUND |
+| tests/skills/test-aai-sync-docs.sh | docs/ai/LOCKS.md | NOT FOUND |
+| tests/skills/test-aai-sync-docs.sh | docs/ai/SUPERPOWERS_INTEGRATION.md | NOT FOUND |
+| tests/skills/test-aai-sync-docs.sh | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
 | tests/skills/test-aai-sync-seed.sh | docs/x.md | NOT FOUND |
 | tests/skills/test-aai-tdd.sh | docs/specs/SPEC-CHANGE-001.md | NOT FOUND |
 | tests/skills/test-aai-test-residue.sh | docs/specs/fixture-spec.md | NOT FOUND |

@@ -721,6 +721,40 @@ test_4002_workflow_names_hook_installer() {  # Spec-AC-03
   log_pass "TEST-4002: WORKFLOW.md names the hook installer among the protected surfaces"
 }
 
+# --- TEST-4023: the guard-config lib is an L3 protected surface -----------------
+# sync-on-node Spec-AC-23 (owner-authorised scope addition, same shape as TEST-4001/4002).
+test_4023_guard_config_is_l3_protected() {  # Spec-AC-23
+  log_info "Test: lib/guard-config.mjs is on both protected_paths_l3 lists, in WORKFLOW.md and selected FULL_RUN protected-l3 (TEST-4023)..."
+  local g=".aai/scripts/lib/guard-config.mjs" w="$PROJECT_ROOT/.aai/workflow/WORKFLOW.md" block sel
+  node -e '
+    const fs = require("fs");
+    const [root, want] = process.argv.slice(1);
+    import(root + "/.aai/scripts/lib/docs-audit-core.mjs").then((m) => {
+      const live = m.loadConfig(root).protected_paths_l3 || [];
+      const tpl = [];
+      let inBlock = false;
+      for (const line of fs.readFileSync(root + "/.aai/templates/docs-audit.template.yaml", "utf8").split("\n")) {
+        if (/^protected_paths_l3:\s*$/.test(line)) { inBlock = true; continue; }
+        if (!inBlock) continue;
+        const it = /^\s+-\s+(\S+)\s*$/.exec(line);
+        if (it) { tpl.push(it[1]); continue; }
+        if (line.trim() === "" || /^\s*#/.test(line)) continue;
+        break;
+      }
+      const miss = [];
+      if (!live.includes(want)) miss.push("live:" + want);
+      if (!tpl.includes(want)) miss.push("template:" + want);
+      if (miss.length) { console.error("missing from protected_paths_l3: " + miss.join(" ")); process.exit(1); }
+    }).catch((e) => { console.error(String(e)); process.exit(1); });
+  ' "$PROJECT_ROOT" "$g" || log_fail "TEST-4023: $g must be on both protected_paths_l3 lists"
+  block="$(awk '/^- guard config:/{f=1; print; next} f && /^  /{print; next} {f=0}' "$w")"
+  [[ -n "$block" ]] || log_fail "TEST-4023: WORKFLOW.md must carry a '- guard config:' protected-surface bullet"
+  assert_payload_contains "$block" "$g" "TEST-4023: the guard config bullet must name $g, got: $block"
+  sel="$(printf '%s\n' "$g" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - 2>&1)" || true
+  assert_payload_contains "$sel" "FULL_RUN reason=protected-l3 path=$g" "TEST-4023: the selector must name $g protected-l3, got: $sel"
+  log_pass "TEST-4023: lib/guard-config.mjs is on the live and seed protected_paths_l3 lists, in WORKFLOW.md and selected protected-l3"
+}
+
 # --- TEST-009: WORKFLOW gate table + protected_paths_l3 config -------------------
 
 test_009_workflow_and_config() {
@@ -1356,6 +1390,7 @@ main() {
   test_009_workflow_and_config
   test_4001_installer_on_both_l3_lists
   test_4002_workflow_names_hook_installer
+  test_4023_guard_config_is_l3_protected
   # test_011..017 run before test_010. Historically test_010 re-ran
   # tests/skills/test-aai-prompt-diet.sh, which carried a documented
   # PRE-EXISTING byte-budget shortfall (LEARNED 2026-07-17) that aborted this

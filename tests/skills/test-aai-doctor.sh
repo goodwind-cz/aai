@@ -36,6 +36,8 @@ TEST_NAME="aai-doctor"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 . "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
+# shellcheck source=lib/git-env-scrub.sh
+. "$SCRIPT_DIR/lib/git-env-scrub.sh"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
@@ -1936,7 +1938,7 @@ cat17_hook_fixture() {
 # reader consumes all of stdout so nothing can SIGPIPE the doctor under pipefail.
 cat17_line() {
   local out
-  out="$(node "$DOCTOR" --root "$1" 2>&1)" || true
+  out="$(aai_git_scrubbed node "$DOCTOR" --root "$1" 2>&1)" || true
   printf '%s\n' "$out" | while IFS= read -r line; do
     case "$line" in CAT-17*) printf '%s' "$line" ;; esac
   done
@@ -2060,7 +2062,8 @@ test_1344_cat17_seam1_installed_hook_passes() {
   vendor_hook_installer "$d" sh
   # HAZ: the installer resolves its target from `git rev-parse --show-toplevel`,
   # so it MUST run with the fixture as cwd and never against $PROJECT_ROOT.
-  ( cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh --arm-ref-guard >/dev/null 2>&1 ) || true
+  aai_assert_hooks_under "$d" "$TMP_ROOT" || log_fail "TEST-1344: the hooks path of $d lies outside the scratch root"
+  ( cd "$d" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh --arm-ref-guard >/dev/null 2>&1 ) || true
 
   # Hard precondition: without an installed, marker'd hook the assertion below
   # would be vacuous rather than a crossing test.
@@ -2432,7 +2435,8 @@ t812_repo() {
 t812_install() {
   local d="$1"
   [[ -n "$d" && "$d" == /* ]] || { log_fail "t812_install: fixture path must be absolute (got '$d')"; return 1; }
-  (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh --hooks index,close-gate)
+  aai_assert_hooks_under "$d" "$TMP_ROOT" || return 1
+  (cd "$d" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh --hooks index,close-gate)
 }
 t812_line() { node "$DOCTOR" --root "$1" 2>&1 | grep '^CAT-18' || true; }
 

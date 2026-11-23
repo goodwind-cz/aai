@@ -34,6 +34,8 @@ GREP=/usr/bin/grep
 
 # shellcheck source=lib/vendor-hook-installer.sh
 . "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
+# shellcheck source=lib/git-env-scrub.sh
+. "$SCRIPT_DIR/lib/git-env-scrub.sh"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then echo "INFO: keeping fixture at $TEST_DIR"; return 0; fi
@@ -166,7 +168,8 @@ test_3453_large_debug_list() {
   "$GREP" -q 'PASS WITH WARNINGS' "$OUT" || { cat "$OUT" >&2; log_fail "TEST-3453: the summary line is missing (checks 4 to 9 never ran)"; }
   # Through a real installed hook: the commit must be created.
   vendor_hook_installer "$fx" sh
-  ( cd "$fx" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst.out" 2>&1 || { cat "$TEST_DIR/inst.out" >&2; log_fail "TEST-3453: the hook installer failed"; }
+  aai_assert_hooks_under "$fx" "$TEST_DIR" || log_fail "TEST-3453: the hooks path of $fx lies outside the scratch root"
+  ( cd "$fx" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst.out" 2>&1 || { cat "$TEST_DIR/inst.out" >&2; log_fail "TEST-3453: the hook installer failed"; }
   git -C "$fx" checkout -q -b work   # the installed ref guard refuses refs/heads/main writes
   head_before="$(git -C "$fx" rev-parse HEAD)"
   RC=0
@@ -556,7 +559,8 @@ test_3831_evidence_names_pass() {
   [[ "$RC" == 0 && "$n" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3831: eight evidence files named with secret/credentials exited $RC with $n '$SENSITIVE' line(s), expected 0 and 0"; }
   # Through a real installed hook: the commit must be created.
   vendor_hook_installer "$fx" sh
-  ( cd "$fx" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst3831.out" 2>&1 || { cat "$TEST_DIR/inst3831.out" >&2; log_fail "TEST-3831: the hook installer failed"; }
+  aai_assert_hooks_under "$fx" "$TEST_DIR" || log_fail "TEST-3831: the hooks path of $fx lies outside the scratch root"
+  ( cd "$fx" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst3831.out" 2>&1 || { cat "$TEST_DIR/inst3831.out" >&2; log_fail "TEST-3831: the hook installer failed"; }
   git -C "$fx" checkout -q -b work
   head_before="$(git -C "$fx" rev-parse HEAD)"
   RC=0
@@ -1349,7 +1353,8 @@ test_3879_installed_hook_reads_the_commits_index() {
   local fx="$TEST_DIR/t3879" head_before i n
   make_fx "$fx"
   vendor_hook_installer "$fx" sh
-  ( cd "$fx" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst3879.out" 2>&1 || { cat "$TEST_DIR/inst3879.out" >&2; log_fail "TEST-3879: the hook installer failed"; }
+  aai_assert_hooks_under "$fx" "$TEST_DIR" || log_fail "TEST-3879: the hooks path of $fx lies outside the scratch root"
+  ( cd "$fx" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst3879.out" 2>&1 || { cat "$TEST_DIR/inst3879.out" >&2; log_fail "TEST-3879: the hook installer failed"; }
   git -C "$fx" checkout -q -b work
   mkdir -p "$fx/app"
   printf 'clean\n' > "$fx/app/config.txt"

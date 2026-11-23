@@ -109,13 +109,11 @@ test('TEST-2707 internal docs stay exempt and near-miss paths are not shipped', 
 });
 
 test('TEST-2708 every file aai-sync installs from the source root is classified shipped', () => {
-  const sh = fs.readFileSync(path.join(root, '.aai/scripts/aai-sync.sh'), 'utf8');
-  const ps = fs.readFileSync(path.join(root, '.aai/scripts/aai-sync.ps1'), 'utf8');
-  const shList = /^for f in ([^;\n]*\bAGENTS\.md[^;\n]*); do$/m.exec(sh);
-  const psList = /foreach \(\$f in @\(([^)\n]*"AGENTS\.md"[^)\n]*)\)\)/.exec(ps);
-  assert.ok(shList, 'root shim loop not found in aai-sync.sh');
-  assert.ok(psList, 'root shim loop not found in aai-sync.ps1');
-  const names = new Set([...shList[1].trim().split(/\s+/), ...[...psList[1].matchAll(/"([^"]+)"/g)].map(m => m[1]), 'README.md']);
+  // Re-homed (sync-on-node run 6a): both sync twins are launchers; the root shim list is ROOT_SHIMS of the module.
+  const mjs = fs.readFileSync(path.join(root, '.aai/scripts/aai-sync.mjs'), 'utf8');
+  const list = /^const ROOT_SHIMS = \[([^\]\n]*'AGENTS\.md'[^\]\n]*)\];$/m.exec(mjs);
+  assert.ok(list, 'ROOT_SHIMS not found in aai-sync.mjs');
+  const names = new Set([...[...list[1].matchAll(/'([^']+)'/g)].map(m => m[1]), 'README.md']);
   assert.ok(names.size >= 6, [...names].join(','));
   for (const name of names) assert.equal(isShipped(name, '100644'), true, `${name} is installed by aai-sync but not shipped`);
 });

@@ -71,6 +71,7 @@ protected_paths_l3:
   - .aai/templates/git-hooks/pre-commit-guard-checks.sh
   - .aai/templates/git-hooks/reference-transaction.sh
   - .aai/templates/git-hooks/pre-push.sh
+  - .aai/scripts/lib/guard-config.mjs
   - .aai/workflow/WORKFLOW.md
   - docs/CONSTITUTION.md
 

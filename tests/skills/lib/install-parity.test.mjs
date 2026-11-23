@@ -397,6 +397,33 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(go('/c/elsewhere/project/fx/src', 'C:\\elsewhere\\project\\fx\\src'), 1, 'a directory outside the scratch root stays visible');
     assert.equal(go('/c/Users/x/Temp/aai-parity-run-ab12/fx/other', 'C:\\Users\\x\\Temp\\aai-parity-run-ab12\\fx\\src'), 1, 'a different leaf stays visible');
   });
+  // The frozen twins run from the syref copy of the scratch source and the module from fx/src (SY-01), so on a Windows host the pin and
+  // the report name syref in the POSIX spelling for sh and the Windows spelling for ps1, and fx\src for the module; ps1 writes the pin with LF inside and
+  // CRLF at its end and the report with CRLF throughout, a byte order mark under Windows PowerShell 5.1 and seven fraction digits. Lines are the ones the CI run 45069641354 printed.
+  test('the committed rows cover the syref source path of the frozen twins on a Windows host, for sh:ps1 and for ps1:node', () => {
+    has('applyAllowlist');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
+    const win = { platform: 'win32', utc: true, ps5: true };
+    const run = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-parity-pester-7efbfa2ab524\\aai-parity-run-thDytQ';
+    const posix = '/c/Users/runneradmin/AppData/Local/Temp/aai-parity-pester-7efbfa2ab524/aai-parity-run-thDytQ';
+    const left = (pair, file, onlyA, onlyB) => M.applyAllowlist([{ pair, path: file, kind: 'lines', detail: 'd', onlyA, onlyB }], rows, { scenario: 'SY-01', host: win }).uncovered.length;
+    const pin = '.aai/system/AAI_PIN.md';
+    const report = 'docs/ai/reports/sync-conflicts-<stamp-1>.md';
+    const shPin = ['# AAI Pin', `- Source path: ${posix}/syref`, '- Synced at (UTC): <stamp>'];
+    const psPin = ['\uFEFF# AAI Pin', `- Source path: ${run}\\syref`, '- Synced at (UTC): 2026-11-22T21:02:05.1485042Z'];
+    const nodePin = ['# AAI Pin', `- Source path: ${run}\\fx\\src`, '- Synced at (UTC): <stamp>'];
+    assert.equal(left('sh:ps1', pin, shPin, psPin), 0, 'sh and ps1 both run from syref, in two spellings');
+    assert.equal(left('ps1:node', pin, psPin, nodePin), 0, 'ps1 from syref, the module from fx\\src');
+    const shRep = ['# Sync Conflict Advisory', '- Generated at (UTC): <stamp>', `- Source: ${posix}/syref`];
+    const psRep = ['\uFEFF# Sync Conflict Advisory\r', '- Generated at (UTC): 2026-11-22T21:02:05.0698568Z\r', `- Source: ${run}\\syref\r`];
+    const nodeRep = ['# Sync Conflict Advisory', '- Generated at (UTC): <stamp>', `- Source: ${run}\\fx\\src`];
+    assert.equal(left('sh:ps1', report, shRep, psRep), 0);
+    assert.equal(left('ps1:node', report, psRep, nodeRep), 0);
+    // what stays visible: a syref outside an aai-parity scratch directory, another leaf, and a Source path on one side only
+    assert.equal(left('sh:ps1', pin, ['- Source path: /c/elsewhere/syref'], ['- Source path: C:\\elsewhere\\syref']), 1);
+    assert.equal(left('sh:ps1', pin, [`- Source path: ${posix}/other`], [`- Source path: ${run}\\other`]), 1);
+    assert.equal(left('ps1:node', pin, [`- Source path: ${run}\\syref`], ['# AAI Pin']), 1);
+  });
   test('a bsd-sed row is judged only on a host whose sed is BSD, so a GNU-sed host neither covers nor stales it', () => {
     has('staleRows'); has('probeBsdSed');
     assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1']), []);
@@ -579,13 +606,14 @@ describe('TEST-3566 third twin seam', () => {
     assert.deepEqual(Object.keys(M.TWINS), ['sh', 'ps1', 'node']);
     const ctx = { src: '/s', target: '/t', bash: 'bash', ps: 'pwsh' };
     const sy = { op: 'sync', profile: 'core', flags: [] };
-    const a = M.TWINS.sh.argv(sy, ctx);
-    assert.deepEqual([a.file, ...a.args], ['bash', '/s/.aai/scripts/aai-sync.sh', '/t', '--profile', 'core']);
+    const sctx = { ...ctx, syref: '/sy' };
+    const a = M.TWINS.sh.argv(sy, sctx);
+    assert.deepEqual([a.file, ...a.args], ['bash', '/sy/.aai/scripts/aai-sync.sh', '/t', '--profile', 'core']);
     assert.equal(a.cwd, '/t');
-    const p = M.TWINS.ps1.argv(sy, ctx);
+    const p = M.TWINS.ps1.argv(sy, sctx);
     assert.equal(p.file, 'pwsh');
     assert.ok(p.args.includes('-File'));
-    assert.deepEqual(p.args.slice(p.args.indexOf('-File')), ['-File', '/s/.aai/scripts/aai-sync.ps1', '-TargetRoot', '/t', '-Profile', 'core']);
+    assert.deepEqual(p.args.slice(p.args.indexOf('-File')), ['-File', '/sy/.aai/scripts/aai-sync.ps1', '-TargetRoot', '/t', '-Profile', 'core']);
     const up = { op: 'update', profile: null, flags: [] };
     assert.deepEqual(M.TWINS.sh.argv(up, { ...ctx, upref: '/u' }).args, ['/u/.aai/scripts/aai-update.sh', '--repo', '/s', '--ref', 'main']);
     const upp = M.TWINS.ps1.argv(up, ctx).args;
@@ -916,7 +944,7 @@ describe('driver refuses a scenario with fewer than two twins', () => {
   test('--twins node on SY-01 exits 2 naming the scenario, never a crash or a pass', () => {
     const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', 'node']);
     assert.equal(r.status, 2, r.stderr);
-    assert.match(r.stderr, /scenario SY-01 .*0 of the selected twins/);
+    assert.match(r.stderr, /scenario SY-01 .*1 of the selected twins \(node\)/);
     assert.doesNotMatch(r.stderr + r.stdout, /TypeError/);
     assert.doesNotMatch(r.stdout, /verdict PASS/);
   });
@@ -955,7 +983,7 @@ describe('TEST-3975 update peers', () => {
     assert.deepEqual(rep.pairs, ['sh:ps1', 'sh:node']);
   });
   test('the real registry: the node twin runs bootstrap, update and hooks, peers only sh for update, and the update argv of sh and node', () => {
-    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks']);
+    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
     assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
     assert.equal(M.TWINS.sh.peers, undefined);
     assert.equal(M.TWINS.ps1.peers, undefined);
@@ -977,18 +1005,19 @@ describe('TEST-3975 update peers', () => {
     assert.equal(src.split(line).length - 1, 1);
     assert.equal(src.split("peers: { update: ['sh'] }").length - 1, 1);
   });
-  test('the committed allowlist adds no row, and win-sh-odd-root-dirs is paired sh:ps1,sh:node', () => {
+  test('the committed allowlist keeps every row of the update ride, and win-sh-odd-root-dirs is paired sh:ps1,sh:node', () => {
     has('parseAllowlist');
     const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
     const odd = rows.filter((r) => r.id === 'win-sh-odd-root-dirs');
     assert.equal(odd.length, 1);
     assert.deepEqual(odd[0].pairList, ['sh:ps1', 'sh:node']);
-    assert.ok(rows.every((r) => !r.pairList.includes('ps1:node')));
+    // sync-on-node run 6c: the sync scenarios gave the module twin its own ps1:node rows, so only the update rows are checked
+    assert.ok(rows.filter((r) => !r.id.startsWith('sync-') && r.scenario !== '*' && /^UP-/.test(r.scenario)).every((r) => !r.pairList.includes('ps1:node')));
     const base = spawnSync('git', ['show', `30c983ef:${UPDATE_ALLOWLIST_BASE}`], { cwd: ROOT, encoding: 'utf8' });
     if (base.status === 0) {
       const baseRows = M.parseAllowlist(base.stdout, { twins: ['sh', 'ps1', 'node'] });
-      assert.equal(rows.length, baseRows.length);
-      assert.deepEqual(rows.map((r) => r.id), baseRows.map((r) => r.id));
+      const ids = rows.map((r) => r.id);
+      for (const r of baseRows) assert.ok(ids.includes(r.id), r.id);
     }
   });
 });
@@ -1038,7 +1067,7 @@ describe('TEST-3995 hook twins', () => {
     assert.deepEqual(other, [undefined]);
   });
   test('the real registry: the node twin runs bootstrap, update and hooks with peers for update only, and the hooks argv of the three twins', () => {
-    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks']);
+    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
     assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
     const ctx = { src: '/s', target: '/t', bash: '/bin/bash', ps: 'pwsh', hkref: '/hk' };
     const hk = { op: 'hooks', profile: null, flags: ['force', 'uninstall', 'decline-ref-guard'] };
@@ -1055,7 +1084,7 @@ describe('TEST-3995 hook twins', () => {
     const line = "      if (step.op === 'hooks') return { file: process.execPath, args: [path.join(ctx.target, '.aai', 'scripts', 'install-pre-commit-hook.mjs'), ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };";
     assert.equal(src.split(line).length - 1, 1);
   });
-  test('the widened hk-uninstall-removes-hooks row pairs sh:sh,ps1:ps1,node:node, and no other row is added', () => {
+  test('the widened hk-uninstall-removes-hooks row pairs sh:sh,ps1:ps1,node:node, and every row of the hook ride is kept', () => {
     has('parseAllowlist');
     const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
     const row = rows.filter((r) => r.id === 'hk-uninstall-removes-hooks');
@@ -1065,7 +1094,102 @@ describe('TEST-3995 hook twins', () => {
     const base = spawnSync('git', ['show', `52152cdb:${UPDATE_ALLOWLIST_BASE}`], { cwd: ROOT, encoding: 'utf8' });
     if (base.status === 0) {
       const baseRows = M.parseAllowlist(base.stdout, { twins: ['sh', 'ps1', 'node'] });
-      assert.deepEqual(rows.map((r) => r.id), baseRows.map((r) => r.id));
+      // sync-on-node run 6c added the sync rows after the hook ride: every row of the hook ride is still there
+      const ids = rows.map((r) => r.id);
+      for (const r of baseRows) assert.ok(ids.includes(r.id), r.id);
     }
+  });
+});
+
+// TEST-4017 (sync-on-node, Spec-AC-17, D-PARITY): the module is the third twin on sync scenarios, all three pairs are compared,
+// the sh and ps1 twins run the frozen references from ctx.syref, and the allowlist rows are widened for the module side.
+describe('TEST-4017 sync twins', () => {
+  const syScen = (over = {}) => scen({ id: 'SY-T1', op: 'sync', setup: 'empty', steps: [{ op: 'sync', profile: 'core', flags: [], expect: '0' }], probes: ['.aai/system/AAI_PIN.md'], ...over });
+  const pin = (body) => ({ '.aai/system/AAI_PIN.md': body });
+  const same = '# AAI Pin\n\n- Profile: core\n';
+  const run3 = (nodeFiles, extra = {}) => runFake([fakeTwin('sh', { files: pin(same) }), fakeTwin('ps1', { files: pin(same) }), fakeTwin('node', { files: nodeFiles })], [syScen()], [], {
+    ctx: { root: scratch('sy'), src: null, syref: '/unused', bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX },
+    ...extra,
+  });
+  test('a sync scenario compares all three pairs and passes when the three pins are equal', () => {
+    has('runMatrix');
+    const rep = run3(pin(same));
+    assert.deepEqual(rep.pairs, ['sh:ps1', 'sh:node', 'ps1:node']);
+    assert.equal(rep.verdict, 'PASS', JSON.stringify(rep.uncovered));
+  });
+  test('a fake node twin that writes one more byte into the pin fails naming sh:node', () => {
+    has('runMatrix');
+    const rep = run3(pin(`${same}x`));
+    assert.equal(rep.verdict, 'FAIL');
+    assert.ok(rep.uncovered.some((d) => d.pair === 'sh:node' && d.path === '.aai/system/AAI_PIN.md'), JSON.stringify(rep.uncovered));
+  });
+  test('runMatrix builds syref once for a sync scenario, hands it to every twin, holds the frozen twins and not the module, and builds none for another operation', () => {
+    has('runMatrix');
+    const seen = [];
+    const spy = (name, files) => ({ name, argv(step, ctx) { seen.push([name, ctx.syref]); return fakeTwin(name, { files }).argv(step, ctx); } });
+    const root = scratch('syref');
+    const src = path.join(root, 'srcfake');
+    put(src, '.aai/scripts/aai-sync.mjs', '// module\n');
+    put(src, '.aai/scripts/lib/resolve-base.mjs', '// lib\n');
+    put(src, '.aai/scripts/lib/gitignore-block.mjs', '// lib\n');
+    put(src, '.aai/scripts/aai-sync.sh', '#!/bin/sh\n# launcher\n');
+    M.runMatrix({
+      scenarios: [syScen()], twins: [spy('sh', pin(same)), spy('ps1', pin(same)), spy('node', pin(same))], rows: [], matrix: 'smoke', filtered: false,
+      ctx: { root, src, bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX },
+    });
+    assert.equal(seen.length, 3);
+    const refs = new Set(seen.map((x) => x[1]));
+    assert.equal(refs.size, 1);
+    const [ref] = refs;
+    assert.notEqual(ref, src);
+    assert.ok(fs.readFileSync(path.join(ref, '.aai', 'scripts', 'aai-sync.sh'), 'utf8').length > 1000, 'the frozen bash twin is there');
+    assert.ok(fs.existsSync(path.join(ref, '.aai', 'scripts', 'aai-sync.ps1')), 'the frozen PowerShell twin is there');
+    assert.ok(fs.existsSync(path.join(ref, '.aai', 'scripts', 'lib', 'gitignore-block.sh')), 'the frozen bash library is there');
+    for (const gone of ['aai-sync.mjs', 'lib/resolve-base.mjs', 'lib/gitignore-block.mjs']) assert.equal(fs.existsSync(path.join(ref, '.aai', 'scripts', ...gone.split('/'))), false, `${gone} is not in the reference tree`);
+    const other = [];
+    M.runMatrix({
+      scenarios: [scen({ id: 'HK-T2', op: 'hooks', steps: [{ op: 'hooks', profile: null, flags: [], expect: '0' }] })], twins: [{ name: 'sh', argv(step, ctx) { other.push(ctx.syref); return fakeTwin('sh', { files: { 'p.txt': 'a\n' } }).argv(step, ctx); } }, fakeTwin('ps1', { files: { 'p.txt': 'a\n' } })], rows: [], matrix: 'smoke', filtered: false,
+      ctx: { root: scratch('nosyref'), src: root, bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX },
+    });
+    assert.deepEqual(other, [undefined]);
+  });
+  test('the real registry: the node twin runs sync with peers for update only, and the sync argv of the three twins', () => {
+    assert.deepEqual(M.TWINS.node.ops, ['bootstrap', 'update', 'hooks', 'sync']);
+    assert.deepEqual(M.TWINS.node.peers, { update: ['sh'] });
+    const ctx = { src: '/s', target: '/t', bash: '/bin/bash', ps: 'pwsh', syref: '/sy' };
+    const sy = { op: 'sync', profile: 'core', flags: [] };
+    const sh = M.TWINS.sh.argv(sy, ctx);
+    assert.deepEqual([sh.file, ...sh.args], ['/bin/bash', '/sy/.aai/scripts/aai-sync.sh', '/t', '--profile', 'core']);
+    const ps = M.TWINS.ps1.argv(sy, ctx);
+    assert.deepEqual(ps.args.slice(ps.args.indexOf('-File')), ['-File', '/sy/.aai/scripts/aai-sync.ps1', '-TargetRoot', '/t', '-Profile', 'core']);
+    const nd = M.TWINS.node.argv(sy, ctx);
+    assert.equal(nd.file, process.execPath);
+    assert.deepEqual(nd.args, [path.join('/s', '.aai', 'scripts', 'aai-sync.mjs'), '/t', '--profile', 'core']);
+    assert.equal(nd.cwd, '/t');
+    assert.deepEqual(M.TWINS.node.argv({ op: 'sync', profile: null, flags: [] }, ctx).args, [path.join('/s', '.aai', 'scripts', 'aai-sync.mjs'), '/t']);
+    const src = fs.readFileSync(DRIVER, 'utf8');
+    const line = "      if (step.op === 'sync') return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-sync.mjs'), ctx.target, ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };";
+    assert.equal(src.split(line).length - 1, 1);
+  });
+  test('buildSource copies the module and its two libs even when they are untracked', () => {
+    const src = fs.readFileSync(DRIVER, 'utf8');
+    assert.match(src, /SYNC_MODULE_FILES = \['\.aai\/scripts\/aai-sync\.mjs', '\.aai\/scripts\/lib\/resolve-base\.mjs', '\.aai\/scripts\/lib\/gitignore-block\.mjs'\]/);
+    assert.match(src, /for \(const rel of SYNC_MODULE_FILES\) if \(!listed\.includes\(rel\)/);
+  });
+  test('the sync rows are widened for the module side and the one new row names the engine files', () => {
+    has('parseAllowlist');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1', 'node'] });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const id of ['pin-synced-at-precision', 'gitignore-block-order', 'gitignore-block-headers', 'session-start-exec-bit', 'conflict-report-name-local-time',
+      'conflict-report-generated-precision', 'conflict-report-next-step-backticks', 'win-ps1-pin-newline-bom', 'win-ps1-report-newline-bom', 'win-ps1-gitignore-newline']) {
+      assert.ok(byId.get(id), id);
+      assert.ok(byId.get(id).pairs.split(',').includes('ps1:node'), `${id} lacks ps1:node`);
+      assert.match(byId.get(id).reason, /the module takes the bash side$/, id);
+    }
+    assert.ok(byId.get('pin-template-version-spacing').pairs.split(',').includes('sh:node'));
+    const engine = byId.get('sync-engine-files');
+    assert.ok(engine, 'sync-engine-files');
+    assert.equal(engine.pairs, 'sh:node,ps1:node');
+    assert.equal(engine.reason, 'the frozen twins vendor themselves and the bash library; the module side vendors its launchers, the module and its libs');
   });
 });

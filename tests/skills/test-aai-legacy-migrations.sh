@@ -328,11 +328,16 @@ test_3396_doctor_seam() {
   git -C "$fx" commit -q -m migrate
   out="$(node "$fx/.aai/scripts/aai-doctor.mjs" --root "$fx" 2>&1)" || true
   [[ "$out" != *migrate-state-to-local* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3396: the doctor still names migrate-state-to-local after the migration"; }
-  for f in .aai/scripts/aai-doctor.mjs .aai/scripts/aai-sync.sh .aai/scripts/aai-sync.ps1 README.md; do
+  for f in .aai/scripts/aai-doctor.mjs README.md; do
     [[ "$(git -C "$PROJECT_ROOT" show "f324b66f:$f" | grep -F migrate-state-to-local)" == "$(grep -F migrate-state-to-local "$PROJECT_ROOT/$f")" ]] \
       || log_fail "TEST-3396: the migrate-state-to-local lines of $f differ from f324b66f"
   done
-  log_pass "TEST-3396: the doctor names the launcher, the launcher clears the finding, and the caller lines equal f324b66f"
+  # Re-homed (sync-on-node run 6a): the sync twins that carried the pointer lines are gone; the one pointer is the module
+  # library's DR-14 line, which names both launchers of the migration (the bash form first, as the old bash twin printed it).
+  for f in 'run bash .aai/scripts/migrate-state-to-local.sh (or powershell -NoProfile -File .aai/scripts/migrate-state-to-local.ps1) in the target project.'; do
+    /usr/bin/grep -qF -- "$f" "$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.mjs" || log_fail "TEST-3396: lib/gitignore-block.mjs lacks the DR-14 pointer line"
+  done
+  log_pass "TEST-3396: the doctor names the launcher, the launcher clears the finding, and the caller lines equal f324b66f (the sync pointer is the module library's DR-14 line)"
 }
 
 CANON_PROMPT="$PROJECT_ROOT/.aai/SKILL_CANONICALIZE.prompt.md"

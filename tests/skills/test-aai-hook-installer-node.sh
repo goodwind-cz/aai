@@ -453,7 +453,7 @@ test_3992_rehomed_bash_side() {
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3992: check-vendored-script-deps exited $rc"; }
   # the helper holds the two copy lines once each, outside its case blocks
   local helper="$PROJECT_ROOT/tests/skills/lib/vendor-hook-installer.sh" line n
-  for line in '  cp "$src/.aai/scripts/install-pre-commit-hook.mjs" "$root/.aai/scripts/"' '  cp "$src/.aai/scripts/lib/guard-config.mjs" "$root/.aai/scripts/lib/"'; do
+  for line in '  cp "$src/.aai/scripts/install-pre-commit-hook.mjs" "$root/.aai/scripts/"' '  cp "$src/.aai/scripts/lib/guard-config.mjs" "$root/.aai/scripts/lib/"' '  cp "$src/.aai/scripts/lib/resolve-base.mjs" "$root/.aai/scripts/lib/"'; do
     n="$(/usr/bin/grep -cxF -- "$line" "$helper" || true)"
     [[ "$n" == 1 ]] || log_fail "TEST-3992: vendor-hook-installer.sh holds the line '$line' $n times, want once"
   done
@@ -481,7 +481,7 @@ test_3992_rehomed_bash_side() {
     ' "$id" <<<"$json")"
     [[ "$verdict" == found ]] || log_fail "TEST-3992: contract record of ref pre-commit-installer-on-node for $id: $verdict"
   done
-  log_pass "TEST-3992: the re-homed and vendoring selectors of seven suites exit 0 against the launcher, check-vendored-script-deps exits 0, the helper copies module and guard-config once each, PROFILES core lists the module and the four contract records exist"
+  log_pass "TEST-3992: the re-homed and vendoring selectors of seven suites exit 0 against the launcher, check-vendored-script-deps exits 0, the helper copies module, guard-config and resolve-base once each, PROFILES core lists the module and the four contract records exist"
 }
 
 # --- run 6: the ps1 launcher, the PowerShell-side re-homes and the parity third twin (TEST-3993 to TEST-3995) ---------
@@ -643,7 +643,7 @@ test_3995_parity_hooks() {
     if (sh.args[0] !== "/hk/.aai/scripts/install-pre-commit-hook.sh") bad.push("sh argv " + sh.args[0]);
     const ps = m.TWINS.ps1.argv(hk, ctx);
     if (!ps.args.includes("/hk/.aai/scripts/install-pre-commit-hook.ps1")) bad.push("ps1 argv " + ps.args.join(" "));
-    const odd = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && !["update", "bootstrap", "hooks"].includes(s.op)).map((s) => s.id);
+    const odd = m.SCENARIOS.filter((s) => m.twinsFor([m.TWINS.node], s).length > 0 && !["update", "bootstrap", "hooks", "sync"].includes(s.op)).map((s) => s.id);
     if (odd.length) bad.push("node runs " + odd.join(","));
     process.stdout.write(bad.length ? bad.join("; ") : "ok");
   ')"
@@ -701,7 +701,7 @@ test_3996_scratch_install() {
   GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" git -C "$target" init -q
   env -u AAI_ROLE -u AAI_GIT_WRITE GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$work/gitconfig" bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$target" --profile core > "$work/sync.log" 2>&1 \
     || { cat "$work/sync.log" >&2; log_fail "TEST-3996: aai-sync.sh --profile core failed"; }
-  for f in lib/guard-config.mjs install-pre-commit-hook.mjs install-pre-commit-hook.ps1 install-pre-commit-hook.sh; do
+  for f in lib/guard-config.mjs lib/resolve-base.mjs install-pre-commit-hook.mjs install-pre-commit-hook.ps1 install-pre-commit-hook.sh; do
     [[ -f "$target/.aai/scripts/$f" ]] || log_fail "TEST-3996: the core sync did not vendor .aai/scripts/$f"
   done
   for f in pre-commit-index.sh pre-commit-guard-checks.sh reference-transaction.sh pre-push.sh; do
@@ -822,10 +822,10 @@ test_3997_wiring() {
     printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
     qgrep -q "^FULL_RUN reason=protected-l3 path=$f" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate $f to FULL_RUN protected-l3"; }
   done
-  # guard-config.mjs lives under .aai/scripts/lib/, a shared-lib glob: a change to it escalates straight to FULL_RUN,
+  # guard-config.mjs is on protected_paths_l3 (and under the .aai/scripts/lib/ shared-lib glob): a change to it escalates straight to FULL_RUN,
   # which runs every suite and so this one; the row also lists it for a suite-only selection
   printf '%s\n' .aai/scripts/lib/guard-config.mjs | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - > "$work/sel.out" 2>&1 || true
-  qgrep -q "^FULL_RUN reason=shared-lib path=.aai/scripts/lib/guard-config.mjs" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate guard-config.mjs to FULL_RUN"; }
+  qgrep -q "^FULL_RUN reason=protected-l3 path=.aai/scripts/lib/guard-config.mjs" < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3997: select-suites does not escalate guard-config.mjs to FULL_RUN protected-l3"; }
   rows="$(suite_map_rows "$PROJECT_ROOT/tests/skills/suite-map.yaml")" || log_fail "TEST-3997: cannot read suite-map.yaml"
   # every suite-map row that names install-pre-commit-hook.sh names install-pre-commit-hook.mjs
   out="$(printf '%s\n' "$rows" | node -e '

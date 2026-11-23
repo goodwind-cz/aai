@@ -55,6 +55,13 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
    ./.aai/scripts/aai-sync.sh /path/to/your-project
    ```
 
+   Both `aai-sync.sh` and `aai-sync.ps1` are launchers of one Node module,
+   `aai-sync.mjs`, that needs Node.js 22 or later (a launcher refuses without
+   it, exit 1, nothing changed). `--profile core|extended` picks the file set;
+   the sync refuses before writing anything when the target is the source or
+   lies inside it, and when a managed path in the target is a symbolic link
+   that leaves the target.
+
 2. **Bootstrap your project (one-time):**
    ```bash
    cd /path/to/your-project
@@ -2815,6 +2822,12 @@ read its gate warning) to see which section is missing.
 The hook installer puts the three AAI git hooks into the hooks directory git actually uses (`git rev-parse --git-path hooks/<name>`, which follows `core.hooksPath` and linked worktrees):
 
 [Product doc](product/pre-commit-installer-on-node.md) · [Spec](specs/SPEC-0308-spec-pre-commit-installer-on-node.md)
+
+### The AAI layer sync runs on Node behind thin launchers
+
+The layer sync copies the vendored AAI layer (`.aai/`, the harness skill folders, the root shims, the managed `.gitignore` blocks, the Session-start hooks) from a source checkout into a project, prunes files the source no longer ships, and writes the AAI pin and a conflict advisory. It is what `/aai-update`, `install.sh` and `install.ps1` run. It now runs as one Node.js module behind two small launchers instead of two separate bash and PowerShell scripts that used to drift. The files a sync writes are the same as before; each behaviour that differs from the old scripts is a numbered, tested decision. Node.js 22 or later is now required: without it both launchers refuse, print an install hint and change nothing.
+
+[Product doc](product/sync-on-node.md) · [Spec](specs/SPEC-0310-spec-sync-on-node.md)
 
 ### The AAI layer updater runs on Node behind thin launchers
 

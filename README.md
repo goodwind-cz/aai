@@ -128,6 +128,7 @@ Then ask your coding agent to run `/aai-bootstrap` and `/aai-doctor` in its chat
 
 Run the sync script **from this repository** and pass the path to the target project.
 The script resolves its own source root automatically — no need to copy it to the target first.
+Both `aai-sync.sh` and `aai-sync.ps1` are thin launchers of one Node module, `aai-sync.mjs`, which needs Node.js 22 or later; without it a launcher refuses with exit 1 and changes nothing.
 
 ### Bash / Git-Bash
 ```bash

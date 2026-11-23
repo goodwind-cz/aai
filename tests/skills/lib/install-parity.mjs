@@ -13,6 +13,7 @@ import { HOOKS_TEMPLATE_REL, K01_FILES } from './aai-bootstrap-fixtures.mjs';
 import { materializeBootstrapReference } from './bootstrap-reference.mjs';
 import { materializeUpdateReference } from './update-reference.mjs';
 import { materializeHookInstallerReference } from './hook-installer-reference.mjs';
+import { materializeSyncReference } from './sync-reference.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '../../..');
@@ -154,7 +155,7 @@ export const TWINS = {
       if (step.op === 'bootstrap') return { file: ctx.bash, args: [`${fwd(ctx.bsref)}/.aai/scripts/aai-bootstrap.sh`, fwd(ctx.target), ...bsFlags(step)], cwd: ctx.target };
       const src = fwd(ctx.src); const target = fwd(ctx.target);
       if (step.op === 'sync') {
-        return { file: ctx.bash, args: [`${src}/.aai/scripts/aai-sync.sh`, target, ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };
+        return { file: ctx.bash, args: [`${fwd(ctx.syref)}/.aai/scripts/aai-sync.sh`, target, ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };
       }
       if (step.op === 'update') {
         return { file: ctx.bash, args: [`${fwd(ctx.upref)}/.aai/scripts/aai-update.sh`, '--repo', src, '--ref', 'main'], cwd: ctx.target };
@@ -168,7 +169,7 @@ export const TWINS = {
       if (step.op === 'bootstrap') return { file: ctx.ps, args: [...psHead(ctx), `${fwd(ctx.bsref)}/.aai/scripts/aai-bootstrap.ps1`, ctx.target, ...bsFlags(step)], cwd: ctx.target };
       const src = fwd(ctx.src);
       if (step.op === 'sync') {
-        return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-sync.ps1`, '-TargetRoot', ctx.target, ...(step.profile ? ['-Profile', step.profile] : [])], cwd: ctx.target };
+        return { file: ctx.ps, args: [...psHead(ctx), `${fwd(ctx.syref)}/.aai/scripts/aai-sync.ps1`, '-TargetRoot', ctx.target, ...(step.profile ? ['-Profile', step.profile] : [])], cwd: ctx.target };
       }
       if (step.op === 'update') {
         return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-update.ps1`, '-Repo', ctx.src, '-Ref', 'main'], cwd: ctx.target };
@@ -181,9 +182,10 @@ export const TWINS = {
   // (peers), because next to the ps1 twin it would repeat every sync divergence of sh:ps1 under a second pair name.
   node: {
     name: 'node',
-    ops: ['bootstrap', 'update', 'hooks'],
+    ops: ['bootstrap', 'update', 'hooks', 'sync'],
     peers: { update: ['sh'] },
     argv(step, ctx) {
+      if (step.op === 'sync') return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-sync.mjs'), ctx.target, ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };
       if (step.op === 'bootstrap') return { file: process.execPath, args: [path.join(ctx.bsref, '.aai', 'scripts', 'aai-bootstrap.mjs'), ctx.target, ...bsFlags(step)], cwd: ctx.target };
       if (step.op === 'hooks') return { file: process.execPath, args: [path.join(ctx.target, '.aai', 'scripts', 'install-pre-commit-hook.mjs'), ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };
       return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-update.mjs'), '--repo', ctx.src, '--ref', 'main'], cwd: ctx.target, env: { AAI_UPDATE_SYNC_RUNNER: ctx.bash } };
@@ -584,6 +586,9 @@ function initRepo(ctx, dir) {
   gitIn(ctx, dir, 'config', 'user.email', 'parity@example.invalid');
   gitIn(ctx, dir, 'config', 'user.name', 'parity');
   gitIn(ctx, dir, 'config', 'commit.gpgsign', 'false');
+  // No background maintenance: a repack that outlives the commit races the copy of this repository (copyTree of the source for syref).
+  gitIn(ctx, dir, 'config', 'gc.auto', '0');
+  gitIn(ctx, dir, 'config', 'maintenance.auto', 'false');
 }
 const commitAll = (ctx, dir, msg) => { gitIn(ctx, dir, 'add', '-A', '-f'); gitIn(ctx, dir, 'commit', '-q', '--no-verify', '-m', msg); };
 const copyTree = (from, to) => { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.cpSync(from, to, { recursive: true, verbatimSymlinks: true }); };
@@ -591,6 +596,7 @@ const copyTree = (from, to) => { fs.mkdirSync(path.dirname(to), { recursive: tru
 const SOURCE_NOTE = 'NOTE: the scratch source leaves out tests/** and docs/** (except docs/knowledge/** and docs/ai/AAI_VERSION.md)';
 
 // F1 CURRENT SOURCE: every tracked path of the checkout (working-tree bytes) except tests/** and most of docs/**.
+const SYNC_MODULE_FILES = ['.aai/scripts/aai-sync.mjs', '.aai/scripts/lib/resolve-base.mjs', '.aai/scripts/lib/gitignore-block.mjs'];
 export function buildSource(ctx) {
   const dir = path.join(ctx.root, 'fx', 'src');
   const ls = fixtureRun('git', ['ls-files', '-z'], { cwd: REPO_ROOT, env: twinEnv(ctx.root) });
@@ -604,7 +610,11 @@ export function buildSource(ctx) {
     const m = /^i\/(\S+)\s+w\/(crlf|mixed)\s+attr\/[^\t]*\t(.+)$/.exec(e);
     if (m && m[1] === 'lf') toLf.add(m[3]);
   }
-  for (const rel of ls.stdout.split('\0').filter(Boolean)) {
+  // The sync module and its two libs are copied when they are not tracked yet, so a run before the first commit of a new
+  // file is not silently stale (the module twin runs them from this scratch source).
+  const listed = ls.stdout.split('\0').filter(Boolean);
+  for (const rel of SYNC_MODULE_FILES) if (!listed.includes(rel) && fs.existsSync(path.join(REPO_ROOT, rel))) listed.push(rel);
+  for (const rel of listed) {
     if (rel.startsWith('tests/')) continue;
     if (rel.startsWith('docs/') && !rel.startsWith('docs/knowledge/') && rel !== 'docs/ai/AAI_VERSION.md') continue;
     const from = path.join(REPO_ROOT, rel); const to = path.join(dir, rel);
@@ -626,6 +636,9 @@ export function buildSource(ctx) {
 function syncWithSh(ctx, srcDir, target, profile) {
   const r = fixtureRun(ctx.bash, [`${fwd(srcDir)}/.aai/scripts/aai-sync.sh`, fwd(target), '--profile', profile], { cwd: target, env: twinEnv(ctx.root) });
   if (r.code !== 0) throw new Error(`fixture sync (${profile}) failed with ${r.code}: ${r.stderr.slice(-400)}`);
+  // The sync-conflicts report is named by the second: a twin step that began in the same second would overwrite this report of the fixture
+  // sync instead of writing its own, and the module syncs the fixture fast enough for that to happen.
+  waitNextSecond();
 }
 
 // PROFILES.yaml lines come from a split on LF, so a CRLF checkout leaves a trailing CR on every line; each pattern
@@ -761,7 +774,9 @@ function runScenario(scenario, allTwins, ctx) {
     (ctx.setup || defaultSetup)(scenario, targetDir, ctx, twin.name);
     const codes = []; const snaps = [];
     scenario.steps.forEach((step, i) => {
-      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref, upref: ctx.upref, hkref: ctx.hkref });
+      const actx = { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref, upref: ctx.upref, hkref: ctx.hkref };
+      Object.defineProperty(actx, 'syref', { enumerable: true, get: () => ctx.syref });
+      const a = twin.argv({ ...step, index: i }, actx);
       const before = oddRootNames(targetDir); const t1 = Date.now();
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
       if (r.timedOut) throw new InfraTimeout(scenario.id, twin.name, i + 1);
@@ -815,6 +830,14 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   if (!c.upref && scenarios.some((s) => s.op === 'update')) { c.upref = path.join(c.root, 'upref'); materializeUpdateReference(REPO_ROOT, c.upref); }
   // The frozen hook installer references (and the current templates beside them) for the hook scenarios: the sh and ps1 columns run from here.
   if (!c.hkref && scenarios.some((s) => s.op === 'hooks')) { c.hkref = path.join(c.root, 'hkref'); materializeHookInstallerReference(REPO_ROOT, c.hkref); }
+  // The frozen layer sync references for the sync scenarios: a copy of the scratch source with the two old twins and the bash
+  // library written over it and the module-side engine files removed; the sh and ps1 columns run from here, the node column
+  // runs the module of the scratch source.
+  // It is built when a twin first asks for it (a getter), so a run whose twins never run the frozen sync builds none.
+  if (!c.syref && scenarios.some((s) => s.op === 'sync')) {
+    let built = null;
+    Object.defineProperty(c, 'syref', { enumerable: true, configurable: true, get() { if (built === null) { built = path.join(c.root, 'syref'); copyTree(c.src, built); materializeSyncReference(built); } return built; } });
+  }
   const host = c.host || hostInfo();
   const report = { verdict: 'PASS', host: host.platform, tz: PINNED_TZ, matrix, twins: twins.map((t) => t.name), pairs: [], total_seconds: 0, scenarios: [], uncovered: [], stale: [] };
   const used = new Set(); const usedPairs = new Set(); const pairsByScenario = {}; const pairSet = []; const ran = [];

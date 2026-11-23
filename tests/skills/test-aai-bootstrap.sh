@@ -238,17 +238,16 @@ test_gitignore_seed_idempotent_and_respectful() {
 
 # --- TEST-017 (spec-aai-update-gitignore-drift-reconcile) ---------------------
 # The runtime-sidecar reconcile moved out of ensure_gitignore() into a shared
-# library (.aai/scripts/lib/gitignore-block.sh), also sourced by aai-sync.sh.
-# This pins that the extraction changed NOTHING observable here: bootstrap
-# still sources the library, and a --force re-run still yields exactly one
+# library, since sync-on-node run 6 only the Node one (lib/gitignore-block.mjs,
+# used by aai-sync.mjs); the bash library is gone and the bootstrap module reads
+# the runtime list itself. This pins the observable behaviour: a --force re-run still yields exactly one
 # marker-prefix line with pre-existing entries surviving (Spec-AC-04,
 # Spec-AC-05). This exact scenario (a --force re-run once every pattern is
 # already present) is what caught a `set -e` regression during development:
 # the extraction's early-return path silently aborted the whole script.
 test_gitignore_seed_uses_shared_library() {
   log_info "TEST-017: bootstrap's gitignore reconcile is backed by the shared library; marker count 1 and pre-existing entries survive extraction..."
-  local lib="$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh"
-  assert_file "$lib"
+  [[ ! -e "$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh" ]] || log_fail "TEST-017: the shipped bash library is still there"
   assert_contains "$BOOTSTRAP_MODULE" "RUNTIME_IGNORE.list"
   assert_not_contains "$BOOTSTRAP_MODULE" "gitignore-block.sh"
 

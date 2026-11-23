@@ -72,6 +72,8 @@ TEST_NAME="aai-git-ref-guard"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 . "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
+# shellcheck source=lib/git-env-scrub.sh
+. "$SCRIPT_DIR/lib/git-env-scrub.sh"
 # Companion suites are declared in suite-map.yaml, not run nested
 # (nested-suite-reruns-duplicate-sweep-time).
 # shellcheck source=lib/companion-assert.sh
@@ -161,29 +163,32 @@ new_repo() {
 # ONLY <dir> (HAZ-SCRATCH / Spec-AC-08: never $PROJECT_ROOT).
 install_guard() {
   local d="$1"; shift
-  (cd "$d" && bash "$INSTALLER" "$@")
+  aai_assert_hooks_under "$d" "$TMP_ROOT" || return 1
+  (cd "$d" && aai_git_scrubbed bash "$INSTALLER" "$@")
 }
 
-# git_isolated <cmd...> — runs the command with no system git config and an empty global one, so a caller's
-# core.hooksPath can never redirect an installer run (pre-commit-installer-on-node, D-SAFETY).
+# git_isolated <cmd...> — runs the command through aai_git_scrubbed (lib/git-env-scrub.sh): every GIT_ variable of the
+# caller removed, the system git config off and the global one an empty file under $TMP_ROOT. Setting only
+# GIT_CONFIG_NOSYSTEM and GIT_CONFIG_GLOBAL is not enough: a core.hooksPath that arrives through GIT_CONFIG_COUNT,
+# GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n or through GIT_CONFIG_PARAMETERS still redirects an installer run (D-GITENV).
 git_isolated() {
-  [[ -n "${TMP_ROOT:-}" && "$TMP_ROOT" == /* ]] || { echo "git_isolated: no scratch root" >&2; return 1; }
-  : > "$TMP_ROOT/empty-gitconfig"
-  env GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$TMP_ROOT/empty-gitconfig" "$@"
+  aai_git_scrubbed "$@"
 }
 
 # install_module <dir> [installer args...] — the Node module itself, run against ONLY <dir>.
 install_module() {
   local d="$1"; shift
   [[ -n "$d" && "$d" == /* ]] || { echo "install_module: fixture path must be absolute" >&2; return 1; }
-  (cd "$d" && git_isolated node "$INSTALLER_MJS" "$@")
+  aai_assert_hooks_under "$d" "$TMP_ROOT" || return 1
+  (cd "$d" && aai_git_scrubbed node "$INSTALLER_MJS" "$@")
 }
 
 # install_ps1 <dir> [installer args...] — the .ps1 launcher under pwsh against ONLY <dir>; callers check pwsh first.
 install_ps1() {
   local d="$1"; shift
   [[ -n "$d" && "$d" == /* ]] || { echo "install_ps1: fixture path must be absolute" >&2; return 1; }
-  (cd "$d" && git_isolated pwsh -NoProfile -File "$INSTALLER_PS1" "$@")
+  aai_assert_hooks_under "$d" "$TMP_ROOT" || return 1
+  (cd "$d" && aai_git_scrubbed pwsh -NoProfile -File "$INSTALLER_PS1" "$@")
 }
 
 # commit_det <dir> <msg> [extra env "NAME=value" pairs...] — a deterministic,
@@ -735,7 +740,7 @@ test_315_effective_hooks_path() {
   local d3; d3="$(new_repo t315wt)"
   local wt="$TMP_ROOT/t315wt-linked"
   if git -C "$d3" worktree add -q "$wt" -b t315branch >/dev/null 2>&1; then
-    (cd "$wt" && bash "$INSTALLER") >/dev/null 2>&1; irc=$?
+    (cd "$wt" && aai_git_scrubbed bash "$INSTALLER") >/dev/null 2>&1; irc=$?
     [[ $irc -eq 0 ]] || { log_fail "TEST-315 linked-worktree: installer expected exit 0, got $irc"; ok=0; }
     assert_refuses "linked-worktree (installed from the worktree, main lives in the parent)" "$d3" || ok=0
     (cd "$d3" && git worktree remove --force "$wt") >/dev/null 2>&1
@@ -751,7 +756,7 @@ test_315_effective_hooks_path() {
   printf 'not a directory\n' > "$d4/hooks-as-a-file"
   git -C "$d4" config core.hooksPath "$d4/hooks-as-a-file"
   local out4 rc4
-  out4="$(cd "$d4" && bash "$INSTALLER" 2>&1)"; rc4=$?
+  out4="$(cd "$d4" && aai_git_scrubbed bash "$INSTALLER" 2>&1)"; rc4=$?
   if [[ $rc4 -eq 0 ]]; then
     log_fail "TEST-315 unusable-hooksPath: installer exited 0 on a hooks path it cannot install into (a false success on a guard)"; ok=0
   fi
@@ -776,7 +781,7 @@ test_315_effective_hooks_path() {
     log_fail "TEST-315 non-executable: fixture precondition failed — git still refused, so this arm is not measuring a real hole"; ok=0
   else
     local out5 rc5
-    out5="$(cd "$d5" && bash "$INSTALLER" 2>&1)"; rc5=$?
+    out5="$(cd "$d5" && aai_git_scrubbed bash "$INSTALLER" 2>&1)"; rc5=$?
     if [[ $rc5 -eq 0 ]]; then
       log_fail "TEST-315 non-executable: installer exited 0 while the hook git resolves is not executable (git skips it) — a false success on a guard"; ok=0
     fi
@@ -847,7 +852,7 @@ test_309_ps1_twin_static() {
     git -C "$d" config core.hooksPath custom-hooks
     mkdir -p "$d/sub/dir"
     local out rc
-    out="$(cd "$d/sub/dir" && git_isolated pwsh -NoProfile -File "$INSTALLER_PS1" 2>&1)"; rc=$?
+    out="$(cd "$d/sub/dir" && aai_git_scrubbed pwsh -NoProfile -File "$INSTALLER_PS1" 2>&1)"; rc=$?
     [[ $rc -eq 0 ]] || { log_fail "TEST-309: the .ps1 launcher from a subdirectory expected exit 0, got $rc: $out"; ok=0; }
     [[ -f "$d/custom-hooks/reference-transaction" ]] \
       || { log_fail "TEST-309: the .ps1 did not write the reference-transaction hook into the core.hooksPath directory: $out"; ok=0; }
@@ -1781,7 +1786,7 @@ test_638_hooks_empty_rejected() {
   if command -v pwsh >/dev/null 2>&1 && [[ -f "$INSTALLER_PS1" ]]; then
     local d2; d2="$(new_repo t638ps1)"
     local out2 rc2
-    out2="$(cd "$d2" && pwsh -NoProfile -File "$INSTALLER_PS1" -Hooks "" 2>&1)"; rc2=$?
+    out2="$(cd "$d2" && aai_git_scrubbed pwsh -NoProfile -File "$INSTALLER_PS1" -Hooks "" 2>&1)"; rc2=$?
     [[ $rc2 -eq 2 ]] || { log_fail "TEST-638: .ps1 -Hooks '' expected exit 2, got $rc2: $out2"; ok=0; }
   else
     log_info "TEST-638: pwsh not available on this host -- .ps1 twin's -Hooks '' behaviour not re-verified this run (its rejection is pinned statically by TEST-608's closed-set assertion)"

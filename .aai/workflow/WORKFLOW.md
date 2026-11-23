@@ -79,6 +79,8 @@ Protected surfaces (L3 canonical defaults; project-owned override/extension:
   and the hook bodies it installs under .aai/templates/git-hooks/
   (pre-commit-index.sh, pre-commit-guard-checks.sh, reference-transaction.sh,
   pre-push.sh)
+- guard config: .aai/scripts/lib/guard-config.mjs (the guard policy reader the hook
+  installer and the guards share)
 - workflow canon: .aai/workflow/WORKFLOW.md, docs/CONSTITUTION.md
 
 A spec whose scope touches a protected surface MUST declare level 3.
