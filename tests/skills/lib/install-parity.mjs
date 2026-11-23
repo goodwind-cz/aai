@@ -807,6 +807,8 @@ export function sourcePathControl({ platform, scenario, twin, pin = [] }) {
 }
 export const exitCodeFor = (rep) => (rep.verdict === 'PASS' && !(rep.host_checks || []).some((e) => e.status === 'fail') ? 0 : 1);
 
+// oddSeenLine: AAI-ODD-SEEN <scenario> <twin> entries=<n>, n = the odd root entries the twin's steps left (odd_root_entries over its steps).
+export const oddSeenLine = (scenario, twin, steps) => `AAI-ODD-SEEN ${scenario} ${twin} entries=${steps.reduce((n, x) => n + (x.odd_root_entries || []).length, 0)}`;
 // D-ODD step 2 (test-only, off unless AAI_PARITY_ODD_DIAG=1): in a fresh copy of the post-step target, one candidate at a time with a
 // root snapshot before and after each. The first candidate that births an entry, narrowed to its child process and arguments, is the
 // named root cause. Each runs as a child of the driver's bash (the bash-derived environment the sh twin gave the doctor).
@@ -965,6 +967,9 @@ function runScenario(scenario, allTwins, ctx) {
       divergences.push(...compareSnapshots(r.first, r.final, pair, ['step 1', 'step 2']));
     }
   }
+  // D-ODD: one always-printed line per scenario and twin saying how many odd root entries its steps left, so a run says whether
+  // the frozen sh reference reproduced the defect even when no diagnostic candidate was asked for.
+  for (const twin of twins) diag.push(oddSeenLine(scenario.id, twin.name, steps.filter((x) => x.twin === twin.name)));
   return { id: scenario.id, seconds: Math.round((Date.now() - t0) / 100) / 10, steps, broken, divergences, pairs, hostChecks, diag };
 }
 

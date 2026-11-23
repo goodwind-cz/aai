@@ -70,7 +70,9 @@ export function parseArgs(argv, env = {}, ps1Flags = PS1_FLAGS) {
   const o = { launcher: 'sh', launcherPath: '', version: '', dryRun: false, confirm: false, noRemote: env.AAI_RELEASE_NO_REMOTE === '1', help: false };
   let bare = null;
   for (let i = 0; i < argv.length; i++) {
-    const orig = argv[i];
+    let orig = argv[i];
+    // Windows PowerShell 5.1 under -File hands -Switch:value over as two tokens (-Switch: then the value): join them.
+    if (o.launcher === 'ps1' && /^-[A-Za-z]+:$/.test(orig) && i + 1 < argv.length && !/^-[A-Za-z]/.test(argv[i + 1])) orig += argv[++i];
     const mapped = o.launcher === 'ps1' ? ps1Form(orig, ps1Flags) : null;
     if (mapped === '') continue;
     if (mapped?.ambiguous) return { error: [`REFUSED: ambiguous argument ${orig}: matches ${mapped.ambiguous.join(', ')}.`], code: EXIT.USAGE };

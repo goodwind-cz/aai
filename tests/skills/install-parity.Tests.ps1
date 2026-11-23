@@ -69,15 +69,15 @@ Describe 'install-parity driver, smoke matrix' {
       if ($IsWin) {
         foreach ($sc in @('SY-01', 'UP-01')) { if ($ran -notcontains $sc) { $problems += ('win32 run did not run ' + $sc + ', so its host checks are missing') } }
         foreach ($tw in @('launcher', 'node')) {
-          $m = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows' -Scenario 'SY-01' -Twin $tw
+          $m = @(Select-ParityHostCheck -Checks $checks -Id 'source-path-windows' -Scenario 'SY-01' -Twin $tw)
           if ($m.Count -ne 1) { $problems += ('expected exactly one source-path-windows SY-01 ' + $tw + ' entry, found ' + $m.Count); continue }
           if ($m[0].status -ne 'pass') { $problems += ('source-path-windows SY-01 ' + $tw + ' is ' + $m[0].status + ', not pass') }
           if ([int]$m[0].checked -lt 2) { $problems += ('source-path-windows SY-01 ' + $tw + ' checked ' + $m[0].checked + ' lines, at least 2 are required') }
         }
-        $c = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows-control' -Scenario 'SY-01' -Twin 'sh'
+        $c = @(Select-ParityHostCheck -Checks $checks -Id 'source-path-windows-control' -Scenario 'SY-01' -Twin 'sh')
         if ($c.Count -ne 1) { $problems += ('expected exactly one source-path-windows-control SY-01 sh entry, found ' + $c.Count) }
         elseif ($c[0].status -ne 'bites') { $problems += ('source-path-windows-control is ' + $c[0].status + ', not bites') }
-        $o = Select-ParityHostCheck -Checks $checks -Id 'no-odd-root' -Scenario 'UP-01' -Twin 'launcher'
+        $o = @(Select-ParityHostCheck -Checks $checks -Id 'no-odd-root' -Scenario 'UP-01' -Twin 'launcher')
         if ($o.Count -ne 1) { $problems += ('expected exactly one no-odd-root UP-01 launcher entry, found ' + $o.Count) }
         else {
           if ($o[0].status -ne 'pass') { $problems += ('no-odd-root UP-01 launcher is ' + $o[0].status + ', not pass') }
@@ -86,14 +86,14 @@ Describe 'install-parity driver, smoke matrix' {
       } else {
         if ($ran -contains 'SY-01') {
           foreach ($tw in @('launcher', 'node')) {
-            $m = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows' -Scenario 'SY-01' -Twin $tw
+            $m = @(Select-ParityHostCheck -Checks $checks -Id 'source-path-windows' -Scenario 'SY-01' -Twin $tw)
             if ($m.Count -ne 1 -or $m[0].status -ne 'not-applicable') { $problems += ('source-path-windows SY-01 ' + $tw + ' must read not-applicable on a POSIX host') }
           }
-          $c = Select-ParityHostCheck -Checks $checks -Id 'source-path-windows-control' -Scenario 'SY-01' -Twin 'sh'
+          $c = @(Select-ParityHostCheck -Checks $checks -Id 'source-path-windows-control' -Scenario 'SY-01' -Twin 'sh')
           if ($c.Count -ne 1 -or $c[0].status -ne 'not-applicable') { $problems += 'source-path-windows-control must read not-applicable on a POSIX host' }
         }
         if ($ran -contains 'UP-01') {
-          $o = Select-ParityHostCheck -Checks $checks -Id 'no-odd-root' -Scenario 'UP-01' -Twin 'launcher'
+          $o = @(Select-ParityHostCheck -Checks $checks -Id 'no-odd-root' -Scenario 'UP-01' -Twin 'launcher')
           if ($o.Count -ne 1 -or $o[0].status -ne 'pass' -or [int]$o[0].checked -lt 1) { $problems += 'no-odd-root UP-01 launcher must read pass with at least 1 root entry checked' }
         }
       }

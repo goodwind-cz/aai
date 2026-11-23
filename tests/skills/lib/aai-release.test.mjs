@@ -649,6 +649,25 @@ test('TEST-4026 every form accepted today is still accepted under ps1, and commo
   }
 });
 
+test('TEST-4026 Windows PowerShell 5.1 -File hands -Switch:value over as two tokens (-Switch: then the value); the colon value binds to its flag', () => {
+  for (const [name, dd] of PS1_FORMS) {
+    const on = parse([...LP, ...dd]);
+    const off = parse([...LP]);
+    for (const form of cases3(name)) {
+      for (const v of ['true', '$true', 'True', '$TRUE']) assert.deepEqual(parse([...LP, `${form}:`, v]), on, `${form}: ${v}`);
+      for (const v of ['false', '$false', 'False', '$FALSE']) assert.deepEqual(parse([...LP, `${form}:`, v]), off, `${form}: ${v}`);
+    }
+  }
+  const want = parse([...LP, '--version', 'v9', '--dry-run', '--no-remote']);
+  assert.deepEqual(parse([...LP, '-Version:', 'v9', '-DryRun:', 'true', '-NoRemote:', 'true']), want);
+  assert.deepEqual(parse([...LP, '-VERSION:', 'v9', '-dryrun:', '$true', '-noremote:', '$true']), want);
+  assert.deepEqual(parse([...LP, '-Version:', 'v9', '-DryRun:', '$false']), parse([...LP, '--version', 'v9']));
+  assert.deepEqual(parse([...LP, '-Version:']), { error: ['REFUSED: --version needs a value.'], code: 1 });
+  assert.deepEqual(parse([...LP, '-Version:', '-DryRun']), { error: ['REFUSED: --version needs a value.'], code: 1 });
+  assert.deepEqual(parse([...LP, '-DryRun:', 'maybe']), { error: ['Unknown argument: -DryRun:maybe', 'Run with --help for usage.'], code: 1 });
+  assert.deepEqual(parse([...LP, '-DryRun:']), { error: ['Unknown argument: -DryRun:', 'Run with --help for usage.'], code: 1 });
+});
+
 test('TEST-4026 an unambiguous prefix of a PowerShell flag binds like the full name, in any letter case, with the colon forms', () => {
   const want = {
     '-Ver': parse([...LP, '--version', 'v9']), '-V': parse([...LP, '--version', 'v9']), '-Versio': parse([...LP, '--version', 'v9']),

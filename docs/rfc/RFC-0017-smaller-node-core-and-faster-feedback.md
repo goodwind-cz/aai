@@ -324,7 +324,7 @@ The [small-pairs slice](../issues/CHANGE-0239-node-first-small-pairs.md) moved v
 
 The [reaper slice](../issues/CHANGE-0241-node-first-reap-tests.md) moved aai-reap-tests to a Node module (pair 787 to 274 lines).
 
-The [release slices](../issues/CHANGE-0252-release-publish-on-node.md) moved aai-release to Node modules with thin launchers (pair 319 to 22 code lines).
+The [release slices](../issues/CHANGE-0252-release-publish-on-node.md) moved aai-release to Node modules with thin launchers (pair 319 to 21 code lines).
 
 ### Kept native scripts
 

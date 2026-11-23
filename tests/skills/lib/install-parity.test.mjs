@@ -1366,6 +1366,19 @@ describe('TEST-4031 odd-root diagnostic', () => {
     assert.equal(fs.existsSync(path.join(target, 'wide\u4e2d')), false, 'the post-step target itself is never written');
     assert.deepEqual(fs.readdirSync(target).sort(), ['keep.txt', 'pre\u00e9']);
   });
+  test('every run prints one AAI-ODD-SEEN <scenario> <twin> entries=<n> line per scenario and twin, with the odd root entries counted across steps, diagnostic off', () => {
+    has('oddSeenLine');
+    assert.equal(M.oddSeenLine('UP-01', 'sh', [{ twin: 'sh' }, { twin: 'sh', odd_root_entries: ['a', 'b'] }, { twin: 'sh', odd_root_entries: ['c'] }]), 'AAI-ODD-SEEN UP-01 sh entries=3');
+    assert.equal(M.oddSeenLine('UP-01', 'node', []), 'AAI-ODD-SEEN UP-01 node entries=0');
+    has('runMatrix');
+    const up = scen({ id: 'U-03', op: 'update', steps: [{ op: 'update', profile: null, flags: [], expect: '0' }] });
+    const prev = process.env.AAI_PARITY_ODD_DIAG;
+    delete process.env.AAI_PARITY_ODD_DIAG;
+    try {
+      const rep = runFake([fakeTwin('sh', { files: { 'p.txt': 'a\n' } }), fakeTwin('ps1', { files: { 'p.txt': 'a\n' } })], [up], [], { ctx: { root: scratch('diagseen'), src: null, upref: '/unused', bash: 'bash', ps: 'pwsh', setup: fakeSetup, host: HOST_POSIX } });
+      assert.deepEqual(rep.notes.filter((n) => n.startsWith('AAI-ODD-SEEN')), ['AAI-ODD-SEEN U-03 sh entries=0', 'AAI-ODD-SEEN U-03 ps1 entries=0']);
+    } finally { if (prev !== undefined) process.env.AAI_PARITY_ODD_DIAG = prev; }
+  });
   test('the diagnostic is off unless AAI_PARITY_ODD_DIAG is 1: a run over fake twins prints no AAI-ODD-DIAG line', () => {
     has('runMatrix');
     const up = scen({ id: 'U-02', op: 'update', steps: [{ op: 'update', profile: null, flags: [], expect: '0' }] });
@@ -1463,6 +1476,12 @@ describe('TEST-4032 source-path-windows host check', () => {
     const f = fs.readFileSync(path.join(HERE, '..', 'install-parity.Tests.ps1'), 'utf8');
     for (const c of ['Get-ParityHostCheckProblems', "'source-path-windows'", "'source-path-windows-control'", "'no-odd-root'", "'bites'", "'not-applicable'", 'AAI-HOST-CHECK', 'host_checks']) assert.ok(f.includes(c), c);
     assert.ok(/Get-ParityHostCheckProblems -Report \$rep -IsWin \$script:IsWin/.test(f), 'the It block calls the function with the host flag');
+  });
+  test('SOURCE-SHAPE PIN (Windows PowerShell 5.1 unrolls a one-element array returned by a function to a scalar whose .Count is $null, which pwsh 7 cannot show): every call of Select-ParityHostCheck is wrapped in @( )', () => {
+    const f = fs.readFileSync(path.join(HERE, '..', 'install-parity.Tests.ps1'), 'utf8');
+    const calls = f.split('\n').filter((l) => /Select-ParityHostCheck\s+-Checks/.test(l));
+    assert.ok(calls.length >= 6, 'the helper is called at least six times');
+    for (const l of calls) assert.match(l, /=\s*@\(Select-ParityHostCheck\s.*\)\s*$/, 'unwrapped call: ' + l.trim());
   });
   const pwsh = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'], { encoding: 'utf8' });
   const havePwsh = pwsh.status === 0;
