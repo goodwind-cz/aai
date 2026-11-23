@@ -726,10 +726,18 @@ test_018_generic_non_aai_repo() {
 test_019_ps1_flag_parity() {
   log_info "TEST-019: aai-release.ps1 exists, exposes the same flags as aai-release.sh and honours the two environment twins..."
   [[ -f "$RELEASE_PS1" ]] || log_fail "TEST-019: aai-release.ps1 not found"
-  grep -q '\$DryRun'  "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a DryRun switch"
-  grep -q '\$Version' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a Version parameter"
-  grep -q '\$Confirm' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a Confirm switch"
-  grep -q '\$NoRemote' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a NoRemote switch"
+  # The four flags are checked by behaviour, not by the text of a param block (the launcher has none): the module takes the
+  # PowerShell spellings under --launcher ps1, which is the same grammar the launcher hands it.
+  local mrepo="$TMP_ROOT/t019-mod" mout
+  build_repo "$mrepo" scaffold_plus_entries
+  ( cd "$mrepo" && node "$PROJECT_ROOT/.aai/scripts/aai-release.mjs" --launcher ps1 -Version v9.1.0 -DryRun -NoRemote ) >"$TMP_ROOT/t019-mod.out" 2>&1 \
+    || log_fail "TEST-019: the ps1 flags -Version -DryRun -NoRemote were refused: $(cat "$TMP_ROOT/t019-mod.out")"
+  mout="$(cat "$TMP_ROOT/t019-mod.out")"
+  grep -qxF -- '- Resolved version: v9.1.0' <<<"$mout" || log_fail "TEST-019: -Version did not set the version: $mout"
+  grep -qF -- '-NoRemote / AAI_RELEASE_NO_REMOTE=1: push + gh pr create would be SKIPPED' <<<"$mout" || log_fail "TEST-019: -NoRemote was not honoured: $mout"
+  ( cd "$mrepo" && node "$PROJECT_ROOT/.aai/scripts/aai-release.mjs" --launcher ps1 -Confirm -NoRemote -Version v9.1.0 ) >"$TMP_ROOT/t019-mod.out" 2>&1 \
+    || log_fail "TEST-019: the ps1 flags -Confirm -NoRemote were refused: $(cat "$TMP_ROOT/t019-mod.out")"
+  git -C "$mrepo" rev-parse -q --verify "refs/heads/chore/release-v9.1.0" >/dev/null 2>&1 || log_fail "TEST-019: -Confirm did not cut the release branch"
 
   if ! command -v pwsh >/dev/null 2>&1; then
     [[ -z "${CI:-}" ]] || log_fail "TEST-019: pwsh is required on CI but is not on PATH"
