@@ -882,7 +882,7 @@ test_4019_wiring() {
     env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/${sel%% *}" ${sel#* } > "$work/sel.log" 2>&1 || rc=$?
     [[ "$rc" == 0 ]] || { cat "$work/sel.log" >&2; log_fail "TEST-4019: ${sel#* } of ${sel%% *} exited $rc"; }
   done
-  qgrep -q "row-count pin holds at 144\|-eq 144" < "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || log_fail "TEST-4019: test_090 does not pin 144 suite-map rows"
+  qgrep -q "row-count pin holds at 145\|-eq 145" < "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || log_fail "TEST-4019: test_090 does not pin 145 suite-map rows"
   rc=0
   node "$SCRIPT_DIR/lib/nested-suite-lint.mjs" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" > "$work/lint.log" 2>&1 || rc=$?
   [[ "$rc" == 0 ]] || { cat "$work/lint.log" >&2; log_fail "TEST-4019: nested-suite-lint exited $rc"; }

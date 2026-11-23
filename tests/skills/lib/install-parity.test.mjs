@@ -1275,7 +1275,7 @@ describe('TEST-4030 launcher twin', () => {
   });
 });
 
-// TEST-4031 (Spec-AC-08, D-HOSTCHECK no-odd-root): a root entry with a name outside printable ASCII that a node or launcher twin step
+// TEST-4031: (Spec-AC-08, D-HOSTCHECK no-odd-root) a root entry with a name outside printable ASCII that a node or launcher twin step
 // birthed fails the run; an entry that existed before the step, an ASCII name and a twin outside the two are not reported.
 describe('TEST-4031 no-odd-root host check', () => {
   const clean = { 'p.txt': 'same\n' };
@@ -1343,7 +1343,7 @@ describe('TEST-4031 no-odd-root host check', () => {
   });
 });
 
-// TEST-4031 (D-ODD step 2): the diagnostic is off by default and, when asked for, runs one candidate at a time in a fresh copy of the
+// TEST-4031: (D-ODD step 2) the diagnostic is off by default and, when asked for, runs one candidate at a time in a fresh copy of the
 // target with a root snapshot before and after, printing AAI-ODD-DIAG <candidate> born=<n>.
 describe('TEST-4031 odd-root diagnostic', () => {
   test('the default candidate list names the doctor helper, the doctor, the three ref-guard arms, the selftest and the agent CLI probes', () => {
@@ -1378,7 +1378,7 @@ describe('TEST-4031 odd-root diagnostic', () => {
   });
 });
 
-// TEST-4032 (Spec-AC-09, D-HOSTCHECK source-path-windows and its control): on win32 every Source path line of the pin and every Source
+// TEST-4032: (Spec-AC-09, D-HOSTCHECK source-path-windows and its control) on win32 every Source path line of the pin and every Source
 // line of a sync-conflicts report that the node and launcher twins wrote must be a drive letter, a colon and a backslash path.
 describe('TEST-4032 source-path-windows host check', () => {
   const winPin = (n) => Array.from({ length: n }, (_, i) => `- Source path: C:\\Users\\r\\aai-parity-x\\fx\\src${i ? i : ''}\n`).join('');

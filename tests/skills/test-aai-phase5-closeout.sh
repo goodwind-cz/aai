@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-phase5-closeout
-# (docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md; TEST-4024, TEST-4035 here, TEST-4033, TEST-4034 and
-# TEST-4036 as the later steps of the ride land)
+# (docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md; TEST-4024, TEST-4033, TEST-4034, TEST-4035 and TEST-4036)
 #
 # The classification and record half of the RFC-0017 phase 5 closeout. TEST-4024 reads the Kept native scripts table of
 # RFC-0017 through parseKeptNative of tests/skills/lib/script-classes.mjs; TEST-4035 installs the extended profile with
@@ -252,11 +251,306 @@ test_4035_every_launcher_runs() {
   log_pass "TEST-4035: $ran launchers ($ran_ps1 ps1) ran from a scratch extended install with their recorded arguments and exit codes"
 }
 
+# TEST-4033 (Spec-AC-10, D-REMEASURE and D-HOSTED): the record of this ride. The LATEST "## N. Re-measure after ... (date)" section of
+# the plan is section 7; its file table equals the shared-classifier measurement of the tree (no logic row, every reason non-empty), its
+# twin duplication line, follow-up table (against the ledger), outside-ref line, root-cause line and hosted line are present and
+# well-formed, the RFC phase 5 row follows the section 5 criteria (done only when the hosted line reads "passed on <sha> (ps1-quality
+# run <id>)", else in progress naming section 7), and, once the hosted line is "passed", the record commit changed only the four
+# D-HOSTED paths when the cited sha object exists here.
+test_4033_remeasure_record() {
+  local out
+  out="$(T4033_LIB="$CLASSES_LIB" T4033_ROOT="$PROJECT_ROOT" node --input-type=module -e '
+    import fs from "node:fs";
+    import { execFileSync } from "node:child_process";
+    const { countCodeLines, classify, parseKeptNative } = await import(process.env.T4033_LIB);
+    const root = process.env.T4033_ROOT;
+    const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
+    const bad = [];
+    const files = execFileSync("git", ["-C", root, "ls-files", "-z", "--", ".aai/scripts"], { encoding: "utf8" })
+      .split("\0").filter((f) => /\.(sh|ps1)$/.test(f));
+    const rfcText = read("docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md");
+    const kept = parseKeptNative(rfcText);
+    const rows = files.map((f) => { const t = read(f); return { file: f, code: countCodeLines(t), cls: classify({ file: f, text: t, kept }) }; });
+    const rest = rows.filter((r) => r.cls !== "launcher").sort((a, b) => (a.file < b.file ? -1 : 1));
+    let dup = 0;
+    for (const r of rows) {
+      if (!r.file.endsWith(".sh") || r.cls !== "logic") continue;
+      const twin = rows.find((x) => x.file === r.file.replace(/\.sh$/, ".ps1"));
+      if (twin && twin.cls === "logic") dup += Math.min(r.code, twin.code);
+    }
+    const plan = read("docs/analysis/node-first-remaining-plan.md").split("\n");
+    const HEAD = /^## (\d+)\. Re-measure after (.+) \((\d{4}-\d{2}-\d{2})\)$/;
+    const heads = plan.map((l, i) => ({ i, m: HEAD.exec(l) })).filter((h) => h.m);
+    const last = heads[heads.length - 1];
+    if (!last) { process.stdout.write("the plan has no Re-measure section"); process.exit(0); }
+    if (last.m[1] !== "7" || last.m[2] !== "the phase 5 closeout") bad.push("the latest re-measure section is not 7 (the phase 5 closeout): " + plan[last.i]);
+    let end = plan.length;
+    for (let i = last.i + 1; i < plan.length; i += 1) if (plan[i].startsWith("## ")) { end = i; break; }
+    const sec = plan.slice(last.i + 1, end);
+    const tableAfter = (header) => {
+      const h = sec.findIndex((l) => l.startsWith(header));
+      if (h < 0) return null;
+      const out = [];
+      for (let i = h + 2; i < sec.length && sec[i].startsWith("|"); i += 1) out.push(sec[i].split("|").slice(1, -1).map((c) => c.trim()));
+      return out;
+    };
+    const t = tableAfter("| File |");
+    if (!t) bad.push("section 7 has no file table");
+    else {
+      const got = t.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]);
+      const want = rest.map((r) => r.file + " " + r.code + " " + r.cls);
+      if (JSON.stringify(got) !== JSON.stringify(want)) bad.push("the section 7 file table differs from the measurement: want [" + want.join(" ; ") + "] got [" + got.join(" ; ") + "]");
+      for (const c of t) if (!c[3]) bad.push("section 7 row " + c[0] + " has no reason");
+    }
+    const logic = rest.filter((r) => r.cls === "logic");
+    if (logic.length) bad.push("the measurement holds logic files: " + logic.map((r) => r.file).join(" "));
+    const dupLine = sec.find((l) => l.startsWith("- Twin duplication: "));
+    if (!dupLine) bad.push("section 7 has no Twin duplication line");
+    else if (!dupLine.startsWith("- Twin duplication: " + dup + " code lines")) bad.push("section 7 twin duplication is not " + dup + ": " + dupLine);
+    // the ledger: open P1 and P2 follow-ups of the plan refs, install-path-parity-harness and node-first*
+    const refs = new Set();
+    for (const l of plan) { const m = /^\| \d+ \| ([a-z0-9-]+) \|/.exec(l); if (m) refs.add(m[1]); }
+    if (refs.size !== 12) bad.push("the plan lists " + refs.size + " roadmap refs, want 12");
+    const all = JSON.parse(execFileSync("node", [root + "/.aai/scripts/follow-ups.mjs", "list", "--status", "all", "--json", "--ledger", root + "/docs/ai/decisions.jsonl"], { encoding: "utf8", maxBuffer: 1 << 28 })).items;
+    const inScope = (i) => refs.has(i.ref_id) || i.ref_id === "install-path-parity-harness" || String(i.ref_id).startsWith("node-first");
+    const open = all.filter((i) => (i.severity === "P1" || i.severity === "P2") && !i.closed && !i.id.startsWith("fu-amend-") && inScope(i))
+      .map((i) => i.id + " " + i.severity + " " + i.ref_id).sort();
+    const f = tableAfter("| Follow-up |");
+    if (!f) bad.push("section 7 has no follow-up table");
+    else {
+      const got = f.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]).filter((x) => !x.startsWith("none ")).sort();
+      if (JSON.stringify(got) !== JSON.stringify(open)) bad.push("the section 7 follow-up table differs from the ledger: want [" + open.join(" ; ") + "] got [" + got.join(" ; ") + "]");
+      if (open.length === 0 && !f.some((c) => c[0].replace(/`/g, "") === "none")) bad.push("section 7 has no none row for an empty follow-up table");
+    }
+    // the open P2 items whose subject sounds related but whose ref lies outside the plan refs
+    const outLine = sec.find((l) => l.startsWith("- Open P2 follow-ups outside the plan refs"));
+    if (!outLine) bad.push("section 7 has no outside-ref line");
+    else {
+      const named = [...outLine.matchAll(/`(fu-[a-z0-9-]+)`/g)].map((m) => m[1]).sort();
+      const want = ["fu-hook-gate-skips-renamed-doc", "fu-release-preflight-scrubbed-env", "fu-release-pwsh-identity-crash"];
+      if (JSON.stringify(named) !== JSON.stringify(want)) bad.push("the outside-ref line names [" + named.join(" ") + "], want [" + want.join(" ") + "]");
+      for (const id of named) {
+        const it = all.find((x) => x.id === id);
+        if (!it) bad.push(id + " is not in the ledger");
+        else if (it.closed || it.severity !== "P2" || inScope(it)) bad.push(id + " is not an open P2 outside the plan refs (" + it.severity + " " + it.ref_id + " closed=" + it.closed + ")");
+      }
+    }
+    // the hosted line, in one of its two forms, and the root-cause line bound to it
+    const hosted = sec.find((l) => l.startsWith("- Parity harness and Pester (H1 to H3): "));
+    let passed = false, sha = "";
+    if (!hosted) bad.push("section 7 has no Parity harness and Pester line");
+    else {
+      const rest2 = hosted.slice("- Parity harness and Pester (H1 to H3): ".length);
+      const pm = /^passed on ([0-9a-f]{40}) \(ps1-quality run ([0-9]+)\)/.exec(rest2);
+      if (pm) { passed = true; sha = pm[1]; }
+      else if (!/^pending: \S/.test(rest2)) bad.push("the hosted line is neither passed on <full sha> (ps1-quality run <id>) nor pending: <what remains>: " + hosted);
+    }
+    const rc = sec.find((l) => l.startsWith("- Root cause of fu-parity-win-odd-root-dirs: "));
+    if (!rc) bad.push("section 7 has no root-cause line");
+    else {
+      const body = rc.slice("- Root cause of fu-parity-win-odd-root-dirs: ".length);
+      if (passed) { if (!/, shown by ps1-quality run [0-9]+$/.test(body) || /^pending/.test(body)) bad.push("the hosted line passed but the root-cause line names no cause with a run id: " + rc); }
+      else if (!/^pending\b/.test(body) && !/, shown by ps1-quality run [0-9]+$/.test(body)) bad.push("the root-cause line is neither pending nor a named cause: " + rc);
+    }
+    // the RFC phase 5 row
+    const allHold = passed && logic.length === 0 && dup === 0 && open.length === 0;
+    const rfc = rfcText.split("\n").filter((l) => l.startsWith("| 5 |"));
+    if (rfc.length !== 1) bad.push("the RFC phase 5 row appears " + rfc.length + " times");
+    else {
+      const status = rfc[0].split("|").map((c) => c.trim())[3];
+      if (allHold && status !== "done") bad.push("every section 5 criterion holds but the RFC phase 5 status is " + status);
+      if (!allHold && status !== "in progress") bad.push("a section 5 criterion does not hold but the RFC phase 5 status is " + status);
+      if (!allHold && !rfc[0].includes("section 7")) bad.push("the RFC phase 5 row does not name section 7");
+      if (!rfc[0].includes("eighteenth slice") || !rfc[0].includes("node-first-phase5-closeout")) bad.push("the RFC phase 5 row lacks the eighteenth slice sentence linking the intake");
+    }
+    // D-HOSTED step 4: the record commit changed only the four record paths (checked when the cited object exists here)
+    if (passed) {
+      let have = true;
+      try { execFileSync("git", ["-C", root, "cat-file", "-e", sha + "^{commit}"], { stdio: "ignore" }); } catch { have = false; }
+      if (!have) console.error("INFO: TEST-4033 could not check the record diff: " + sha + " is not in this checkout");
+      else {
+        const names = execFileSync("git", ["-C", root, "diff", "--name-only", sha, "HEAD"], { encoding: "utf8" }).split("\n").filter(Boolean);
+        const ok = new Set(["docs/analysis/node-first-remaining-plan.md", "docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md", "docs/product/node-first-phase5-closeout.md", "docs/ai/decisions.jsonl"]);
+        const extra = names.filter((n) => !ok.has(n));
+        if (extra.length) bad.push("the record commit changed paths outside the four record paths: " + extra.join(" "));
+      }
+    }
+    process.stdout.write(bad.join("; "));
+  ')" || log_fail "TEST-4033: the record check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-4033: $out"
+  log_pass "TEST-4033: plan section 7 is the latest re-measure; its file table, follow-up table, outside-ref line, root-cause line and hosted line match the tree and the ledger, and the RFC phase 5 row follows them"
+}
+
+# TEST-4034 (Spec-AC-11, D-FU and D-HOSTED order): the follow-up closes. fu-cfshare-redact-escape-robust is closed now. The two Windows
+# items follow the hosted line of plan section 7: while it reads pending both are still open; once it reads passed both are closed with
+# resolved_by this ride, a source naming a test file and a TEST id that the file holds followed by a colon, and a ps1-quality run id.
+test_4034_follow_ups() {
+  local out
+  out="$(T4034_ROOT="$PROJECT_ROOT" node --input-type=module -e '
+    import fs from "node:fs";
+    import { execFileSync } from "node:child_process";
+    const root = process.env.T4034_ROOT;
+    const SELF = "node-first-phase5-closeout";
+    const bad = [];
+    const items = JSON.parse(execFileSync("node", [root + "/.aai/scripts/follow-ups.mjs", "list", "--status", "all", "--json", "--ledger", root + "/docs/ai/decisions.jsonl"], { encoding: "utf8", maxBuffer: 1 << 28 })).items;
+    const by = new Map(items.map((i) => [i.id, i]));
+    // the latest close record per id carries the source; a later reopen record clears it
+    const closeSource = new Map();
+    for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
+      if (!line.includes("\"follow_up_status\"")) continue;
+      let rec; try { rec = JSON.parse(line); } catch { continue; }
+      if (rec.type !== "follow_up_status") continue;
+      if (rec.status === "done") closeSource.set(rec.id, String(rec.source ?? "")); else closeSource.delete(rec.id);
+    }
+    const checkClosed = (id, wantFile, wantTest, needRun) => {
+      const it = by.get(id);
+      if (!it) { bad.push(id + " is not in the registry"); return; }
+      if (!it.closed || it.status !== "done") { bad.push(id + " is not closed as done (" + it.status + ")"); return; }
+      if (it.resolved_by !== SELF) bad.push(id + " resolved_by is " + it.resolved_by);
+      const src = closeSource.get(id) ?? "";
+      const m = /(tests\/[A-Za-z0-9_.\/-]+\.(?:sh|mjs)) (TEST-[0-9]+)/.exec(src);
+      if (!m) { bad.push(id + " source names no test file and TEST id: " + src); return; }
+      if (m[1] !== wantFile || m[2] !== wantTest) bad.push(id + " source names " + m[1] + " " + m[2] + ", want " + wantFile + " " + wantTest);
+      if (!fs.existsSync(root + "/" + m[1])) bad.push(id + " source file " + m[1] + " does not exist");
+      else if (!fs.readFileSync(root + "/" + m[1], "utf8").includes(m[2] + ":")) bad.push(id + " source " + m[1] + " holds no " + m[2] + ":");
+      if (needRun && !/ps1-quality run [0-9]+/.test(src)) bad.push(id + " source names no ps1-quality run id: " + src);
+    };
+    checkClosed("fu-cfshare-redact-escape-robust", "tests/skills/lib/cloudflare-share.test.mjs", "TEST-4029", false);
+    // the hosted line of the latest re-measure section decides the state of the two Windows items
+    const plan = fs.readFileSync(root + "/docs/analysis/node-first-remaining-plan.md", "utf8").split("\n");
+    const line = plan.filter((l) => l.startsWith("- Parity harness and Pester (H1 to H3): ")).pop() ?? "";
+    const passed = /: passed on [0-9a-f]{40} \(ps1-quality run [0-9]+\)/.test(line);
+    const pending = /: pending: \S/.test(line);
+    if (!passed && !pending) bad.push("the hosted line of the latest section is neither passed nor pending: " + line);
+    const win = [
+      ["fu-parity-win-odd-root-dirs", "tests/skills/lib/install-parity.test.mjs", "TEST-4031"],
+      ["fu-parity-win-source-path", "tests/skills/lib/install-parity.test.mjs", "TEST-4032"],
+    ];
+    for (const [id, file, test] of win) {
+      const it = by.get(id);
+      if (passed) checkClosed(id, file, test, true);
+      else if (!it) bad.push(id + " is not in the registry");
+      else if (it.closed && it.resolved_by === SELF) bad.push(id + " is closed by this ride while the hosted line still reads pending (D-HOSTED: the Windows items close in the record commit)");
+      else if (it.closed) bad.push(id + " is closed by " + it.resolved_by + " and not by this ride");
+    }
+    process.stdout.write(bad.join("; "));
+  ')" || log_fail "TEST-4034: the follow-up check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-4034: $out"
+  log_pass "TEST-4034: fu-cfshare-redact-escape-robust is closed with its test source; the two Windows follow-ups are open while the hosted line is pending and closed with a run id once it passed"
+}
+
+# TEST-4036 (Spec-AC-13, D-WIRE and D-AMEND): the wiring and the record. One CHANGELOG heading of the D-WIRE title whose entry names each
+# consumer-visible change; the suite on the suite map and the weights; the frozen release reference on both ps1-quality path lists (the
+# helper only on the suite-map globs, a disclosed deviation); a PROFILES entry for every .aai file this branch added; the product doc
+# complete once it exists; the D-AMEND records in the ledger and spec-amend list --strict exiting 0.
+test_4036_docs_and_wiring() {
+  local out rc=0 base added f
+  out="$(T4036_ROOT="$PROJECT_ROOT" node --input-type=module -e '
+    import fs from "node:fs";
+    const root = process.env.T4036_ROOT;
+    const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
+    const bad = [];
+    // CHANGELOG
+    const log = read("CHANGELOG.md").split("\n");
+    const TITLE = "## [unreleased] — Node-first phase 5 closeout";
+    const at = log.map((l, i) => (l === TITLE ? i : -1)).filter((i) => i >= 0);
+    if (at.length !== 1) bad.push("CHANGELOG.md holds " + at.length + " headings " + JSON.stringify(TITLE));
+    else {
+      let end = log.length;
+      for (let i = at[0] + 1; i < log.length; i += 1) if (log[i].startsWith("## ")) { end = i; break; }
+      const body = log.slice(at[0] + 1, end).join("\n");
+      const named = ["cloudflare-share", "aai-release.ps1", "abbreviated", "common parameter", "positional", "without a value", "source path"];
+      for (const w of named) if (!body.includes(w)) bad.push("the CHANGELOG entry does not name " + JSON.stringify(w));
+    }
+    // suite map and weights
+    const map = read("tests/skills/suite-map.yaml").split("\n");
+    const globs = (name) => {
+      const h = map.findIndex((l) => l === "  " + name + ":");
+      if (h < 0) return null;
+      const out = [];
+      for (let i = h + 1; i < map.length && !/^  [a-z0-9]/.test(map[i]); i += 1) { const m = /^\s+- (.+)$/.exec(map[i]); if (m) out.push(m[1].replace(/^[\x27"]|[\x27"]$/g, "")); }
+      return out;
+    };
+    const mine = globs("aai-phase5-closeout");
+    if (!mine) bad.push("suite-map.yaml has no aai-phase5-closeout entry");
+    else for (const g of ["docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md", "docs/analysis/node-first-remaining-plan.md", "CHANGELOG.md", "docs/product/node-first-phase5-closeout.md", "tests/skills/lib/script-classes.mjs", ".aai/scripts/*.sh", ".aai/scripts/*.ps1", ".aai/scripts/lib/*.sh", "tests/skills/test-aai-follow-ups.sh", "tests/skills/test-aai-phase5-closeout.sh"]) if (!mine.includes(g)) bad.push("the suite-map entry lacks " + g);
+    const cut = globs("aai-release-cut");
+    if (!cut) bad.push("suite-map.yaml has no aai-release-cut entry");
+    else for (const g of ["tests/fixtures/aai-release-reference/**", "tests/skills/lib/release-reference.mjs"]) if (!cut.includes(g)) bad.push("the aai-release-cut entry lacks " + g);
+    const w = read("tests/skills/suite-weights.tsv").split("\n");
+    const wi = w.findIndex((l) => /^aai-phase5-closeout\t[0-9]+$/.test(l));
+    if (wi < 0) bad.push("suite-weights.tsv has no aai-phase5-closeout row");
+    else if (!w[wi - 1].startsWith("# sample aai-phase5-closeout ")) bad.push("the aai-phase5-closeout weight row has no sample comment line before it");
+    // ps1-quality path lists: the frozen reference on both
+    const wf = read(".github/workflows/ps1-quality.yml");
+    const n = wf.split("\n").filter((l) => l.trim().replace(/^- /, "").replace(/^[\x27"]|[\x27"]$/g, "") === "tests/fixtures/aai-release-reference/**").length;
+    if (n < 2) bad.push("ps1-quality.yml names tests/fixtures/aai-release-reference/** " + n + " times, want both path lists");
+    process.stdout.write(bad.join("; "));
+  ')" || log_fail "TEST-4036: the wiring check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-4036: $out"
+
+  # a PROFILES entry for every .aai file this branch added (checked when a base ref resolves here)
+  base=""
+  for f in origin/main main; do
+    if git -C "$PROJECT_ROOT" rev-parse --verify -q "$f^{commit}" >/dev/null 2>&1; then base="$f"; break; fi
+  done
+  if [[ -n "$base" ]]; then
+    added="$(git -C "$PROJECT_ROOT" diff --name-only --diff-filter=A "$base"...HEAD -- .aai 2>/dev/null || true)"
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      /usr/bin/grep -qF -- "$f" "$PROJECT_ROOT/.aai/system/PROFILES.yaml" || log_fail "TEST-4036: the new file $f has no PROFILES.yaml entry"
+    done <<< "$added"
+  else
+    log_info "TEST-4036: no base ref here; the PROFILES check for new .aai files is not run"
+  fi
+
+  # the product doc, once it exists, carries every required section
+  if [[ -f "$PROJECT_ROOT/docs/product/node-first-phase5-closeout.md" ]]; then
+    out="$(T4036_ROOT="$PROJECT_ROOT" node --input-type=module -e '
+      import fs from "node:fs";
+      const { missingProductSections } = await import(process.env.T4036_ROOT + "/.aai/scripts/lib/product-doc.mjs");
+      const text = fs.readFileSync(process.env.T4036_ROOT + "/docs/product/node-first-phase5-closeout.md", "utf8");
+      const miss = missingProductSections(text);
+      const fm = /^capability: (.+)$/m.exec(text);
+      const bad = [];
+      if (miss.length) bad.push("the product doc is missing or has empty sections: " + miss.join(", "));
+      if (!fm || fm[1].trim() !== "node-first-phase5-closeout") bad.push("the product doc capability is not node-first-phase5-closeout");
+      process.stdout.write(bad.join("; "));
+    ')" || log_fail "TEST-4036: the product-doc check failed to run"
+    [[ -z "$out" ]] || log_fail "TEST-4036: $out"
+  else
+    log_info "TEST-4036: the product doc does not exist yet; its check is not run"
+  fi
+
+  # the D-AMEND records: one contract record per closed spec whose test body this scope edits, and a clean strict list
+  out="$(T4036_ROOT="$PROJECT_ROOT" node --input-type=module -e '
+    import fs from "node:fs";
+    const root = process.env.T4036_ROOT;
+    const recs = fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n").filter((l) => l.includes("\"spec_amendment\"") && l.includes("\"node-first-phase5-closeout\""))
+      .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((r) => r && r.type === "spec_amendment" && r.ref_id === "node-first-phase5-closeout");
+    const bad = [];
+    for (const [spec, tests] of [["SPEC-0310", ["TEST-4021", "TEST-4022"]], ["SPEC-0282", ["TEST-3529"]], ["SPEC-0063", ["TEST-019"]], ["SPEC-0284", ["TEST-3565", "TEST-3566", "TEST-3568", "TEST-3570"]]]) {
+      const mine = recs.filter((r) => String(r.spec).includes(spec + "-") && r.amendment_class === "contract");
+      if (mine.length === 0) { bad.push("no contract spec_amendment record for " + spec); continue; }
+      const text = mine.map((r) => r.what + " " + r.why).join(" ");
+      for (const t of tests) if (!text.includes(t)) bad.push(spec + " records do not name " + t);
+    }
+    process.stdout.write(bad.join("; "));
+  ')" || log_fail "TEST-4036: the amendment check failed to run"
+  [[ -z "$out" ]] || log_fail "TEST-4036: $out"
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --strict --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4036: spec-amend list --strict exited $rc"
+  log_pass "TEST-4036: the CHANGELOG entry, the suite-map and weight rows, the ps1-quality path entries, the product doc and the D-AMEND records are in place and spec-amend list --strict exits 0"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4024, TEST-4035)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-4024, TEST-4033 to TEST-4036)"
   check_deps
   test_4024_kept_native_rows
+  test_4033_remeasure_record
+  test_4034_follow_ups
   test_4035_every_launcher_runs
+  test_4036_docs_and_wiring
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

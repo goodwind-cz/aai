@@ -8,7 +8,7 @@
 # replays every suite that does). TEST-4020 checks the changelog entry, the README and USER_GUIDE sync blocks and the RFC-0017
 # row and inventory; TEST-4021 reads the follow-up registry for the fourteen closed and the suggested open
 # follow-ups; TEST-4022 re-measures every tracked .sh and .ps1 under .aai/scripts with the plan's section 1 method and
-# compares it with section 6 of docs/analysis/node-first-remaining-plan.md. Its scratch directories carry its own prefix
+# compares it with the latest re-measure section of docs/analysis/node-first-remaining-plan.md. Its scratch directories carry its own prefix
 # and ownership marker; nothing here starts a container tool, kills by pattern, or reaches the network.
 #
 # bash 3.2 compatible (no ${var^^}, no declare -A, no mapfile).
@@ -202,8 +202,18 @@ test_4021_follow_ups() {
     }
     const bad = [];
     if (new Set(closed).size !== 14) bad.push("the closed list does not hold fourteen ids");
+    // fu-parity-win-source-path: open until the hosted evidence H2, or closed by the phase 5 closeout ride with a source naming a test
+    // file and a TEST id it holds followed by a colon and a ps1-quality run id (D-FU of node-first-phase5-closeout)
     const re = by.get(reopened);
-    if (!re || re.closed) bad.push(reopened + " is not open (the Windows path form closes with hosted evidence H2)");
+    if (!re) bad.push(reopened + " is not in the registry");
+    else if (re.closed) {
+      const rsrc = closeSource.get(reopened) ?? "";
+      const rm = /(tests\/[A-Za-z0-9_.\/-]+\.(?:sh|mjs)) (TEST-[0-9]+):?/.exec(rsrc);
+      if (re.status !== "done" || re.resolved_by !== "node-first-phase5-closeout") bad.push(reopened + " is closed by " + re.resolved_by + " (" + re.status + "), want an open item or a close by node-first-phase5-closeout");
+      else if (!rm) bad.push(reopened + " close source names no test file and TEST id: " + rsrc);
+      else if (!fs.existsSync(root + "/" + rm[1]) || !fs.readFileSync(root + "/" + rm[1], "utf8").includes(rm[2] + ":")) bad.push(reopened + " close source " + rm[1] + " holds no " + rm[2] + ":");
+      else if (!/ps1-quality run [0-9]+/.test(rsrc)) bad.push(reopened + " close source names no ps1-quality run id: " + rsrc);
+    }
     for (const id of closed) {
       const it = by.get(id);
       if (!it) { bad.push(id + " is not in the registry"); continue; }
@@ -228,12 +238,12 @@ test_4021_follow_ups() {
   ' "$PROJECT_ROOT" "$CLOSED_FU" "$FILED_FU" "$REOPENED_FU")" || log_fail "TEST-4021: the follow-up check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4021: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open again, and the three suggested follow-ups are open with ref sync-on-node"
+  log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open or closed by the phase 5 closeout with its hosted run id, and the three suggested follow-ups are open with ref sync-on-node"
 }
 
 # TEST-4022 (D-PHASE5): the phase 5 re-measure. Every tracked .sh and .ps1 under .aai/scripts (lib included) is measured with the plan's
 # section 1 method (non-blank, non-comment lines, /usr/bin/grep under bash) and classified: launcher (20 code lines or fewer and no policy
-# token), deprecation launcher (a first-lines RETIRED comment), kept native (a row of the RFC-0017 kept-native table) or logic. Section 6
+# token), deprecation launcher (a first-lines RETIRED comment), kept native (a row of the RFC-0017 kept-native table) or logic. The latest re-measure section
 # of docs/analysis/node-first-remaining-plan.md must list exactly the files that are not launchers, with their code lines and classes, the
 # twin duplication (the smaller side of a pair whose two files are both logic), the open P1 and P2 follow-ups of the plan's refs and the
 # parity and Pester status; the RFC-0017 phase 5 status is done only when every criterion of section 5 holds on that measurement.
@@ -273,10 +283,11 @@ test_4022_phase5_remeasure() {
       const twin = rows.find((x) => x.file === r.file.replace(/\.sh$/, ".ps1"));
       if (twin && twin.cls === "logic") dup += Math.min(r.code, twin.code);
     }
-    // the plan section 6
+    // the LATEST re-measure section of the plan ("## N. Re-measure after ... (YYYY-MM-DD)"; section 6 stays as a dated record)
     const plan = read("docs/analysis/node-first-remaining-plan.md").split("\n");
-    const at = plan.findIndex((l) => /^## 6\. Re-measure after ride 12 \(\d{4}-\d{2}-\d{2}\)$/.test(l));
-    if (at < 0) { process.stdout.write(bad.concat("the plan has no section 6 Re-measure after ride 12").join("; ")); process.exit(0); }
+    let at = -1, secNo = "";
+    plan.forEach((l, i) => { const m = /^## (\d+)\. Re-measure after .+ \(\d{4}-\d{2}-\d{2}\)$/.exec(l); if (m) { at = i; secNo = m[1]; } });
+    if (at < 0) { process.stdout.write(bad.concat("the plan has no Re-measure after ... section").join("; ")); process.exit(0); }
     let end = plan.length;
     for (let i = at + 1; i < plan.length; i += 1) if (plan[i].startsWith("## ")) { end = i; break; }
     const sec = plan.slice(at + 1, end);
@@ -288,16 +299,16 @@ test_4022_phase5_remeasure() {
       return out;
     };
     const t = tableAfter("| File |");
-    if (!t) bad.push("section 6 has no file table");
+    if (!t) bad.push("section " + secNo + " has no file table");
     else {
       const got = t.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]);
       const want = rest.map((r) => r.file + " " + r.code + " " + r.cls);
-      if (JSON.stringify(got) !== JSON.stringify(want)) bad.push("the section 6 file table differs from the measurement: want [" + want.join(" ; ") + "] got [" + got.join(" ; ") + "]");
-      for (const c of t) if (!c[3]) bad.push("section 6 row " + c[0] + " has no reason or next step");
+      if (JSON.stringify(got) !== JSON.stringify(want)) bad.push("the section " + secNo + " file table differs from the measurement: want [" + want.join(" ; ") + "] got [" + got.join(" ; ") + "]");
+      for (const c of t) if (!c[3]) bad.push("section " + secNo + " row " + c[0] + " has no reason or next step");
     }
     const dupLine = sec.find((l) => l.startsWith("- Twin duplication: "));
-    if (!dupLine) bad.push("section 6 has no Twin duplication line");
-    else if (!dupLine.startsWith("- Twin duplication: " + dup + " code lines")) bad.push("section 6 twin duplication is not " + dup + ": " + dupLine);
+    if (!dupLine) bad.push("section " + secNo + " has no Twin duplication line");
+    else if (!dupLine.startsWith("- Twin duplication: " + dup + " code lines")) bad.push("section " + secNo + " twin duplication is not " + dup + ": " + dupLine);
     // the open P1 and P2 follow-ups of the plan twelve roadmap refs, install-path-parity-harness and node-first*; the owner sign-off items
     // (fu-amend-*) are counted by spec-amend list, not here
     const refs = new Set();
@@ -307,13 +318,13 @@ test_4022_phase5_remeasure() {
       .filter((i) => (i.severity === "P1" || i.severity === "P2") && !i.closed && !i.id.startsWith("fu-amend-") && (refs.has(i.ref_id) || String(i.ref_id).startsWith("node-first")))
       .map((i) => i.id + " " + i.severity + " " + i.ref_id).sort();
     const f = tableAfter("| Follow-up |");
-    if (!f) bad.push("section 6 has no follow-up table");
+    if (!f) bad.push("section " + secNo + " has no follow-up table");
     else {
       const got = f.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]).filter((x) => !x.startsWith("none ")).sort();
-      if (JSON.stringify(got) !== JSON.stringify(open)) bad.push("the section 6 follow-up table differs from the ledger: want [" + open.join(" ; ") + "] got [" + got.join(" ; ") + "]");
+      if (JSON.stringify(got) !== JSON.stringify(open)) bad.push("the section " + secNo + " follow-up table differs from the ledger: want [" + open.join(" ; ") + "] got [" + got.join(" ; ") + "]");
     }
     const hosted = sec.find((l) => l.startsWith("- Parity harness and Pester (H1 to H3): "));
-    if (!hosted) bad.push("section 6 has no Parity harness and Pester line");
+    if (!hosted) bad.push("section " + secNo + " has no Parity harness and Pester line");
     // the phase 5 status of the RFC row follows the criteria
     const hostedPassed = hosted ? /: passed\b/.test(hosted) : false;
     const logic = rest.filter((r) => r.cls === "logic");
@@ -326,7 +337,7 @@ test_4022_phase5_remeasure() {
       if (allHold && status !== "done") bad.push("every section 5 criterion holds but the RFC phase 5 status is " + status);
       if (!allHold && status !== "in progress") bad.push("a section 5 criterion does not hold but the RFC phase 5 status is " + status);
       if (!allHold) {
-        if (!row[0].includes("section 6")) bad.push("the RFC phase 5 row does not name the section 6 list");
+        if (!row[0].includes("section " + secNo)) bad.push("the RFC phase 5 row does not name the section " + secNo + " list");
         for (const r of logic) if (!row[0].includes(r.file.replace(/^\.aai\/scripts\//, ""))) bad.push("the RFC phase 5 row does not name " + r.file);
       }
     }
@@ -334,7 +345,7 @@ test_4022_phase5_remeasure() {
   ' "$PROJECT_ROOT" "$work/measure.tsv" "$work/open.json")" || log_fail "TEST-4022: the phase 5 check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4022: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4022: section 6 of the remaining-scripts plan lists exactly the non-launcher scripts with their measured code lines and classes, the twin duplication, the open P1 and P2 follow-ups of the plan refs and the hosted status, and the RFC-0017 phase 5 status follows the section 5 criteria"
+  log_pass "TEST-4022: the latest re-measure section of the remaining-scripts plan lists exactly the non-launcher scripts with their measured code lines and classes, the twin duplication, the open P1 and P2 follow-ups of the plan refs and the hosted status, and the RFC-0017 phase 5 status follows the section 5 criteria"
 }
 
 main() {

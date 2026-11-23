@@ -136,3 +136,39 @@ Measured with the method of section 1 (non-blank, non-comment lines, `/usr/bin/g
 | `fu-parity-win-odd-root-dirs` | P2 | install-path-parity-harness |
 
 Phase 5 is not done: six files still carry logic, two P2 follow-ups of the plan's refs are open and the hosted checks are not yet read. RFC-0017 keeps the status `in progress` and its row names this list.
+
+## 7. Re-measure after the phase 5 closeout (2026-11-23)
+
+Measured with the method of section 1 (non-blank, non-comment lines, `/usr/bin/grep -cvE` under bash; the shared classifier `tests/skills/lib/script-classes.mjs` counts the same lines) over every tracked `.sh` and `.ps1` under `.aai/scripts/`, `lib/` included, on the tree of the node-first-phase5-closeout ride. A file is a `launcher` when it has 20 code lines or fewer and names no policy (git, a profile, `.gitignore`, `PROFILES`); a `deprecation launcher` when its first lines say RETIRED; `kept native` when the table "Kept native scripts" of RFC-0017 names it with its reason; otherwise `logic`. The table lists every file that is not a `launcher`; the launchers are not listed. Section 6 stays as written, a dated record of the tree before this ride.
+
+| File | Code lines | Class | Reason or next step |
+|---|---|---|---|
+| `.aai/scripts/aai-canonicalize.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/aai-canonicalize.sh` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/aai-run-tests.ps1` | 525 | kept native | a WSL and Git-Bash dispatcher of the bash runner, not a twin of it |
+| `.aai/scripts/aai-run-tests.sh` | 540 | kept native | supervises suite processes, timeouts and orphan cleanup in bash; the per-suite cost is the isolation clone, not the shell |
+| `.aai/scripts/aai-win-selftest.ps1` | 270 | kept native | inherently a PowerShell engine probe |
+| `.aai/scripts/autonomous-loop.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/autonomous-loop.sh` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/claude-hook-gate.sh` | 63 | kept native | the bash pre-filter of the Claude hook gate: it starts no Node process for a command that cannot concern a gate, so an ordinary agent shell command pays no Node start; an L3 protected surface (owner decision 2026-11-23) |
+| `.aai/scripts/lib/append-lock.sh` | 50 | kept native | sourced by the bash suite framework tests/skills/test-framework.sh: serialised appends to the append-only run ledger; the Node callers use lib/append-lock.mjs (owner decision 2026-11-23) |
+| `.aai/scripts/lib/git-bash-path.sh` | 45 | kept native | sourced by aai-run-tests.sh, which stays bash: in-process Windows to Git Bash path translation (owner decision 2026-11-23) |
+| `.aai/scripts/lib/repo-tripwire.sh` | 158 | kept native | sourced by aai-run-tests.sh, which stays bash: the shipping-repository write tripwire around each suite (owner decision 2026-11-23) |
+| `.aai/scripts/lib/test-residue.sh` | 526 | kept native | sourced by aai-run-tests.sh, which stays bash: removes the residue one test run provably created, inside the supervising shell (owner decision 2026-11-23) |
+| `.aai/scripts/migrate-yaml-to-jsonl.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/migrate-yaml-to-jsonl.sh` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/pre-commit-checks.ps1` | 2 | deprecation launcher | the retirement launcher stays one release (owner decision 2 of this plan) and is deleted in the next release |
+| `.aai/scripts/pre-commit-checks.sh` | 390 | kept native | git hooks always run under Git's shell; an L3 protected surface |
+
+- Twin duplication: 0 code lines (a pair counts only when both files are logic; no file is logic now, and `aai-run-tests.ps1` is a dispatcher of the kept native bash runner, not a twin of it).
+- Parity harness and Pester (H1 to H3): pending: the hosted ps1-quality run (windows-5_1, windows-parity with the launcher twin and the AAI-HOST-CHECK lines, windows-wsl1, gate) and the skill-suite run on the pushed head, then the record commit that cites them.
+- Root cause of fu-parity-win-odd-root-dirs: pending, the hosted diagnostic has not run yet (D-ODD of the closeout spec).
+- Open P1 and P2 follow-ups whose ref is one of the twelve roadmap refs of section 3, `install-path-parity-harness` or starts with `node-first` (from `follow-ups.mjs list --status open --json`; the owner sign-off items `fu-amend-*` are counted by `spec-amend.mjs list`):
+
+| Follow-up | Severity | Ref |
+|---|---|---|
+| `fu-parity-win-odd-root-dirs` | P2 | install-path-parity-harness |
+
+- Open P2 follow-ups outside the plan refs, not counted: `fu-hook-gate-skips-renamed-doc` (ref precommit-residual-defects: the pre-commit index lists staged docs under default rename detection, a pre-commit script defect outside the launcher classification), `fu-release-pwsh-identity-crash` (ref release-corpus-hermetic: the dry-run test accepts pwsh crash output as a version, a test assertion and not the launcher) and `fu-release-preflight-scrubbed-env` (ref release-same-version-recovery: the release preflight runs repository tests with the operator environment, not the launcher or the module grammar).
+
+Phase 5 is not done yet: no file carries logic and twin duplication is 0, but one P2 follow-up of the plan's refs is open and the hosted checks are not yet read. RFC-0017 keeps the status `in progress` and its row names this section; it becomes `done` in the record commit that reads `passed on <sha> (ps1-quality run <id>)` above.

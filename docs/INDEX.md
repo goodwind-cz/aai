@@ -12,13 +12,13 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-node-first-phase5-closeout | specs | implementing | 1 done, 12 planned | docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md |
+| spec-node-first-phase5-closeout | specs | implementing | 3 done, 10 planned | docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (47)
+## Product (48)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -47,6 +47,7 @@ _None._
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
 | live-status-dashboard | live-status-dashboard | 2 | docs/product/live-status-dashboard.md |
+| node-first-phase5-closeout | node-first-phase5-closeout | 1 | docs/product/node-first-phase5-closeout.md |
 | original-request-outcome-backcheck | original-request-outcome-backcheck | 1 | docs/product/original-request-outcome-backcheck.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
@@ -801,7 +802,7 @@ _None._
 
 _None._
 
-## Broken references (611)
+## Broken references (612)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -838,6 +839,7 @@ _None._
 | tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185419Z-hosta.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185420Z-hostb.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20260101-000000.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20260102-060405.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-185419.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-190000.md | NOT FOUND |
