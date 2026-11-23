@@ -161,8 +161,8 @@ Measured with the method of section 1 (non-blank, non-comment lines, `/usr/bin/g
 | `.aai/scripts/pre-commit-checks.sh` | 390 | kept native | git hooks always run under Git's shell; an L3 protected surface |
 
 - Twin duplication: 0 code lines (a pair counts only when both files are logic; no file is logic now, and `aai-run-tests.ps1` is a dispatcher of the kept native bash runner, not a twin of it).
-- Parity harness and Pester (H1 to H3): pending: the hosted ps1-quality run (windows-5_1, windows-parity with the launcher twin and the AAI-HOST-CHECK lines, windows-wsl1, gate) and the skill-suite run on the pushed head, then the record commit that cites them.
-- Root cause of fu-parity-win-odd-root-dirs: pending, the hosted diagnostic has not run yet (D-ODD of the closeout spec).
+- Parity harness and Pester (H1 to H3): passed on bbde70c6d2c52376da4180d49994549e18a0b566 (ps1-quality run 45202686129): windows-5_1, windows-parity with the launcher twin and the AAI-HOST-CHECK lines, windows-wsl1 and the gate, and the skill-suite run on the same head.
+- Root cause of fu-parity-win-odd-root-dirs: not named after three hosted diagnostic runs (D-ODD step 6): the frozen bash updater path reproduces the odd root entries (AAI-ODD-SEEN UP-01 sh entries=4, under Windows PowerShell 5.1 and pwsh 7) while the shipped launcher and node module path leave none (entries=0), every AAI-HOST-CHECK passes and each of the nine doctor candidates re-run alone is born=0, shown by ps1-quality run 45115879244
 - Open P1 and P2 follow-ups whose ref is one of the twelve roadmap refs of section 3, `install-path-parity-harness` or starts with `node-first` (from `follow-ups.mjs list --status open --json`; the owner sign-off items `fu-amend-*` are counted by `spec-amend.mjs list`):
 
 | Follow-up | Severity | Ref |
@@ -171,4 +171,4 @@ Measured with the method of section 1 (non-blank, non-comment lines, `/usr/bin/g
 
 - Open P2 follow-ups outside the plan refs, not counted: `fu-hook-gate-skips-renamed-doc` (ref precommit-residual-defects: the pre-commit index lists staged docs under default rename detection, a pre-commit script defect outside the launcher classification), `fu-release-pwsh-identity-crash` (ref release-corpus-hermetic: the dry-run test accepts pwsh crash output as a version, a test assertion and not the launcher) and `fu-release-preflight-scrubbed-env` (ref release-same-version-recovery: the release preflight runs repository tests with the operator environment, not the launcher or the module grammar).
 
-Phase 5 is not done yet: no file carries logic and twin duplication is 0, but one P2 follow-up of the plan's refs is open and the hosted checks are not yet read. RFC-0017 keeps the status `in progress` and its row names this section; it becomes `done` in the record commit that reads `passed on <sha> (ps1-quality run <id>)` above.
+Phase 5 is not done yet: no file carries logic and twin duplication is 0 and the hosted parity and Pester runs passed, but one P2 follow-up of the plan's refs (`fu-parity-win-odd-root-dirs`) is open because its cause was not named after three hosted diagnostic runs; the owner decides its fate (see the root-cause line). RFC-0017 keeps the status `in progress` and its row names this section; it becomes `done` once that item is closed or downgraded.
