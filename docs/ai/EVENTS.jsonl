@@ -4465,3 +4465,5 @@
 {"v":1,"ts":"2026-11-23T21:16:21Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"node-first-phase5-closeout","payload":{"status":"pass","hash":"5378e3e070c36cd11658b202067df8a3e79b5d4d7b11b4d3f03a1ea141c3b527"}}
 {"v":1,"ts":"2026-11-23T22:44:07Z","actor":"ales_holubec.net","event":"round_extension","ref":"node-first-phase5-closeout","payload":{"authority":"owner","reason":"owner 2026-11-23: fix review r1 B1/B2 test time bombs plus non-blocking items; delta recheck"}}
 {"v":1,"ts":"2026-11-23T22:44:07Z","actor":"ales_holubec.net","event":"check_verdict","ref":"node-first-phase5-closeout","payload":{"role":"code_review","head":"0c9ba67a87c352ac0b7f2442423d26777f52616c","status":"fail","security_relevant":true}}
+{"v":1,"ts":"2026-11-23T23:12:07Z","actor":"ales_holubec.net","event":"round_reset","ref":"node-first-phase5-closeout","payload":{"block":"code_review","from":"fail","forced":true}}
+{"v":1,"ts":"2026-11-23T23:12:08Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"node-first-phase5-closeout","payload":{"role":"validation","head":"b3e9295d5312af6d4aceecd01937223a0c10dca0","seen":"run_at:2026-11-23T21:02:08Z"}}
