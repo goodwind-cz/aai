@@ -161,7 +161,7 @@ Measured with the method of section 1 (non-blank, non-comment lines, `/usr/bin/g
 | `.aai/scripts/pre-commit-checks.sh` | 390 | kept native | git hooks always run under Git's shell; an L3 protected surface |
 
 - Twin duplication: 0 code lines (a pair counts only when both files are logic; no file is logic now, and `aai-run-tests.ps1` is a dispatcher of the kept native bash runner, not a twin of it).
-- Parity harness and Pester (H1 to H3): passed on bbde70c6d2c52376da4180d49994549e18a0b566 (ps1-quality run 45202686129): windows-5_1, windows-parity with the launcher twin and the AAI-HOST-CHECK lines, windows-wsl1 and the gate, and the skill-suite run on the same head.
+- Parity harness and Pester (H1 to H3): passed on 4a51d51163adae1b6a4a08dfe67f4ba39a26ec9b (ps1-quality run 45222012849): windows-5_1, windows-parity with the launcher twin and the AAI-HOST-CHECK lines, windows-wsl1 and the gate, and the skill-suite run on the same head.
 - Root cause of fu-parity-win-odd-root-dirs: not named after three hosted diagnostic runs (D-ODD step 6): the frozen bash updater path reproduces the odd root entries (AAI-ODD-SEEN UP-01 sh entries=4, under Windows PowerShell 5.1 and pwsh 7) while the shipped launcher and node module path leave none (entries=0), every AAI-HOST-CHECK passes and each of the nine doctor candidates re-run alone is born=0, shown by ps1-quality run 45115879244
 - Open P1 and P2 follow-ups whose ref is one of the twelve roadmap refs of section 3, `install-path-parity-harness` or starts with `node-first` (from `follow-ups.mjs list --status open --json`; the owner sign-off items `fu-amend-*` are counted by `spec-amend.mjs list`):
 
