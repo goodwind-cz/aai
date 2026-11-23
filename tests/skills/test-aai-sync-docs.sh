@@ -248,34 +248,22 @@ test_4022_phase5_remeasure() {
   done < <(git -C "$PROJECT_ROOT" ls-files -z -- .aai/scripts)
   [[ -s "$work/measure.tsv" ]] || log_fail "TEST-4022: the measurement found no script"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$work/open.json" || log_fail "TEST-4022: follow-ups list failed"
-  out="$(node -e '
-    const fs = require("fs");
+  out="$(T4022_LIB="$PROJECT_ROOT/tests/skills/lib/script-classes.mjs" node --input-type=module -e '
+    import fs from "node:fs";
+    const { KEPT_NATIVE_HEADING, classify, parseKeptNative } = await import(process.env.T4022_LIB);
     const [root, measure, openJson] = process.argv.slice(1);
     const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
     const bad = [];
     const rows = fs.readFileSync(measure, "utf8").split("\n").filter(Boolean).map((l) => { const [n, f] = l.split("\t"); return { file: f, code: Number(n) }; });
-    // kept native: the rows of the RFC-0017 table under the heading "Kept native scripts"
+    // kept native: the rows of the RFC-0017 table under the heading "Kept native scripts", read and classified
+    // through the shared classifier (tests/skills/lib/script-classes.mjs, D-CLASS)
     const rfcText = read("docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md");
     const rfc = rfcText.split("\n");
-    const kAt = rfc.findIndex((l) => /^### Kept native scripts$/.test(l));
-    const kept = new Map();
-    if (kAt < 0) bad.push("RFC-0017 has no Kept native scripts heading");
-    else for (let i = kAt + 1; i < rfc.length && !rfc[i].startsWith("#"); i += 1) {
-      const m = /^\| `(\.aai\/scripts\/[^`]+)` \| ([^|]+) \|$/.exec(rfc[i]);
-      if (m && m[2].trim() !== "") kept.set(m[1], m[2].trim());
-    }
-    if (kAt >= 0 && kept.size < 4) bad.push("the RFC kept-native table holds " + kept.size + " rows, want 4 or more");
-    const POLICY = [/\bgit\b/, /\.gitignore/, /PROFILES/, /--profile\b|-Profile\b/];
-    const classOf = (r) => {
-      const text = read(r.file);
-      const lines = text.split("\n");
-      if (lines.slice(0, 3).some((l) => /^#\s*RETIRED\b/.test(l))) return "deprecation launcher";
-      if (kept.has(r.file)) return "kept native";
-      const code = lines.filter((l) => !/^\s*(#|$)/.test(l));
-      if (r.code <= 20 && !code.some((l) => POLICY.some((re) => re.test(l)))) return "launcher";
-      return "logic";
-    };
-    for (const r of rows) r.cls = classOf(r);
+    const keptRows = parseKeptNative(rfcText);
+    const kept = new Map(keptRows.filter((k) => k.reason !== "").map((k) => [k.file, k.reason]));
+    if (!rfc.includes(KEPT_NATIVE_HEADING)) bad.push("RFC-0017 has no Kept native scripts heading");
+    else if (kept.size < 4) bad.push("the RFC kept-native table holds " + kept.size + " rows, want 4 or more");
+    for (const r of rows) r.cls = classify({ file: r.file, text: read(r.file), kept: keptRows });
     for (const f of kept.keys()) if (!rows.some((r) => r.file === f)) bad.push("the RFC kept-native table names " + f + ", which is not a tracked script");
     const rest = rows.filter((r) => r.cls !== "launcher").sort((a, b) => (a.file < b.file ? -1 : 1));
     // the twin duplication: pairs (same stem, .sh and .ps1) whose two files are both logic

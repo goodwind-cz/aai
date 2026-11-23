@@ -1104,8 +1104,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 144 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 144 (pin moved for the aai-sync-node and aai-sync-docs suites of sync-on-node) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 145 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 145 (pin moved for the aai-phase5-closeout suite of node-first-phase5-closeout) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -6274,6 +6274,62 @@ test_142_rfc0017_node_row() {  # ci-node-24-baseline TEST-2308 / Spec-AC-07
 }
 
 
+# TEST-4025 (SPEC node-first-phase5-closeout, Spec-AC-02): the shared classifier's strict check over the live
+# tree, its count against the plan's section 1 grep count, and the seeded negative cases on a scratch copy.
+test_4025_kept_native_gate_and_bite() {  # TEST-4025 / Spec-AC-02
+  log_info "test_4025: the strict script-class check is clean on the tree, agrees with the section 1 grep count, and bites on seeded violations (TEST-4025)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  local lib="$PROJECT_ROOT/tests/skills/lib/script-classes.mjs" d out rc=0 f n m
+  [[ -f "$lib" ]] || log_fail "test_4025 (plan row TEST-4025): missing tests/skills/lib/script-classes.mjs"
+  d="$(ap_tmpdir)/t4025"
+  mkdir -p "$d"
+
+  # ---- the lib count equals the section 1 grep count for every live file ----
+  : > "$d/live.list"
+  while IFS= read -r -d '' f; do
+    case "$f" in .aai/scripts/*.sh|.aai/scripts/*.ps1) ;; *) continue ;; esac
+    printf '%s\n' "$f" >> "$d/live.list"
+    n="$(/usr/bin/grep -cvE '^[[:space:]]*(#|$)' "$PROJECT_ROOT/$f" || true)"
+    m="$(T4025_LIB="$lib" T4025_FILE="$PROJECT_ROOT/$f" node --input-type=module -e 'import fs from "node:fs"; const { countCodeLines } = await import(process.env.T4025_LIB); process.stdout.write(String(countCodeLines(fs.readFileSync(process.env.T4025_FILE, "utf8"))));')"
+    [[ "$n" == "$m" ]] || log_fail "test_4025 (plan row TEST-4025): code-line count of $f differs: section 1 grep $n, lib $m"
+  done < <(git -C "$PROJECT_ROOT" ls-files -z -- .aai/scripts)
+  [[ -s "$d/live.list" ]] || log_fail "test_4025 (plan row TEST-4025): no live script was measured"
+
+  # ---- the scratch copy: a clean control first, then the seeds, never the tracked tree ----
+  local s="$d/seed" i
+  mkdir -p "$s/.aai/scripts" "$s/docs/rfc"
+  printf '#!/usr/bin/env bash\nexec node "$0.mjs" "$@"\n' > "$s/.aai/scripts/seed-clean.sh"
+  printf '# RFC\n\n### Kept native scripts\n\n| Script | Reason |\n|---|---|\n| `.aai/scripts/seed-kept.sh` | kept on purpose |\n' > "$s/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"
+  printf 'echo a\necho b\n' > "$s/.aai/scripts/seed-kept.sh"
+  printf '%s\n' .aai/scripts/seed-clean.sh .aai/scripts/seed-kept.sh > "$s/files.list"
+  rc=0; out="$(node "$lib" strict --root "$s" --files-from "$s/files.list" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 && -z "$out" ]] || log_fail "test_4025 (plan row TEST-4025): the clean scratch control must exit 0 with no output, rc=$rc: $out"
+
+  : > "$s/.aai/scripts/seed-long.sh"
+  : > "$s/.aai/scripts/seed-retired-long.sh"
+  printf '#!/usr/bin/env bash\n# RETIRED: seed\n' > "$s/.aai/scripts/seed-retired-long.sh"
+  for i in $(seq 1 21); do
+    printf 'echo %s\n' "$i" >> "$s/.aai/scripts/seed-long.sh"
+    printf 'echo %s\n' "$i" >> "$s/.aai/scripts/seed-retired-long.sh"
+  done
+  printf '#!/usr/bin/env bash\ngit status\nexec true\n' > "$s/.aai/scripts/seed-policy.sh"
+  printf 'echo x\n' > "$s/.aai/scripts/seed-emptyreason.sh"
+  printf '| `.aai/scripts/seed-emptyreason.sh` |  |\n| `.aai/scripts/seed-outside.sh` | a reason |\n| `.aai/scripts/seed-kept.sh` | named twice |\n' >> "$s/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"
+  printf '%s\n' .aai/scripts/seed-long.sh .aai/scripts/seed-policy.sh .aai/scripts/seed-retired-long.sh .aai/scripts/seed-emptyreason.sh >> "$s/files.list"
+  rc=0; out="$(node "$lib" strict --root "$s" --files-from "$s/files.list" 2>&1)" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_4025 (plan row TEST-4025): the seeded scratch copy must exit 1, rc=$rc: $out"
+  local seed
+  for seed in seed-long.sh seed-policy.sh seed-retired-long.sh seed-emptyreason.sh seed-outside.sh seed-kept.sh; do
+    [[ "$out" == *"$seed"* ]] || log_fail "test_4025 (plan row TEST-4025): the seeded problem $seed is not named: $out"
+  done
+  [[ "$out" == *"empty reason"* && "$out" == *"outside the list"* && "$out" == *"two rows"* ]] \
+    || log_fail "test_4025 (plan row TEST-4025): the empty-reason, outside-list and two-row problems must each be named: $out"
+  # ---- the live tree: no problem, exit 0 (last, so a red tree still shows the bite arms above) ----
+  rc=0; out="$(node "$lib" strict --root "$PROJECT_ROOT" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 && -z "$out" ]] || log_fail "test_4025 (plan row TEST-4025): the strict check on the tree must print nothing and exit 0, rc=$rc: $out"
+  log_pass "test_4025: the strict script-class check is clean on the tree, matches the section 1 grep count for every live file, and names each of the seeded violations (TEST-4025)"
+}
+
 # The cases whose subject is the whole checkout or a whole tree (the git index,
 # all of docs/specs, all suite files, the run ledgers). They run in
 # tests/skills/test-aai-hygiene-corpus.sh, which sources this file; main()
@@ -6309,6 +6365,7 @@ HYGIENE_CORPUS_CASES="
   test_137_hot_spot_disclosures
   test_138_ci_node_pins
   test_815_suite_map_and_registration
+  test_4025_kept_native_gate_and_bite
 "
 
 main() {

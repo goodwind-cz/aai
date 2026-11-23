@@ -1977,6 +1977,19 @@ suites:
       - tests/skills/test-aai-follow-ups.sh
       - tests/skills/lib/pipe-safe.sh
 
+  aai-phase5-closeout:
+    globs:
+      - CHANGELOG.md
+      - docs/analysis/node-first-remaining-plan.md
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - docs/product/node-first-phase5-closeout.md
+      - tests/skills/lib/script-classes.mjs
+      - .aai/scripts/*.sh
+      - .aai/scripts/*.ps1
+      - .aai/scripts/lib/*.sh
+      - tests/skills/test-aai-phase5-closeout.sh
+      - tests/skills/test-aai-follow-ups.sh
+
   aai-sync-node:
     globs:
       - .aai/scripts/aai-sync.*

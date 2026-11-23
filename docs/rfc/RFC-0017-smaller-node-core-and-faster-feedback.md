@@ -336,6 +336,11 @@ These shell and PowerShell scripts stay native on purpose (owner decisions of th
 | `.aai/scripts/aai-run-tests.ps1` | a WSL and Git-Bash dispatcher of the bash runner, not a twin of it |
 | `.aai/scripts/aai-win-selftest.ps1` | inherently a PowerShell engine probe |
 | `.aai/scripts/pre-commit-checks.sh` | git hooks always run under Git's shell; an L3 protected surface |
+| `.aai/scripts/claude-hook-gate.sh` | the bash pre-filter of the Claude hook gate: it starts no Node process for a command that cannot concern a gate, so an ordinary agent shell command pays no Node start; an L3 protected surface (owner decision 2026-11-23) |
+| `.aai/scripts/lib/test-residue.sh` | sourced by aai-run-tests.sh, which stays bash: removes the residue one test run provably created, inside the supervising shell (owner decision 2026-11-23) |
+| `.aai/scripts/lib/repo-tripwire.sh` | sourced by aai-run-tests.sh, which stays bash: the shipping-repository write tripwire around each suite (owner decision 2026-11-23) |
+| `.aai/scripts/lib/append-lock.sh` | sourced by the bash suite framework tests/skills/test-framework.sh: serialised appends to the append-only run ledger; the Node callers use lib/append-lock.mjs (owner decision 2026-11-23) |
+| `.aai/scripts/lib/git-bash-path.sh` | sourced by aai-run-tests.sh, which stays bash: in-process Windows to Git Bash path translation (owner decision 2026-11-23) |
 
 Suggested first implementation scope: scheduling improvements plus a separate
 docs-audit pilot. Do not combine scheduler, state storage, prompt governance,

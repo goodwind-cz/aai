@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-node-first-phase5-closeout | specs | implementing | 13 planned | docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md |
+| spec-node-first-phase5-closeout | specs | implementing | 1 done, 12 planned | docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md |
 
 ## Canonical layer (0)
 
