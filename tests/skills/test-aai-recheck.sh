@@ -404,7 +404,7 @@ test_2823_suite_map_selects() {
 
 test_2825_rfc_phase4_row() {
   run_recheck_node_tests TEST-2825
-  log_pass "TEST-2825: the RFC-0017 phase 4 row links this slice and stays in progress"
+  log_pass "TEST-2825: the RFC-0017 phase 4 row links this slice and its status reads in progress or done"
 }
 
 test_2826_498_amendments_signed() {

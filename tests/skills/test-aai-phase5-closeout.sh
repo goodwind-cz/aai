@@ -402,9 +402,12 @@ test_4033_remeasure_record() {
       try { execFileSync("git", ["-C", root, "cat-file", "-e", sha + "^{commit}"], { stdio: "ignore" }); } catch { have = false; }
       if (!have) console.error("INFO: TEST-4033 could not check the record diff: " + sha + " is not in this checkout");
       else {
-        const names = execFileSync("git", ["-C", root, "diff", "--name-only", sha, "HEAD"], { encoding: "utf8" }).split("\n").filter(Boolean);
+        // every commit after the hosted sha that rewrites the plan is a record commit and may touch only the four record paths; a later
+        // code commit that does not touch the plan (a remediation of a pin) is not one, so it no longer trips this check
         const ok = new Set(["docs/analysis/node-first-remaining-plan.md", "docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md", "docs/product/node-first-phase5-closeout.md", "docs/ai/decisions.jsonl"]);
-        const extra = names.filter((n) => !ok.has(n));
+        const recs = execFileSync("git", ["-C", root, "log", "--format=%H", sha + "..HEAD", "--", "docs/analysis/node-first-remaining-plan.md"], { encoding: "utf8" }).split("\n").filter(Boolean);
+        const extra = [];
+        for (const c of recs) for (const n of execFileSync("git", ["-C", root, "diff-tree", "--no-commit-id", "--name-only", "-r", c], { encoding: "utf8" }).split("\n").filter(Boolean)) if (!ok.has(n)) extra.push(n);
         if (extra.length) bad.push("the record commit changed paths outside the four record paths: " + extra.join(" "));
       }
     }

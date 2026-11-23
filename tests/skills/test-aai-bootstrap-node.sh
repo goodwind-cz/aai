@@ -314,10 +314,12 @@ test_3953_sh_launcher() {
 
 # amendment_problems: the SPEC-0157 and SPEC-0029 contract records of ref bootstrap-on-node, read from spec-amend list --json.
 amendment_problems() {
-  local json
-  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json)" || { echo "spec-amend list failed"; return 0; }
-  printf '%s' "$json" | node -e '
-    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  # the list JSON is large (hundreds of KiB): a scratch file, not a pipe into node (hosted run 45249052651 crashed node on that pipe)
+  local jf
+  jf="$(mktemp "${TMPDIR:-/tmp}/aai-amend-list.XXXXXX")"
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json > "$jf" || { rm -f "$jf"; echo "spec-amend list failed"; return 0; }
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const want = [
       ["spec-aai-update-gitignore-drift-reconcile", "TEST-011, TEST-016, TEST-017, TEST-019 and TEST-020 re-homed"],
       ["spec-hook-enforced-gates", "TEST-010 re-homed"],
@@ -329,7 +331,8 @@ amendment_problems() {
       else if (!hits[0].what.startsWith(what)) bad.push(spec + ": the record does not begin with " + what);
     }
     process.stdout.write(bad.join("; "));
-  '
+  ' "$jf"
+  rm -f "$jf"
 }
 
 test_3954_rehomed_suites() {
@@ -370,12 +373,16 @@ ps1_problems() {
 
 # amendment_check <spec id> <what prefix>: empty when exactly one contract record of ref bootstrap-on-node for that spec begins with the text.
 amendment_check() {
-  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json | node -e '
-    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  local jf
+  jf="$(mktemp "${TMPDIR:-/tmp}/aai-amend-list.XXXXXX")"
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json > "$jf" || { rm -f "$jf"; echo "spec-amend list failed"; return 0; }
+  AMEND_JF="$jf" node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.env.AMEND_JF, "utf8"));
     const hits = j.items.filter((i) => i.ref_id === "bootstrap-on-node" && i.spec_id === process.argv[1] && i.amendment_class === "contract");
     if (hits.length !== 1) process.stdout.write(process.argv[1] + ": " + hits.length + " contract records of ref bootstrap-on-node, expected 1");
     else if (!hits[0].what.startsWith(process.argv[2])) process.stdout.write(process.argv[1] + ": the record does not begin with " + process.argv[2]);
   ' "$1" "$2"
+  rm -f "$jf"
 }
 
 test_3955_ps1_launcher() {
