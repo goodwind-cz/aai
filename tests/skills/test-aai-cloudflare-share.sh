@@ -178,6 +178,11 @@ test_3421_secrets() {
   log_pass "TEST-3421: DR-21 credentials reach wrangler and are redacted from the failure echo"
 }
 
+test_4029_redaction_layouts() {
+  run_node_tests TEST-4029
+  log_pass "TEST-4029: D-REDACT the failure echo holds no 8-character secret window and no ESC byte under the probe and every escape layout"
+}
+
 # drift_problems <spec> <node test file>: DR ids of the D-DRIFT table vs test names (empty when they agree).
 drift_problems() {
   cat > "$TEST_DIR/drift.cjs" <<'JS'
@@ -411,6 +416,7 @@ main() {
   test_3419_deploy_drift
   test_3420_record_drift
   test_3421_secrets
+  test_4029_redaction_layouts
   test_3422_drift_coverage
   test_3423_sh_launcher
   test_3424_ps1_launcher
