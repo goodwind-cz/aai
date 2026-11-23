@@ -843,17 +843,37 @@ const fs = require('node:fs'), path = require('node:path'), os = require('node:o
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 })().catch((e) => { process.stdout.write('helper-error ' + e.message + '\\n'); });
 `;
-export function oddDiagCandidates({ ps = 'pwsh' } = {}) {
+export function oddDiagCandidates({ ps = 'pwsh', bash = null, upref = null, src = null } = {}) {
   const script = (copy, n) => path.join(copy, '.aai', 'scripts', n);
   const node = (name, args) => ({ name, run: (copy) => ({ file: process.execPath, args: args(copy), cwd: copy }) });
   const cli = (n) => ({ name: `agent-cli-${n}`, run: (copy) => ({ file: n, args: ['--version'], cwd: copy }) });
+  // Second-round candidates (hosted run 45115879244: the frozen sh update left 4 entries on both engines while every candidate
+  // above, started alone, births none): the field report exactly as the frozen bash update starts it (node from bash with the
+  // POSIX spelling of the target), and the frozen update replayed whole and with its doctor section cut out.
+  const frozen = bash && upref && src ? [
+    { name: 'field-report-via-bash', run: (copy) => ({ file: bash, args: ['-c', 'node "$1/.aai/scripts/update-doctor-report.mjs" --root "$1"', '_', fwd(copy)], cwd: copy }) },
+    { name: 'frozen-update-full', run: (copy) => ({ file: bash, args: [`${fwd(upref)}/.aai/scripts/aai-update.sh`, '--repo', fwd(src), '--ref', 'main'], cwd: copy }) },
+    { name: 'frozen-update-no-doctor', run: (copy) => ({ file: bash, args: [fwd(frozenUpdateWithoutDoctor(upref, path.dirname(copy))), '--repo', fwd(src), '--ref', 'main'], cwd: copy }) },
+  ] : [];
   return [
     node('field-report-helper', (copy) => [script(copy, 'update-doctor-report.mjs'), '--root', copy]),
     node('doctor-json', (copy) => [script(copy, 'aai-doctor.mjs'), '--root', copy, '--json']),
     ...['control', 'refuse', 'permit'].map((arm) => node(`ref-guard-${arm}`, (copy) => ['-e', REF_GUARD_HELPER, copy, arm])),
     { name: 'win-selftest', run: (copy) => ({ file: ps, args: ['-NoProfile', '-File', script(copy, 'aai-win-selftest.ps1')], cwd: copy }) },
     ...['claude', 'codex', 'gemini'].map(cli),
+    ...frozen,
   ];
+}
+// frozenUpdateWithoutDoctor(upref, dir): a scratch copy of the frozen bash updater with its doctor field report section (from the
+// '## Doctor field report' heading to the line before '## Next') cut out, written under dir; throws when the section is not found.
+export function frozenUpdateWithoutDoctor(upref, dir) {
+  const lines = fs.readFileSync(path.join(upref, '.aai', 'scripts', 'aai-update.sh'), 'utf8').split('\n');
+  const a = lines.findIndex((l) => l === 'echo "## Doctor field report"');
+  const b = lines.findIndex((l, i) => i > a && l === 'echo "## Next"');
+  if (a < 0 || b < 0) throw new Error('frozen aai-update.sh: the doctor field report section was not found');
+  const out = path.join(dir, 'aai-update-no-doctor.sh');
+  fs.writeFileSync(out, [...lines.slice(0, a), ...lines.slice(b)].join('\n'));
+  return out;
 }
 export function runOddDiag({ root, target, bash, env, candidates = oddDiagCandidates(), scenario, twin, useBash = true, timeoutMs = 120000 }) {
   const lines = [];
@@ -922,7 +942,7 @@ function runScenario(scenario, allTwins, ctx) {
         for (const name of rootAfter) if (!rootBefore.has(name) && ODD_NAME.test(name)) oddBorn.push({ step: i + 1, name });
       }
       if (process.env.AAI_PARITY_ODD_DIAG === '1' && step.op === 'update') {
-        diag.push(...runOddDiag({ root: ctx.root, target: targetDir, bash: ctx.bash, env: { ...twinEnv(ctx.root), ...(a.env || {}) }, candidates: oddDiagCandidates({ ps: ctx.ps }), scenario: scenario.id, twin: twin.name }));
+        diag.push(...runOddDiag({ root: ctx.root, target: targetDir, bash: ctx.bash, env: { ...twinEnv(ctx.root), ...(a.env || {}) }, candidates: oddDiagCandidates({ ps: ctx.ps, bash: ctx.bash, upref: ctx.upref, src: ctx.src }), scenario: scenario.id, twin: twin.name }));
       }
       // Root entries whose name leaves printable ASCII are reported with the step that left them (a mangled name is a harness
       // or twin fault worth seeing in a CI log), with their birth time against the step window.

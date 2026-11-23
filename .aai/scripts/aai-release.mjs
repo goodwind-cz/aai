@@ -73,6 +73,11 @@ export function parseArgs(argv, env = {}, ps1Flags = PS1_FLAGS) {
     let orig = argv[i];
     // Windows PowerShell 5.1 under -File hands -Switch:value over as two tokens (-Switch: then the value): join them.
     if (o.launcher === 'ps1' && /^-[A-Za-z]+:$/.test(orig) && i + 1 < argv.length && !/^-[A-Za-z]/.test(argv[i + 1])) orig += argv[++i];
+    // It may also drop the colon (-Switch, then the boolean word): a switch followed by a boolean word takes it as its value.
+    else if (o.launcher === 'ps1' && /^-[A-Za-z]+$/.test(orig) && /^\$?(true|false)$/i.test(argv[i + 1] ?? '')) {
+      const hit = matchPs1Flag(orig, ps1Flags);
+      if (hit?.flag && hit.flag !== '--version') orig += `:${argv[++i]}`;
+    }
     const mapped = o.launcher === 'ps1' ? ps1Form(orig, ps1Flags) : null;
     if (mapped === '') continue;
     if (mapped?.ambiguous) return { error: [`REFUSED: ambiguous argument ${orig}: matches ${mapped.ambiguous.join(', ')}.`], code: EXIT.USAGE };
