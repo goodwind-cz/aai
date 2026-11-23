@@ -337,7 +337,7 @@ test_4033_remeasure_record() {
     }
     // the hosted line, in one of its two forms, and the root-cause line bound to it
     const hosted = sec.find((l) => l.startsWith("- Parity harness and Pester (H1 to H3): "));
-    let passed = false, sha = "";
+    let passed = false, sha = "", notNamed = false;
     if (!hosted) bad.push("section 7 has no Parity harness and Pester line");
     else {
       const rest2 = hosted.slice("- Parity harness and Pester (H1 to H3): ".length);
@@ -349,8 +349,16 @@ test_4033_remeasure_record() {
     if (!rc) bad.push("section 7 has no root-cause line");
     else {
       const body = rc.slice("- Root cause of fu-parity-win-odd-root-dirs: ".length);
+      // third form (D-ODD step 6): the cause stays unnamed after three hosted diagnostic runs; the item stays open for the owner
+      notNamed = /^not named after three hosted diagnostic runs \(D-ODD step 6\): \S.*, shown by ps1-quality run [0-9]+$/.test(body);
       if (passed) { if (!/, shown by ps1-quality run [0-9]+$/.test(body) || /^pending/.test(body)) bad.push("the hosted line passed but the root-cause line names no cause with a run id: " + rc); }
+      else if (notNamed) bad.push("the root-cause line is in the not-named form while the hosted line is not passed: " + rc);
       else if (!/^pending\b/.test(body) && !/, shown by ps1-quality run [0-9]+$/.test(body)) bad.push("the root-cause line is neither pending nor a named cause: " + rc);
+      if (notNamed) {
+        const odd = all.find((x) => x.id === "fu-parity-win-odd-root-dirs");
+        if (!odd || odd.closed) bad.push("the root-cause line is not named but fu-parity-win-odd-root-dirs is not open in the ledger");
+        if (!f || !f.some((c) => c[0].replace(/`/g, "") === "fu-parity-win-odd-root-dirs")) bad.push("the root-cause line is not named but the section 7 follow-up table lacks fu-parity-win-odd-root-dirs");
+      }
     }
     // the RFC phase 5 row
     const allHold = passed && logic.length === 0 && dup === 0 && open.length === 0;
@@ -361,6 +369,7 @@ test_4033_remeasure_record() {
       if (allHold && status !== "done") bad.push("every section 5 criterion holds but the RFC phase 5 status is " + status);
       if (!allHold && status !== "in progress") bad.push("a section 5 criterion does not hold but the RFC phase 5 status is " + status);
       if (!allHold && !rfc[0].includes("section 7")) bad.push("the RFC phase 5 row does not name section 7");
+      if (notNamed && (status !== "in progress" || !rfc[0].includes("fu-parity-win-odd-root-dirs"))) bad.push("the root-cause line is not named but the RFC phase 5 row is not in progress naming fu-parity-win-odd-root-dirs");
       if (!rfc[0].includes("eighteenth slice") || !rfc[0].includes("node-first-phase5-closeout")) bad.push("the RFC phase 5 row lacks the eighteenth slice sentence linking the intake");
     }
     // D-HOSTED step 4: the record commit changed only the four record paths (checked when the cited object exists here)
@@ -426,9 +435,17 @@ test_4034_follow_ups() {
       ["fu-parity-win-odd-root-dirs", "tests/skills/lib/install-parity.test.mjs", "TEST-4031"],
       ["fu-parity-win-source-path", "tests/skills/lib/install-parity.test.mjs", "TEST-4032"],
     ];
+    // the not-named root-cause form (D-ODD step 6): the odd-root item stays open for the owner, the source-path item closes with the run
+    const rcLine = plan.filter((l) => l.startsWith("- Root cause of fu-parity-win-odd-root-dirs: ")).pop() ?? "";
+    const notNamed = /^- Root cause of fu-parity-win-odd-root-dirs: not named after three hosted diagnostic runs \(D-ODD step 6\): /.test(rcLine);
+    if (notNamed && !passed) bad.push("the root-cause line is in the not-named form while the hosted line is not passed");
     for (const [id, file, test] of win) {
       const it = by.get(id);
-      if (passed) checkClosed(id, file, test, true);
+      if (passed && notNamed && id === "fu-parity-win-odd-root-dirs") {
+        if (!it) bad.push(id + " is not in the registry");
+        else if (it.closed) bad.push(id + " is closed (" + it.resolved_by + ") but the root-cause line is not named: it stays open for the owner");
+      }
+      else if (passed) checkClosed(id, file, test, true);
       else if (!it) bad.push(id + " is not in the registry");
       else if (it.closed && it.resolved_by === SELF) bad.push(id + " is closed by this ride while the hosted line still reads pending (D-HOSTED: the Windows items close in the record commit)");
       else if (it.closed) bad.push(id + " is closed by " + it.resolved_by + " and not by this ride");
