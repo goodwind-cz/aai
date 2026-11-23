@@ -419,9 +419,9 @@ test_3514_lines_and_rfc() {
   [[ -n "$row" ]] || log_fail "TEST-3514: the RFC-0017 phase 5 row lacks the D-RFC sentence"
   n="$(grep -cF "$sentence" "$rfc" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3514: the D-RFC sentence appears $n times, expected once"
-  [[ "$row" == '| 5 |'* && "$row" == *'in progress'* ]] || log_fail "TEST-3514: the phase 5 row no longer reads in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$rfc" 2>&1)" || log_fail "TEST-3514: $p5"
   [[ "$after" -lt "$before" && "$mod" -gt 0 ]] || log_fail "TEST-3514: unexpected line counts (launcher $after, module $mod)"
-  log_pass "TEST-3514: code lines before $before, after $after (launcher), removed $removed, module $mod; the RFC-0017 phase 5 row holds the sentence once and stays in progress"
+  log_pass "TEST-3514: code lines before $before, after $after (launcher), removed $removed, module $mod; the RFC-0017 phase 5 row holds the sentence once and its status follows the plan re-measure (in progress or done)"
 }
 
 test_3515_linear_scan() {

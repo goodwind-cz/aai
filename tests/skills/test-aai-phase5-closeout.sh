@@ -498,7 +498,7 @@ test_4034_follow_ups() {
     process.stdout.write(bad.join("; "));
   ')" || log_fail "TEST-4034: the follow-up check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4034: $out"
-  log_pass "TEST-4034: fu-cfshare-redact-escape-robust is closed with its test source; the two Windows follow-ups follow the hosted line: open while it is pending, closed with a run id once it passed"
+  log_pass "TEST-4034: fu-cfshare-redact-escape-robust is closed with its test source; the two Windows follow-ups follow the hosted line: open while it is pending, closed with a run id once it passed, or dropped as superseded by the successor under the owner decision"
 }
 
 # TEST-4036 (Spec-AC-13, D-WIRE and D-AMEND): the wiring and the record. One CHANGELOG heading of the D-WIRE title whose entry names each

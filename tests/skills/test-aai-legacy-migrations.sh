@@ -597,7 +597,7 @@ test_3399_rfc() {
     [[ "$row" == *'| later candidate |'* ]] || log_fail "TEST-3399: the $name row lost its later candidate destination"
   done
   row="$(grep '^| 5 | ' "$RFC17" || true)"
-  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3399: the phase 5 row is not in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$RFC17" 2>&1)" || log_fail "TEST-3399: $p5"
   [[ "$row" == *"$D6_SENTENCE"* ]] || log_fail "TEST-3399: the phase 5 row lacks the D6 sentence"
   n="$(grep -cF -- "$D6_SENTENCE" "$RFC17" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3399: the D6 sentence appears $n times, expected once"

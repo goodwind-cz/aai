@@ -512,7 +512,7 @@ test_3572_rfc() {
     case "$l" in '| 5 |'*) row="$l" ;; esac
   done < "$rfc"
   [[ -n "$row" ]] || log_fail "TEST-3572: RFC-0017 has no phase 5 table row"
-  [[ "$row" == *'in progress'* ]] || log_fail "TEST-3572: the phase 5 row no longer has status in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$rfc" 2>&1)" || log_fail "TEST-3572: $p5"
   n="$(node -e '
     const row = process.argv[1], s = process.argv[2];
     let c = 0, i = -1; while ((i = row.indexOf(s, i + 1)) >= 0) c += 1; process.stdout.write(String(c));
@@ -520,7 +520,7 @@ test_3572_rfc() {
   ' "$row" "$sentence")" || log_fail "TEST-3572: the sentence link does not end install-path-parity-harness.md"
   [[ "$n" == 1 ]] || log_fail "TEST-3572: the RFC-0017 phase 5 row holds the thirteenth-slice sentence $n times, expected once"
   env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree >"$TEST_DIR/t3572.out" 2>&1 || { tail -n 8 "$TEST_DIR/t3572.out" >&2; log_fail "TEST-3572: test-aai-expert-fetch.sh test_2624_inventory_matches_tree failed"; }
-  log_pass "TEST-3572: RFC-0017 phase 5 keeps in progress and holds the D-RFC sentence once; the inventory check passes"
+  log_pass "TEST-3572: RFC-0017 phase 5 keeps a status that follows the plan re-measure (in progress or done) and holds the D-RFC sentence once; the inventory check passes"
 }
 
 main() {

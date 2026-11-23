@@ -350,7 +350,7 @@ test_3429_rfc() {
   n="$(grep -c '^| `cloudflare-share` |' "$RFC17" || true)"
   [[ "$n" == 0 ]] || log_fail "TEST-3429: the inventory still has a cloudflare-share row"
   row="$(grep '^| 5 | ' "$RFC17" || true)"
-  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3429: the phase 5 row is not in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$RFC17" 2>&1)" || log_fail "TEST-3429: $p5"
   [[ "$row" == *"$D_RFC_SENTENCE"* ]] || log_fail "TEST-3429: the phase 5 row lacks the D-RFC sentence"
   n="$(grep -cF -- "$D_RFC_SENTENCE" "$RFC17" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3429: the D-RFC sentence appears $n times, expected once"

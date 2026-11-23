@@ -128,7 +128,7 @@ test_3978_docs() {
     if (row.length !== 1) bad.push("the RFC phase 5 row appears " + row.length + " times");
     else {
       const r = row[0];
-      if (!r.includes("| in progress |")) bad.push("the RFC phase 5 row is not in progress");
+      { const p5 = require("child_process").spawnSync("node", [root + "/tests/skills/lib/phase5-row-status.mjs", root + "/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"], { encoding: "utf8" }); if (p5.status !== 0) bad.push((p5.stdout || p5.stderr || "phase 5 status check failed").trim()); }
       // the allocator rewrites the link target at merge; only the suffix update-on-node.md is pinned
       const sentence = "The fifteenth slice [moved the layer updater to Node](LINK): one module holds the argument, source, sync and report policy behind thin aai-update.sh and aai-update.ps1 launchers, compared with frozen copies of both twins, and each launcher keeps running the sync twin it ran before.";
       const norm = r.replace(/\(\.\.\/issues\/[A-Za-z0-9-]*update-on-node\.md\)/, "(LINK)");

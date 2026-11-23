@@ -639,7 +639,7 @@ test_3959_docs() {
     if (row.length !== 1) bad.push("the RFC phase 5 row appears " + row.length + " times");
     else {
       const r = row[0];
-      if (!r.includes("| in progress |")) bad.push("the RFC phase 5 row is not in progress");
+      { const p5 = require("child_process").spawnSync("node", [root + "/tests/skills/lib/phase5-row-status.mjs", root + "/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"], { encoding: "utf8" }); if (p5.status !== 0) bad.push((p5.stdout || p5.stderr || "phase 5 status check failed").trim()); }
       const sentence = "The fourteenth slice [moved the project bootstrap to Node](../issues/CHANGE-0261-bootstrap-on-node.md): one module holds the detection, rendering and write policy behind thin aai-bootstrap.sh and aai-bootstrap.ps1 launchers, byte-equivalent to the frozen bash reference in the parity harness, so Windows gets a native bootstrap.";
       if (r.split(sentence).length !== 2) bad.push("the RFC row does not hold the D-DOCS sentence once");
       const a = r.indexOf("The thirteenth slice"); const b = r.indexOf("The fourteenth slice"); const c = r.indexOf("The [remaining-scripts plan]");

@@ -147,7 +147,7 @@ test_3998_docs() {
     if (row.length !== 1) bad.push("the RFC phase 5 row appears " + row.length + " times");
     else {
       const r = row[0];
-      if (!r.includes("| in progress |")) bad.push("the RFC phase 5 row is not in progress");
+      { const p5 = require("child_process").spawnSync("node", [root + "/tests/skills/lib/phase5-row-status.mjs", root + "/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"], { encoding: "utf8" }); if (p5.status !== 0) bad.push((p5.stdout || p5.stderr || "phase 5 status check failed").trim()); }
       // the allocator rewrites the link target at merge; only the suffix pre-commit-installer-on-node.md is pinned
       const sentence = "The sixteenth slice [moved the git hook installer to Node](LINK): one module holds the mode, policy, slot and write rules behind thin install-pre-commit-hook.sh and install-pre-commit-hook.ps1 launchers, compared with frozen copies of both twins, and the ref_guard policy is read and written only through guard-config.";
       const norm = r.replace(/\(\.\.\/issues\/[A-Za-z0-9-]*pre-commit-installer-on-node\.md\)/, "(LINK)");

@@ -402,7 +402,7 @@ rfc_problems() {
     const text = fs.readFileSync(process.argv[1], "utf8");
     const bad = [];
     const five = text.split("\n").find((l) => /^\| 5 \| /.test(l)) || "";
-    if (!five.includes("| in progress |")) bad.push("the phase 5 row is not in progress");
+    { const p5 = require("child_process").spawnSync("node", ["'"$PROJECT_ROOT"'/tests/skills/lib/phase5-row-status.mjs", process.argv[1]], { encoding: "utf8" }); if (p5.status !== 0) bad.push((p5.stdout || p5.stderr || "phase 5 status check failed").trim()); }
     const sentence = /The tenth slice \[moved the release rollup to Node\]\(\.\.\/issues\/[A-Za-z0-9-]*release-on-node\.md\): the plan, the local cut and the remote finish roll CHANGELOG\.md through one transform, and the unlogged-PR check renders once; a later slice moves the tag, publish and PR steps to the platform adapter and deletes the twins\./g;
     const n = (text.match(sentence) || []).length;
     if (n !== 1) bad.push("the D-RFC sentence appears " + n + " times, expected once");
@@ -816,7 +816,7 @@ ar_rfc_problems() {
     if (found.length !== 1) bad.push("the pair sentence appears " + found.length + " times, expected once");
     else if (found[0][1] !== after) bad.push("the pair sentence says " + found[0][1] + " code lines, measured " + after);
     const five = text.split("\n").find((l) => /^\| 5 \| /.test(l)) || "";
-    if (!five.includes("| in progress |")) bad.push("the phase 5 row is not in progress");
+    { const p5 = require("child_process").spawnSync("node", ["'"$PROJECT_ROOT"'/tests/skills/lib/phase5-row-status.mjs", process.argv[1]], { encoding: "utf8" }); if (p5.status !== 0) bad.push((p5.stdout || p5.stderr || "phase 5 status check failed").trim()); }
     const phase = /The eleventh slice \[ran the whole release command in Node\]\(\.\.\/issues\/[A-Za-z0-9-]*release-publish-on-node\.md\): aai-release\.sh and aai-release\.ps1 are thin launchers of aai-release\.mjs, and the release host calls run on the platform adapter\./g;
     if ((text.match(phase) || []).length !== 1) bad.push("the phase 5 sentence appears " + (text.match(phase) || []).length + " times, expected once");
     if (!(five.match(phase) || []).length) bad.push("the phase 5 row lacks the phase 5 sentence");
