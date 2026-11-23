@@ -315,6 +315,27 @@ test_4033_remeasure_record() {
     const inScope = (i) => refs.has(i.ref_id) || i.ref_id === "install-path-parity-harness" || String(i.ref_id).startsWith("node-first");
     const open = all.filter((i) => (i.severity === "P1" || i.severity === "P2") && !i.closed && !i.id.startsWith("fu-amend-") && inScope(i))
       .map((i) => i.id + " " + i.severity + " " + i.ref_id).sort();
+    // the owner-downgrade state of the odd-root item (D-ODD step 6, owner decision 2026-11-23): dropped as superseded by an open P3 successor,
+    // with a hitl_decision of this ride naming the downgrade; any other closed state of the item is a failure
+    const oddDropErrors = (all) => {
+      const errs = [];
+      let st = null, by = null, src = "";
+      const hitls = [];
+      for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
+        if (!line.includes("fu-parity-win-odd-root")) continue;
+        let r; try { r = JSON.parse(line); } catch { continue; }
+        if (r.type === "follow_up_status" && r.id === "fu-parity-win-odd-root-dirs") { st = r.status; by = r.resolved_by; src = String(r.source ?? ""); }
+        if (r.type === "hitl_decision" && r.ref_id === "node-first-phase5-closeout" && /fu-parity-win-odd-root-dirs/.test(String(r.decision)) && /P3/.test(String(r.decision)) && /fu-parity-win-odd-root-cause/.test(String(r.decision))) hitls.push(r);
+      }
+      if (st !== "dropped") errs.push("fu-parity-win-odd-root-dirs is closed as " + st + ", not dropped as superseded by the owner downgrade");
+      if (by !== "node-first-phase5-closeout") errs.push("fu-parity-win-odd-root-dirs resolved_by is " + by);
+      if (!src.includes("fu-parity-win-odd-root-cause")) errs.push("the odd-root close source does not name its P3 successor fu-parity-win-odd-root-cause: " + src);
+      const succ = all.find((x) => x.id === "fu-parity-win-odd-root-cause");
+      if (!succ) errs.push("the successor fu-parity-win-odd-root-cause is not in the ledger");
+      else if (succ.closed || succ.severity !== "P3") errs.push("the successor fu-parity-win-odd-root-cause is not an open P3 (" + succ.severity + " closed=" + succ.closed + ")");
+      if (!hitls.length) errs.push("no hitl_decision of node-first-phase5-closeout names the downgrade of fu-parity-win-odd-root-dirs to P3 with its successor");
+      return errs;
+    };
     const f = tableAfter("| Follow-up |");
     if (!f) bad.push("section 7 has no follow-up table");
     else {
@@ -337,7 +358,7 @@ test_4033_remeasure_record() {
     }
     // the hosted line, in one of its two forms, and the root-cause line bound to it
     const hosted = sec.find((l) => l.startsWith("- Parity harness and Pester (H1 to H3): "));
-    let passed = false, sha = "", notNamed = false;
+    let passed = false, sha = "", notNamed = false, oddOpen = false;
     if (!hosted) bad.push("section 7 has no Parity harness and Pester line");
     else {
       const rest2 = hosted.slice("- Parity harness and Pester (H1 to H3): ".length);
@@ -356,8 +377,11 @@ test_4033_remeasure_record() {
       else if (!/^pending\b/.test(body) && !/, shown by ps1-quality run [0-9]+$/.test(body)) bad.push("the root-cause line is neither pending nor a named cause: " + rc);
       if (notNamed) {
         const odd = all.find((x) => x.id === "fu-parity-win-odd-root-dirs");
-        if (!odd || odd.closed) bad.push("the root-cause line is not named but fu-parity-win-odd-root-dirs is not open in the ledger");
-        if (!f || !f.some((c) => c[0].replace(/`/g, "") === "fu-parity-win-odd-root-dirs")) bad.push("the root-cause line is not named but the section 7 follow-up table lacks fu-parity-win-odd-root-dirs");
+        if (!odd) bad.push("the root-cause line is not named but fu-parity-win-odd-root-dirs is not in the ledger");
+        else if (!odd.closed) {
+          oddOpen = true;
+          if (!f || !f.some((c) => c[0].replace(/`/g, "") === "fu-parity-win-odd-root-dirs")) bad.push("the root-cause line is not named but the section 7 follow-up table lacks fu-parity-win-odd-root-dirs");
+        } else bad.push(...oddDropErrors(all));
       }
     }
     // the RFC phase 5 row
@@ -369,7 +393,7 @@ test_4033_remeasure_record() {
       if (allHold && status !== "done") bad.push("every section 5 criterion holds but the RFC phase 5 status is " + status);
       if (!allHold && status !== "in progress") bad.push("a section 5 criterion does not hold but the RFC phase 5 status is " + status);
       if (!allHold && !rfc[0].includes("section 7")) bad.push("the RFC phase 5 row does not name section 7");
-      if (notNamed && (status !== "in progress" || !rfc[0].includes("fu-parity-win-odd-root-dirs"))) bad.push("the root-cause line is not named but the RFC phase 5 row is not in progress naming fu-parity-win-odd-root-dirs");
+      if (oddOpen && (status !== "in progress" || !rfc[0].includes("fu-parity-win-odd-root-dirs"))) bad.push("the root-cause line is not named and the item is open but the RFC phase 5 row is not in progress naming fu-parity-win-odd-root-dirs");
       if (!rfc[0].includes("eighteenth slice") || !rfc[0].includes("node-first-phase5-closeout")) bad.push("the RFC phase 5 row lacks the eighteenth slice sentence linking the intake");
     }
     // D-HOSTED step 4: the record commit changed only the four record paths (checked when the cited object exists here)
@@ -411,6 +435,27 @@ test_4034_follow_ups() {
       if (rec.type !== "follow_up_status") continue;
       if (rec.status === "done") closeSource.set(rec.id, String(rec.source ?? "")); else closeSource.delete(rec.id);
     }
+    // the owner-downgrade state of the odd-root item (D-ODD step 6, owner decision 2026-11-23): dropped as superseded by an open P3 successor,
+    // with a hitl_decision of this ride naming the downgrade; any other closed state of the item is a failure
+    const oddDropErrors = (all) => {
+      const errs = [];
+      let st = null, by = null, src = "";
+      const hitls = [];
+      for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
+        if (!line.includes("fu-parity-win-odd-root")) continue;
+        let r; try { r = JSON.parse(line); } catch { continue; }
+        if (r.type === "follow_up_status" && r.id === "fu-parity-win-odd-root-dirs") { st = r.status; by = r.resolved_by; src = String(r.source ?? ""); }
+        if (r.type === "hitl_decision" && r.ref_id === "node-first-phase5-closeout" && /fu-parity-win-odd-root-dirs/.test(String(r.decision)) && /P3/.test(String(r.decision)) && /fu-parity-win-odd-root-cause/.test(String(r.decision))) hitls.push(r);
+      }
+      if (st !== "dropped") errs.push("fu-parity-win-odd-root-dirs is closed as " + st + ", not dropped as superseded by the owner downgrade");
+      if (by !== "node-first-phase5-closeout") errs.push("fu-parity-win-odd-root-dirs resolved_by is " + by);
+      if (!src.includes("fu-parity-win-odd-root-cause")) errs.push("the odd-root close source does not name its P3 successor fu-parity-win-odd-root-cause: " + src);
+      const succ = all.find((x) => x.id === "fu-parity-win-odd-root-cause");
+      if (!succ) errs.push("the successor fu-parity-win-odd-root-cause is not in the ledger");
+      else if (succ.closed || succ.severity !== "P3") errs.push("the successor fu-parity-win-odd-root-cause is not an open P3 (" + succ.severity + " closed=" + succ.closed + ")");
+      if (!hitls.length) errs.push("no hitl_decision of node-first-phase5-closeout names the downgrade of fu-parity-win-odd-root-dirs to P3 with its successor");
+      return errs;
+    };
     const checkClosed = (id, wantFile, wantTest, needRun) => {
       const it = by.get(id);
       if (!it) { bad.push(id + " is not in the registry"); return; }
@@ -435,7 +480,7 @@ test_4034_follow_ups() {
       ["fu-parity-win-odd-root-dirs", "tests/skills/lib/install-parity.test.mjs", "TEST-4031"],
       ["fu-parity-win-source-path", "tests/skills/lib/install-parity.test.mjs", "TEST-4032"],
     ];
-    // the not-named root-cause form (D-ODD step 6): the odd-root item stays open for the owner, the source-path item closes with the run
+    // the not-named root-cause form (D-ODD step 6): the odd-root item is open for the owner or dropped as superseded by its P3 successor (owner downgrade 2026-11-23), the source-path item closes with the run
     const rcLine = plan.filter((l) => l.startsWith("- Root cause of fu-parity-win-odd-root-dirs: ")).pop() ?? "";
     const notNamed = /^- Root cause of fu-parity-win-odd-root-dirs: not named after three hosted diagnostic runs \(D-ODD step 6\): /.test(rcLine);
     if (notNamed && !passed) bad.push("the root-cause line is in the not-named form while the hosted line is not passed");
@@ -443,7 +488,7 @@ test_4034_follow_ups() {
       const it = by.get(id);
       if (passed && notNamed && id === "fu-parity-win-odd-root-dirs") {
         if (!it) bad.push(id + " is not in the registry");
-        else if (it.closed) bad.push(id + " is closed (" + it.resolved_by + ") but the root-cause line is not named: it stays open for the owner");
+        else if (it.closed) bad.push(...oddDropErrors(items));
       }
       else if (passed) checkClosed(id, file, test, true);
       else if (!it) bad.push(id + " is not in the registry");
