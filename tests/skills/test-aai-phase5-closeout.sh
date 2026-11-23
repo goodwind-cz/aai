@@ -251,19 +251,26 @@ test_4035_every_launcher_runs() {
   log_pass "TEST-4035: $ran launchers ($ran_ps1 ps1) ran from a scratch extended install with their recorded arguments and exit codes"
 }
 
-# TEST-4033 (Spec-AC-10, D-REMEASURE and D-HOSTED): the record of this ride. The LATEST "## N. Re-measure after ... (date)" section of
-# the plan is section 7; its file table equals the shared-classifier measurement of the tree (no logic row, every reason non-empty), its
-# twin duplication line, follow-up table (against the ledger), outside-ref line, root-cause line and hosted line are present and
-# well-formed, the RFC phase 5 row follows the section 5 criteria (done only when the hosted line reads "passed on <sha> (ps1-quality
-# run <id>)", else in progress naming section 7), and, once the hosted line is "passed", the record commit changed only the four
-# D-HOSTED paths when the cited sha object exists here.
+# TEST-4033 (Spec-AC-10, D-REMEASURE and D-HOSTED): the record of this ride. Plan section 7 ("## 7. Re-measure after the phase 5 closeout
+# (date)") is a DATED record, checked against the tree and the ledger as of that record: its file table (every reason non-empty, no logic
+# row) names exactly the non-launcher scripts of the tree by file and class while section 7 is the latest re-measure section (the code line
+# counts are the record's own measurement, and a deprecation launcher it lists may be gone: its scheduled deletion), and is checked for its
+# shape only once a later re-measure section exists; its follow-up table equals the open P1 and P2 follow-ups of the plan refs in the ledger
+# as of the end of the record date; its twin duplication line, outside-ref line (each id filed at P2 under a ref outside the plan refs),
+# root-cause line and hosted line are present and well-formed; the odd-root downgrade is read from the records this ride wrote; the RFC phase
+# 5 row follows the section 5 criteria while section 7 is the latest (done only when the hosted line reads "passed on <sha> (ps1-quality
+# run <id>)", else in progress naming section 7); and, once the hosted line is "passed" and section 7 is the latest, the record commit
+# changed only the four D-HOSTED paths when the cited sha object exists here. A later close of an item this ride filed or named is not a
+# failure; the live guard of the tree is TEST-4025 (the strict check) and, for the latest section, TEST-4022.
 test_4033_remeasure_record() {
   local out
   out="$(T4033_LIB="$CLASSES_LIB" T4033_ROOT="$PROJECT_ROOT" node --input-type=module -e '
     import fs from "node:fs";
     import { execFileSync } from "node:child_process";
-    const { countCodeLines, classify, parseKeptNative } = await import(process.env.T4033_LIB);
+    const { countCodeLines, classify, parseKeptNative, fileTableProblems, recordsThroughDate, filingRecord, oddDropProblems } = await import(process.env.T4033_LIB);
     const root = process.env.T4033_ROOT;
+    const { readDecisionsLedger, foldFollowUps } = await import(root + "/.aai/scripts/follow-ups.mjs");
+    const SELF = "node-first-phase5-closeout";
     const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
     const bad = [];
     const files = execFileSync("git", ["-C", root, "ls-files", "-z", "--", ".aai/scripts"], { encoding: "utf8" })
@@ -281,12 +288,13 @@ test_4033_remeasure_record() {
     const plan = read("docs/analysis/node-first-remaining-plan.md").split("\n");
     const HEAD = /^## (\d+)\. Re-measure after (.+) \((\d{4}-\d{2}-\d{2})\)$/;
     const heads = plan.map((l, i) => ({ i, m: HEAD.exec(l) })).filter((h) => h.m);
-    const last = heads[heads.length - 1];
-    if (!last) { process.stdout.write("the plan has no Re-measure section"); process.exit(0); }
-    if (last.m[1] !== "7" || last.m[2] !== "the phase 5 closeout") bad.push("the latest re-measure section is not 7 (the phase 5 closeout): " + plan[last.i]);
+    const s7 = heads.find((h) => h.m[1] === "7" && h.m[2] === "the phase 5 closeout");
+    if (!s7) { process.stdout.write("the plan has no section 7 Re-measure after the phase 5 closeout (date) heading"); process.exit(0); }
+    // section 7 is the latest re-measure section, or a dated record once a later one exists
+    const latest = heads[heads.length - 1] === s7;
     let end = plan.length;
-    for (let i = last.i + 1; i < plan.length; i += 1) if (plan[i].startsWith("## ")) { end = i; break; }
-    const sec = plan.slice(last.i + 1, end);
+    for (let i = s7.i + 1; i < plan.length; i += 1) if (plan[i].startsWith("## ")) { end = i; break; }
+    const sec = plan.slice(s7.i + 1, end);
     const tableAfter = (header) => {
       const h = sec.findIndex((l) => l.startsWith(header));
       if (h < 0) return null;
@@ -296,54 +304,31 @@ test_4033_remeasure_record() {
     };
     const t = tableAfter("| File |");
     if (!t) bad.push("section 7 has no file table");
-    else {
-      const got = t.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]);
-      const want = rest.map((r) => r.file + " " + r.code + " " + r.cls);
-      if (JSON.stringify(got) !== JSON.stringify(want)) bad.push("the section 7 file table differs from the measurement: want [" + want.join(" ; ") + "] got [" + got.join(" ; ") + "]");
-      for (const c of t) if (!c[3]) bad.push("section 7 row " + c[0] + " has no reason");
-    }
+    else bad.push(...fileTableProblems({ rows: t, tree: latest ? rest.map((r) => ({ file: r.file, code: r.code, cls: r.cls })) : null }).map((p) => "section 7: " + p));
     const logic = rest.filter((r) => r.cls === "logic");
-    if (logic.length) bad.push("the measurement holds logic files: " + logic.map((r) => r.file).join(" "));
+    if (latest && logic.length) bad.push("the measurement holds logic files: " + logic.map((r) => r.file).join(" "));
     const dupLine = sec.find((l) => l.startsWith("- Twin duplication: "));
     if (!dupLine) bad.push("section 7 has no Twin duplication line");
-    else if (!dupLine.startsWith("- Twin duplication: " + dup + " code lines")) bad.push("section 7 twin duplication is not " + dup + ": " + dupLine);
-    // the ledger: open P1 and P2 follow-ups of the plan refs, install-path-parity-harness and node-first*
+    else if (!/^- Twin duplication: [0-9]+ code lines/.test(dupLine)) bad.push("section 7 twin duplication line is malformed: " + dupLine);
+    else if (latest && !dupLine.startsWith("- Twin duplication: " + dup + " code lines")) bad.push("section 7 twin duplication is not " + dup + ": " + dupLine);
+    // the ledger as of the end of the record date: open P1 and P2 follow-ups of the plan refs, install-path-parity-harness and node-first*
     const refs = new Set();
     for (const l of plan) { const m = /^\| \d+ \| ([a-z0-9-]+) \|/.exec(l); if (m) refs.add(m[1]); }
     if (refs.size !== 12) bad.push("the plan lists " + refs.size + " roadmap refs, want 12");
-    const all = JSON.parse(execFileSync("node", [root + "/.aai/scripts/follow-ups.mjs", "list", "--status", "all", "--json", "--ledger", root + "/docs/ai/decisions.jsonl"], { encoding: "utf8", maxBuffer: 1 << 28 })).items;
+    const records = readDecisionsLedger(root + "/docs/ai/decisions.jsonl").records;
+    const all = foldFollowUps(recordsThroughDate(records, s7.m[3])).items;
     const inScope = (i) => refs.has(i.ref_id) || i.ref_id === "install-path-parity-harness" || String(i.ref_id).startsWith("node-first");
     const open = all.filter((i) => (i.severity === "P1" || i.severity === "P2") && !i.closed && !i.id.startsWith("fu-amend-") && inScope(i))
       .map((i) => i.id + " " + i.severity + " " + i.ref_id).sort();
-    // the owner-downgrade state of the odd-root item (D-ODD step 6, owner decision 2026-11-23): dropped as superseded by an open P3 successor,
-    // with a hitl_decision of this ride naming the downgrade; any other closed state of the item is a failure
-    const oddDropErrors = (all) => {
-      const errs = [];
-      let st = null, by = null, src = "";
-      const hitls = [];
-      for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
-        if (!line.includes("fu-parity-win-odd-root")) continue;
-        let r; try { r = JSON.parse(line); } catch { continue; }
-        if (r.type === "follow_up_status" && r.id === "fu-parity-win-odd-root-dirs") { st = r.status; by = r.resolved_by; src = String(r.source ?? ""); }
-        if (r.type === "hitl_decision" && r.ref_id === "node-first-phase5-closeout" && /fu-parity-win-odd-root-dirs/.test(String(r.decision)) && /P3/.test(String(r.decision)) && /fu-parity-win-odd-root-cause/.test(String(r.decision))) hitls.push(r);
-      }
-      if (st !== "dropped") errs.push("fu-parity-win-odd-root-dirs is closed as " + st + ", not dropped as superseded by the owner downgrade");
-      if (by !== "node-first-phase5-closeout") errs.push("fu-parity-win-odd-root-dirs resolved_by is " + by);
-      if (!src.includes("fu-parity-win-odd-root-cause")) errs.push("the odd-root close source does not name its P3 successor fu-parity-win-odd-root-cause: " + src);
-      const succ = all.find((x) => x.id === "fu-parity-win-odd-root-cause");
-      if (!succ) errs.push("the successor fu-parity-win-odd-root-cause is not in the ledger");
-      else if (succ.closed || succ.severity !== "P3") errs.push("the successor fu-parity-win-odd-root-cause is not an open P3 (" + succ.severity + " closed=" + succ.closed + ")");
-      if (!hitls.length) errs.push("no hitl_decision of node-first-phase5-closeout names the downgrade of fu-parity-win-odd-root-dirs to P3 with its successor");
-      return errs;
-    };
     const f = tableAfter("| Follow-up |");
     if (!f) bad.push("section 7 has no follow-up table");
     else {
       const got = f.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]).filter((x) => !x.startsWith("none ")).sort();
-      if (JSON.stringify(got) !== JSON.stringify(open)) bad.push("the section 7 follow-up table differs from the ledger: want [" + open.join(" ; ") + "] got [" + got.join(" ; ") + "]");
+      if (JSON.stringify(got) !== JSON.stringify(open)) bad.push("the section 7 follow-up table differs from the ledger as of " + s7.m[3] + ": want [" + open.join(" ; ") + "] got [" + got.join(" ; ") + "]");
       if (open.length === 0 && !f.some((c) => c[0].replace(/`/g, "") === "none")) bad.push("section 7 has no none row for an empty follow-up table");
     }
-    // the open P2 items whose subject sounds related but whose ref lies outside the plan refs
+    // the open P2 items whose subject sounds related but whose ref lies outside the plan refs: each was filed at P2 under such a ref (the claim
+    // of the line); whether it is still open is not this ride to pin
     const outLine = sec.find((l) => l.startsWith("- Open P2 follow-ups outside the plan refs"));
     if (!outLine) bad.push("section 7 has no outside-ref line");
     else {
@@ -351,9 +336,9 @@ test_4033_remeasure_record() {
       const want = ["fu-hook-gate-skips-renamed-doc", "fu-release-preflight-scrubbed-env", "fu-release-pwsh-identity-crash"];
       if (JSON.stringify(named) !== JSON.stringify(want)) bad.push("the outside-ref line names [" + named.join(" ") + "], want [" + want.join(" ") + "]");
       for (const id of named) {
-        const it = all.find((x) => x.id === id);
-        if (!it) bad.push(id + " is not in the ledger");
-        else if (it.closed || it.severity !== "P2" || inScope(it)) bad.push(id + " is not an open P2 outside the plan refs (" + it.severity + " " + it.ref_id + " closed=" + it.closed + ")");
+        const it = filingRecord(records, id);
+        if (!it) bad.push(id + " was never filed in the ledger");
+        else if (it.severity !== "P2" || inScope(it)) bad.push(id + " was not filed as a P2 outside the plan refs (" + it.severity + " " + it.ref_id + ")");
       }
     }
     // the hosted line, in one of its two forms, and the root-cause line bound to it
@@ -381,23 +366,25 @@ test_4033_remeasure_record() {
         else if (!odd.closed) {
           oddOpen = true;
           if (!f || !f.some((c) => c[0].replace(/`/g, "") === "fu-parity-win-odd-root-dirs")) bad.push("the root-cause line is not named but the section 7 follow-up table lacks fu-parity-win-odd-root-dirs");
-        } else bad.push(...oddDropErrors(all));
+        } else bad.push(...oddDropProblems(records, SELF));
       }
     }
-    // the RFC phase 5 row
+    // the RFC phase 5 row: its status follows the criteria while section 7 is the latest section; a later section governs it afterwards
     const allHold = passed && logic.length === 0 && dup === 0 && open.length === 0;
     const rfc = rfcText.split("\n").filter((l) => l.startsWith("| 5 |"));
     if (rfc.length !== 1) bad.push("the RFC phase 5 row appears " + rfc.length + " times");
     else {
       const status = rfc[0].split("|").map((c) => c.trim())[3];
-      if (allHold && status !== "done") bad.push("every section 5 criterion holds but the RFC phase 5 status is " + status);
-      if (!allHold && status !== "in progress") bad.push("a section 5 criterion does not hold but the RFC phase 5 status is " + status);
-      if (!allHold && !rfc[0].includes("section 7")) bad.push("the RFC phase 5 row does not name section 7");
-      if (oddOpen && (status !== "in progress" || !rfc[0].includes("fu-parity-win-odd-root-dirs"))) bad.push("the root-cause line is not named and the item is open but the RFC phase 5 row is not in progress naming fu-parity-win-odd-root-dirs");
+      if (latest) {
+        if (allHold && status !== "done") bad.push("every section 5 criterion holds but the RFC phase 5 status is " + status);
+        if (!allHold && status !== "in progress") bad.push("a section 5 criterion does not hold but the RFC phase 5 status is " + status);
+        if (!allHold && !rfc[0].includes("section 7")) bad.push("the RFC phase 5 row does not name section 7");
+        if (oddOpen && (status !== "in progress" || !rfc[0].includes("fu-parity-win-odd-root-dirs"))) bad.push("the root-cause line is not named and the item is open but the RFC phase 5 row is not in progress naming fu-parity-win-odd-root-dirs");
+      }
       if (!rfc[0].includes("eighteenth slice") || !rfc[0].includes("node-first-phase5-closeout")) bad.push("the RFC phase 5 row lacks the eighteenth slice sentence linking the intake");
     }
-    // D-HOSTED step 4: the record commit changed only the four record paths (checked when the cited object exists here)
-    if (passed) {
+    // D-HOSTED step 4: the record commit changed only the four record paths (checked when the cited object exists here and section 7 is the latest)
+    if (passed && latest) {
       let have = true;
       try { execFileSync("git", ["-C", root, "cat-file", "-e", sha + "^{commit}"], { stdio: "ignore" }); } catch { have = false; }
       if (!have) console.error("INFO: TEST-4033 could not check the record diff: " + sha + " is not in this checkout");
@@ -414,7 +401,7 @@ test_4033_remeasure_record() {
     process.stdout.write(bad.join("; "));
   ')" || log_fail "TEST-4033: the record check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4033: $out"
-  log_pass "TEST-4033: plan section 7 is the latest re-measure; its file table, follow-up table, outside-ref line, root-cause line and hosted line match the tree and the ledger, and the RFC phase 5 row follows them"
+  log_pass "TEST-4033: plan section 7 is a well-formed dated record; its file table, follow-up table, outside-ref line, root-cause line and hosted line match the tree (while it is the latest section) and the ledger as of its date, and the RFC phase 5 row follows them"
 }
 
 # TEST-4034 (Spec-AC-11, D-FU and D-HOSTED order): the follow-up closes. fu-cfshare-redact-escape-robust is closed now. The two Windows
@@ -422,49 +409,19 @@ test_4033_remeasure_record() {
 # resolved_by this ride, a source naming a test file and a TEST id that the file holds followed by a colon, and a ps1-quality run id.
 test_4034_follow_ups() {
   local out
-  out="$(T4034_ROOT="$PROJECT_ROOT" node --input-type=module -e '
+  out="$(T4034_LIB="$CLASSES_LIB" T4034_ROOT="$PROJECT_ROOT" node --input-type=module -e '
     import fs from "node:fs";
-    import { execFileSync } from "node:child_process";
     const root = process.env.T4034_ROOT;
     const SELF = "node-first-phase5-closeout";
     const bad = [];
-    const items = JSON.parse(execFileSync("node", [root + "/.aai/scripts/follow-ups.mjs", "list", "--status", "all", "--json", "--ledger", root + "/docs/ai/decisions.jsonl"], { encoding: "utf8", maxBuffer: 1 << 28 })).items;
-    const by = new Map(items.map((i) => [i.id, i]));
-    // the latest close record per id carries the source; a later reopen record clears it
-    const closeSource = new Map();
-    for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
-      if (!line.includes("\"follow_up_status\"")) continue;
-      let rec; try { rec = JSON.parse(line); } catch { continue; }
-      if (rec.type !== "follow_up_status") continue;
-      if (rec.status === "done") closeSource.set(rec.id, String(rec.source ?? "")); else closeSource.delete(rec.id);
-    }
-    // the owner-downgrade state of the odd-root item (D-ODD step 6, owner decision 2026-11-23): dropped as superseded by an open P3 successor,
-    // with a hitl_decision of this ride naming the downgrade; any other closed state of the item is a failure
-    const oddDropErrors = (all) => {
-      const errs = [];
-      let st = null, by = null, src = "";
-      const hitls = [];
-      for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
-        if (!line.includes("fu-parity-win-odd-root")) continue;
-        let r; try { r = JSON.parse(line); } catch { continue; }
-        if (r.type === "follow_up_status" && r.id === "fu-parity-win-odd-root-dirs") { st = r.status; by = r.resolved_by; src = String(r.source ?? ""); }
-        if (r.type === "hitl_decision" && r.ref_id === "node-first-phase5-closeout" && /fu-parity-win-odd-root-dirs/.test(String(r.decision)) && /P3/.test(String(r.decision)) && /fu-parity-win-odd-root-cause/.test(String(r.decision))) hitls.push(r);
-      }
-      if (st !== "dropped") errs.push("fu-parity-win-odd-root-dirs is closed as " + st + ", not dropped as superseded by the owner downgrade");
-      if (by !== "node-first-phase5-closeout") errs.push("fu-parity-win-odd-root-dirs resolved_by is " + by);
-      if (!src.includes("fu-parity-win-odd-root-cause")) errs.push("the odd-root close source does not name its P3 successor fu-parity-win-odd-root-cause: " + src);
-      const succ = all.find((x) => x.id === "fu-parity-win-odd-root-cause");
-      if (!succ) errs.push("the successor fu-parity-win-odd-root-cause is not in the ledger");
-      else if (succ.closed || succ.severity !== "P3") errs.push("the successor fu-parity-win-odd-root-cause is not an open P3 (" + succ.severity + " closed=" + succ.closed + ")");
-      if (!hitls.length) errs.push("no hitl_decision of node-first-phase5-closeout names the downgrade of fu-parity-win-odd-root-dirs to P3 with its successor");
-      return errs;
-    };
+    const { oddDropProblems, rideStatusRecord } = await import(process.env.T4034_LIB);
+    const records = fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n").map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    // a close of this ride is read from the follow_up_status record the ride wrote; a later reopen or close by another ride is not what this check reads
     const checkClosed = (id, wantFile, wantTest, needRun) => {
-      const it = by.get(id);
-      if (!it) { bad.push(id + " is not in the registry"); return; }
-      if (!it.closed || it.status !== "done") { bad.push(id + " is not closed as done (" + it.status + ")"); return; }
-      if (it.resolved_by !== SELF) bad.push(id + " resolved_by is " + it.resolved_by);
-      const src = closeSource.get(id) ?? "";
+      const rec = rideStatusRecord(records, id, SELF);
+      if (!rec) { bad.push(id + " has no follow_up_status record of " + SELF); return; }
+      if (rec.status !== "done") { bad.push(id + " is not closed as done by the ride (" + rec.status + ")"); return; }
+      const src = String(rec.source ?? "");
       const m = /(tests\/[A-Za-z0-9_.\/-]+\.(?:sh|mjs)) (TEST-[0-9]+)/.exec(src);
       if (!m) { bad.push(id + " source names no test file and TEST id: " + src); return; }
       if (m[1] !== wantFile || m[2] !== wantTest) bad.push(id + " source names " + m[1] + " " + m[2] + ", want " + wantFile + " " + wantTest);
@@ -473,30 +430,34 @@ test_4034_follow_ups() {
       if (needRun && !/ps1-quality run [0-9]+/.test(src)) bad.push(id + " source names no ps1-quality run id: " + src);
     };
     checkClosed("fu-cfshare-redact-escape-robust", "tests/skills/lib/cloudflare-share.test.mjs", "TEST-4029", false);
-    // the hosted line of the latest re-measure section decides the state of the two Windows items
+    // the hosted line of section 7 decides the state of the two Windows items
     const plan = fs.readFileSync(root + "/docs/analysis/node-first-remaining-plan.md", "utf8").split("\n");
-    const line = plan.filter((l) => l.startsWith("- Parity harness and Pester (H1 to H3): ")).pop() ?? "";
+    // section 7 is this ride\x27s record; a later re-measure section has its own hosted line
+    const at7 = plan.findIndex((l) => /^## 7\. Re-measure after the phase 5 closeout \(/.test(l));
+    if (at7 < 0) bad.push("the plan has no section 7 Re-measure after the phase 5 closeout heading");
+    let end7 = plan.length;
+    for (let i = at7 + 1; i > 0 && i < plan.length; i += 1) if (plan[i].startsWith("## ")) { end7 = i; break; }
+    const sec7 = at7 < 0 ? [] : plan.slice(at7 + 1, end7);
+    const line = sec7.filter((l) => l.startsWith("- Parity harness and Pester (H1 to H3): ")).pop() ?? "";
     const passed = /: passed on [0-9a-f]{40} \(ps1-quality run [0-9]+\)/.test(line);
     const pending = /: pending: \S/.test(line);
-    if (!passed && !pending) bad.push("the hosted line of the latest section is neither passed nor pending: " + line);
+    if (!passed && !pending) bad.push("the hosted line of section 7 is neither passed nor pending: " + line);
     const win = [
       ["fu-parity-win-odd-root-dirs", "tests/skills/lib/install-parity.test.mjs", "TEST-4031"],
       ["fu-parity-win-source-path", "tests/skills/lib/install-parity.test.mjs", "TEST-4032"],
     ];
     // the not-named root-cause form (D-ODD step 6): the odd-root item is open for the owner or dropped as superseded by its P3 successor (owner downgrade 2026-11-23), the source-path item closes with the run
-    const rcLine = plan.filter((l) => l.startsWith("- Root cause of fu-parity-win-odd-root-dirs: ")).pop() ?? "";
+    const rcLine = sec7.filter((l) => l.startsWith("- Root cause of fu-parity-win-odd-root-dirs: ")).pop() ?? "";
     const notNamed = /^- Root cause of fu-parity-win-odd-root-dirs: not named after three hosted diagnostic runs \(D-ODD step 6\): /.test(rcLine);
     if (notNamed && !passed) bad.push("the root-cause line is in the not-named form while the hosted line is not passed");
     for (const [id, file, test] of win) {
-      const it = by.get(id);
-      if (passed && notNamed && id === "fu-parity-win-odd-root-dirs") {
-        if (!it) bad.push(id + " is not in the registry");
-        else if (it.closed) bad.push(...oddDropErrors(items));
-      }
+      if (passed && notNamed && id === "fu-parity-win-odd-root-dirs") bad.push(...oddDropProblems(records, SELF));
       else if (passed) checkClosed(id, file, test, true);
-      else if (!it) bad.push(id + " is not in the registry");
-      else if (it.closed && it.resolved_by === SELF) bad.push(id + " is closed by this ride while the hosted line still reads pending (D-HOSTED: the Windows items close in the record commit)");
-      else if (it.closed) bad.push(id + " is closed by " + it.resolved_by + " and not by this ride");
+      else {
+        // the hosted line still reads pending: neither item may have been closed by this ride yet
+        if (!records.some((r) => r.type === "follow_up" && r.id === id)) bad.push(id + " was never filed in the ledger");
+        else if (rideStatusRecord(records, id, SELF)) bad.push(id + " is closed by this ride while the hosted line still reads pending (D-HOSTED: the Windows items close in the record commit)");
+      }
     }
     process.stdout.write(bad.join("; "));
   ')" || log_fail "TEST-4034: the follow-up check failed to run"
@@ -517,9 +478,10 @@ test_4036_docs_and_wiring() {
     const bad = [];
     // CHANGELOG
     const log = read("CHANGELOG.md").split("\n");
-    const TITLE = "## [unreleased] — Node-first phase 5 closeout";
-    const at = log.map((l, i) => (l === TITLE ? i : -1)).filter((i) => i >= 0);
-    if (at.length !== 1) bad.push("CHANGELOG.md holds " + at.length + " headings " + JSON.stringify(TITLE));
+    // a release cut rolls "## [unreleased] — " into "## [vYYYY.MM.DD] — ", so the pin accepts both spellings (as test-aai-hook-installer-docs.sh does)
+    const TITLE = /^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[0-9A-Za-z.-]*)\] — Node-first phase 5 closeout$/;
+    const at = log.map((l, i) => (TITLE.test(l) ? i : -1)).filter((i) => i >= 0);
+    if (at.length !== 1) bad.push("CHANGELOG.md holds " + at.length + " headings of the D-WIRE title (an [unreleased] or [vYYYY.MM.DD] heading ending in: Node-first phase 5 closeout)");
     else {
       let end = log.length;
       for (let i = at[0] + 1; i < log.length; i += 1) if (log[i].startsWith("## ")) { end = i; break; }

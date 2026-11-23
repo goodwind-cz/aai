@@ -244,7 +244,7 @@ test_4021_follow_ups() {
 # TEST-4022 (D-PHASE5): the phase 5 re-measure. Every tracked .sh and .ps1 under .aai/scripts (lib included) is measured with the plan's
 # section 1 method (non-blank, non-comment lines, /usr/bin/grep under bash) and classified: launcher (20 code lines or fewer and no policy
 # token), deprecation launcher (a first-lines RETIRED comment), kept native (a row of the RFC-0017 kept-native table) or logic. The latest re-measure section
-# of docs/analysis/node-first-remaining-plan.md must list exactly the files that are not launchers, with their code lines and classes, the
+# of docs/analysis/node-first-remaining-plan.md must list exactly the files that are not launchers (a deleted deprecation launcher it lists is fine) with their classes, the
 # twin duplication (the smaller side of a pair whose two files are both logic), the open P1 and P2 follow-ups of the plan's refs and the
 # parity and Pester status; the RFC-0017 phase 5 status is done only when every criterion of section 5 holds on that measurement.
 test_4022_phase5_remeasure() {
@@ -257,11 +257,11 @@ test_4022_phase5_remeasure() {
     printf '%s\t%s\n' "$n" "$f" >> "$work/measure.tsv"
   done < <(git -C "$PROJECT_ROOT" ls-files -z -- .aai/scripts)
   [[ -s "$work/measure.tsv" ]] || log_fail "TEST-4022: the measurement found no script"
-  node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$work/open.json" || log_fail "TEST-4022: follow-ups list failed"
   out="$(T4022_LIB="$PROJECT_ROOT/tests/skills/lib/script-classes.mjs" node --input-type=module -e '
     import fs from "node:fs";
-    const { KEPT_NATIVE_HEADING, classify, parseKeptNative } = await import(process.env.T4022_LIB);
-    const [root, measure, openJson] = process.argv.slice(1);
+    const { KEPT_NATIVE_HEADING, classify, parseKeptNative, fileTableProblems, recordsThroughDate } = await import(process.env.T4022_LIB);
+    const [root, measure] = process.argv.slice(1);
+    const { readDecisionsLedger, foldFollowUps } = await import(root + "/.aai/scripts/follow-ups.mjs");
     const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
     const bad = [];
     const rows = fs.readFileSync(measure, "utf8").split("\n").filter(Boolean).map((l) => { const [n, f] = l.split("\t"); return { file: f, code: Number(n) }; });
@@ -285,8 +285,8 @@ test_4022_phase5_remeasure() {
     }
     // the LATEST re-measure section of the plan ("## N. Re-measure after ... (YYYY-MM-DD)"; section 6 stays as a dated record)
     const plan = read("docs/analysis/node-first-remaining-plan.md").split("\n");
-    let at = -1, secNo = "";
-    plan.forEach((l, i) => { const m = /^## (\d+)\. Re-measure after .+ \(\d{4}-\d{2}-\d{2}\)$/.exec(l); if (m) { at = i; secNo = m[1]; } });
+    let at = -1, secNo = "", secDate = "";
+    plan.forEach((l, i) => { const m = /^## (\d+)\. Re-measure after .+ \((\d{4}-\d{2}-\d{2})\)$/.exec(l); if (m) { at = i; secNo = m[1]; secDate = m[2]; } });
     if (at < 0) { process.stdout.write(bad.concat("the plan has no Re-measure after ... section").join("; ")); process.exit(0); }
     let end = plan.length;
     for (let i = at + 1; i < plan.length; i += 1) if (plan[i].startsWith("## ")) { end = i; break; }
@@ -301,10 +301,10 @@ test_4022_phase5_remeasure() {
     const t = tableAfter("| File |");
     if (!t) bad.push("section " + secNo + " has no file table");
     else {
-      const got = t.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]);
-      const want = rest.map((r) => r.file + " " + r.code + " " + r.cls);
-      if (JSON.stringify(got) !== JSON.stringify(want)) bad.push("the section " + secNo + " file table differs from the measurement: want [" + want.join(" ; ") + "] got [" + got.join(" ; ") + "]");
-      for (const c of t) if (!c[3]) bad.push("section " + secNo + " row " + c[0] + " has no reason or next step");
+      // the file and its class are compared with the tree; the code lines are the record own measurement, and a deprecation launcher the record
+      // lists may already be deleted (its scheduled deletion), so neither an edit of a kept-native script nor that deletion fails here; a new
+      // undeclared logic script is the strict check of TEST-4025
+      bad.push(...fileTableProblems({ rows: t, tree: rest }).map((p) => "section " + secNo + ": " + p));
     }
     const dupLine = sec.find((l) => l.startsWith("- Twin duplication: "));
     if (!dupLine) bad.push("section " + secNo + " has no Twin duplication line");
@@ -314,7 +314,8 @@ test_4022_phase5_remeasure() {
     const refs = new Set();
     for (const l of plan) { const m = /^\| \d+ \| ([a-z0-9-]+) \|/.exec(l); if (m) refs.add(m[1]); }
     if (refs.size !== 12) bad.push("the plan lists " + refs.size + " roadmap refs, want 12");
-    const open = JSON.parse(fs.readFileSync(openJson, "utf8")).items
+    // as of the end of the day the section is dated: a later filing or close belongs to a later record
+    const open = foldFollowUps(recordsThroughDate(readDecisionsLedger(root + "/docs/ai/decisions.jsonl").records, secDate)).items
       .filter((i) => (i.severity === "P1" || i.severity === "P2") && !i.closed && !i.id.startsWith("fu-amend-") && (refs.has(i.ref_id) || String(i.ref_id).startsWith("node-first")))
       .map((i) => i.id + " " + i.severity + " " + i.ref_id).sort();
     const f = tableAfter("| Follow-up |");
@@ -342,10 +343,10 @@ test_4022_phase5_remeasure() {
       }
     }
     process.stdout.write(bad.join("; "));
-  ' "$PROJECT_ROOT" "$work/measure.tsv" "$work/open.json")" || log_fail "TEST-4022: the phase 5 check failed to run"
+  ' "$PROJECT_ROOT" "$work/measure.tsv")" || log_fail "TEST-4022: the phase 5 check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4022: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4022: the latest re-measure section of the remaining-scripts plan lists exactly the non-launcher scripts with their measured code lines and classes, the twin duplication, the open P1 and P2 follow-ups of the plan refs and the hosted status, and the RFC-0017 phase 5 status follows the section 5 criteria"
+  log_pass "TEST-4022: the latest re-measure section of the remaining-scripts plan lists exactly the non-launcher scripts with their classes, the twin duplication, the open P1 and P2 follow-ups of the plan refs as of its date and the hosted status, and the RFC-0017 phase 5 status follows the section 5 criteria"
 }
 
 main() {
