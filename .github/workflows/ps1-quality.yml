@@ -1066,8 +1066,6 @@ jobs:
     name: install-path parity driver (bash twin vs PowerShell twin, both engines)
     runs-on: windows-latest
     timeout-minutes: 20   # own bound: the driver runs about 3 min per engine on a hosted runner, far under the 600 s full-suite ceiling it was moved out of
-    env:
-      AAI_PARITY_ODD_DIAG: '1'   # TEMPORARY diagnostic run, reverted before review
     steps:
       - uses: actions/checkout@v4
 
