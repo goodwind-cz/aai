@@ -246,8 +246,10 @@ test_4059_leftover_docs() {
   local heading body phrase json rc=0
   grep -qF 'except that a `PWD` with a leading `//` collapses to `/` in module messages; the hook lands in the same place' "$spec" \
     || log_fail "TEST-4059: the DR-20 cell of SPEC-0308 lacks the leading-// clause"
-  heading='## [unreleased] — Node-first leftovers: share echo, launcher arguments, sync output and guard config fixes'
-  [[ "$(grep -cxF -- "$heading" "$log")" == 1 ]] || log_fail "TEST-4059: CHANGELOG.md does not carry the leftovers heading exactly once"
+  # The heading is [unreleased] on the branch and [vYYYY.MM.DD] once a release rolls it (the release dry-run reads the rolled tree).
+  local title='Node-first leftovers: share echo, launcher arguments, sync output and guard config fixes'
+  [[ "$(grep -cE -- "^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[0-9A-Za-z.-]*)\] — ${title}\$" "$log")" == 1 ]] || log_fail "TEST-4059: CHANGELOG.md does not carry the leftovers heading exactly once"
+  heading="$(grep -E -- "^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[0-9A-Za-z.-]*)\] — ${title}\$" "$log")"
   body="$(awk -v h="$heading" '$0 == h { on = 1; next } on && /^## / { exit } on { print }' "$log")"
   [[ -n "$body" ]] || log_fail "TEST-4059: the leftovers CHANGELOG entry has no body"
   for phrase in 'share echo' 'gapped' 'colon' 'array' 'trailing backslash' 'DR-33' 'which the sync manages' 'EAGAIN' 'BOM' \
