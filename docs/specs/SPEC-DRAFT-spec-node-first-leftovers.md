@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 12de93250ceafd211ac8fcc7f3377d106c7ab9b66f2a08acce4c874277f5e509
+frozen_sha256: 28d53573d060695097b1f9e7928b3c1b4849c9a12c4502c921d37c593447de99
 ceremony_level: 3
 links:
   requirement: node-first-leftovers
@@ -285,9 +285,10 @@ fu-sync-dr33-test-non-aai-entries, fu-sync-ps1-51-native-arg-quoting,
 fu-sync-eagain-nonblocking-stdout, fu-guard-dials-ignore-bom,
 fu-doubled-key-warning-valueless-first, fu-classify-socket-long-tmpdir,
 fu-dr20-note-double-slash-pwd, fu-changelog-dr5-hooks-print.
-Stays open (D-DEFER): fu-runner-git-env-scrub,
-fu-bootstrap-seed-use-shared-lib, fu-sync-aai-prefix-ignore,
-fu-hook-upgrade-resets-mode, fu-parity-odd-row-tracker-successor.
+
+## Registry items this scope leaves open
+
+The five D-DEFER items listed in that Decision stay open by design.
 
 ## Residual risks
 
