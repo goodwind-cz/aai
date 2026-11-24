@@ -87,7 +87,8 @@ export function readGuardConfig(dir, opts = {}) {
   out.present = true;
   out.raw = raw;
   const seen = new Set();
-  for (const line of raw.split(/\r?\n/)) {
+  const text = raw.startsWith(BOM) ? raw.slice(BOM.length) : raw;
+  for (const line of text.split(/\r?\n/)) {
     // Value = the full non-whitespace token (review CHANGE-0009 W2): a glued
     // comment ("enforce# note") therefore yields the token "enforce#", which
     // fails the closed-set check below and falls open WITH a warning — the
@@ -257,7 +258,7 @@ export function coupledGroupFor(groups, prefix) {
   return [p];
 }
 
-// writeRefGuardPolicy(dir, value, { seedFrom, dryRun, rename, readBack }) -> { path, seeded, changed, removed } (a dry run adds keyLines)
+// writeRefGuardPolicy(dir, value, { seedFrom, dryRun, rename, readBack }) -> { path, seeded, changed, removed } (a dry run adds keyLines and winnerLine)
 // The single writer of the ref_guard line in <dir>/docs-audit.yaml (hook installer port, D-POLICY, DR-15 to DR-17).
 // `value` is armed or declined. The first column-0 `ref_guard:` line (valued or not) becomes `ref_guard: <value>`
 // with its own terminator, every later one is removed (their 1-based line numbers are returned in `removed`), and
@@ -295,18 +296,20 @@ function composePolicy(current, value) {
   const keyLines = [];
   lines.forEach((line, i) => { if (REF_GUARD_KEY_LINE.test(line)) keyLines.push(i + 1); });
   const removed = keyLines.slice(1);
+  // the line readRefGuardPolicy takes: the first key line that carries a value
+  const winnerLine = keyLines.find((n) => /^ref_guard:\s*\S/.test(lines[n - 1])) ?? keyLines[0] ?? null;
   if (keyLines.length === 0) {
     const last = lines.length ? lines[lines.length - 1] : '';
     const eol = lines.find((l) => terminator(l) !== '') ? terminator(lines.find((l) => terminator(l) !== '')) : '\n';
     const head = lines.length && terminator(last) === '' ? [...lines.slice(0, -1), last + eol] : lines;
-    return { text: bom + [...head, `ref_guard: ${value}${eol}`].join(''), keyLines, removed };
+    return { text: bom + [...head, `ref_guard: ${value}${eol}`].join(''), keyLines, removed, winnerLine };
   }
   const out = [];
   lines.forEach((line, i) => {
     if (i + 1 === keyLines[0]) out.push(`ref_guard: ${value}${terminator(line)}`);
     else if (!removed.includes(i + 1)) out.push(line);
   });
-  return { text: bom + out.join(''), keyLines, removed };
+  return { text: bom + out.join(''), keyLines, removed, winnerLine };
 }
 
 export function writeRefGuardPolicy(dir, value, opts = {}) {
@@ -325,8 +328,8 @@ export function writeRefGuardPolicy(dir, value, opts = {}) {
     seeded = 'empty';
   }
   const base = current ?? seedBytes ?? Buffer.alloc(0);
-  const { text, keyLines, removed } = composePolicy(base.toString('latin1'), value);
-  if (opts.dryRun) return { path: cfgPath, seeded: null, changed: false, removed, keyLines };
+  const { text, keyLines, removed, winnerLine } = composePolicy(base.toString('latin1'), value);
+  if (opts.dryRun) return { path: cfgPath, seeded: null, changed: false, removed, keyLines, winnerLine };
   const next = Buffer.from(text, 'latin1');
   if (current && current.equals(next)) {
     const same = (opts.readBack ?? readRefGuardPolicy)(dir, { warn: () => {} });

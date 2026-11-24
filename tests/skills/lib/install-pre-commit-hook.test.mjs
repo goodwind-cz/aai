@@ -10,9 +10,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1360,6 +1361,16 @@ describe('TEST-3984 the policy flows', () => {
     assert.equal(u4.stderr, '', 'no policy read, no reader warning');
   });
 
+  // node-first-leftovers D-WARN (Spec-AC-09): a valueless first line is not the winner; the reader takes the first line with a value.
+  test('TEST-4057 a doubled key whose first line is valueless names the second line as the winner', () => {
+    const cfg = 'ref_guard:\nb: 1\nref_guard: declined\n';
+    const { repo, run, cfgPath } = policyRepo('doubled-valueless-', cfg);
+    const p = run();
+    assert.equal(p.status, 0, p.stderr);
+    assert.equal(p.stderr, `WARNING: ${cfgPath} carries 2 ref_guard: lines (lines 1, 3); the first one with a value wins (line 3). Repair: ${BASH_INSTALLER(repo)} --arm-ref-guard (or --decline-ref-guard).\n`);
+    assert.ok(!existsSync(hookOf(repo, 'reference-transaction')), 'the declined line 3 wins');
+  });
+
   test('TEST-3984 a doubled key warns on a plain run without writing; arm and decline repair it and say so', () => {
     const cfg = 'ref_guard: armed\nb: 1\nref_guard: declined\n';
     const { repo, run, cfgPath } = policyRepo('doubled-', cfg);
@@ -1367,7 +1378,7 @@ describe('TEST-3984 the policy flows', () => {
     const before = statSync(cfgPath);
     const p = run();
     assert.equal(p.status, 0, p.stderr);
-    assert.equal(p.stderr, `WARNING: ${cfgPath} carries 2 ref_guard: lines (lines 1, 3); the first one wins. Repair: ${BASH_INSTALLER(repo)} --arm-ref-guard (or --decline-ref-guard).\n`);
+    assert.equal(p.stderr, `WARNING: ${cfgPath} carries 2 ref_guard: lines (lines 1, 3); the first one with a value wins (line 1). Repair: ${BASH_INSTALLER(repo)} --arm-ref-guard (or --decline-ref-guard).\n`);
     assert.equal(readFileSync(cfgPath, 'utf8'), cfg);
     assert.equal(statSync(cfgPath).mtimeMs, before.mtimeMs);
     assert.ok(existsSync(hookOf(repo, 'reference-transaction')), 'the first line (armed) wins');
@@ -1864,7 +1875,10 @@ describe('TEST-3987 slot states and the whole-run refusal', () => {
     if (process.platform !== 'win32') {
       assert.equal(spawnSync('mkfifo', [at('q1')]).status, 0);
       assert.deepEqual(classifySlot(at('q1'), IDX, guard), { state: 'bad-type', kind: 'a named pipe' });
-      const sock = path.join(root, 's');
+      // node-first-leftovers D-SOCK: a short directory of its own, whatever TMPDIR is (a unix socket path holds about 100 bytes).
+      const SOCK_BASE = process.platform === 'win32' ? os.tmpdir() : '/tmp';
+      const sockDir = mkdtempSync(path.join(SOCK_BASE, 'aai-sock-'));
+      const sock = path.join(sockDir, 's');
       const server = net.createServer();
       try {
         await new Promise((resolve, reject) => { server.once('error', reject); server.listen(sock, resolve); });
@@ -1874,6 +1888,7 @@ describe('TEST-3987 slot states and the whole-run refusal', () => {
         t.diagnostic(`socket case skipped: ${e.code}`);
       } finally {
         server.close();
+        rmSync(sockDir, { recursive: true, force: true });
       }
     }
   });
@@ -2561,7 +2576,7 @@ const BASH_ASSERTED = {
     assert.ok(!hookKeys(ref.snap).includes('.git-hooks:.git/hooks/reference-transaction'));
     assert.equal(mod.steps[0].code, 0);
     assert.ok(mod.steps[0].stdout.includes(`Installed AAI reference-transaction hook (AAI:REF-GUARD) at ${h.dir}/.git/hooks/reference-transaction\n`), 'the first key wins');
-    assert.equal(mod.steps[0].stderr, `WARNING: ${h.dir}/docs/ai/docs-audit.yaml carries 2 ref_guard: lines (lines 1, 2); the first one wins. Repair: bash ${h.dir}/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard (or --decline-ref-guard).\n`);
+    assert.equal(mod.steps[0].stderr, `WARNING: ${h.dir}/docs/ai/docs-audit.yaml carries 2 ref_guard: lines (lines 1, 2); the first one with a value wins (line 1). Repair: bash ${h.dir}/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard (or --decline-ref-guard).\n`);
     assert.equal(mod.snap[CFG_KEY], ref.snap[CFG_KEY], 'a plain run does not touch the file');
   },
   K27d(ref, mod) {

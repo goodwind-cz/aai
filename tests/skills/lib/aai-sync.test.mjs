@@ -558,7 +558,7 @@ const ANCHORS = [
   'const overlapsSource = (roots) => isUnderOrSame(roots.targetReal, roots.srcReal);',
   "const PIN_VERSION_PREFIX = '- Template version: ';",
   'const runChild = (file, args, opts) => spawnSync(file, args, opts);',
-  'const writeFd = (fd) => (s) => { fs.writeSync(fd, s); };',
+  'const writeFd = (fd) => (s) => {',   // node-first-leftovers D-EAGAIN: the body is a loop now; the opening line stays the anchor
   '  const roots = resolveRoots(args, io);',
   '  if (!underRoot(roots, abs)) return refuseOutside(roots, abs);',
 ];
@@ -634,8 +634,8 @@ describe('TEST-4001 module shape', () => {
       const problems = moduleShapeProblems(mutated);
       assert.ok(problems.some((p) => re.test(p)), `${re} not reported: ${problems.join(' | ')}`);
     };
-    bad(good.replace('{ fs.writeSync(fd, s); }', '{ process.stdout.write(s); }'), /process\.stdout|anchor appears 0/);
-    bad(good.replace('{ fs.writeSync(fd, s); }', '{ process.stderr.write(s); }'), /process\.stderr|anchor appears 0/);
+    bad(good.replace('const writeFd = (fd) => (s) => {', 'const writeFd = (fd) => (s) => { process.stdout.write(s);'), /process\.stdout|anchor appears 0/);
+    bad(good.replace('const writeFd = (fd) => (s) => {', 'const writeFd = (fd) => (s) => { process.stderr.write(s);'), /process\.stderr|anchor appears 0/);
     bad(`${good}\n${SPAWN}('git', []);\n`, /spawnSync is called 2 times/);
     bad(`import http from 'node:http';\n${good}`, /network module/);
     bad(`import x from 'some-package';\n${good}`, /is not a node: specifier/);
@@ -885,6 +885,37 @@ describe('TEST-4003 roots and the refusals before any write', () => {
       assert.equal(r.stdout, '');
       assert.deepEqual(snapshotTree(root), before, `${label}: the target is unchanged`);
     }
+  });
+
+  // node-first-leftovers D-EAGAIN (Spec-AC-06): a non-blocking pipe throws EAGAIN and may take a partial write.
+  test('TEST-4054 EAGAIN once and then partial writes still deliver the whole output in order with exit 0', async () => {
+    const { run } = await import(MODULE_URL);
+    const realWrite = nodeFs.writeSync;
+    const chunks = [];
+    let calls = 0;
+    nodeFs.writeSync = (fd, data, ...rest) => {
+      if (fd !== 1) return realWrite(fd, data, ...rest);
+      calls += 1;
+      if (calls === 1) throw Object.assign(new Error('EAGAIN: resource temporarily unavailable, write'), { code: 'EAGAIN' });
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(String(data));
+      const off = rest.length > 0 && typeof rest[0] === 'number' ? rest[0] : 0;
+      const len = rest.length > 1 && typeof rest[1] === 'number' ? rest[1] : buf.length - off;
+      const n = Math.max(1, Math.min(len, 7));
+      chunks.push(Buffer.from(buf.subarray(off, off + n)));
+      return n;
+    };
+    let status;
+    try {
+      status = await run(['--help'], { spawn: () => { throw new Error('no child is started by --help'); } });
+    } finally {
+      nodeFs.writeSync = realWrite;
+    }
+    const got = Buffer.concat(chunks).toString('utf8');
+    assert.equal(status, 0);
+    assert.ok(calls > 3, `partial writes continued (calls ${calls})`);
+    assert.ok(got.startsWith('Push AAI layer FROM this repository INTO a target project.\n'), got.slice(0, 80));
+    assert.ok(got.includes('Usage'), 'the whole help text arrived');
+    assert.equal(got.endsWith('\n'), true);
   });
 
   // DR-35: a file system may report no inode (0) or one above 2**53 (Windows file ids), which a Number comparison reads as equal.

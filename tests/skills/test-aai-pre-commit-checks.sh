@@ -235,7 +235,7 @@ test_3454_small_input_parity() {
   # then +50 -9 from precommit-residual-defects (the read-and-count loop with one re-read, a pipe probe before the batch read, STATE matched in the
   # shell, line lists walked by parameter expansion, tools looked up in a subshell);
   # the seven fixtures above stay byte-identical.
-  [[ "$numstat" == "242 39" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '242 39'"
+  [[ "$numstat" == "243 40" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '243 40'"
   log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 242 added and 39 removed lines"
 }
 
@@ -1380,6 +1380,59 @@ test_3879_installed_hook_reads_the_commits_index() {
   log_pass "TEST-3879: through the installed hook a partial commit is judged on the commit's own index (blocked, HEAD unmoved) and 40 clean staged files commit"
 }
 
+# node-first-leftovers D-BOM (Spec-AC-07): readGuardConfig reads a dial on the first line after a leading BOM.
+test_4055_guard_config_bom() {
+  local d="$TEST_DIR/t4055" got
+  mkdir -p "$d"
+  printf '\xef\xbb\xbfclose_gate: enforce\ndoc_number_guard: enforce\n' > "$d/docs-audit.yaml"
+  got="$(GC_LIB="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" node --input-type=module -e '
+    import { pathToFileURL } from "node:url";
+    const { readGuardConfig } = await import(pathToFileURL(process.env.GC_LIB).href);
+    const g = readGuardConfig(process.argv[1], { warn: () => {} });
+    console.log(g.close_gate, g.doc_number_guard, g.raw.startsWith("\uFEFF"));
+  ' "$d")" || log_fail "TEST-4055: the reader run failed"
+  [[ "$got" == "enforce enforce true" ]] || log_fail "TEST-4055: a BOM-prefixed config read as '$got', expected 'enforce enforce true' (first dial read, raw keeps the BOM)"
+  log_pass "TEST-4055: readGuardConfig reads the dial on the first line after a leading BOM and keeps the bytes in raw"
+}
+
+# node-first-leftovers D-BOM (Spec-AC-08): each shell mirror pattern, run over the conformance fixtures plus BOM fixtures, agrees with the reader.
+test_4056_shell_mirrors_bom() {
+  local d="$TEST_DIR/t4056" mirror file key pat label content want got line_bom
+  mkdir -p "$d"
+  line_bom() { printf '\xef\xbb\xbf%s\n' "$1"; }
+  for mirror in "pre-commit-checks.sh|doc_number_guard|$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh" \
+                "pre-commit-index.sh|close_gate|$PROJECT_ROOT/.aai/templates/git-hooks/pre-commit-index.sh" \
+                "pre-commit-index.sh|body_lint|$PROJECT_ROOT/.aai/templates/git-hooks/pre-commit-index.sh" \
+                "pre-push.sh|close_gate|$PROJECT_ROOT/.aai/templates/git-hooks/pre-push.sh"; do
+    label="${mirror%%|*}"; file="${mirror##*|}"; key="${mirror#*|}"; key="${key%%|*}"
+    pat="$(awk -F"'" -v k="$key:" '/grep -Eq/ && index($0, k) { print $(NF-1); exit }' "$file")"
+    [[ -n "$pat" ]] || log_fail "TEST-4056: could not extract the $key pattern from $label"
+    pat="$(printf '%b' "$pat")"
+    for variant in "enforce|1|$key: enforce" "report-only|0|$key: report-only" "comment|1|$key: enforce  # note" \
+                   "commented-out|0|# $key: enforce" "invalid|0|$key: enforced"; do
+      content="${variant##*|}"
+      want="${variant#*|}"; want="${want%%|*}"
+      for bom in "" bom; do
+        if [[ -n "$bom" ]]; then line_bom "$content" > "$d/c"; else printf '%s\n' "$content" > "$d/c"; fi
+        got=0; "$GREP" -Eq "$pat" "$d/c" && got=1
+        [[ "$got" == "$want" ]] || log_fail "TEST-4056: $label $key '${variant%%|*}' ${bom:-plain}: the mirror grep says $got, expected $want"
+        if [[ "$key" != body_lint ]]; then
+          # the reader reads the config dir: place the fixture where it looks
+          cp "$d/c" "$d/docs-audit.yaml"
+          got="$(GC_LIB="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" node --input-type=module -e '
+            import { pathToFileURL } from "node:url";
+            const { readGuardConfig } = await import(pathToFileURL(process.env.GC_LIB).href);
+            console.log(readGuardConfig(process.argv[1], { warn: () => {} })[process.argv[2]]);
+          ' "$d" "$key")"
+          [[ "$got" == "enforce" ]] && got=1 || got=0
+          [[ "$got" == "$want" ]] || log_fail "TEST-4056: $label $key '${variant%%|*}' ${bom:-plain}: the reader says $got, expected $want (the mirror agrees)"
+        fi
+      done
+    done
+  done
+  log_pass "TEST-4056: every shell mirror accepts an optional leading BOM and agrees with readGuardConfig on the plain and BOM fixtures"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3887, TEST-3918..3922)"
   check_deps
@@ -1427,6 +1480,8 @@ main() {
   test_3920_no_builtin_redirection_text
   test_3921_preservation_and_moved_pins
   test_3922_changelog_and_product_doc
+  test_4055_guard_config_bom
+  test_4056_shell_mirrors_bom
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -58,7 +58,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || true)"
   CLOSE_GATE_MODE="report-only"
   # Here-string, never printf piped into "grep -q" (round 10, PR #381).
-  if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
+  if grep -Eq $'^(\xef\xbb\xbf)?close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
     CLOSE_GATE_MODE="enforce"
   fi
   CLOSE_GATE_FAILED=0
@@ -132,7 +132,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || true)"
   BODY_LINT_MODE="report-only"
   # Here-string, never printf piped into "grep -q" (round 10, PR #381).
-  if grep -Eq '^body_lint:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
+  if grep -Eq $'^(\xef\xbb\xbf)?body_lint:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
     BODY_LINT_MODE="enforce"
   fi
   BODY_LINT_FAILED=0

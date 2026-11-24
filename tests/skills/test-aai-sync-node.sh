@@ -741,6 +741,11 @@ test_4052_dr33_managed() {
   log_pass "TEST-4052: a source inside .claude or .codex/skills of the target is refused with the D-DR33 line and the target is unchanged"
 }
 
+test_4054_eagain() {
+  run_node_tests TEST-4054
+  log_pass "TEST-4054: a writeSync that throws EAGAIN once and then writes partially still delivers the complete ordered output with exit 0"
+}
+
 test_4053_ps51_trailing_backslash() {
   need_pester TEST-4053 || return 0
   local work counts
@@ -984,6 +989,7 @@ main() {
   test_4016_ps1_launcher
   test_4052_dr33_managed
   test_4053_ps51_trailing_backslash
+  test_4054_eagain
   test_4017_parity_sync
   test_4018_upgrade
   test_4019_wiring
