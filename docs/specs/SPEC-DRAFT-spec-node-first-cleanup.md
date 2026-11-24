@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 720f70641c157f6a0c6fbe673e0362ba99cb97143114f0db1a12d1b197c5b364
+frozen_sha256: 6ed663a43600eeb88fa75b8a3be33317c01d2e7628675387e1c108679ac8007f
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -181,8 +181,8 @@ before any write when a journal entry's path or its archive escapes.
   finding.
 
 The check runs over every tracked `.aai/**/*.sh`. The tests corpus is out
-of scope: today it holds 1405 such sites in 60 errexit suites. That corpus
-gets its own follow-up, `fu-seterr-test-corpus-sweep`, with that count.
+of scope: today the lint finds 799 such sites in 61 of 167 tracked suites. That corpus
+gets its own follow-up, `fu-seterr-test-corpus-lint-sweep`, with that count.
 
 ### D-AMEND: closed specs whose tests change
 

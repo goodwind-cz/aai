@@ -4484,3 +4484,4 @@
 {"v":1,"ts":"2026-11-24T09:44:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-phase5-closeout","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-24T09:44:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-phase5-closeout","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-24T19:01:07Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-cleanup","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-24T22:23:31Z","actor":"ales_holubec.net","event":"round_reset","ref":"node-first-cleanup","payload":{"block":"last_validation","from":"fail","forced":false}}
