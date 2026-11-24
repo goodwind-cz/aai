@@ -4484,3 +4484,5 @@
 {"v":1,"ts":"2026-11-24T09:44:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-phase5-closeout","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-24T09:44:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-phase5-closeout","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-24T19:06:49Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-leftovers","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-24T20:46:21Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"node-first-leftovers","payload":{"role":"validation","head":"d11dc7315160ee605954413815243d425496ac43","seen":"run_at:null"}}
+{"v":1,"ts":"2026-11-24T21:25:58Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"node-first-leftovers","payload":{"head":"d11dc7315160ee605954413815243d425496ac43","clean":false,"flags":1}}
