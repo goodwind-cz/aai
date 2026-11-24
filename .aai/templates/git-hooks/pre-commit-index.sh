@@ -73,7 +73,8 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
   # SKIPS the gate (the worst failure shape for a gate). D2: NUL-separated.
   while IFS= read -r -d '' f; do
     case "$f" in docs/issues/*.md|docs/rfc/*.md|docs/specs/*.md|docs/requirements/*.md) ;; *) continue ;; esac
-    # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
+    # only when the STAGED diff ADDS a 'status: done' line; with --no-renames a renamed doc counts as added,
+    # so its 'status: done' line is an added line and a pure rename of a done doc is gated like a new doc
     # Capture, then here-string into grep -q (round 10, PR #381).
     _staged_hunk="$(git diff --cached --no-renames -U0 -- "$f")"
     if grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)' <<<"$_staged_hunk"; then

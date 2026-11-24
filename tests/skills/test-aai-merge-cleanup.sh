@@ -4234,12 +4234,10 @@ test_2930_symlink_overlap_never_written_through() {
 }
 
 # outside_sig <dir>: every file under dir with its bytes' hash (the tree a refused sync must not touch).
-# The step journal is the engine's own bookkeeping: the steps that run before sync-base append to it
-# through the same link, so it is left out, as tree_sig leaves it out.
+# The journal is not left out: nothing of the run may be written through a link out of the checkout.
 outside_sig() {
   [[ -n "$1" && "$1" = /* && -d "$1" ]] || fail SETUP 'outside_sig dir'
   find "$1" -type f -print | LC_ALL=C sort | while IFS= read -r f; do
-    case "$f" in */journal.jsonl) continue ;; esac
     printf '%s %s\n' "${f#"$1"/}" "$(sha_of "$f")"
   done
 }
@@ -4258,14 +4256,14 @@ test_4045_sync_refuses_parent_link() {
   link_docs_ai
   before="$(outside_sig "$OUT_AI")"
   apply_run
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-4045 "exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  want TEST-4045 "$ENG_OUT" '"reason":"write_outside_checkout"'
-  want TEST-4045 "$ENG_OUT" 'Kept: '
-  unwanted TEST-4045 "$ENG_OUT" 'Cleanup: complete.'
   after="$(outside_sig "$OUT_AI")"
-  [[ "$before" == "$after" ]] || fail TEST-4045 "the directory outside the checkout changed: $(diff <(printf '%s\n' "$before") <(printf '%s\n' "$after"))"
-  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-4045 'main moved although the sync was kept'
-  echo 'PASS: TEST-4045 a docs/ai that links outside the checkout is kept as write_outside_checkout and the outside tree is untouched'
+  [[ "$before" == "$after" ]] || fail TEST-4045 "the directory outside the checkout changed (journal included): $(diff <(printf '%s\n' "$before") <(printf '%s\n' "$after"))"
+  [[ "$(find "$OUT_AI" -type f | wc -l | tr -d ' ')" == "$(printf '%s\n' "$before" | wc -l | tr -d ' ')" ]] || fail TEST-4045 'the outside tree gained a file'
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-4045 "exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-4045 "$ENG_OUT" 'REFUSE write_outside_checkout'
+  unwanted TEST-4045 "$ENG_OUT" 'Cleanup: complete.'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-4045 'main moved although the run was refused'
+  echo 'PASS: TEST-4045 a docs/ai that links outside the checkout is refused as write_outside_checkout before any write and the outside tree, journal included, is untouched'
 }
 
 seed_linked_dir() {

@@ -23,7 +23,7 @@ function interpreterVersion(cmd,args) {
     encoding:'utf8'
   });
   if(r.status!==0)return {
-    version:null,error:r.signal?`signal ${r.signal}`:`exit ${r.status}`
+    version:null,error:r.error?`spawn ${r.error.code||r.error.message}`:r.signal?`signal ${r.signal}`:`exit ${r.status}`
   };
   const out=(r.stdout||'').trim();
   return /^[0-9]+\.[0-9]+/.test(out.split('\n')[0])? {

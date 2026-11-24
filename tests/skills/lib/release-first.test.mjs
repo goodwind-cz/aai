@@ -617,4 +617,12 @@ test('TEST-4040 a crashing PowerShell probe is recorded as null with its exit st
   assert.equal(j.interpreters.powershell,null);
   assert.equal(j.interpreterErrors.powershell,'exit 134');
   assert.ok(!JSON.stringify(j).includes('FileLoadException'),'probe output is never recorded');
+  const missing=path.join(dir,'..',path.basename(dir)+'-no-such-pwsh');
+  const r2=dry(dir,['--report',report], {
+    AAI_RELEASE_DRY_PWSH:missing
+  });
+  assert.equal(r2.status,0,r2.text);
+  const j2=JSON.parse(fs.readFileSync(report,'utf8'));
+  assert.equal(j2.interpreters.powershell,null);
+  assert.equal(j2.interpreterErrors.powershell,'spawn ENOENT','a missing binary names the spawn error, not exit null');
 });
