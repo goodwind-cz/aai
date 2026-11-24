@@ -224,7 +224,8 @@ test_3999_follow_ups() {
     }
     for (const id of open) {
       const it = by.get(id);
-      if (!it || it.closed) bad.push(id + " must stay open");
+      // left open by this ride; a later ride may close it (node-first-cleanup closed fu-seterr-suspended-left-of-or)
+      if (!it || (it.closed && (it.resolved_by === "pre-commit-installer-on-node" || !it.resolved_by))) bad.push(id + " must stay open");
     }
     for (const id of filed) {
       const it = by.get(id);
