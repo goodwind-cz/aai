@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 6ed663a43600eeb88fa75b8a3be33317c01d2e7628675387e1c108679ac8007f
+frozen_sha256: fba03693ad00e106a5082ca451b5217cb97169a33f0869d9b9328d86e7b27abd
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -165,7 +165,12 @@ realpath of the nearest existing ancestor of `abs` is neither the realpath of
 incoming-add path that escapes. `syncBase` re-checks every planned path
 before its first write. `resumeSync` stops with `write_outside_checkout`
 before any write when a journal entry's path or its archive escapes.
-`archiveFile` refuses a destination that escapes.
+`archiveFile` refuses a destination that escapes. An apply run whose archive
+root (`docs/ai/archive/merge-cleanup/pr-<n>`, which holds the journal, the
+choices and the archive files) resolves outside the checkout refuses up
+front with `REFUSE write_outside_checkout` and exit 3, before any write
+(validation r1 B1; the guard compares the resolved archive root directory
+and the sync paths, not each file inside an in-checkout archive root).
 
 ### D-SETERR: the errexit idiom lint
 
@@ -228,7 +233,7 @@ None.
 | Spec-AC-06 | WHEN the release preflight runs a CHANGELOG-reading test the test SHALL run in a clone that is not a linked worktree and has no remote, with HOME and XDG_CACHE_HOME under the preflight temp root and no GH_TOKEN, GITHUB_TOKEN or GIT_DIR from the operator environment; the temp root SHALL be gone afterwards. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4042.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4042.txt | — | D-PREFLIGHT |
 | Spec-AC-07 | WHEN a governed doc is renamed in the commit and its staged content adds status done and fails the close gate the pre-commit index hook SHALL exit non-zero under close_gate enforce. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4043.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4043.txt | — | D-RENAME |
 | Spec-AC-08 | WHEN a governed doc is renamed in the commit and fails the body lint the pre-commit index hook SHALL exit non-zero under body_lint enforce. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4044.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4044.txt | — | D-RENAME |
-| Spec-AC-09 | WHEN sync-base would write a ledger whose parent docs/ai is a symlink to a directory outside the checkout it SHALL halt with reason write_outside_checkout and the outside directory SHALL stay byte-identical. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4045.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4045.txt | — | D-INSIDE |
+| Spec-AC-09 | WHEN merge-cleanup apply runs with docs/ai a symlink to a directory outside the checkout it SHALL refuse with REFUSE write_outside_checkout and exit 3 before any write, and the outside directory SHALL stay byte-identical. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4045.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4045.txt | — | D-INSIDE |
 | Spec-AC-10 | WHEN a pending sync journal names an entry whose resolved parent lies outside the checkout the resume SHALL stop with write_outside_checkout before any write and the outside directory SHALL stay byte-identical. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4046.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4046.txt | — | D-INSIDE |
 | Spec-AC-11 | The D-SETERR lint SHALL report zero findings over every tracked .aai shell script and SHALL report exactly one finding for a fixture with set -e and a local function left of the or operator, and zero for the same fixture without set -e. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4047.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4047.txt | — | D-SETERR |
 | Spec-AC-12 | CHANGELOG.md SHALL hold the D-WIRE heading naming the four consumer-visible changes; spec-amend list --strict SHALL exit 0 holding the nine D-AMEND records. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4048.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4048.txt | — | D-WIRE, D-AMEND |
@@ -267,7 +272,7 @@ directory, which `mkdirSync` would then create inside the checkout).
 | TEST-4042 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh | test_4042_preflight_clone_scrubbed runs a fixture cut whose CHANGELOG-reading test fails when its checkout is a linked worktree, has a remote, sees any GH_, GITHUB_, GIT_ or AAI_ variable (the invoker sets GH_TOKEN, GITHUB_TOKEN and GIT_ and AAI_ sentinels; a GIT_DIR in the invoker would break the cut itself), or has HOME outside its temp root; requires the cut to pass the preflight and the temp root to be gone | `sed:s/'remote','remove','origin'/'remote','-v'/` on .aai/scripts/release-finish.mjs | green |
 | TEST-4043 | Spec-AC-07 | integration | tests/skills/test-aai-git-hook-templates.sh | test_4043_renamed_doc_close_gated stages a rename of a draft spec to a numbered name that adds status done and fails the gate, with close_gate enforce, and requires the template hook to exit non-zero | `sed:s/ --no-renames --diff-filter=ACM > "\$_aai_lists\/gated"/ --diff-filter=ACM > "$_aai_lists\/gated"/` on .aai/templates/git-hooks/pre-commit-index.sh | green |
 | TEST-4044 | Spec-AC-08 | integration | tests/skills/test-aai-git-hook-templates.sh | test_4044_renamed_doc_body_linted stages a rename of a governed doc carrying stray tool markup, with body_lint enforce, and requires the template hook to exit non-zero | `sed:s/ --no-renames --diff-filter=ACM > "\$_aai_lists\/linted"/ --diff-filter=ACM > "$_aai_lists\/linted"/` on .aai/templates/git-hooks/pre-commit-index.sh | green |
-| TEST-4045 | Spec-AC-09 | integration | tests/skills/test-aai-merge-cleanup.sh | test_4045_sync_refuses_parent_link symlinks docs/ai of a scratch origin to an outside directory holding a dirty ledger, runs sync-base, and requires write_outside_checkout and an unchanged outside tree | `sed:s/function escapesCheckout\(origin, abs\) \{/function escapesCheckout(origin, abs) { return false;/` on .aai/scripts/merge-cleanup.mjs | green |
+| TEST-4045 | Spec-AC-09 | integration | tests/skills/test-aai-merge-cleanup.sh | test_4045_sync_refuses_parent_link symlinks docs/ai of a scratch origin to an outside directory holding a dirty ledger, runs merge-cleanup apply, and requires REFUSE write_outside_checkout, exit 3 and a byte-identical outside tree | `sed:s/function escapesCheckout\(origin, abs\) \{/function escapesCheckout(origin, abs) { return false;/` on .aai/scripts/merge-cleanup.mjs | green |
 | TEST-4046 | Spec-AC-10 | integration | tests/skills/test-aai-merge-cleanup.sh | test_4046_resume_refuses_parent_link plants a pending journal whose entry path resolves outside the checkout and requires write_outside_checkout before any write, outside tree unchanged | `sed:s/function escapesCheckout\(origin, abs\) \{/function escapesCheckout(origin, abs) { return false;/` on .aai/scripts/merge-cleanup.mjs | green |
 | TEST-4047 | Spec-AC-11 | unit | tests/skills/test-aai-pre-commit-checks.sh | test_4047_seterr_lint runs seterr-lint over every tracked .aai shell script (zero findings) and over two fixtures (one finding with set -e, zero without) | `sed:s/return findings;/return [];/` on tests/skills/lib/seterr-lint.mjs | green |
 | TEST-4048 | Spec-AC-12 | inspection | tests/skills/test-aai-suite-select.sh | test_4048_cleanup_wiring requires the D-WIRE CHANGELOG heading with the four named changes and spec-amend list --strict exit 0 with the nine D-AMEND records | `sed:s/## \[unreleased\] — Node-first cleanup/## [unreleased] — Node first cleanup/` on CHANGELOG.md | green |
