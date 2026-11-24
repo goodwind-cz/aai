@@ -387,7 +387,12 @@ test_4033_remeasure_record() {
     if (passed && latest) {
       let have = true;
       try { execFileSync("git", ["-C", root, "cat-file", "-e", sha + "^{commit}"], { stdio: "ignore" }); } catch { have = false; }
+      // the range sha..HEAD only describes the ride while the hosted sha is an ancestor of HEAD; after a squash merge it is not (the HEAD of main
+      // is one commit that holds every file of the ride), so that arm is skipped with a note
+      let anc = have;
+      if (have) { try { execFileSync("git", ["-C", root, "merge-base", "--is-ancestor", sha, "HEAD"], { stdio: "ignore" }); } catch { anc = false; } }
       if (!have) console.error("INFO: TEST-4033 could not check the record diff: " + sha + " is not in this checkout");
+      else if (!anc) console.error("INFO: TEST-4033 skipped the record diff: " + sha + " is not an ancestor of HEAD (a squash merge or a rebase)");
       else {
         // every commit after the hosted sha that rewrites the plan is a record commit and may touch only the four record paths; a later
         // code commit that does not touch the plan (a remediation of a pin) is not one, so it no longer trips this check

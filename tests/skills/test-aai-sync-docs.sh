@@ -226,19 +226,25 @@ test_4021_follow_ups() {
       if (!fs.existsSync(file)) { bad.push(id + " source file " + m[1] + " does not exist"); continue; }
       if (!fs.readFileSync(file, "utf8").includes(m[2] + ":")) bad.push(id + " source " + m[1] + " holds no " + m[2] + ":");
     }
+    // the three this ride filed are read from the filing records it wrote (ref and severity as filed); a later close, drop or reopen by
+    // another ride is not a failure of this ride, so the open state is not required
     for (const id of filed) {
-      const it = by.get(id);
-      if (!it) { bad.push(id + " is not filed"); continue; }
-      // filed open by this ride; a later ride may close it
-      if (it.closed && (it.resolved_by === "sync-on-node" || !it.resolved_by)) bad.push(id + " is not open");
-      if (it.ref_id !== "sync-on-node") bad.push(id + " ref is " + it.ref_id);
-      if (it.severity !== "P3") bad.push(id + " severity is " + it.severity);
+      let fil = null;
+      for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
+        if (!line.includes(id)) continue;
+        let rec;
+        try { rec = JSON.parse(line); } catch { continue; }
+        if (rec.type === "follow_up" && rec.id === id) { fil = rec; break; }
+      }
+      if (!fil) { bad.push(id + " is not filed"); continue; }
+      if (fil.ref_id !== "sync-on-node") bad.push(id + " was filed with ref " + fil.ref_id);
+      if (fil.severity !== "P3") bad.push(id + " was filed at " + fil.severity);
     }
     process.stdout.write(bad.join("; "));
   ' "$PROJECT_ROOT" "$CLOSED_FU" "$FILED_FU" "$REOPENED_FU")" || log_fail "TEST-4021: the follow-up check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4021: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open or closed by the phase 5 closeout with its hosted run id, and the three suggested follow-ups are open with ref sync-on-node"
+  log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open or closed by the phase 5 closeout with its hosted run id, and the three suggested follow-ups were filed by this ride at P3 with ref sync-on-node (a later close by another ride is allowed)"
 }
 
 # TEST-4022 (D-PHASE5): the phase 5 re-measure. Every tracked .sh and .ps1 under .aai/scripts (lib included) is measured with the plan's
