@@ -592,6 +592,26 @@ function referenceHelp() {
 
 const expectedHelp = () => referenceHelp() + DR1_LINES.join('\n') + '\n';
 
+describe('TEST-4050 colon and boolean-word grammar (node-first-leftovers D-UPDATE-ARGS)', () => {
+  test('TEST-4050 the colon forms, a boolean word after a switch and the 5.1 split form are read like aai-release does', async () => {
+    const { parseArgs } = await import(MODULE_URL);
+    const D = { repo: 'goodwind-cz/aai', ref: 'main', dryRun: false, keepTemp: false, force: false, outcome: 'run', arg: '' };
+    assert.deepEqual(parseArgs(['-DryRun', 'false']), D, '-DryRun false');
+    assert.deepEqual(parseArgs(['-DryRun', '$true']), { ...D, dryRun: true }, '-DryRun $true');
+    assert.deepEqual(parseArgs(['-DryRun:true']), { ...D, dryRun: true }, '-DryRun:true');
+    assert.deepEqual(parseArgs(['-Repo:X']), { ...D, repo: 'X' }, '-Repo:X');
+    assert.deepEqual(parseArgs(['-Repo:', 'X']), { ...D, repo: 'X' }, '-Repo: X');
+    // a boolean word is case-free, false turns a switch back off, and the later occurrence wins
+    assert.deepEqual(parseArgs(['-Force', '-Force:FALSE', '-KeepTemp', 'True']), { ...D, keepTemp: true }, 'case and last wins');
+    assert.deepEqual(parseArgs(['--dry-run', '$False']), D, '--dry-run $False');
+    // negative controls: a switch followed by another word stays on and that word is unknown; a colon value that is no boolean is unknown
+    assert.deepEqual(parseArgs(['-DryRun', 'maybe']), { ...D, dryRun: true, outcome: 'unknown', arg: 'maybe' }, 'not a boolean word');
+    assert.equal(parseArgs(['-DryRun:maybe']).outcome, 'unknown', '-DryRun:maybe');
+    assert.equal(parseArgs(['-Repo:']).outcome, 'value', '-Repo: with nothing after it');
+    assert.equal(parseArgs(['-Repo:', '-DryRun']).outcome, 'value', '-Repo: before a flag');
+  });
+});
+
 describe('TEST-3962 arguments, help and base directory', () => {
   test('TEST-3962 every accepted form is read, in any order, and the last occurrence wins', async () => {
     const { parseArgs } = await import(MODULE_URL);

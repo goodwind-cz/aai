@@ -63,6 +63,9 @@ export const HELP_TEXT = `${HELP_LINES.join('\n')}\n`;
 const VALUE_FLAGS = { '--repo': 'repo', '--ref': 'ref', '-repo': 'repo', '-ref': 'ref' };
 const SWITCH_FLAGS = { '--dry-run': 'dryRun', '--keep-temp': 'keepTemp', '--force': 'force', '-dryrun': 'dryRun', '-keeptemp': 'keepTemp', '-force': 'force' };
 
+// The boolean words a switch accepts after it or after a colon (the PowerShell spellings included).
+const BOOL_WORDS = new Map([['true', true], ['false', false], ['$true', true], ['$false', false]]);
+
 // flagKey(arg): the lookup key of a flag word: a long flag exactly, a single-dash name lower-cased.
 const flagKey = (arg) => (arg.startsWith('--') ? arg : arg.toLowerCase());
 
@@ -78,28 +81,47 @@ const isOption = (word) => {
 // names the value flag, as given, that came without a value). Parsing stops at the first terminal.
 export function parseArgs(argv) {
   const out = { repo: DEFAULT_REPO, ref: DEFAULT_REF, dryRun: false, keepTemp: false, force: false, outcome: 'run', arg: '' };
+  const has = (table, key) => Object.prototype.hasOwnProperty.call(table, key);
   for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    const eq = arg.startsWith('--') ? arg.indexOf('=') : -1;
-    const key = flagKey(eq > 0 ? arg.slice(0, eq) : arg);
+    let arg = argv[i];
     if (arg === '-h' || arg === '--help') {
       out.outcome = 'help';
       return out;
     }
-    if (Object.prototype.hasOwnProperty.call(SWITCH_FLAGS, key) && eq < 0) {
-      out[SWITCH_FLAGS[key]] = true;
-    } else if (Object.prototype.hasOwnProperty.call(VALUE_FLAGS, key)) {
-      const value = eq > 0 ? arg.slice(eq + 1) : argv[i + 1];
-      if (value === undefined || value === '' || (eq < 0 && isOption(value))) {
+    // The PowerShell colon form, -Flag:value in one token; Windows PowerShell 5.1 under -File may hand it over as
+    // -Flag: then the value, which is joined here (the grammar of aai-release.mjs).
+    const colon = arg.match(/^-[A-Za-z][A-Za-z0-9-]*:/);
+    let colonValue;
+    if (colon) {
+      colonValue = arg.slice(colon[0].length);
+      arg = arg.slice(0, colon[0].length - 1);
+      if (colonValue === '' && i + 1 < argv.length && !isOption(argv[i + 1])) colonValue = argv[(i += 1)];
+    }
+    const eq = arg.startsWith('--') ? arg.indexOf('=') : -1;
+    const key = flagKey(eq > 0 ? arg.slice(0, eq) : arg);
+    if (has(SWITCH_FLAGS, key) && eq < 0) {
+      let word = colonValue;
+      if (word === undefined && BOOL_WORDS.has(String(argv[i + 1]).toLowerCase())) word = argv[(i += 1)];
+      const value = word === undefined ? true : BOOL_WORDS.get(word.toLowerCase());
+      if (value === undefined) {
+        out.outcome = 'unknown';
+        out.arg = argv[i];
+        return out;
+      }
+      out[SWITCH_FLAGS[key]] = value;
+    } else if (has(VALUE_FLAGS, key)) {
+      const inline = colonValue !== undefined || eq > 0;
+      const value = colonValue !== undefined ? colonValue : eq > 0 ? arg.slice(eq + 1) : argv[i + 1];
+      if (value === undefined || value === '' || (!inline && isOption(value))) {
         out.outcome = 'value';
         out.arg = eq > 0 ? arg.slice(0, eq) : arg;
         return out;
       }
       out[VALUE_FLAGS[key]] = value;
-      if (eq < 0) i += 1;
+      if (!inline) i += 1;
     } else {
       out.outcome = 'unknown';
-      out.arg = arg;
+      out.arg = argv[i];
       return out;
     }
   }

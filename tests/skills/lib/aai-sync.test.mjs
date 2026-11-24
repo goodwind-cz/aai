@@ -863,10 +863,28 @@ describe('TEST-4003 roots and the refusals before any write', () => {
     for (const extra of [[], ['--profile', 'core']]) {
       const r = runSync({ argv: [target, ...extra], root, target, script });
       assert.equal(r.status, 1, r.stderr);
-      assert.equal(r.stderr, `ERROR: the source ${realpathSync(src)} lies inside .aai of the target ${target}, which the sync replaces; nothing was written.\n`);
+      assert.equal(r.stderr, `ERROR: the source ${realpathSync(src)} lies inside .aai of the target ${target}, which the sync manages; nothing was written.\n`);
       assert.equal(r.stdout, '');
     }
     assert.deepEqual(snapshotTree(root), before, 'the source and the target are byte-identical afterwards');
+  });
+
+  // node-first-leftovers D-DR33 (Spec-AC-04): the line says what it guards, and the .claude and .codex/skills entries are covered.
+  test('TEST-4052 DR-33 a source inside .claude or .codex/skills of the target is refused with the manages line and nothing is written', () => {
+    for (const [label, parts, entry] of [['claude', ['.claude', 'worktrees'], '.claude'], ['codex', ['.codex', 'skills'], '.codex']]) {
+      const root = scratch(`managed-${label}-`);
+      const target = path.join(root, 'project');
+      const holder = path.join(target, ...parts);
+      mkdirSync(holder, { recursive: true });
+      const { src, script } = makeSource(holder, 'x', { profiles: PROFILES_OK });
+      prepareEnv(root);
+      const before = snapshotTree(root);
+      const r = runSync({ argv: [target], root, target, script });
+      assert.equal(r.status, 1, r.stderr);
+      assert.equal(r.stderr, `ERROR: the source ${realpathSync(src)} lies inside ${entry} of the target ${target}, which the sync manages; nothing was written.\n`);
+      assert.equal(r.stdout, '');
+      assert.deepEqual(snapshotTree(root), before, `${label}: the target is unchanged`);
+    }
   });
 
   // DR-35: a file system may report no inode (0) or one above 2**53 (Windows file ids), which a Number comparison reads as equal.

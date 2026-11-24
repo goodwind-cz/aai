@@ -547,3 +547,41 @@ test('TEST-4029 D-REDACT a failed deploy echo holds no 8-character secret window
   const plain = echo(secrets, `token=${FIXTURE_TOKEN} done`);
   assert.equal(plain, `ERROR: Deployment failed or URL not found\ntoken=[REDACTED] done`);
 });
+
+// ---- TEST-4049: D-ECHO gapped window ----------------------------------------------------------------------
+// (docs/specs/SPEC-DRAFT-spec-node-first-leftovers.md D-ECHO, Spec-AC-01; closes fu-cfshare-redact-eaten-chars.)
+// A complete CSI eats the character after the escape, so the echo can hold a secret with characters missing.
+// The property: no 8 consecutive echo characters appear in order inside any 10 consecutive secret characters.
+test('TEST-4049 D-ECHO the echo holds no gapped 8-character secret window and no ESC byte, for the repro and 200 seeded variants', () => {
+  assert.equal(typeof M.echoText, 'function', 'echoText is not exported');
+  const E = '\u001b';
+  const SECRET = 'ABCDEFGHIJKLMNOPQRST';
+  const env = { CLOUDFLARE_API_TOKEN: SECRET };
+  const inOrder = (needle, hay) => { let j = 0; for (const c of hay) if (c === needle[j]) j += 1; return j === needle.length; };
+  const leak = (out) => {
+    if (out.includes(E)) return 'an ESC byte reached the echo';
+    for (let p = 0; p + 8 <= out.length; p += 1) {
+      for (let s = 0; s + 10 <= SECRET.length; s += 1) {
+        if (inOrder(out.slice(p, p + 8), SECRET.slice(s, s + 10))) return `echo run at ${p} sits inside secret window ${s}`;
+      }
+    }
+    return '';
+  };
+  const repro = `ABCDEFG${E}[HIJKLMNO${E}[PQRST`;
+  const reproOut = M.echoText(repro, env);
+  assert.equal(leak(reproOut), '', `repro: ${leak(reproOut)}`);
+  assert.ok(reproOut.includes('[REDACTED]'), 'the repro was not redacted');
+  let seed = 4049;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  for (let k = 0; k < 200; k += 1) {
+    const eaten = new Set();
+    const count = rnd(3);
+    while (eaten.size < count) eaten.add(rnd(SECRET.length));
+    let text = '';
+    for (let i = 0; i < SECRET.length; i += 1) text += eaten.has(i) ? `${E}[${SECRET[i]}` : SECRET[i];
+    const out = M.echoText(`pre ${text} post`, env);
+    assert.equal(leak(out), '', `variant ${k} ${JSON.stringify(text)}: ${leak(out)}`);
+  }
+  // negative control: unrelated text survives
+  assert.equal(M.echoText('plain words here', env), 'plain words here');
+});

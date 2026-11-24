@@ -687,7 +687,7 @@ test_4016_ps1_launcher() {
   need_pester TEST-4016 || return 0
   work="$(new_own_scratch pester-launcher)"
   counts="$(run_pester TEST-4016 "$work" '*launcher (sync-on-node)*')"
-  [[ "$counts" == "PESTER passed=5 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-4016: Pester summary '$counts', expected 5 passed, 0 skipped, 0 failed, 0 failed containers"; }
+  [[ "$counts" == "PESTER passed=6 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-4016: Pester summary '$counts', expected 6 passed, 0 skipped, 0 failed, 0 failed containers"; }
   safe_rm_own "$work"
   # the PowerShell-side re-homed selectors (run 6b): each exits 0 and none skips a part
   for pair in \
@@ -727,13 +727,28 @@ test_4016_ps1_launcher() {
   done
   work="$(new_own_scratch pester-whole)"
   counts="$(run_pester TEST-4016 "$work")"
-  [[ "$counts" == "PESTER passed=5 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-4016: whole-file Pester summary '$counts', expected 5 passed with 0 skips, 0 failures and 0 failed containers"; }
+  [[ "$counts" == "PESTER passed=6 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-4016: whole-file Pester summary '$counts', expected 6 passed with 0 skips, 0 failures and 0 failed containers"; }
   safe_rm_own "$work"
   json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4016: spec-amend list failed"
   id="SPEC-0253-|TEST-3011 re-homed"
   out="$(amend_count "$json" "${id%%|*}" "${id#*|}")"
   [[ "$out" == 1 ]] || log_fail "TEST-4016: contract records of ref sync-on-node for $id: $out, want 1"
-  log_pass "TEST-4016: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, the five Pester launcher cases pass with 0 skips, 0 failures and 0 failed containers, the PowerShell-side re-homed selectors exit 0 with no assertion reading the .ps1 text, and the TEST-3011 record exists"
+  log_pass "TEST-4016: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, the six Pester launcher cases pass with 0 skips, 0 failures and 0 failed containers, the PowerShell-side re-homed selectors exit 0 with no assertion reading the .ps1 text, and the TEST-3011 record exists"
+}
+
+test_4052_dr33_managed() {
+  run_node_tests TEST-4052
+  log_pass "TEST-4052: a source inside .claude or .codex/skills of the target is refused with the D-DR33 line and the target is unchanged"
+}
+
+test_4053_ps51_trailing_backslash() {
+  need_pester TEST-4053 || return 0
+  local work counts
+  work="$(new_own_scratch pester-backslash)"
+  counts="$(run_pester TEST-4053 "$work" '*ends in a backslash*')"
+  [[ "$counts" == "PESTER passed=1 skipped=0 failed=0 containers=0" ]] || { cat "$work/pester.log" >&2; log_fail "TEST-4053: Pester summary '$counts', expected the trailing-backslash case passed with 0 skips and 0 failures"; }
+  safe_rm_own "$work"
+  log_pass "TEST-4053: the D-PS51 Pester case hands a -TargetRoot with a space and a trailing backslash to the module unchanged (the hosted 5.1 leg runs it under powershell.exe)"
 }
 
 # --- run 6c: the parity third twin (TEST-4017) ----------------------------------------------------------------------
@@ -967,6 +982,8 @@ main() {
   test_4014_corpus_powershell
   test_4015_sh_launcher
   test_4016_ps1_launcher
+  test_4052_dr33_managed
+  test_4053_ps51_trailing_backslash
   test_4017_parity_sync
   test_4018_upgrade
   test_4019_wiring

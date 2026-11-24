@@ -257,7 +257,7 @@ function sourceInManagedRefusal(roots) {
     const managed = path.join(roots.target, rel);
     const st = statOrNull(managed);
     if (st !== null && st.isDirectory() && ancestorIsFile(roots.srcReal, managed)) {
-      return refusal(`ERROR: the source ${roots.srcReal} lies inside ${rel} of the target ${roots.target}, which the sync replaces; nothing was written.`);
+      return refusal(`ERROR: the source ${roots.srcReal} lies inside ${rel} of the target ${roots.target}, which the sync manages; nothing was written.`);
     }
   }
   return null;

@@ -17,6 +17,7 @@ const SECRET_VARS = ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_KEY'];
 // Escapes: CSI, OSC (ended by BEL or ST), nF, Fp, Fe and Fs (D-REDACT); a lone ESC is removed afterwards.
 const ANSI_RE = /\u001b(?:\[[0-?]*[ -\/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[ -\/]+[0-~]|[0-?]|[@-_]|[`-~])/g;
 const MIN_SECRET_WINDOW = 8;
+const GAP_SLACK = 2;
 
 export function parseArgs(argv) {
   if (argv.length === 1 && (argv[0] === '-h' || argv[0] === '--help')) return { help: true };
@@ -48,6 +49,22 @@ export function echoText(text, env) {
     for (let i = 0; i + MIN_SECRET_WINDOW <= v.length; i += 1) {
       const win = v.slice(i, i + MIN_SECRET_WINDOW);
       for (let at = clean.indexOf(win); at !== -1; at = clean.indexOf(win, at + 1)) covered.fill(true, at, at + MIN_SECRET_WINDOW);
+    }
+  }
+  // the gapped pass: 8 echo characters in order inside 8 + GAP_SLACK consecutive secret characters
+  const span = MIN_SECRET_WINDOW + GAP_SLACK;
+  const inOrder = (needle, hay) => {
+    let j = 0;
+    for (let k = 0; k < hay.length && j < needle.length; k += 1) if (hay[k] === needle[j]) j += 1;
+    return j === needle.length;
+  };
+  for (const v of values) {
+    for (let at = 0; at + MIN_SECRET_WINDOW <= clean.length; at += 1) {
+      if (covered[at]) continue;
+      const run = clean.slice(at, at + MIN_SECRET_WINDOW);
+      for (let i = 0; i + MIN_SECRET_WINDOW <= v.length; i += 1) {
+        if (inOrder(run, v.slice(i, i + span))) { covered.fill(true, at, at + MIN_SECRET_WINDOW); break; }
+      }
     }
   }
   let result = '';

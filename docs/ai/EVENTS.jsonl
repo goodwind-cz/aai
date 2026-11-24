@@ -4483,3 +4483,4 @@
 {"v":1,"ts":"2026-11-24T09:44:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-phase5-closeout","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-24T09:44:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-phase5-closeout","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-24T09:44:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-phase5-closeout","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-24T19:06:49Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-leftovers","payload":{"from":"draft","to":"implementing"}}

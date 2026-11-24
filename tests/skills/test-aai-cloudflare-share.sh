@@ -183,6 +183,11 @@ test_4029_redaction_layouts() {
   log_pass "TEST-4029: D-REDACT the failure echo holds no 8-character secret window and no ESC byte under the probe and every escape layout"
 }
 
+test_4049_gapped_window() {
+  run_node_tests TEST-4049
+  log_pass "TEST-4049: D-ECHO the failure echo holds no 8 characters in order inside 10 consecutive secret characters"
+}
+
 # drift_problems <spec> <node test file>: DR ids of the D-DRIFT table vs test names (empty when they agree).
 drift_problems() {
   cat > "$TEST_DIR/drift.cjs" <<'JS'
@@ -417,6 +422,7 @@ main() {
   test_3420_record_drift
   test_3421_secrets
   test_4029_redaction_layouts
+  test_4049_gapped_window
   test_3422_drift_coverage
   test_3423_sh_launcher
   test_3424_ps1_launcher

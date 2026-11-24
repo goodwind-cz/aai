@@ -406,6 +406,51 @@ test_3972_ps1_launcher() {
   log_pass "TEST-3972: the ps1 launcher is at most 20 ASCII lines with no param block and no policy token, and the five launcher cases pass under Invoke-Pester with 0 skips, 0 failures and 0 failed containers"
 }
 
+test_4050_colon_grammar() {
+  run_node_tests TEST-4050
+  log_pass "TEST-4050: parseArgs reads -DryRun false, -DryRun \$true, -DryRun:true, -Repo:X and -Repo: X like the release module does"
+}
+
+# marshal_json <work> <mode> <args...>: runs the launcher copy beside the stub module and prints the argv the stub saw as JSON.
+# mode "session" runs it from -Command with the args as PowerShell text; mode "file" runs it with -File.
+marshal_json() {
+  local work="$1" mode="$2" copy
+  shift 2
+  copy="$work/launcher.ps1"
+  case "$mode" in
+    session) env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command "& '$copy' $*" ;;
+    *) env -u AAI_ROLE pwsh -NoProfile -NonInteractive -File "$copy" "$@" ;;
+  esac
+}
+
+test_4051_ps1_marshalling() {
+  [[ -f "$PS1_LAUNCHER" ]] || log_fail "TEST-4051: .aai/scripts/aai-update.ps1 does not exist"
+  local problems
+  problems="$(ps1_problems "$PS1_LAUNCHER")"
+  [[ -z "$problems" ]] || log_fail "TEST-4051: $problems"
+  need_tool TEST-4051 pwsh || return 0
+  local work got
+  work="$(new_own_scratch ps1-marshal)"
+  cp "$PS1_LAUNCHER" "$work/launcher.ps1"
+  printf '%s\n' 'console.log(JSON.stringify(process.argv.slice(2)));' > "$work/aai-update.mjs"
+  check_marshal() {
+    local label="$1" want="$2" mode="$3"
+    shift 3
+    got="$(marshal_json "$work" "$mode" "$@" 2>&1)" || { printf '%s\n' "$got" >&2; log_fail "TEST-4051: $label: the launcher run failed"; }
+    [[ "$got" == "$want" ]] || log_fail "TEST-4051: $label: the module received $got, expected $want"
+  }
+  check_marshal "-DryRun:false in session" '[]' session '-DryRun:$false'
+  check_marshal "-DryRun:true in session" '["-DryRun"]' session '-DryRun:$true'
+  check_marshal "-Force then -DryRun:false in session" '["-Force"]' session '-Force -DryRun:$false'
+  check_marshal "-Repo:X in session" '["-Repo","X"]' session '-Repo:X'
+  check_marshal "an array value in session" '["-Repo","a,b"]' session '-Repo:a,b'
+  check_marshal "-Repo: X by -File" '["-Repo","X"]' file '-Repo:' X
+  got="$(marshal_json "$work" file '-DryRun:true' -Repo:X 2>&1)" || log_fail "TEST-4051: the -File run failed"
+  case "$got" in *':"'* | *':,'* | *'"true"'* | *'"false"'*) log_fail "TEST-4051: -File run left a bare boolean word or a trailing colon: $got" ;; esac
+  safe_rm_own "$work"
+  log_pass "TEST-4051: the update launcher drops a false switch, a true boolean, a trailing colon and joins an array, in session and by -File, and stays within 20 ASCII lines"
+}
+
 # amend_found <list json> <spec id fragment> <what prefix>: prints found or missing for a contract record of ref update-on-node.
 # The list goes in on stdin: as one argument it outgrows the 128 KiB Linux limit on a single argv string.
 amend_found() {
@@ -680,6 +725,8 @@ main() {
   test_3975_parity_update
   test_3976_scratch_install
   test_3977_wiring
+  test_4050_colon_grammar
+  test_4051_ps1_marshalling
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
