@@ -178,6 +178,11 @@ test_3421_secrets() {
   log_pass "TEST-3421: DR-21 credentials reach wrangler and are redacted from the failure echo"
 }
 
+test_4029_redaction_layouts() {
+  run_node_tests TEST-4029
+  log_pass "TEST-4029: D-REDACT the failure echo holds no 8-character secret window and no ESC byte under the probe and every escape layout"
+}
+
 # drift_problems <spec> <node test file>: DR ids of the D-DRIFT table vs test names (empty when they agree).
 drift_problems() {
   cat > "$TEST_DIR/drift.cjs" <<'JS'
@@ -345,7 +350,7 @@ test_3429_rfc() {
   n="$(grep -c '^| `cloudflare-share` |' "$RFC17" || true)"
   [[ "$n" == 0 ]] || log_fail "TEST-3429: the inventory still has a cloudflare-share row"
   row="$(grep '^| 5 | ' "$RFC17" || true)"
-  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3429: the phase 5 row is not in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$RFC17" 2>&1)" || log_fail "TEST-3429: $p5"
   [[ "$row" == *"$D_RFC_SENTENCE"* ]] || log_fail "TEST-3429: the phase 5 row lacks the D-RFC sentence"
   n="$(grep -cF -- "$D_RFC_SENTENCE" "$RFC17" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3429: the D-RFC sentence appears $n times, expected once"
@@ -411,6 +416,7 @@ main() {
   test_3419_deploy_drift
   test_3420_record_drift
   test_3421_secrets
+  test_4029_redaction_layouts
   test_3422_drift_coverage
   test_3423_sh_launcher
   test_3424_ps1_launcher

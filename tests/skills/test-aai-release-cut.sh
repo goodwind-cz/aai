@@ -402,7 +402,7 @@ rfc_problems() {
     const text = fs.readFileSync(process.argv[1], "utf8");
     const bad = [];
     const five = text.split("\n").find((l) => /^\| 5 \| /.test(l)) || "";
-    if (!five.includes("| in progress |")) bad.push("the phase 5 row is not in progress");
+    { const p5 = require("child_process").spawnSync("node", ["'"$PROJECT_ROOT"'/tests/skills/lib/phase5-row-status.mjs", process.argv[1]], { encoding: "utf8" }); if (p5.status !== 0) bad.push((p5.stdout || p5.stderr || "phase 5 status check failed").trim()); }
     const sentence = /The tenth slice \[moved the release rollup to Node\]\(\.\.\/issues\/[A-Za-z0-9-]*release-on-node\.md\): the plan, the local cut and the remote finish roll CHANGELOG\.md through one transform, and the unlogged-PR check renders once; a later slice moves the tag, publish and PR steps to the platform adapter and deletes the twins\./g;
     const n = (text.match(sentence) || []).length;
     if (n !== 1) bad.push("the D-RFC sentence appears " + n + " times, expected once");
@@ -447,7 +447,7 @@ budget_problems() {
   n="$(code_lines "$1/aai-release.sh" '#')"
   [[ "$n" -le 12 ]] || out="$out; aai-release.sh has $n code lines, expected at most 12"
   n="$(code_lines "$1/aai-release.ps1" '#')"
-  [[ "$n" -le 40 ]] || out="$out; aai-release.ps1 has $n code lines, expected at most 40"
+  [[ "$n" -le 20 ]] || out="$out; aai-release.ps1 has $n code lines, expected at most 20"
   printf '%s' "$out"
 }
 
@@ -615,15 +615,75 @@ MATRIX
   log_pass "TEST-3523: DB-12 and DB-13 pin the node side; the sh and ps1 launchers agree on stdout, stderr and exit code for $n invocations"
 }
 
+test_4026_ps1_grammar() {
+  run_ar_tests TEST-4026
+  log_pass "TEST-4026: under --launcher ps1 the module takes each PowerShell form in any letter case as its double-dash form; under sh or none each is Unknown argument"
+}
+
+# ps1_launcher_problems <file>: prints one line per way the launcher text breaks D-RELEASE.
+ps1_launcher_problems() {
+  local f="$1" n body token g=/usr/bin/grep
+  [[ -x "$g" ]] || g=grep
+  n="$(code_lines "$f" '#')"
+  [[ "$n" -le 20 ]] || echo "the launcher has $n code lines, at most 20 allowed"
+  if LC_ALL=C "$g" -q '[^ -~	]' "$f"; then echo "the launcher holds a non-ASCII byte"; fi
+  if "$g" -qiE '^[[:space:]]*param[[:space:]]*\(' "$f"; then echo "the launcher holds a param block"; fi
+  body="$("$g" -vE '^[[:space:]]*(#|$)' "$f" || true)"
+  for token in rev-parse CHANGELOG release-cut release-finish ErrorActionPreference Remove-Item ' git ' ' tag '; do
+    [[ "$body" != *"$token"* ]] || echo "the launcher holds the policy token: $token"
+  done
+  [[ "$(count_code_matches "$f" "if (\$MyInvocation.InvocationName -eq '.') { return }")" == 1 ]] || echo "the dot-source guard line is missing"
+  [[ "$body" == *"REFUSED: missing-node ' + [char]0x2014 + ' Node.js 22 or later is required for /aai-release (https://nodejs.org/); nothing was changed."* ]] || echo "the old refusal line is not byte for byte"
+  [[ "$(count_code_matches "$f" 'exit 20')" == 1 ]] || echo "the launcher lacks exactly one exit 20"
+  [[ "$(count_code_matches "$f" '--launcher ps1 --launcher-path $PSCommandPath @argv')" == 1 ]] || echo "the node call is not the one D-RELEASE names"
+}
+
+test_4027_ps1_launcher_differential() {
+  [[ -f "$PROJECT_ROOT/tests/skills/lib/release-reference.mjs" ]] || log_fail "TEST-4027: tests/skills/lib/release-reference.mjs does not exist"
+  local problems
+  problems="$(ps1_launcher_problems "$PS1_SCRIPT")"
+  [[ -z "$problems" ]] || log_fail "TEST-4027: $problems"
+  need_tool TEST-4027 pwsh || return 0
+  run_ar_tests TEST-4027
+  log_pass "TEST-4027: the launcher keeps the D-RELEASE shape and the matrix rows agree with the frozen launcher (prefixes and the bare first word included) while M18 and M20 show DR-R2 and DR-R4"
+}
+
+# need_pester5 <TEST id>: 0 when pwsh has Pester 5 or later; fail on CI when it has not; named SKIP-CASE otherwise.
+need_pester5() {
+  need_tool "$1" pwsh || return 1
+  if env -u AAI_ROLE pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -ge 5 }) { exit 0 } else { exit 1 }' >/dev/null 2>&1; then return 0; fi
+  [[ -z "${CI:-}" ]] || log_fail "$1: Pester 5 is required on CI but pwsh has none"
+  echo "SKIP-CASE: $1 needs Pester 5, which pwsh here does not have"
+  return 1
+}
+
+test_4028_ps1_pester() {
+  need_pester5 TEST-4028 || return 0
+  local out rc=0 counts
+  out="$(env -u AAI_ROLE PROJECT_ROOT="$PROJECT_ROOT" pwsh -NoProfile -NonInteractive -Command '
+    Import-Module Pester -MinimumVersion 5.0
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = Join-Path $env:PROJECT_ROOT "tests/skills/release-cut.Tests.ps1"
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "None"
+    $cfg.Filter.FullName = "*TEST-4028*"
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Output ("PESTER passed=" + $r.PassedCount + " skipped=" + $r.SkippedCount + " failed=" + $r.FailedCount + " containers=" + $r.FailedContainersCount)
+  ' 2>&1)" || rc=$?
+  counts="$(printf '%s\n' "$out" | tail -n 1)"
+  [[ "$rc" == 0 && "$counts" =~ ^PESTER\ passed=([0-9]+)\ skipped=([0-9]+)\ failed=([0-9]+)\ containers=([0-9]+)$ ]] || { printf '%s\n' "$out" | tail -n 40 >&2; log_fail "TEST-4028: Invoke-Pester did not run or its summary is unreadable (rc=$rc): $counts"; }
+  [[ "${BASH_REMATCH[1]}" -ge 6 && "${BASH_REMATCH[2]}" == 0 && "${BASH_REMATCH[3]}" == 0 && "${BASH_REMATCH[4]}" == 0 ]] || { printf '%s\n' "$out" | tail -n 40 >&2; log_fail "TEST-4028: expected at least 6 passed and 0 skipped, failed or failed containers, got: $counts"; }
+  log_pass "TEST-4028: the launcher Pester cases pass under pwsh 7 ($counts); Windows PowerShell 5.1 runs the same cases in the hosted windows-5_1 job only"
+}
+
 test_3529_ps1_launcher() {
-  local n t g=grep
+  local n t g=grep problems
   [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
   n="$(code_lines "$PS1_SCRIPT" '#')"
-  [[ "$n" -le 40 ]] || log_fail "TEST-3529: aai-release.ps1 has $n code lines, expected at most 40"
-  for t in Version DryRun Confirm Yes NoRemote ExtraArgs; do
-    "$g" -qF "]\$$t" "$PS1_SCRIPT" || log_fail "TEST-3529: aai-release.ps1 lacks the param $t"
-  done
-  [[ "$(count_code_matches "$PS1_SCRIPT" "if (\$MyInvocation.InvocationName -ne '.')")" == 1 ]] || log_fail "TEST-3529: the dot-source guard is missing"
+  # SPEC-0282 pinned the param block and 40 code lines; the thin launcher of node-first-phase5-closeout D-RELEASE pins its shape
+  # instead (TEST-4027 holds the full shape check), and the checks below that still apply stay as they were.
+  problems="$(ps1_launcher_problems "$PS1_SCRIPT")"
+  [[ -z "$problems" ]] || log_fail "TEST-3529: $problems"
   for t in Invoke-NativeChecked Invoke-Quiet Select-CapturedValue ErrorActionPreference; do
     [[ "$(count_code_matches "$PS1_SCRIPT" "$t")" == 0 ]] || log_fail "TEST-3529: aai-release.ps1 still holds '$t'"
   done
@@ -645,7 +705,7 @@ test_3529_ps1_launcher() {
     if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 10) { exit 1 }
   ' 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 60 >&2; log_fail "TEST-3529: release-cut.Tests.ps1 failed, skipped a case or ran fewer than 10 cases (rc=$rc)"; }
-  log_pass "TEST-3529: aai-release.ps1 is $n code lines with the six params and the guard, and release-cut.Tests.ps1 passes ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
+  log_pass "TEST-3529: aai-release.ps1 is $n code lines with the D-RELEASE shape and the guard, and release-cut.Tests.ps1 passes ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
 }
 
 test_3524_plan_platform() {
@@ -756,7 +816,7 @@ ar_rfc_problems() {
     if (found.length !== 1) bad.push("the pair sentence appears " + found.length + " times, expected once");
     else if (found[0][1] !== after) bad.push("the pair sentence says " + found[0][1] + " code lines, measured " + after);
     const five = text.split("\n").find((l) => /^\| 5 \| /.test(l)) || "";
-    if (!five.includes("| in progress |")) bad.push("the phase 5 row is not in progress");
+    { const p5 = require("child_process").spawnSync("node", ["'"$PROJECT_ROOT"'/tests/skills/lib/phase5-row-status.mjs", process.argv[1]], { encoding: "utf8" }); if (p5.status !== 0) bad.push((p5.stdout || p5.stderr || "phase 5 status check failed").trim()); }
     const phase = /The eleventh slice \[ran the whole release command in Node\]\(\.\.\/issues\/[A-Za-z0-9-]*release-publish-on-node\.md\): aai-release\.sh and aai-release\.ps1 are thin launchers of aai-release\.mjs, and the release host calls run on the platform adapter\./g;
     if ((text.match(phase) || []).length !== 1) bad.push("the phase 5 sentence appears " + (text.match(phase) || []).length + " times, expected once");
     if (!(five.match(phase) || []).length) bad.push("the phase 5 row lacks the phase 5 sentence");
@@ -841,6 +901,9 @@ main() {
   test_3522_local_cut_drift
   test_3528_sh_launcher
   test_3529_ps1_launcher
+  test_4026_ps1_grammar
+  test_4027_ps1_launcher_differential
+  test_4028_ps1_pester
   test_3523_launcher_parity
   test_3530_no_publish
   test_3524_plan_platform

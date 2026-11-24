@@ -489,3 +489,61 @@ test('TEST-3423 DR-20 the sh launcher without node prints the refusal on stderr 
   assert.equal(r.stderr, `${REFUSED}\n`);
   assertClean(f);
 });
+
+// ---- TEST-4029: D-REDACT ----------------------------------------------------------------------------------
+// (docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md D-REDACT, Spec-AC-06; closes fu-cfshare-redact-escape-robust.)
+// Every case goes through run with an injected failing deploy: the stderr lines run writes must hold no
+// window of 8 consecutive secret characters and no ESC byte. The values are fake test values.
+test('TEST-4029 D-REDACT a failed deploy echo holds no 8-character secret window and no ESC byte under any escape layout', () => {
+  const E = '\u001b';
+  const WINDOW = 8;
+  const FIXTURE_TOKEN = 'fx4029-Token-QqWwEeRr-1234-ZzXxCcVv-9876';
+  const FIXTURE_KEY = 'fx4029-Key-MmNnBbVv-5678-LlKkJjHh-123';
+  assert.equal(FIXTURE_TOKEN.length, 40);
+  assert.equal(FIXTURE_KEY.length, 37);
+  const PROBE = 'Upper-token-CCCC3333';
+  const escapes = [`${E}[`, `${E}[0m`, `${E}[1;31m`, `${E}]0;title\u0007`, `${E}]0;title${E}\\`, `${E}(B`, `${E}7`, `${E}8`, `${E}c`, E];
+  const f = fx();
+  const echo = (secrets, text) => {
+    const { deps, log } = mk(f, {
+      env: { PATH: f.bin, ...secrets },
+      deploy: () => ({ status: 1, stdout: '', stderr: `${text}\n` }),
+    });
+    assert.equal(run({ doc: 'doc.md' }, deps), 1);
+    return log.err.join('\n');
+  };
+  const leaks = (secrets, stderr) => {
+    if (stderr.includes(E)) return 'an ESC byte reached stderr';
+    for (const v of Object.values(secrets)) {
+      for (let i = 0; i + WINDOW <= v.length; i += 1) {
+        if (stderr.includes(v.slice(i, i + WINDOW))) return `a ${WINDOW}-character secret window at ${i} reached stderr`;
+      }
+    }
+    return '';
+  };
+  const check = (secrets, text, label) => {
+    const problem = leaks(secrets, echo(secrets, text));
+    assert.equal(problem, '', `${label}: ${problem}`);
+  };
+  // the follow-up probe: an unterminated CSI swallows the first character, a complete CSI splits the rest
+  const probeSecrets = { CLOUDFLARE_API_TOKEN: PROBE, CLOUDFLARE_API_KEY: FIXTURE_KEY };
+  check(probeSecrets, `${E}[Upper-to${E}[0mken-CCCC3333`, 'probe');
+  const probeOut = echo(probeSecrets, `${E}[Upper-to${E}[0mken-CCCC3333`);
+  assert.ok(probeOut.includes('[REDACTED]'), 'the probe was not redacted');
+  const secrets = { CLOUDFLARE_API_TOKEN: FIXTURE_TOKEN, CLOUDFLARE_API_KEY: FIXTURE_KEY };
+  for (const [name, value] of Object.entries({ ...secrets, PROBE_TOKEN: PROBE })) {
+    const set = name === 'PROBE_TOKEN' ? probeSecrets : secrets;
+    for (const esc of escapes) {
+      for (let p = 0; p <= value.length; p += 1) {
+        check(set, `deploy failed: ${value.slice(0, p)}${esc}${value.slice(p)} end`, `${name} ${JSON.stringify(esc)} at ${p}`);
+      }
+    }
+    // an unterminated CSI before the value combined with a complete CSI at every split point
+    for (let p = 0; p <= value.length; p += 1) {
+      check(set, `deploy failed: ${E}[${value.slice(0, p)}${E}[0m${value.slice(p)} end`, `${name} unterminated CSI plus CSI at ${p}`);
+    }
+  }
+  // a plain value is still redacted whole, and text around it survives
+  const plain = echo(secrets, `token=${FIXTURE_TOKEN} done`);
+  assert.equal(plain, `ERROR: Deployment failed or URL not found\ntoken=[REDACTED] done`);
+});

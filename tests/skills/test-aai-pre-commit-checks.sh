@@ -493,7 +493,7 @@ test_3460_rfc() {
   [[ -n "$phase" ]] || log_fail "TEST-3460: the phase 5 row is missing"
   n="$(awk -v needle="$D_RFC_SENTENCE" '{ s=$0; while ((i = index(s, needle)) > 0) { c++; s = substr(s, i + length(needle)) } } END { print c+0 }' <<< "$phase")"
   [[ "$n" == 1 ]] || log_fail "TEST-3460: the phase 5 row holds the D-RFC sentence $n times, expected 1"
-  [[ "$phase" == *'| in progress |'* ]] || log_fail "TEST-3460: the phase 5 row is no longer in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$RFC17" 2>&1)" || log_fail "TEST-3460: $p5"
   log_pass "TEST-3460: the RFC inventory keeps 323/281 and its destination with the D-RFC reason, and phase 5 holds the ninth-slice sentence once"
 }
 

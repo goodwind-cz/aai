@@ -8,7 +8,7 @@
 # replays every suite that does). TEST-4020 checks the changelog entry, the README and USER_GUIDE sync blocks and the RFC-0017
 # row and inventory; TEST-4021 reads the follow-up registry for the fourteen closed and the suggested open
 # follow-ups; TEST-4022 re-measures every tracked .sh and .ps1 under .aai/scripts with the plan's section 1 method and
-# compares it with section 6 of docs/analysis/node-first-remaining-plan.md. Its scratch directories carry its own prefix
+# compares it with the latest re-measure section of docs/analysis/node-first-remaining-plan.md. Its scratch directories carry its own prefix
 # and ownership marker; nothing here starts a container tool, kills by pattern, or reaches the network.
 #
 # bash 3.2 compatible (no ${var^^}, no declare -A, no mapfile).
@@ -202,8 +202,18 @@ test_4021_follow_ups() {
     }
     const bad = [];
     if (new Set(closed).size !== 14) bad.push("the closed list does not hold fourteen ids");
+    // fu-parity-win-source-path: open until the hosted evidence H2, or closed by the phase 5 closeout ride with a source naming a test
+    // file and a TEST id it holds followed by a colon and a ps1-quality run id (D-FU of node-first-phase5-closeout)
     const re = by.get(reopened);
-    if (!re || re.closed) bad.push(reopened + " is not open (the Windows path form closes with hosted evidence H2)");
+    if (!re) bad.push(reopened + " is not in the registry");
+    else if (re.closed) {
+      const rsrc = closeSource.get(reopened) ?? "";
+      const rm = /(tests\/[A-Za-z0-9_.\/-]+\.(?:sh|mjs)) (TEST-[0-9]+):?/.exec(rsrc);
+      if (re.status !== "done" || re.resolved_by !== "node-first-phase5-closeout") bad.push(reopened + " is closed by " + re.resolved_by + " (" + re.status + "), want an open item or a close by node-first-phase5-closeout");
+      else if (!rm) bad.push(reopened + " close source names no test file and TEST id: " + rsrc);
+      else if (!fs.existsSync(root + "/" + rm[1]) || !fs.readFileSync(root + "/" + rm[1], "utf8").includes(rm[2] + ":")) bad.push(reopened + " close source " + rm[1] + " holds no " + rm[2] + ":");
+      else if (!/ps1-quality run [0-9]+/.test(rsrc)) bad.push(reopened + " close source names no ps1-quality run id: " + rsrc);
+    }
     for (const id of closed) {
       const it = by.get(id);
       if (!it) { bad.push(id + " is not in the registry"); continue; }
@@ -216,25 +226,31 @@ test_4021_follow_ups() {
       if (!fs.existsSync(file)) { bad.push(id + " source file " + m[1] + " does not exist"); continue; }
       if (!fs.readFileSync(file, "utf8").includes(m[2] + ":")) bad.push(id + " source " + m[1] + " holds no " + m[2] + ":");
     }
+    // the three this ride filed are read from the filing records it wrote (ref and severity as filed); a later close, drop or reopen by
+    // another ride is not a failure of this ride, so the open state is not required
     for (const id of filed) {
-      const it = by.get(id);
-      if (!it) { bad.push(id + " is not filed"); continue; }
-      // filed open by this ride; a later ride may close it
-      if (it.closed && (it.resolved_by === "sync-on-node" || !it.resolved_by)) bad.push(id + " is not open");
-      if (it.ref_id !== "sync-on-node") bad.push(id + " ref is " + it.ref_id);
-      if (it.severity !== "P3") bad.push(id + " severity is " + it.severity);
+      let fil = null;
+      for (const line of fs.readFileSync(root + "/docs/ai/decisions.jsonl", "utf8").split("\n")) {
+        if (!line.includes(id)) continue;
+        let rec;
+        try { rec = JSON.parse(line); } catch { continue; }
+        if (rec.type === "follow_up" && rec.id === id) { fil = rec; break; }
+      }
+      if (!fil) { bad.push(id + " is not filed"); continue; }
+      if (fil.ref_id !== "sync-on-node") bad.push(id + " was filed with ref " + fil.ref_id);
+      if (fil.severity !== "P3") bad.push(id + " was filed at " + fil.severity);
     }
     process.stdout.write(bad.join("; "));
   ' "$PROJECT_ROOT" "$CLOSED_FU" "$FILED_FU" "$REOPENED_FU")" || log_fail "TEST-4021: the follow-up check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4021: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open again, and the three suggested follow-ups are open with ref sync-on-node"
+  log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open or closed by the phase 5 closeout with its hosted run id, and the three suggested follow-ups were filed by this ride at P3 with ref sync-on-node (a later close by another ride is allowed)"
 }
 
 # TEST-4022 (D-PHASE5): the phase 5 re-measure. Every tracked .sh and .ps1 under .aai/scripts (lib included) is measured with the plan's
 # section 1 method (non-blank, non-comment lines, /usr/bin/grep under bash) and classified: launcher (20 code lines or fewer and no policy
-# token), deprecation launcher (a first-lines RETIRED comment), kept native (a row of the RFC-0017 kept-native table) or logic. Section 6
-# of docs/analysis/node-first-remaining-plan.md must list exactly the files that are not launchers, with their code lines and classes, the
+# token), deprecation launcher (a first-lines RETIRED comment), kept native (a row of the RFC-0017 kept-native table) or logic. The latest re-measure section
+# of docs/analysis/node-first-remaining-plan.md must list exactly the files that are not launchers (a deleted deprecation launcher it lists is fine) with their classes, the
 # twin duplication (the smaller side of a pair whose two files are both logic), the open P1 and P2 follow-ups of the plan's refs and the
 # parity and Pester status; the RFC-0017 phase 5 status is done only when every criterion of section 5 holds on that measurement.
 test_4022_phase5_remeasure() {
@@ -247,35 +263,23 @@ test_4022_phase5_remeasure() {
     printf '%s\t%s\n' "$n" "$f" >> "$work/measure.tsv"
   done < <(git -C "$PROJECT_ROOT" ls-files -z -- .aai/scripts)
   [[ -s "$work/measure.tsv" ]] || log_fail "TEST-4022: the measurement found no script"
-  node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$work/open.json" || log_fail "TEST-4022: follow-ups list failed"
-  out="$(node -e '
-    const fs = require("fs");
-    const [root, measure, openJson] = process.argv.slice(1);
+  out="$(T4022_LIB="$PROJECT_ROOT/tests/skills/lib/script-classes.mjs" node --input-type=module -e '
+    import fs from "node:fs";
+    const { KEPT_NATIVE_HEADING, classify, parseKeptNative, fileTableProblems, recordsThroughDate } = await import(process.env.T4022_LIB);
+    const [root, measure] = process.argv.slice(1);
+    const { readDecisionsLedger, foldFollowUps } = await import(root + "/.aai/scripts/follow-ups.mjs");
     const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
     const bad = [];
     const rows = fs.readFileSync(measure, "utf8").split("\n").filter(Boolean).map((l) => { const [n, f] = l.split("\t"); return { file: f, code: Number(n) }; });
-    // kept native: the rows of the RFC-0017 table under the heading "Kept native scripts"
+    // kept native: the rows of the RFC-0017 table under the heading "Kept native scripts", read and classified
+    // through the shared classifier (tests/skills/lib/script-classes.mjs, D-CLASS)
     const rfcText = read("docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md");
     const rfc = rfcText.split("\n");
-    const kAt = rfc.findIndex((l) => /^### Kept native scripts$/.test(l));
-    const kept = new Map();
-    if (kAt < 0) bad.push("RFC-0017 has no Kept native scripts heading");
-    else for (let i = kAt + 1; i < rfc.length && !rfc[i].startsWith("#"); i += 1) {
-      const m = /^\| `(\.aai\/scripts\/[^`]+)` \| ([^|]+) \|$/.exec(rfc[i]);
-      if (m && m[2].trim() !== "") kept.set(m[1], m[2].trim());
-    }
-    if (kAt >= 0 && kept.size < 4) bad.push("the RFC kept-native table holds " + kept.size + " rows, want 4 or more");
-    const POLICY = [/\bgit\b/, /\.gitignore/, /PROFILES/, /--profile\b|-Profile\b/];
-    const classOf = (r) => {
-      const text = read(r.file);
-      const lines = text.split("\n");
-      if (lines.slice(0, 3).some((l) => /^#\s*RETIRED\b/.test(l))) return "deprecation launcher";
-      if (kept.has(r.file)) return "kept native";
-      const code = lines.filter((l) => !/^\s*(#|$)/.test(l));
-      if (r.code <= 20 && !code.some((l) => POLICY.some((re) => re.test(l)))) return "launcher";
-      return "logic";
-    };
-    for (const r of rows) r.cls = classOf(r);
+    const keptRows = parseKeptNative(rfcText);
+    const kept = new Map(keptRows.filter((k) => k.reason !== "").map((k) => [k.file, k.reason]));
+    if (!rfc.includes(KEPT_NATIVE_HEADING)) bad.push("RFC-0017 has no Kept native scripts heading");
+    else if (kept.size < 4) bad.push("the RFC kept-native table holds " + kept.size + " rows, want 4 or more");
+    for (const r of rows) r.cls = classify({ file: r.file, text: read(r.file), kept: keptRows });
     for (const f of kept.keys()) if (!rows.some((r) => r.file === f)) bad.push("the RFC kept-native table names " + f + ", which is not a tracked script");
     const rest = rows.filter((r) => r.cls !== "launcher").sort((a, b) => (a.file < b.file ? -1 : 1));
     // the twin duplication: pairs (same stem, .sh and .ps1) whose two files are both logic
@@ -285,10 +289,11 @@ test_4022_phase5_remeasure() {
       const twin = rows.find((x) => x.file === r.file.replace(/\.sh$/, ".ps1"));
       if (twin && twin.cls === "logic") dup += Math.min(r.code, twin.code);
     }
-    // the plan section 6
+    // the LATEST re-measure section of the plan ("## N. Re-measure after ... (YYYY-MM-DD)"; section 6 stays as a dated record)
     const plan = read("docs/analysis/node-first-remaining-plan.md").split("\n");
-    const at = plan.findIndex((l) => /^## 6\. Re-measure after ride 12 \(\d{4}-\d{2}-\d{2}\)$/.test(l));
-    if (at < 0) { process.stdout.write(bad.concat("the plan has no section 6 Re-measure after ride 12").join("; ")); process.exit(0); }
+    let at = -1, secNo = "", secDate = "";
+    plan.forEach((l, i) => { const m = /^## (\d+)\. Re-measure after .+ \((\d{4}-\d{2}-\d{2})\)$/.exec(l); if (m) { at = i; secNo = m[1]; secDate = m[2]; } });
+    if (at < 0) { process.stdout.write(bad.concat("the plan has no Re-measure after ... section").join("; ")); process.exit(0); }
     let end = plan.length;
     for (let i = at + 1; i < plan.length; i += 1) if (plan[i].startsWith("## ")) { end = i; break; }
     const sec = plan.slice(at + 1, end);
@@ -300,32 +305,33 @@ test_4022_phase5_remeasure() {
       return out;
     };
     const t = tableAfter("| File |");
-    if (!t) bad.push("section 6 has no file table");
+    if (!t) bad.push("section " + secNo + " has no file table");
     else {
-      const got = t.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]);
-      const want = rest.map((r) => r.file + " " + r.code + " " + r.cls);
-      if (JSON.stringify(got) !== JSON.stringify(want)) bad.push("the section 6 file table differs from the measurement: want [" + want.join(" ; ") + "] got [" + got.join(" ; ") + "]");
-      for (const c of t) if (!c[3]) bad.push("section 6 row " + c[0] + " has no reason or next step");
+      // the file and its class are compared with the tree; the code lines are the record own measurement, and a deprecation launcher the record
+      // lists may already be deleted (its scheduled deletion), so neither an edit of a kept-native script nor that deletion fails here; a new
+      // undeclared logic script is the strict check of TEST-4025
+      bad.push(...fileTableProblems({ rows: t, tree: rest }).map((p) => "section " + secNo + ": " + p));
     }
     const dupLine = sec.find((l) => l.startsWith("- Twin duplication: "));
-    if (!dupLine) bad.push("section 6 has no Twin duplication line");
-    else if (!dupLine.startsWith("- Twin duplication: " + dup + " code lines")) bad.push("section 6 twin duplication is not " + dup + ": " + dupLine);
+    if (!dupLine) bad.push("section " + secNo + " has no Twin duplication line");
+    else if (!dupLine.startsWith("- Twin duplication: " + dup + " code lines")) bad.push("section " + secNo + " twin duplication is not " + dup + ": " + dupLine);
     // the open P1 and P2 follow-ups of the plan twelve roadmap refs, install-path-parity-harness and node-first*; the owner sign-off items
     // (fu-amend-*) are counted by spec-amend list, not here
     const refs = new Set();
     for (const l of plan) { const m = /^\| \d+ \| ([a-z0-9-]+) \|/.exec(l); if (m) refs.add(m[1]); }
     if (refs.size !== 12) bad.push("the plan lists " + refs.size + " roadmap refs, want 12");
-    const open = JSON.parse(fs.readFileSync(openJson, "utf8")).items
+    // as of the end of the day the section is dated: a later filing or close belongs to a later record
+    const open = foldFollowUps(recordsThroughDate(readDecisionsLedger(root + "/docs/ai/decisions.jsonl").records, secDate)).items
       .filter((i) => (i.severity === "P1" || i.severity === "P2") && !i.closed && !i.id.startsWith("fu-amend-") && (refs.has(i.ref_id) || String(i.ref_id).startsWith("node-first")))
       .map((i) => i.id + " " + i.severity + " " + i.ref_id).sort();
     const f = tableAfter("| Follow-up |");
-    if (!f) bad.push("section 6 has no follow-up table");
+    if (!f) bad.push("section " + secNo + " has no follow-up table");
     else {
       const got = f.map((c) => c[0].replace(/`/g, "") + " " + c[1] + " " + c[2]).filter((x) => !x.startsWith("none ")).sort();
-      if (JSON.stringify(got) !== JSON.stringify(open)) bad.push("the section 6 follow-up table differs from the ledger: want [" + open.join(" ; ") + "] got [" + got.join(" ; ") + "]");
+      if (JSON.stringify(got) !== JSON.stringify(open)) bad.push("the section " + secNo + " follow-up table differs from the ledger: want [" + open.join(" ; ") + "] got [" + got.join(" ; ") + "]");
     }
     const hosted = sec.find((l) => l.startsWith("- Parity harness and Pester (H1 to H3): "));
-    if (!hosted) bad.push("section 6 has no Parity harness and Pester line");
+    if (!hosted) bad.push("section " + secNo + " has no Parity harness and Pester line");
     // the phase 5 status of the RFC row follows the criteria
     const hostedPassed = hosted ? /: passed\b/.test(hosted) : false;
     const logic = rest.filter((r) => r.cls === "logic");
@@ -338,15 +344,15 @@ test_4022_phase5_remeasure() {
       if (allHold && status !== "done") bad.push("every section 5 criterion holds but the RFC phase 5 status is " + status);
       if (!allHold && status !== "in progress") bad.push("a section 5 criterion does not hold but the RFC phase 5 status is " + status);
       if (!allHold) {
-        if (!row[0].includes("section 6")) bad.push("the RFC phase 5 row does not name the section 6 list");
+        if (!row[0].includes("section " + secNo)) bad.push("the RFC phase 5 row does not name the section " + secNo + " list");
         for (const r of logic) if (!row[0].includes(r.file.replace(/^\.aai\/scripts\//, ""))) bad.push("the RFC phase 5 row does not name " + r.file);
       }
     }
     process.stdout.write(bad.join("; "));
-  ' "$PROJECT_ROOT" "$work/measure.tsv" "$work/open.json")" || log_fail "TEST-4022: the phase 5 check failed to run"
+  ' "$PROJECT_ROOT" "$work/measure.tsv")" || log_fail "TEST-4022: the phase 5 check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4022: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4022: section 6 of the remaining-scripts plan lists exactly the non-launcher scripts with their measured code lines and classes, the twin duplication, the open P1 and P2 follow-ups of the plan refs and the hosted status, and the RFC-0017 phase 5 status follows the section 5 criteria"
+  log_pass "TEST-4022: the latest re-measure section of the remaining-scripts plan lists exactly the non-launcher scripts with their classes, the twin duplication, the open P1 and P2 follow-ups of the plan refs as of its date and the hosted status, and the RFC-0017 phase 5 status follows the section 5 criteria"
 }
 
 main() {

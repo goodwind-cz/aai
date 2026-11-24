@@ -183,12 +183,26 @@ export const TWINS = {
   node: {
     name: 'node',
     ops: ['bootstrap', 'update', 'hooks', 'sync'],
-    peers: { update: ['sh'] },
+    peers: { update: ['sh', 'launcher'] },
     argv(step, ctx) {
       if (step.op === 'sync') return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-sync.mjs'), ctx.target, ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };
       if (step.op === 'bootstrap') return { file: process.execPath, args: [path.join(ctx.bsref, '.aai', 'scripts', 'aai-bootstrap.mjs'), ctx.target, ...bsFlags(step)], cwd: ctx.target };
       if (step.op === 'hooks') return { file: process.execPath, args: [path.join(ctx.target, '.aai', 'scripts', 'install-pre-commit-hook.mjs'), ...(step.flags || []).map((f) => SH_FLAG[f])], cwd: ctx.target };
       return { file: process.execPath, args: [path.join(ctx.src, '.aai', 'scripts', 'aai-update.mjs'), '--repo', ctx.src, '--ref', 'main'], cwd: ctx.target, env: { AAI_UPDATE_SYNC_RUNNER: ctx.bash } };
+    },
+  },
+  // The launcher twin (node-first-phase5-closeout D-TWIN): the SHIPPED aai-sync.sh and aai-update.sh of the scratch source, run
+  // through the same bash as the frozen twins (Git for Windows' bash on Windows, never the WSL shim). It is paired only with the
+  // module twin: both run the same module from the same scratch source, so a divergence between them is a launcher or
+  // Git Bash environment fault, not a rule difference. The shipped aai-update.sh sets its own sync runner, so none is passed here.
+  launcher: {
+    name: 'launcher',
+    ops: ['sync', 'update'],
+    peers: { sync: ['node'], update: ['node'] },
+    argv(step, ctx) {
+      const src = fwd(ctx.src);
+      if (step.op === 'sync') return { file: ctx.bash, args: [`${src}/.aai/scripts/aai-sync.sh`, fwd(ctx.target), ...(step.profile ? ['--profile', step.profile] : [])], cwd: ctx.target };
+      return { file: ctx.bash, args: [`${src}/.aai/scripts/aai-update.sh`, '--repo', src, '--ref', 'main'], cwd: ctx.target };
     },
   },
 };
@@ -752,6 +766,117 @@ export function defaultSetup(scenario, target, ctx) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// D-HOSTCHECK (node-first-phase5-closeout): named host checks. Each entry is { id, scenario, twin, status, checked, detail } with
+// status pass, fail, not-applicable or bites; each also goes to the notes as one AAI-HOST-CHECK line, and any fail fails the run.
+// A root entry whose name leaves printable ASCII (a mangled name is random from run to run) that a step birthed is the defect
+// fu-parity-win-odd-root-dirs describes.
+const ODD_NAME = /[^\x20-\x7e]/;
+// A Windows absolute source path starts with a drive letter, a colon and a backslash (the Git Bash spelling /c/... does not).
+const WIN_ABS_RE = /^[A-Za-z]:\\/;
+export { ODD_NAME, WIN_ABS_RE };
+// The twins whose output the host checks read: the module and the shipped launchers. The frozen sh twin is the control's subject.
+export const HOST_CHECK_TWINS = ['node', 'launcher'];
+const HOST_CHECK_OPS = ['sync', 'update'];
+const hostCheckLine = (e) => `AAI-HOST-CHECK ${e.id} ${e.scenario} ${e.twin} ${e.status} checked=${e.checked}`;
+const entryOf = (id, scenario, twin, status, checked, detail) => ({ id, scenario, twin, status, checked, detail });
+
+// The Source path lines of a pin and the Source lines of the sync-conflicts reports the step wrote, read from the target.
+const lineValues = (text, label) => String(text).split('\n').map((l) => new RegExp(`^- ${label}: (.*?)\\r?$`).exec(l)).filter(Boolean).map((m) => m[1]);
+export function readSourcePaths(dir) {
+  const read = (rel) => { try { return fs.readFileSync(path.join(dir, ...rel.split('/')), 'utf8'); } catch { return ''; } };
+  let reports = [];
+  try { reports = fs.readdirSync(path.join(dir, 'docs', 'ai', 'reports')).filter((n) => /^sync-conflicts-[^/]+\.md$/.test(n)).sort(); } catch { reports = []; }
+  return { pin: lineValues(read(AAI_PIN), 'Source path'), report: reports.flatMap((n) => lineValues(read(`docs/ai/reports/${n}`), 'Source')) };
+}
+export function sourcePathCheck({ platform, scenario, twin, pin = [], report = [] }) {
+  const id = 'source-path-windows';
+  if (platform !== 'win32') return entryOf(id, scenario, twin, 'not-applicable', 0, 'POSIX host');
+  const lines = [...pin, ...report];
+  const bad = lines.find((v) => !WIN_ABS_RE.test(v));
+  if (bad !== undefined) return entryOf(id, scenario, twin, 'fail', lines.length, `a source path line is not a drive letter, colon and backslash path: ${showName(bad)}`);
+  if (scenario === 'SY-01' && lines.length < 2) return entryOf(id, scenario, twin, 'fail', lines.length, `vacuous: ${lines.length} line(s) checked, at least 2 are required in SY-01 (the pin and a report)`);
+  return entryOf(id, scenario, twin, 'pass', lines.length, '');
+}
+// The control: the same predicate on the frozen sh twin's pin must FAIL (it records /c/...), else the check would not catch the old bug.
+export function sourcePathControl({ platform, scenario, twin, pin = [] }) {
+  const id = 'source-path-windows-control';
+  if (platform !== 'win32') return entryOf(id, scenario, twin, 'not-applicable', 0, 'POSIX host');
+  if (!pin.length) return entryOf(id, scenario, twin, 'fail', 0, 'vacuous: the frozen sh pin holds no Source path line to judge');
+  if (pin.every((v) => WIN_ABS_RE.test(v))) return entryOf(id, scenario, twin, 'fail', pin.length, 'the predicate passes the frozen sh pin, so it would not catch the old Git Bash spelling');
+  return entryOf(id, scenario, twin, 'bites', pin.length, `the predicate rejects ${showName(pin.find((v) => !WIN_ABS_RE.test(v)))}`);
+}
+export const exitCodeFor = (rep) => (rep.verdict === 'PASS' && !(rep.host_checks || []).some((e) => e.status === 'fail') ? 0 : 1);
+
+// oddSeenLine: AAI-ODD-SEEN <scenario> <twin> entries=<n>, n = the odd root entries the twin's steps left (odd_root_entries over its steps).
+export const oddSeenLine = (scenario, twin, steps) => `AAI-ODD-SEEN ${scenario} ${twin} entries=${steps.reduce((n, x) => n + (x.odd_root_entries || []).length, 0)}`;
+// D-ODD step 2 (test-only, off unless AAI_PARITY_ODD_DIAG=1): in a fresh copy of the post-step target, one candidate at a time with a
+// root snapshot before and after each. The first candidate that births an entry, narrowed to its child process and arguments, is the
+// named root cause. Each runs as a child of the driver's bash (the bash-derived environment the sh twin gave the doctor).
+const REF_GUARD_HELPER = `
+const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), cp = require('node:child_process'), url = require('node:url');
+(async () => {
+  const [root, arm] = process.argv.slice(1);
+  const g = cp.spawnSync('git', ['rev-parse', '--git-path', 'hooks/reference-transaction'], { cwd: root, encoding: 'utf8' });
+  const rel = String(g.stdout || '').trim();
+  const hookPath = rel ? (path.isAbsolute(rel) ? rel : path.join(root, rel)) : '';
+  if (!hookPath || !fs.existsSync(hookPath)) { process.stdout.write('no-hook\\n'); return; }
+  const gc = await import(url.pathToFileURL(path.join(root, '.aai', 'scripts', 'lib', 'guard-config.mjs')).href);
+  let gitExecPath = '';
+  if (process.platform === 'win32') { const e = cp.spawnSync('git', ['--exec-path'], { cwd: root, encoding: 'utf8' }); if (e.status === 0) gitExecPath = String(e.stdout).trim(); }
+  const launchers = gc.resolveRefGuardLaunchers({ platform: process.platform, hookPath, gitExecPath, exists: (p) => fs.existsSync(p) });
+  const REFUSE = '0'.repeat(40) + ' ' + '1'.repeat(40) + ' refs/heads/main\\n';
+  const pad = Array.from({ length: 1000 }, (_, i) => '0'.repeat(40) + ' ' + '2'.repeat(40) + ' refs/heads/aai-doctor-probe-pad-' + i + '\\n').join('');
+  const CONTROL = ('0'.repeat(40) + ' ' + '2'.repeat(40) + ' refs/heads/aai-doctor-probe-control\\n').repeat(1001);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-doctor-probe-'));
+  try {
+    const input = path.join(dir, 'in'); const control = path.join(dir, 'control');
+    fs.writeFileSync(input, REFUSE + pad); fs.writeFileSync(control, CONTROL);
+    const base = { ...process.env }; delete base.AAI_GIT_WRITE;
+    const env = arm === 'permit' ? { ...base, AAI_GIT_WRITE: '1' } : base;
+    const file = arm === 'control' ? control : input;
+    for (const [cmd, args] of launchers) {
+      const fd = fs.openSync(file, 'r');
+      let r; try { r = cp.spawnSync(cmd, args, { cwd: root, env, encoding: 'utf8', timeout: 5000, stdio: [fd, 'pipe', 'pipe'] }); } finally { fs.closeSync(fd); }
+      process.stdout.write(cmd + ' ' + args.join(' ') + ' exit=' + r.status + (r.error ? ' error=' + r.error.code : '') + '\\n');
+      if (!r.error) break;
+    }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+})().catch((e) => { process.stdout.write('helper-error ' + e.message + '\\n'); });
+`;
+export function oddDiagCandidates({ ps = 'pwsh' } = {}) {
+  const script = (copy, n) => path.join(copy, '.aai', 'scripts', n);
+  const node = (name, args) => ({ name, run: (copy) => ({ file: process.execPath, args: args(copy), cwd: copy }) });
+  const cli = (n) => ({ name: `agent-cli-${n}`, run: (copy) => ({ file: n, args: ['--version'], cwd: copy }) });
+  return [
+    node('field-report-helper', (copy) => [script(copy, 'update-doctor-report.mjs'), '--root', copy]),
+    node('doctor-json', (copy) => [script(copy, 'aai-doctor.mjs'), '--root', copy, '--json']),
+    ...['control', 'refuse', 'permit'].map((arm) => node(`ref-guard-${arm}`, (copy) => ['-e', REF_GUARD_HELPER, copy, arm])),
+    { name: 'win-selftest', run: (copy) => ({ file: ps, args: ['-NoProfile', '-File', script(copy, 'aai-win-selftest.ps1')], cwd: copy }) },
+    ...['claude', 'codex', 'gemini'].map(cli),
+  ];
+}
+export function runOddDiag({ root, target, bash, env, candidates = oddDiagCandidates(), scenario, twin, useBash = true, timeoutMs = 120000 }) {
+  const lines = [];
+  const base = path.join(root, 'odd-diag', `${scenario}-${twin}`);
+  fs.rmSync(base, { recursive: true, force: true });
+  candidates.forEach((cand, i) => {
+    const copy = path.join(base, `c${i + 1}`);
+    copyTree(target, copy);
+    const a = cand.run(copy);
+    const before = new Set(fs.readdirSync(copy));
+    // The child is started through bash so it sees what a child of the sh twin sees: bash <- cd copy && exec file args.
+    const launch = useBash ? { file: bash, args: ['-c', 'cd "$1" && shift && exec "$@"', '_', fwd(copy), a.file, ...a.args] } : { file: a.file, args: a.args };
+    const r = run(launch.file, launch.args, { cwd: a.cwd || copy, env, timeoutMs });
+    const born = fs.readdirSync(copy).filter((n) => !before.has(n));
+    const names = born.length ? ` born_names=${born.map(showName).join(',')}` : '';
+    const tail = r.timedOut ? ' timed_out=1' : '';
+    lines.push(`AAI-ODD-DIAG ${cand.name} born=${born.length} scenario=${scenario} twin=${twin} exit=${r.code}${tail}${names} cmd=${[a.file, ...a.args].map((x) => (String(x).length > 80 ? `${String(x).slice(0, 40)}...` : x)).join(' ').replace(/\s+/g, ' ').slice(0, 300)}`);
+    fs.rmSync(copy, { recursive: true, force: true });
+  });
+  return lines;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The runner.
 const doctorHead = (dir) => {
   try {
@@ -767,20 +892,38 @@ function runScenario(scenario, allTwins, ctx) {
   const twins = twinsFor(allTwins, scenario);
   const targetDir = path.join(ctx.root, scenario.id, scenario.target || 'target');
   const hooks = scenario.op === 'hooks';
-  const results = []; const broken = []; const steps = [];
+  const results = []; const broken = []; const steps = []; const hostChecks = []; const diag = [];
+  const platform = ctx.platform || process.platform;
+  const hostScenario = HOST_CHECK_OPS.includes(scenario.op);
+  let frozenShPin = null;
   for (const twin of twins) {
     fs.rmSync(targetDir, { recursive: true, force: true });
     fs.mkdirSync(path.dirname(targetDir), { recursive: true });
     (ctx.setup || defaultSetup)(scenario, targetDir, ctx, twin.name);
+    // Every twin step writes only into a target under this run's scratch root; the launcher twin additionally never runs on an
+    // empty target (a launcher that had nothing to act on would prove nothing, and an empty path would mean the wrong directory).
+    if (!path.isAbsolute(targetDir) || !(path.resolve(targetDir) + path.sep).startsWith(path.resolve(ctx.root) + path.sep)) throw new Error(`the target ${targetDir} of ${scenario.id} ${twin.name} is not under the scratch root ${ctx.root}`);
+    if (twin.name === 'launcher' && (!fs.existsSync(targetDir) || fs.readdirSync(targetDir).length === 0)) throw new Error(`empty target ${targetDir} for the launcher twin in ${scenario.id}: refusing to run a shipped launcher on it`);
+    const checked = hostScenario && HOST_CHECK_TWINS.includes(twin.name);
+    const oddBorn = []; let rootRead = 0;
     const codes = []; const snaps = [];
     scenario.steps.forEach((step, i) => {
       const actx = { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, bsref: ctx.bsref, upref: ctx.upref, hkref: ctx.hkref };
       Object.defineProperty(actx, 'syref', { enumerable: true, get: () => ctx.syref });
       const a = twin.argv({ ...step, index: i }, actx);
       const before = oddRootNames(targetDir); const t1 = Date.now();
+      const rootBefore = checked ? new Set(fs.readdirSync(targetDir)) : null;
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
       if (r.timedOut) throw new InfraTimeout(scenario.id, twin.name, i + 1);
       codes.push(r.code);
+      if (checked) {
+        const rootAfter = fs.readdirSync(targetDir);
+        rootRead += rootAfter.length;
+        for (const name of rootAfter) if (!rootBefore.has(name) && ODD_NAME.test(name)) oddBorn.push({ step: i + 1, name });
+      }
+      if (process.env.AAI_PARITY_ODD_DIAG === '1' && step.op === 'update') {
+        diag.push(...runOddDiag({ root: ctx.root, target: targetDir, bash: ctx.bash, env: { ...twinEnv(ctx.root), ...(a.env || {}) }, candidates: oddDiagCandidates({ ps: ctx.ps }), scenario: scenario.id, twin: twin.name }));
+      }
       // Root entries whose name leaves printable ASCII are reported with the step that left them (a mangled name is a harness
       // or twin fault worth seeing in a CI log), with their birth time against the step window.
       const odd = oddRootNames(targetDir).filter((n) => !before.includes(n)).map((n) => `${showName(n)} born ${birthMs(path.join(targetDir, n), t1)} ms after the step started (step took ${Date.now() - t1} ms)`);
@@ -790,10 +933,19 @@ function runScenario(scenario, allTwins, ctx) {
     });
     const missing = scenario.probes.filter((p) => !fs.existsSync(path.join(targetDir, ...p.split('/'))));
     for (const p of missing) broken.push(`probe ${p} is missing from the ${twin.name} tree`);
+    if (checked) {
+      const odd = oddBorn.map((o) => `step ${o.step}: ${showName(o.name)}`);
+      hostChecks.push(entryOf('no-odd-root', scenario.id, twin.name, odd.length ? 'fail' : 'pass', rootRead, odd.length ? `root entries born with a name outside printable ASCII: ${odd.join('; ')}` : ''));
+      const src = readSourcePaths(targetDir);
+      hostChecks.push(sourcePathCheck({ platform, scenario: scenario.id, twin: twin.name, pin: src.pin, report: src.report }));
+    }
+    if (hostScenario && twin.name === REFERENCE_TWIN && scenario.id === 'SY-01') frozenShPin = readSourcePaths(targetDir).pin;
     const final = scenario.steps.length > 1 ? snaps[snaps.length - 1] : snapshotNormalized(targetDir, { hooks });
     results.push({ twin, codes, first: snaps[0] || final, final });
     try { fs.renameSync(targetDir, path.join(path.dirname(targetDir), `out-${twin.name}`)); } catch { fs.rmSync(targetDir, { recursive: true, force: true }); }
   }
+  // The control runs the Windows predicate on the frozen sh twin's SY-01 pin: it must fail there, or the check would not catch the old bug.
+  if (frozenShPin !== null) hostChecks.push(sourcePathControl({ platform, scenario: scenario.id, twin: REFERENCE_TWIN, pin: frozenShPin }));
   const refResult = results.find((r) => r.twin.name === REFERENCE_TWIN) || results[0];
   scenario.steps.forEach((step, i) => {
     const ref = { code: refResult.codes[i] };
@@ -815,7 +967,10 @@ function runScenario(scenario, allTwins, ctx) {
       divergences.push(...compareSnapshots(r.first, r.final, pair, ['step 1', 'step 2']));
     }
   }
-  return { id: scenario.id, seconds: Math.round((Date.now() - t0) / 100) / 10, steps, broken, divergences, pairs };
+  // D-ODD: one always-printed line per scenario and twin saying how many odd root entries its steps left, so a run says whether
+  // the frozen sh reference reproduced the defect even when no diagnostic candidate was asked for.
+  for (const twin of twins) diag.push(oddSeenLine(scenario.id, twin.name, steps.filter((x) => x.twin === twin.name)));
+  return { id: scenario.id, seconds: Math.round((Date.now() - t0) / 100) / 10, steps, broken, divergences, pairs, hostChecks, diag };
 }
 
 export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default', filtered = false }) {
@@ -841,6 +996,7 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   const host = c.host || hostInfo();
   const report = { verdict: 'PASS', host: host.platform, tz: PINNED_TZ, matrix, twins: twins.map((t) => t.name), pairs: [], total_seconds: 0, scenarios: [], uncovered: [], stale: [] };
   const used = new Set(); const usedPairs = new Set(); const pairsByScenario = {}; const pairSet = []; const ran = [];
+  const hostChecks = []; const oddDiag = [];
   for (const s of scenarios) {
     const r = runScenario(s, twins, c);
     ran.push(s.id);
@@ -849,15 +1005,17 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
     for (const k of up) usedPairs.add(k);
     pairsByScenario[s.id] = r.pairs;
     for (const p of r.pairs) if (!pairSet.includes(p)) pairSet.push(p);
-    report.scenarios.push({ id: r.id, seconds: r.seconds, steps: r.steps, broken: r.broken, divergences: [...covered, ...uncovered].map((d) => ({ pair: d.pair, path: d.path, kind: d.kind, detail: d.detail, covered_by: d.covered_by })) });
+    hostChecks.push(...r.hostChecks); oddDiag.push(...r.diag);
+    report.scenarios.push({ id: r.id, seconds: r.seconds, steps: r.steps, broken: r.broken, pairs: r.pairs, divergences: [...covered, ...uncovered].map((d) => ({ pair: d.pair, path: d.path, kind: d.kind, detail: d.detail, covered_by: d.covered_by })) });
     for (const d of uncovered) report.uncovered.push({ scenario: s.id, pair: d.pair, path: d.path, kind: d.kind, detail: d.detail });
   }
   report.pairs = [...pairSet.filter((p) => p.split(':')[0] !== p.split(':')[1]), ...pairSet.filter((p) => p.split(':')[0] === p.split(':')[1])];
   report.stale = staleRows(rows, { ran, pairsRun: report.pairs, host, used, usedPairs, pairsByScenario, wholeTier: !filtered }).map((r) => ({ id: r.id, scenario: r.scenario, pairs: r.pair, path: r.path, kind: r.kind }));
   report.stale_check = filtered ? 'off (scenario filter)' : 'on';
-  report.notes = c.notes || [];
+  report.host_checks = hostChecks;
+  report.notes = [...(c.notes || []), ...hostChecks.map(hostCheckLine), ...oddDiag];
   report.total_seconds = Math.round((Date.now() - t0) / 100) / 10;
-  if (report.uncovered.length || report.stale.length || report.scenarios.some((s) => s.broken.length)) report.verdict = 'FAIL';
+  if (report.uncovered.length || report.stale.length || report.scenarios.some((s) => s.broken.length) || hostChecks.some((e) => e.status === 'fail')) report.verdict = 'FAIL';
   return report;
 }
 
@@ -953,10 +1111,11 @@ async function dispatch(cmd, rest, err) {
   }
   for (const u of rep.uncovered) process.stdout.write(`UNCOVERED ${u.scenario} ${u.pair} ${u.kind} ${showName(u.path)}: ${u.detail}\n`);
   for (const s of rep.stale) process.stdout.write(`STALE ${s.id} (scenario ${s.scenario}, pairs ${s.pairs}, ${s.kind} ${s.path})\n`);
+  for (const e of rep.host_checks.filter((x) => x.status === 'fail')) process.stdout.write(`HOST-CHECK FAIL ${e.id} ${e.scenario} ${e.twin}: ${e.detail}\n`);
   if (rep.stale_check !== 'on') process.stdout.write(`stale check: ${rep.stale_check}\n`);
   process.stdout.write(`verdict ${rep.verdict} (${rep.total_seconds}s, matrix ${rep.matrix}, pairs ${rep.pairs.join(' ')})\n`);
   if (o.json) fs.writeFileSync(o.json, `${JSON.stringify(rep, null, 2)}\n`);
-  return rep.verdict === 'PASS' ? 0 : 1;
+  return exitCodeFor(rep);
 }
 
 // --json takes a file for `run` and is a flag for `list`.

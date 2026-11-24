@@ -600,3 +600,282 @@ test('TEST-3538 DB-20 an unrecorded repository with no origin resolves to platfo
   assert.equal(err[0], 'REFUSED: release-platform — the remote release finish runs on GitHub only (platform none); cut locally with --no-remote and open the release PR on your host');
   assert.equal(log('gh') + log('az'), '', 'no host call');
 });
+
+// ---- TEST-4026: the PowerShell grammar of the module under --launcher ps1 (SPEC node-first-phase5-closeout D-RELEASE) ----
+const PS1_FORMS = [
+  // [name, double-dash form, option patch]
+  ['-DryRun', ['--dry-run'], { dryRun: true }],
+  ['-Confirm', ['--confirm'], { confirm: true }],
+  ['-Yes', ['--yes'], { confirm: true }],
+  ['-NoRemote', ['--no-remote'], { noRemote: true }],
+];
+const cases3 = (name) => [name, name.toLowerCase(), name.toUpperCase()];
+const parse = (argv) => M.parseArgs(argv, {});
+const LP = ['--launcher', 'ps1', '--launcher-path', '/p/aai-release.ps1'];
+
+test('TEST-4026 each PowerShell switch in three letter cases parses as its double-dash form under ps1', () => {
+  assert.equal(typeof M.parseArgs, 'function');
+  for (const [name, dd, patch] of PS1_FORMS) {
+    const want = parse([...LP, ...dd]);
+    assert.equal(want.dryRun === (patch.dryRun === true), true);
+    for (const form of cases3(name)) {
+      assert.deepEqual(parse([...LP, form]), want, form);
+      for (const on of ['$true', 'true', '$TRUE', 'True']) assert.deepEqual(parse([...LP, `${form}:${on}`]), want, `${form}:${on}`);
+      const off = parse([...LP]);
+      for (const v of ['$false', 'false', '$FALSE', 'False']) assert.deepEqual(parse([...LP, `${form}:${v}`]), off, `${form}:${v}`);
+    }
+  }
+});
+
+test('TEST-4026 -Version takes a value by space or colon in any letter case, and refuses a missing value', () => {
+  const want = parse([...LP, '--version', 'v9']);
+  assert.equal(want.version, 'v9');
+  for (const form of cases3('-Version')) {
+    assert.deepEqual(parse([...LP, form, 'v9']), want, form);
+    assert.deepEqual(parse([...LP, `${form}:v9`]), want, `${form}:v9`);
+  }
+  for (const argv of [['-Version'], ['-Version:'], ['-Version', '-DryRun']]) {
+    assert.deepEqual(parse([...LP, ...argv]), { error: ['REFUSED: --version needs a value.'], code: 1 }, argv.join(' '));
+  }
+});
+
+test('TEST-4026 every form accepted today is still accepted under ps1, and common parameters and a second bare word are not', () => {
+  for (const argv of [['--version', 'v9'], ['--version=v9'], ['--dry-run'], ['--confirm'], ['--yes'], ['--no-remote'], ['-h'], ['--help']]) {
+    assert.equal(parse([...LP, ...argv]).error, undefined, argv.join(' '));
+  }
+  assert.equal(parse([...LP, '--dry-run', '-Confirm']).confirm, false, 'dry run wins over confirm as before');
+  for (const bad of ['-Verbose', '-Debug', '-ErrorAction', '-Deb', '-Verb', '-Bogus', '-DryRun:maybe', '-Yes:0', '-X']) {
+    assert.deepEqual(parse([...LP, bad]), { error: [`Unknown argument: ${bad}`, 'Run with --help for usage.'], code: 1 }, bad);
+  }
+});
+
+test('TEST-4026 Windows PowerShell 5.1 -File hands -Switch:value over as two tokens (-Switch: then the value); the colon value binds to its flag', () => {
+  for (const [name, dd] of PS1_FORMS) {
+    const on = parse([...LP, ...dd]);
+    const off = parse([...LP]);
+    for (const form of cases3(name)) {
+      for (const v of ['true', '$true', 'True', '$TRUE']) assert.deepEqual(parse([...LP, `${form}:`, v]), on, `${form}: ${v}`);
+      for (const v of ['false', '$false', 'False', '$FALSE']) assert.deepEqual(parse([...LP, `${form}:`, v]), off, `${form}: ${v}`);
+    }
+  }
+  const want = parse([...LP, '--version', 'v9', '--dry-run', '--no-remote']);
+  assert.deepEqual(parse([...LP, '-Version:', 'v9', '-DryRun:', 'true', '-NoRemote:', 'true']), want);
+  assert.deepEqual(parse([...LP, '-VERSION:', 'v9', '-dryrun:', '$true', '-noremote:', '$true']), want);
+  assert.deepEqual(parse([...LP, '-Version:', 'v9', '-DryRun:', '$false']), parse([...LP, '--version', 'v9']));
+  assert.deepEqual(parse([...LP, '-Version:']), { error: ['REFUSED: --version needs a value.'], code: 1 });
+  assert.deepEqual(parse([...LP, '-Version:', '-DryRun']), { error: ['REFUSED: --version needs a value.'], code: 1 });
+  assert.deepEqual(parse([...LP, '-DryRun:', 'maybe']), { error: ['Unknown argument: -DryRun:maybe', 'Run with --help for usage.'], code: 1 });
+  assert.deepEqual(parse([...LP, '-DryRun:']), { error: ['Unknown argument: -DryRun:', 'Run with --help for usage.'], code: 1 });
+});
+
+// Hosted run 45115879244 (Windows PowerShell 5.1 -File, both 5.1 legs): -DryRun:$false gave 'Unknown argument: $false' and
+// -Version:v9 -DryRun:$true -NoRemote:true gave 'Unknown argument: true', so 5.1 -File hands the switch over WITHOUT its colon
+// (-DryRun, then the value as its own token). A switch followed by a boolean word takes it as its value.
+test('TEST-4026 Windows PowerShell 5.1 -File drops the colon of -Switch:value (-Switch, then the boolean word); the word binds to its switch', () => {
+  const want = parse([...LP, '--version', 'v9', '--dry-run', '--no-remote']);
+  assert.deepEqual(parse([...LP, '-Version', 'v9', '-DryRun', '$true', '-NoRemote', 'true']), want);
+  assert.deepEqual(parse([...LP, '-Version', 'v9', '-DryRun', '$false']), parse([...LP, '--version', 'v9']));
+  for (const [name, dd] of PS1_FORMS) {
+    if (dd[0] === '--version') continue;
+    const on = parse([...LP, ...dd]);
+    for (const form of cases3(name)) {
+      for (const v of ['true', '$true', 'TRUE']) assert.deepEqual(parse([...LP, form, v]), on, `${form} ${v}`);
+      for (const v of ['false', '$false', 'False']) assert.deepEqual(parse([...LP, form, v]), parse([...LP]), `${form} ${v}`);
+    }
+  }
+  // a non-boolean bare word after a switch is still the positional version, as before
+  assert.deepEqual(parse([...LP, '-DryRun', 'v9']), parse([...LP, '--dry-run', '--version', 'v9']));
+});
+
+test('TEST-4026 an unambiguous prefix of a PowerShell flag binds like the full name, in any letter case, with the colon forms', () => {
+  const want = {
+    '-Ver': parse([...LP, '--version', 'v9']), '-V': parse([...LP, '--version', 'v9']), '-Versio': parse([...LP, '--version', 'v9']),
+    '-Dry': parse([...LP, '--dry-run']), '-D': parse([...LP, '--dry-run']), '-Conf': parse([...LP, '--confirm']), '-C': parse([...LP, '--confirm']),
+    '-Y': parse([...LP, '--yes']), '-NoR': parse([...LP, '--no-remote']), '-N': parse([...LP, '--no-remote']),
+  };
+  for (const [prefix, expected] of Object.entries(want)) {
+    const isVersion = expected.version !== '';
+    for (const form of [prefix, prefix.toLowerCase(), prefix.toUpperCase()]) {
+      if (isVersion) {
+        assert.deepEqual(parse([...LP, form, 'v9']), expected, `${form} v9`);
+        assert.deepEqual(parse([...LP, `${form}:v9`]), expected, `${form}:v9`);
+      } else {
+        assert.deepEqual(parse([...LP, form]), expected, form);
+        assert.deepEqual(parse([...LP, `${form}:$true`]), expected, `${form}:$true`);
+        assert.deepEqual(parse([...LP, `${form}:$false`]), parse([...LP]), `${form}:$false`);
+      }
+    }
+  }
+  assert.deepEqual(parse(['-Ver', 'v9']), { error: ['Unknown argument: -Ver', 'Run with --help for usage.'], code: 1 }, 'a prefix is a PowerShell form: still refused without the ps1 launcher');
+});
+
+test('TEST-4026 a name that is a prefix of more than one flag is refused on one line naming the candidates (parseArgs over a synthetic flag table)', () => {
+  const table = { '-verbose': '--verbose', '-version': '--version', '-dryrun': '--dry-run' };
+  const run3 = (argv) => M.parseArgs([...LP, ...argv], {}, table);
+  assert.deepEqual(run3(['-ver']), { error: ['REFUSED: ambiguous argument -ver: matches -verbose, -version.'], code: 1 });
+  assert.deepEqual(run3(['-VER:v9']), { error: ['REFUSED: ambiguous argument -VER:v9: matches -verbose, -version.'], code: 1 });
+  assert.equal(run3(['-vers', 'v9']).version, 'v9');
+  assert.equal(run3(['-Dry']).dryRun, true);
+  assert.deepEqual(run3(['-x']), { error: ['Unknown argument: -x', 'Run with --help for usage.'], code: 1 });
+  // every prefix of the five real flags is unambiguous (measured: the old binder agrees), so no real argument reaches the refusal
+  for (const f of ['-Version', '-DryRun', '-Confirm', '-Yes', '-NoRemote']) for (let n = 2; n <= f.length; n++) {
+    const r = parse([...LP, f.slice(0, n)]);
+    assert.ok(r.error === undefined || r.error[0].startsWith('REFUSED: --version needs a value'), `${f.slice(0, n)}: ${JSON.stringify(r.error)}`);
+  }
+});
+
+test('TEST-4026 the first bare word is the version when no -Version is given (the old positional binding); a second bare word or a bare word beside -Version is refused', () => {
+  assert.equal(parse([...LP, 'extra']).version, 'extra');
+  assert.deepEqual(parse([...LP, '-DryRun', 'extra']), parse([...LP, '--dry-run', '--version', 'extra']));
+  assert.deepEqual(parse([...LP, 'extra', '-DryRun']), parse([...LP, '--dry-run', '--version', 'extra']));
+  const second = { error: ['Unknown argument: two', 'Run with --help for usage.'], code: 1 };
+  assert.deepEqual(parse([...LP, 'one', 'two']), second);
+  assert.deepEqual(parse([...LP, '-Version', 'v9', 'two']), second);
+  assert.deepEqual(parse([...LP, 'two', '-Version', 'v9']), second);
+  assert.deepEqual(parse(['extra']), { error: ['Unknown argument: extra', 'Run with --help for usage.'], code: 1 }, 'under sh a bare word is still refused');
+});
+
+test('TEST-4026 under --launcher sh or none each PowerShell form is Unknown argument with exit 1', () => {
+  for (const lp of [['--launcher', 'sh'], []]) {
+    for (const form of ['-Version', '-DryRun', '-Confirm', '-Yes', '-NoRemote', '-dryrun', '-DryRun:$true']) {
+      assert.deepEqual(parse([...lp, form]), { error: [`Unknown argument: ${form}`, 'Run with --help for usage.'], code: 1 }, `${lp.join(' ')} ${form}`);
+    }
+  }
+});
+
+// ---- TEST-4027: D-RELEASE-MATRIX, the frozen launcher against the new one under pwsh (M01 to M20) ----------
+// Both launchers sit next to the same module copy (two copies of .aai/scripts: the old one holds the hash-verified frozen
+// launcher). Each case runs in a fresh scratch repository, by -File and in session; the remote finish is never run, and a
+// stub gh and az on PATH record any host call (none is expected).
+const R = await import('./release-reference.mjs');
+const PWSH = (() => { const r = spawnSync('sh', ['-c', 'command -v pwsh'], { encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : ''; })();
+const OWN = [];
+after(() => { for (const d of OWN) R.removeOwnScratch(d); });
+const ownScratch = (label) => { const d = R.createOwnScratch(label); OWN.push(d); return d; };
+const MATRIX_ENV = (extra = {}) => {
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) if (!/^GIT_/.test(k)) env[k] = v;
+  return { ...env, AAI_ROLE: '', AAI_GIT_WRITE: '', AAI_RELEASE_DATE: '2026-07-20', AAI_RELEASE_NO_REMOTE: '', GIT_CONFIG_NOSYSTEM: '1', ...extra };
+};
+const D = (...t) => t;
+const MATRIX = [
+  ['M01', D('-h')], ['M02', D('--help')], ['M03', D('-Version', 'v9', '-DryRun')], ['M04', D('-Version:v9', '-DryRun')],
+  ['M05', D('-version', 'v9', '-dryrun')], ['M06', D('--version', 'v9', '--dry-run')], ['M07', D('-DryRun', '-NoRemote')],
+  ['M08', D('-Confirm', '-NoRemote', '-Version', 'v9')], ['M09', D('-Yes', '-NoRemote', '-Version', 'v9')],
+  ['M10', D('-DryRun:$false', '-NoRemote', '-Version', 'v9')], ['M11', D('-Bogus')],
+  ['M12', D('-DryRun', '-Version', 'v9'), { repo: 'none' }], ['M13', D('-DryRun', '-Version', 'v9'), { repo: 'nochangelog' }],
+  ['M14', D('-DryRun'), { env: { AAI_RELEASE_DATE: '2026-07-20', AAI_RELEASE_NO_REMOTE: '1' } }], ['M15', D('-DryRun', 'extra')],
+  ['M16', D('-DryRun', '-Version', 'v9'), { nonode: true }],
+  // old-equal after the owner's decision 3: prefixes and the bare first word keep the old binding (DR-R1, DR-R3 preserved)
+  ['M17', D('-Ver', 'v9', '-Dry')], ['M19', D('v9')], ['M21', D('-Conf', '-NoR', '-V', 'v9')], ['M22', D('-Y', '-N', '-Ver:v9')],
+  ['M23', D('-D', '-NoR', '-V:v9')], ['M24', D('v9', 'extra')], ['M25', D('-Version', 'v9', 'extra')], ['M26', D('-Dry:$false', '-N', '-Ver', 'v9')],
+];
+// Measured, not predicted by D-RELEASE-MATRIX: in session the old launcher binds a bare first word by position to -Version, and
+// PowerShell reads --help and --version there as bare words, so M02 and M06 (session only) fail in the old launcher. The
+// first bare word, the unambiguous prefixes and the second bare word are old-equal (M15, M17, M19, M21 to M26).
+const MEASURED_BARE_WORD = {
+  'M02 session': { old: (o) => o.code === 1 && o.out === '' && o.err === 'REFUSED: --version needs a value.\n', new: (f) => f },
+  'M06 session': { old: (o) => o.code === 1 && o.out === '' && o.err === 'REFUSED: --version needs a value.\n', new: (f) => f },
+};
+const DR = [
+  ['M18', D('-Verbose'), 1, ['Unknown argument: -Verbose', 'Run with --help for usage.']],
+  ['M20', D('-Version'), 1, ['REFUSED: --version needs a value.']],
+];
+function matrixRepo(kind) {
+  if (kind === 'none') return scratch('nogit');
+  const dir = path.join(scratch('mx'), 'repo dir');
+  initRepo(dir);
+  if (kind === 'nochangelog') fs.writeFileSync(path.join(dir, 'README.md'), 'x\n'); else fs.writeFileSync(path.join(dir, 'CHANGELOG.md'), GOOD);
+  commitAll(dir, 'chore: base');
+  return dir;
+}
+function launcherDirs() {
+  const root = ownScratch('lx-');
+  const dirs = {};
+  for (const kind of ['old', 'new']) {
+    const dir = path.join(root, kind, '.aai', 'scripts');
+    fs.cpSync(path.join(ROOT, '.aai/scripts'), dir, { recursive: true });
+    if (kind === 'old') R.materializeReleaseReference(ROOT, dir);
+    dirs[kind] = dir;
+  }
+  return dirs;
+}
+function gitOnlyBin() {
+  const bin = path.join(ownScratch('gb-'), 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  const g = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+  fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nexec "${g}" "$@"\n`, { mode: 0o755 });
+  return bin;
+}
+function runPwsh(mode, launcher, tokens, { cwd, env }) {
+  const base = ['-NoProfile', '-NonInteractive'];
+  const args = mode === 'file' ? [...base, '-File', launcher, ...tokens] : [...base, '-Command', `& '${launcher}' ${tokens.join(' ')}; exit $LASTEXITCODE`];
+  return spawnSync(PWSH, args, { cwd, encoding: 'utf8', env });
+}
+const normalize = (s, pairs) => pairs.reduce((t, [from, to]) => t.split(from).join(to), s)
+  .replace(/[0-9a-f]{40}/g, '<SHA>').replace(/(Commit: +)[0-9a-f]{7,}/g, '$1<SHORT>');
+const hasPwsh = () => {
+  if (PWSH) return true;
+  assert.ok(!process.env.CI, 'TEST-4027: pwsh is required on CI but is not on PATH');
+  console.log('SKIP-CASE: TEST-4027 needs pwsh, which is not installed here');
+  return false;
+};
+function measure(kind, mode, id, tokens, opts, dirs, bin) {
+  const cwd = matrixRepo(opts.repo ?? 'repo');
+  const pathVar = opts.nonode ? gitOnlyBin() : `${bin}${path.delimiter}${process.env.PATH}`;
+  const r = runPwsh(mode, path.join(dirs[kind], 'aai-release.ps1'), tokens, { cwd, env: MATRIX_ENV({ ...(opts.env ?? {}), PATH: pathVar }) });
+  const pairs = [[dirs[kind], '<L>'], [cwd, '<R>'], [path.dirname(cwd), '<RP>']];
+  return { code: r.status, out: normalize(r.stdout ?? '', pairs), err: normalize(r.stderr ?? '', pairs) };
+}
+
+test('TEST-4027 the frozen launcher reference is hash-verified and D-RELEASE-MATRIX M01 to M16, M17, M19 and M21 to M26 give identical results old and new, by -File and in session', () => {
+  if (!hasPwsh()) return;
+  const dirs = launcherDirs();
+  const { bin, log } = stubBin();
+  const diffs = [];
+  const seen = [];
+  for (const [id, tokens, opts = {}] of MATRIX) {
+    let newFile = null;
+    for (const mode of ['file', 'session']) {
+      const o = measure('old', mode, id, tokens, opts, dirs, bin);
+      const n = measure('new', mode, id, tokens, opts, dirs, bin);
+      if (mode === 'file') newFile = n;
+      const known = MEASURED_BARE_WORD[`${id} ${mode}`];
+      if (known) {
+        // A measured case of DR-R3 (the old binder takes a bare word by position): the old value and the new one are both pinned.
+        seen.push(`${id} ${mode}`);
+        if (!known.old(o) || JSON.stringify(n) !== JSON.stringify(known.new(newFile))) diffs.push(`${id} ${mode} (measured bare word): old=${JSON.stringify(o)} new=${JSON.stringify(n)}`);
+      } else if (o.code !== n.code || o.out !== n.out || o.err !== n.err) diffs.push(`${id} ${mode}: old=${JSON.stringify(o)} new=${JSON.stringify(n)}`);
+    }
+  }
+  assert.deepEqual(seen.sort(), Object.keys(MEASURED_BARE_WORD).sort(), 'every measured bare-word case was observed');
+  assert.deepEqual(diffs, [], diffs.join('\n'));
+  assert.equal(log('gh') + log('az'), '', 'no hosting platform call');
+});
+
+test('TEST-4027 M08 and M09 really cut the local release branch and M16 names the missing node with exit 20 (negative controls on the matrix)', () => {
+  if (!hasPwsh()) return;
+  const dirs = launcherDirs();
+  const { bin } = stubBin();
+  const cut = measure('new', 'file', 'M08', ['-Confirm', '-NoRemote', '-Version', 'v9'], {}, dirs, bin);
+  assert.equal(cut.code, 0, cut.err);
+  assert.ok(cut.out.includes('cut complete'), cut.out);
+  const nonode = measure('new', 'file', 'M16', ['-DryRun'], { nonode: true }, dirs, bin);
+  assert.deepEqual([nonode.code, nonode.out, nonode.err.trim()], [20, '', MISSING_NODE]);
+  const outside = measure('new', 'session', 'M12', ['-DryRun'], { repo: 'none' }, dirs, bin);
+  assert.equal(outside.code, 10, outside.err);
+  const nolog = measure('new', 'session', 'M13', ['-DryRun'], { repo: 'nochangelog' }, dirs, bin);
+  assert.equal(nolog.code, 11, nolog.err);
+});
+
+test('TEST-4027 M18 and M20 give the New column of DR-R2 and DR-R4 under the new launcher, by -File and in session', () => {
+  if (!hasPwsh()) return;
+  const dirs = launcherDirs();
+  const { bin } = stubBin();
+  for (const [id, tokens, code, errLines] of DR) {
+    for (const mode of ['file', 'session']) {
+      const n = measure('new', mode, id, tokens, {}, dirs, bin);
+      assert.deepEqual([n.code, n.out, n.err.split(/\r?\n/).filter((l) => l !== '')], [code, '', errLines], `${id} ${mode}`);
+    }
+  }
+});

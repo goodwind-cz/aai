@@ -617,7 +617,7 @@ test_3444_line_budget_and_rfc() {
   out="$(env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3444: test_2624_inventory_matches_tree exited $rc"; }
   row="$(/usr/bin/grep '^| 5 | ' "$RFC17" || true)"
-  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3444: the phase 5 row is not in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$RFC17" 2>&1)" || log_fail "TEST-3444: $p5"
   [[ "$row" == *"$D_RFC_SENTENCE"* ]] || log_fail "TEST-3444: the phase 5 row lacks the D-RFC sentence"
   n="$(/usr/bin/grep -cF -- "$D_RFC_SENTENCE" "$RFC17" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3444: the D-RFC sentence appears $n times, expected once"

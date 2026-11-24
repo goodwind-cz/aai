@@ -39,11 +39,55 @@ export function usage(launcher) {
   ];
 }
 
+// PS1_FLAGS: the PowerShell spellings (lower-cased) accepted under --launcher ps1 and the double-dash flag each stands for.
+const PS1_FLAGS = { '-version': '--version', '-dryrun': '--dry-run', '-confirm': '--confirm', '-yes': '--yes', '-noremote': '--no-remote' };
+
+// matchPs1Flag: a PowerShell flag name by its full name or an unambiguous prefix, as the old parameter binder bound it, in any
+// letter case. Returns { flag }, { ambiguous: [names] } for a prefix of more than one flag, or null.
+function matchPs1Flag(name, table = PS1_FLAGS) {
+  const low = name.toLowerCase();
+  if (low.length < 2) return null;
+  if (table[low]) return { flag: table[low] };
+  const hits = Object.keys(table).filter((k) => k.startsWith(low));
+  if (hits.length === 1) return { flag: table[hits[0]] };
+  return hits.length > 1 ? { ambiguous: hits } : null;
+}
+
+// ps1Form: under --launcher ps1 a PowerShell spelling mapped to the double-dash form ('' = a switch given false), a
+// { ambiguous } refusal, or null when it is not a PowerShell flag.
+function ps1Form(a, table) {
+  const m = /^(-[A-Za-z]+)(?::([\s\S]*))?$/.exec(a);
+  const hit = m && matchPs1Flag(m[1], table);
+  if (!hit || hit.ambiguous) return hit;
+  if (m[2] === undefined) return hit.flag;
+  if (hit.flag === '--version') return `--version=${m[2]}`;
+  const b = /^\$?(true|false)$/i.exec(m[2]);
+  return !b ? null : b[1].toLowerCase() === 'true' ? hit.flag : '';
+}
+
 // parseArgs: the launcher pair comes first, the user's flags follow verbatim. Returns the options or { error, code }.
-export function parseArgs(argv, env = {}) {
+export function parseArgs(argv, env = {}, ps1Flags = PS1_FLAGS) {
   const o = { launcher: 'sh', launcherPath: '', version: '', dryRun: false, confirm: false, noRemote: env.AAI_RELEASE_NO_REMOTE === '1', help: false };
+  let bare = null;
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
+    let orig = argv[i];
+    // Windows PowerShell 5.1 under -File hands -Switch:value over as two tokens (-Switch: then the value): join them.
+    if (o.launcher === 'ps1' && /^-[A-Za-z]+:$/.test(orig) && i + 1 < argv.length && !/^-[A-Za-z]/.test(argv[i + 1])) orig += argv[++i];
+    // It may also drop the colon (-Switch, then the boolean word): a switch followed by a boolean word takes it as its value.
+    else if (o.launcher === 'ps1' && /^-[A-Za-z]+$/.test(orig) && /^\$?(true|false)$/i.test(argv[i + 1] ?? '')) {
+      const hit = matchPs1Flag(orig, ps1Flags);
+      if (hit?.flag && hit.flag !== '--version') orig += `:${argv[++i]}`;
+    }
+    const mapped = o.launcher === 'ps1' ? ps1Form(orig, ps1Flags) : null;
+    if (mapped === '') continue;
+    if (mapped?.ambiguous) return { error: [`REFUSED: ambiguous argument ${orig}: matches ${mapped.ambiguous.join(', ')}.`], code: EXIT.USAGE };
+    const a = mapped ?? orig;
+    // The first bare word is the version, as the old launcher bound it by position; it is checked after the loop.
+    if (o.launcher === 'ps1' && mapped === null && orig !== '' && !orig.startsWith('-')) {
+      if (bare !== null) return { error: [`Unknown argument: ${orig}`, 'Run with --help for usage.'], code: EXIT.USAGE };
+      bare = orig;
+      continue;
+    }
     if (a === '--launcher' && (argv[i + 1] === 'sh' || argv[i + 1] === 'ps1')) o.launcher = argv[++i];
     else if (a === '--launcher-path' && i + 1 < argv.length) o.launcherPath = argv[++i];
     else if (a === '--version' || a.startsWith('--version=')) {
@@ -55,7 +99,11 @@ export function parseArgs(argv, env = {}) {
     else if (a === '--confirm' || a === '--yes') o.confirm = true;
     else if (a === '--no-remote') o.noRemote = true;
     else if (a === '-h' || a === '--help') { o.help = true; return o; }
-    else return { error: [`Unknown argument: ${a}`, 'Run with --help for usage.'], code: EXIT.USAGE };
+    else return { error: [`Unknown argument: ${orig}`, 'Run with --help for usage.'], code: EXIT.USAGE };
+  }
+  if (bare !== null) {
+    if (o.version) return { error: [`Unknown argument: ${bare}`, 'Run with --help for usage.'], code: EXIT.USAGE };
+    o.version = bare;
   }
   if (o.dryRun) o.confirm = false;
   if (!o.launcherPath) o.launcherPath = path.join(HERE, o.launcher === 'ps1' ? 'aai-release.ps1' : 'aai-release.sh');

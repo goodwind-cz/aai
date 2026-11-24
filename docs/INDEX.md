@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (47)
+## Product (48)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -46,6 +46,7 @@ _None._
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
 | live-status-dashboard | live-status-dashboard | 2 | docs/product/live-status-dashboard.md |
+| node-first-phase5-closeout | node-first-phase5-closeout | 1 | docs/product/node-first-phase5-closeout.md |
 | original-request-outcome-backcheck | original-request-outcome-backcheck | 1 | docs/product/original-request-outcome-backcheck.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
@@ -69,7 +70,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (693)
+## Done (695)
 
 | ID | Type | Path |
 |---|---|---|
@@ -333,6 +334,7 @@ _None._
 | CHANGE-0263 | issues | docs/issues/CHANGE-0263-pre-commit-installer-on-node.md |
 | CHANGE-0264 | issues | docs/issues/CHANGE-0264-installer-l3-protected.md |
 | CHANGE-0265 | issues | docs/issues/CHANGE-0265-sync-on-node.md |
+| CHANGE-0266 | issues | docs/issues/CHANGE-0266-node-first-phase5-closeout.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -764,6 +766,7 @@ _None._
 | SPEC-0308 | specs | docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md |
 | SPEC-0309 | specs | docs/specs/SPEC-0309-spec-installer-l3-protected.md |
 | SPEC-0310 | specs | docs/specs/SPEC-0310-spec-sync-on-node.md |
+| SPEC-0311 | specs | docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -799,7 +802,7 @@ _None._
 
 _None._
 
-## Broken references (611)
+## Broken references (612)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -836,6 +839,7 @@ _None._
 | tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185419Z-hosta.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185420Z-hostb.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20260101-000000.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20260102-060405.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-185419.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-190000.md | NOT FOUND |
@@ -1451,4 +1455,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-22 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-24 — counts above use this date for overdue checks.

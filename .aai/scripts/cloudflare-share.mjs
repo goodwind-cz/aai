@@ -14,7 +14,9 @@ const URL_RE = /https:\/\/[^\s]+\.pages\.dev/;
 const USAGE = 'Usage: cloudflare-share <document.md>';
 const SECRET_VARS = ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_KEY'];
 
-const ANSI_RE = /\u001b(?:\[[0-?]*[ -\/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g;
+// Escapes: CSI, OSC (ended by BEL or ST), nF, Fp, Fe and Fs (D-REDACT); a lone ESC is removed afterwards.
+const ANSI_RE = /\u001b(?:\[[0-?]*[ -\/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[ -\/]+[0-~]|[0-?]|[@-_]|[`-~])/g;
+const MIN_SECRET_WINDOW = 8;
 
 export function parseArgs(argv) {
   if (argv.length === 1 && (argv[0] === '-h' || argv[0] === '--help')) return { help: true };
@@ -32,9 +34,28 @@ export function extractUrl(text) {
 }
 
 export function redact(text, env) {
-  const values = SECRET_VARS.map((k) => env[k]).filter((v) => typeof v === 'string' && v.length >= 8);
+  const values = SECRET_VARS.map((k) => env[k]).filter((v) => typeof v === 'string' && v.length >= MIN_SECRET_WINDOW);
   values.sort((a, b) => b.length - a.length);
   return values.reduce((t, v) => t.split(v).join('[REDACTED]'), text);
+}
+
+// The failure echo: whole values first, then escapes, then every run holding a secret window.
+export function echoText(text, env) {
+  const values = SECRET_VARS.map((k) => env[k]).filter((v) => typeof v === 'string' && v.length >= MIN_SECRET_WINDOW);
+  const clean = redact(text, env).replace(ANSI_RE, '').replace(/\u001b/g, '').replace(/\n+$/, '');
+  const covered = new Array(clean.length).fill(false);
+  for (const v of values) {
+    for (let i = 0; i + MIN_SECRET_WINDOW <= v.length; i += 1) {
+      const win = v.slice(i, i + MIN_SECRET_WINDOW);
+      for (let at = clean.indexOf(win); at !== -1; at = clean.indexOf(win, at + 1)) covered.fill(true, at, at + MIN_SECRET_WINDOW);
+    }
+  }
+  let result = '';
+  for (let i = 0; i < clean.length; i += 1) {
+    if (!covered[i]) result += clean[i];
+    else if (i === 0 || !covered[i - 1]) result += '[REDACTED]';
+  }
+  return result;
 }
 
 export function historyLine({ timestamp, document, url, sizeKb }) {
@@ -117,7 +138,7 @@ export function run(opts, deps) {
     const url = dep.status === 0 ? (extractUrl(stdout) ?? extractUrl(stderr)) : null;
     if (!url) {
       err('ERROR: Deployment failed or URL not found');
-      err(redact(redact(`${stdout}${stderr}`, env).replace(ANSI_RE, '').replace(/\n+$/, ''), env));
+      err(echoText(`${stdout}${stderr}`, env));
       return 1;
     }
     const sizeKb = Math.round((sizeOf(fsApi, publish) / 1024) * 100) / 100;

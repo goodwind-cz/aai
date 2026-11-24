@@ -1,5 +1,5 @@
 # aai-release.ps1 launcher cases for aai-release.mjs and release-cut.mjs (spec-release-on-node TEST-3472;
-# spec-release-publish-on-node TEST-3529, DB-10 and DB-19).
+# spec-release-publish-on-node TEST-3529, DB-10 and DB-19; spec-node-first-phase5-closeout TEST-4028, the thin launcher).
 # Each case launches aai-release.ps1 with the engine running the test ((Get-Process -Id $PID).Path), so the
 # Windows PowerShell 5.1 step tests 5.1 and the pwsh 7 steps test pwsh 7. Fixtures are git repositories in
 # TestDrive written as bytes with [System.IO.File]::WriteAllBytes (the bytes do not depend on the engine), with
@@ -68,6 +68,11 @@ Describe 'aai-release.ps1 via aai-release.mjs' {
       $se = $p.StandardError.ReadToEndAsync()
       $p.WaitForExit()
       return [pscustomobject]@{ Code = $p.ExitCode; Out = $so.Result; Err = $se.Result }
+    }
+    function Invoke-Session {
+      param([string]$WorkDir, [string]$ScriptArgs)
+      $cmd = "& '" + $script:Script + "' " + $ScriptArgs + "; exit `$LASTEXITCODE"
+      return (Invoke-Engine $WorkDir ('-NoProfile -NonInteractive -Command "' + ($cmd -replace '"', '\"') + '"'))
     }
     function Get-BlobText {
       param([string]$Dir, [string]$Spec)
@@ -183,13 +188,13 @@ Describe 'aai-release.ps1 via aai-release.mjs' {
     $r.Err | Should -Be ''
   }
 
-  It 'DB-21 -Version with no value gets the PowerShell binder error, exit 1, and nothing runs' {
+  It 'DB-21 -Version with no value is refused by the module, exit 1, and nothing runs' {
     $d = New-Project 'db21' $script:Good
     $head = Invoke-Git $d @('rev-parse', 'HEAD')
     $r = Invoke-Script $d '-NoRemote -Version'
     $r.Code | Should -Be 1 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $r.Out | Should -Be ''
-    $r.Err | Should -Match 'Version'
+    $r.Err.Trim() | Should -Be 'REFUSED: --version needs a value.'
     (Invoke-Git $d @('rev-parse', 'HEAD')) | Should -Be $head
     (Invoke-Git $d @('branch', '--list', 'chore/release-*')) | Should -Be ''
   }
@@ -219,5 +224,89 @@ Describe 'aai-release.ps1 via aai-release.mjs' {
     $r = Invoke-Engine $d ('-NoProfile -NonInteractive -Command "' + ($cmd -replace '"', '\"') + '"')
     $r.Code | Should -Be 12 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $r.Err | Should -BeLike 'REFUSED: malformed [[]unreleased] heading*'
+  }
+
+  It 'TEST-4028 takes every PowerShell flag form in any letter case by -File' {
+    $d = New-Project 'f4028' $script:Good
+    foreach ($a in @('-Version v9 -DryRun -NoRemote', '-version v9 -dryrun -noremote', '-VERSION:v9 -DRYRUN -NOREMOTE', '-Version:v9 -DryRun:$true -NoRemote:true', '-Ver v9 -Dry -NoR', 'v9 -DryRun -NoRemote')) {
+      $r = Invoke-Script $d $a
+      $r.Code | Should -Be 0 -Because ($a + " stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+      ($r.Out -split "\r?\n") | Should -Contain '- Resolved version: v9'
+      $r.Err | Should -Be ''
+    }
+    $c = Invoke-Script $d '-Yes -NoRemote -Version v9'
+    $c.Code | Should -Be 0 -Because ("stdout=[" + $c.Out + "] stderr=[" + $c.Err + "]")
+    (Invoke-Git $d @('branch', '--list', 'chore/release-v9')) | Should -Match 'chore/release-v9'
+  }
+
+  It 'TEST-4028 takes every PowerShell flag form in any letter case in session' {
+    $d = New-Project 's4028' $script:Good
+    foreach ($a in @('-Version v9 -DryRun -NoRemote', '-version v9 -dryrun -noremote', '-VERSION:v9 -DRYRUN -NOREMOTE', '-Version:v9 -DryRun:$true -NoRemote:$true', '-Ver v9 -Dry -NoR', 'v9 -DryRun -NoRemote')) {
+      $r = Invoke-Session $d $a
+      $r.Code | Should -Be 0 -Because ($a + " stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+      ($r.Out -split "\r?\n") | Should -Contain '- Resolved version: v9'
+      $r.Err | Should -Be ''
+    }
+    $c = Invoke-Session $d '-Confirm -NoRemote -Version v9'
+    $c.Code | Should -Be 0 -Because ("stdout=[" + $c.Out + "] stderr=[" + $c.Err + "]")
+    (Invoke-Git $d @('branch', '--list', 'chore/release-v9')) | Should -Match 'chore/release-v9'
+  }
+
+  It 'TEST-4028 reads a switch given false by colon as off, by -File and in session, and cuts nothing' {
+    $d = New-Project 'false4028' $script:Good
+    $f = Invoke-Script $d '-Confirm:$false -NoRemote -Version v9'
+    $f.Code | Should -Be 0 -Because ("stdout=[" + $f.Out + "] stderr=[" + $f.Err + "]")
+    $f.Out | Should -Match '## aai-release \(plan\)'
+    $s = Invoke-Session $d '-Confirm:$false -Yes:$false -NoRemote -Version v9'
+    $s.Code | Should -Be 0 -Because ("stdout=[" + $s.Out + "] stderr=[" + $s.Err + "]")
+    $s.Out | Should -Match '## aai-release \(plan\)'
+    (Invoke-Git $d @('branch', '--list', 'chore/release-*')) | Should -Be ''
+  }
+
+  It 'TEST-4028 names the missing node on one stderr line with exit 20 and writes nothing to stdout' {
+    $d = New-Project 'nonode4028' $script:Good
+    $bin = New-GitOnlyBin 'gitonly4028'
+    foreach ($a in @('-DryRun -Version v9', '-Yes -NoRemote -Version v9')) {
+      $r = Invoke-Script $d $a $bin
+      $r.Code | Should -Be 20 -Because ($a + " stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+      $r.Err.Trim() | Should -Be ('REFUSED: missing-node ' + $script:Dash + ' Node.js 22 or later is required for /aai-release (https://nodejs.org/); nothing was changed.')
+      $r.Out | Should -Be ''
+    }
+    (Invoke-Git $d @('branch', '--list', 'chore/release-*')) | Should -Be ''
+  }
+
+  It 'TEST-4028 passes the exit code of the module through, by -File and in session' {
+    $d = New-Project 'exit4028' $script:Good
+    [void](Invoke-Git $d @('tag', 'v9'))
+    $f = Invoke-Script $d '-Confirm -NoRemote -Version v9'
+    $f.Code | Should -Be 15 -Because ("stdout=[" + $f.Out + "] stderr=[" + $f.Err + "]")
+    $s = Invoke-Session $d '-Confirm -NoRemote -Version v9'
+    $s.Code | Should -Be 15 -Because ("stdout=[" + $s.Out + "] stderr=[" + $s.Err + "]")
+    $u = Invoke-Script $d '-Bogus'
+    $u.Code | Should -Be 1
+    @($u.Err -split "\r?\n" | Where-Object { $_ -ne '' }) | Should -Be @('Unknown argument: -Bogus', 'Run with --help for usage.')
+  }
+
+  It 'TEST-4028 dot-sourcing the launcher starts no node' {
+    $d = New-Project 'dotnode4028' $script:Good
+    $bin = Join-Path $TestDrive 'stubnode4028'
+    New-Item -ItemType Directory -Force -Path $bin | Out-Null
+    $mark = Join-Path $TestDrive 'node-was-run.txt'
+    if ($script:IsWin) {
+      [IO.File]::WriteAllText((Join-Path $bin 'node.cmd'), "@echo off`r`necho ran>> `"$mark`"`r`n")
+    } else {
+      $p = Join-Path $bin 'node'
+      [IO.File]::WriteAllText($p, "#!/bin/sh`necho ran >> `"$mark`"`n")
+      & chmod +x $p
+    }
+    $savedPath = $env:PATH
+    try {
+      $env:PATH = $bin + [IO.Path]::PathSeparator + $env:PATH
+      $cmd = ". '" + $script:Script + "' -DryRun; 'DOT-OK'"
+      $r = Invoke-Engine $d ('-NoProfile -NonInteractive -Command "' + ($cmd -replace '"', '\"') + '"')
+    } finally { $env:PATH = $savedPath }
+    $r.Code | Should -Be 0 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+    $r.Out.Trim() | Should -Be 'DOT-OK'
+    Test-Path -LiteralPath $mark | Should -BeFalse
   }
 }

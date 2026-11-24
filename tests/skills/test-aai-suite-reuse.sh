@@ -1135,7 +1135,8 @@ test_133_nested_suite_lint_live_and_base
 test_134_nested_suite_disclosures
 test_137_hot_spot_disclosures
 test_138_ci_node_pins
-test_815_suite_map_and_registration"
+test_815_suite_map_and_registration
+test_4025_kept_native_gate_and_bite"
 
 # split_main_names <file>: the test_ names main() of a hygiene-style suite file calls, one per line.
 split_main_names() {
@@ -1170,7 +1171,7 @@ test_3331_hygiene_partition() {
   corpus="$(awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE")"
   [[ -n "$corpus" ]] || log_fail "TEST-3331: tests/skills/test-aai-hygiene-pack.sh declares no HYGIENE_CORPUS_CASES list"
   [[ "$corpus" == "$HYGIENE_CORPUS_EXPECTED" ]] \
-    || log_fail "TEST-3331: HYGIENE_CORPUS_CASES is not the 29 names of D2 in order; got: $corpus"
+    || log_fail "TEST-3331: HYGIENE_CORPUS_CASES is not the 30 names of D2 plus TEST-4025 in order; got: $corpus"
   main_now="$(split_main_names "$HYGIENE_PACK_FILE")"
   printf '%s\n' "$corpus" > "$work/corpus.names"
   printf '%s\n' "$main_now" > "$work/main.names"
@@ -1189,7 +1190,7 @@ test_3331_hygiene_partition() {
   [[ -z "$twice" ]] || log_fail "TEST-3331: a half names a case the definition file does not define: $twice"
   env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" > "$work/reg.out" 2>&1 || rc=$?
   [[ "$rc" -eq 0 ]] || { sed -n '1,20p' "$work/reg.out" >&2; log_fail "TEST-3331: check-test-registration.mjs exited $rc"; }
-  log_pass "TEST-3331 (hygiene pack: 29 corpus + $(wc -l < "$work/main.names" | tr -d ' ') main; baseline covered, every defined case in exactly one half, all registered)"
+  log_pass "TEST-3331 (hygiene pack: 30 corpus + $(wc -l < "$work/main.names" | tr -d ' ') main; baseline covered, every defined case in exactly one half, all registered)"
 }
 
 # win_fallback_ran <file> <entry> [args]: the case ids a suite entry runs when every case body is a recording stub.
@@ -1461,7 +1462,7 @@ split_baseline_cases() {
 # test_3330: the note holds one inventory row per full-run case of the five suites, with a class and a half.
 test_3330_split_inventory() {
   [[ -f "$SPLIT_NOTE" ]] || log_fail "TEST-3330: missing docs/analysis/precise-suite-evidence-reuse.md"
-  local base work suite want got corpus n=0 bad
+  local base work suite want got corpus n=0 bad hbase
   base="$(new_base)"; work="$base/m"
   [[ -n "$(split_note_section)" ]] || log_fail "TEST-3330: the note has no $SPLIT_NOTE_HEADING section"
   split_note_section | awk -F'|' '/^\| aai-/ && NF == 9 {for (i = 2; i <= 8; i++) gsub(/^ +| +$/, "", $i); print $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7 "\t" $8}' > "$work/rows.tsv"
@@ -1474,7 +1475,10 @@ test_3330_split_inventory() {
   done
   bad="$(awk -F'\t' '$3 !~ /^(index|wide|ledger|fixture)$/ || $7 !~ /^(fixture|corpus|unsplit)$/ || $5 !~ /^(yes|no)$/ {print $1 " " $2}' "$work/rows.tsv")"
   [[ -z "$bad" ]] || log_fail "TEST-3330: rows without one class out of index, wide, ledger, fixture and one half out of fixture, corpus, unsplit: $bad"
-  corpus="$( { awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE"
+  # A corpus case added after the baseline (test_4025 of node-first-phase5-closeout) has no inventory row: the inventory is the
+  # baseline's, so only the corpus names the baseline's full-run list holds are compared.
+  hbase="$(split_baseline_cases aai-hygiene-pack "$work")"
+  corpus="$( { awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE" | awk 'NR == FNR {b[$1]=1; next} ($1 in b)' <(printf '%s\n' "$hbase") -
                sed -n 's/^WIN_FALLBACK_CORPUS_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE" | tr ' ' '\n' | sed -n 's/^\(.*[0-9].*\)$/test_\1/p'; } | sort)"
   got="$(awk -F'\t' '$7 == "corpus" {print $2}' "$work/rows.tsv" | sort)"
   [[ "$got" == "$corpus" ]] || log_fail "TEST-3330: the corpus-half rows are not exactly HYGIENE_CORPUS_CASES plus WIN_FALLBACK_CORPUS_TESTS"

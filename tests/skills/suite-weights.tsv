@@ -312,3 +312,5 @@ aai-hook-installer-docs	196
 aai-sync-node	196
 # sample aai-sync-docs fallback unsampled (split from aai-sync-node by sync-on-node; no successful observation)
 aai-sync-docs	196
+# sample aai-phase5-closeout fallback unsampled (new suite of node-first-phase5-closeout; no successful observation)
+aai-phase5-closeout	196

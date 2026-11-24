@@ -1227,6 +1227,8 @@ suites:
       - .aai/scripts/release-notes-gate.mjs
       - .aai/SKILL_RELEASE.prompt.md
       - .aai/system/PROFILES.yaml
+      - tests/fixtures/aai-release-reference/**
+      - tests/skills/lib/release-reference.mjs
       - .github/workflows/ps1-quality.yml
       - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
       - tests/skills/test-aai-release-cut.sh
@@ -1976,6 +1978,19 @@ suites:
       - tests/skills/test-aai-expert-fetch.sh
       - tests/skills/test-aai-follow-ups.sh
       - tests/skills/lib/pipe-safe.sh
+
+  aai-phase5-closeout:
+    globs:
+      - CHANGELOG.md
+      - docs/analysis/node-first-remaining-plan.md
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - docs/product/node-first-phase5-closeout.md
+      - tests/skills/lib/script-classes.mjs
+      - .aai/scripts/*.sh
+      - .aai/scripts/*.ps1
+      - .aai/scripts/lib/*.sh
+      - tests/skills/test-aai-phase5-closeout.sh
+      - tests/skills/test-aai-follow-ups.sh
 
   aai-sync-node:
     globs:

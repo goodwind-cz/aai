@@ -587,13 +587,16 @@ test_2623_rfc_phase3_done() {
     const fm = lines.slice(0, 30).join("\n");
     if (!/^status: implementing$/m.test(fm)) bad.push("RFC status is not implementing");
     if (!/^umbrella: true$/m.test(fm)) bad.push("RFC is not umbrella: true");
-    for (const [n, want] of [["0", "in progress"], ["2", "done"], ["4", "not started"], ["5", "in progress"]]) {
+    for (const [n, want] of [["0", "in progress"], ["2", "done"], ["4", "not started"]]) {
       if (n === "4" && process.env.R4_PIN === "retired") continue;
       const c = cells(n);
       if (!c || c[2] !== want) bad.push("row " + n + " status is " + (c ? c[2] : "missing") + ", want " + want);
     }
     process.stdout.write(bad.join("; "));
   ' "$RFC17")"
+  # row 5: shared reader (done accepted only while the latest re-measure holds)
+  local p5
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$RFC17" 2>&1)" || out="${out:+$out; }$p5"
   [[ -z "$out" ]] || log_fail "TEST-2623: $out"
   log_pass "TEST-2623: RFC-0017 phase 3 is done, earlier slice text is unchanged, the umbrella stays implementing"
 }

@@ -333,7 +333,7 @@ test_3413_rfc() {
   [[ "$row" == *'| 488/464 |'* && "$row" == *'| phase 5 process adapter |'* ]] || log_fail "TEST-3413: the autonomous-loop row lost its lines or destination cells"
   [[ "$row" == *'retire-shell-loop-runner.md)'* && "$row" == *'a deprecation launcher for one release naming /aai-loop, deleted in the next'* ]] || log_fail "TEST-3413: the autonomous-loop row lacks the D6 reason and link"
   row="$(grep '^| 5 | ' "$RFC17" || true)"
-  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3413: the phase 5 row is not in progress"
+  p5="$(node "$PROJECT_ROOT/tests/skills/lib/phase5-row-status.mjs" "$RFC17" 2>&1)" || log_fail "TEST-3413: $p5"
   [[ "$row" == *"$D6_SENTENCE"* ]] || log_fail "TEST-3413: the phase 5 row lacks the D6 sentence"
   n="$(grep -cF -- "$D6_SENTENCE" "$RFC17" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3413: the D6 sentence appears $n times, expected once"

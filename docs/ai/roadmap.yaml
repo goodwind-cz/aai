@@ -178,6 +178,8 @@ pairs:
     status: done
   - capability: installer-l3-protected
     status: done
+  - capability: node-first-phase5-closeout
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

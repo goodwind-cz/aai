@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { phase5RowProblem } from './phase5-row-status.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(HERE, '..', '..', '..');
@@ -916,8 +917,14 @@ test('TEST-2716 the RFC-0017 phase 4 row records the byte pairs', () => {
   const pairs = [...joined.matchAll(/([0-9]+) to ([0-9]+) bytes/g)].map((m) => [Number(m[1]), Number(m[2])]);
   assert.ok(pairs.length >= 2, 'want at least two N to M bytes pairs, got ' + pairs.length);
   for (const [n, m] of pairs) assert.ok(m <= 0.4 * n, `${n} to ${m} bytes is not at most 0.40`);
-  for (const [n, want] of [['0', 'in progress'], ['2', 'done'], ['1', 'done'], ['3', 'done'], ['5', 'in progress']]) {
+  for (const [n, want] of [['0', 'in progress'], ['2', 'done'], ['1', 'done'], ['3', 'done']]) {
     assert.equal((cellStatus(byPhase[n]) || '').toLowerCase(), want, 'phase ' + n + ' row: ' + statusOf(n).slice(0, 80));
+  }
+  // phase 5: done is accepted only while the latest re-measure holds (shared reader, node-first-phase5-closeout)
+  assert.equal(phase5RowProblem(text, fs.readFileSync(path.join(PROJECT_ROOT, 'docs/analysis/node-first-remaining-plan.md'), 'utf8')), '');
+  {
+    const seeded = text.split('\n').map((l) => (l.startsWith('| 5 |') ? l.replace('| done |', '| not started |') : l)).join('\n');
+    assert.notEqual(phase5RowProblem(seeded, fs.readFileSync(path.join(PROJECT_ROOT, 'docs/analysis/node-first-remaining-plan.md'), 'utf8')), '', 'a wrong phase 5 status must be reported');
   }
 });
 
@@ -2743,9 +2750,10 @@ test('TEST-2825 the RFC-0017 phase 4 row links this slice and its status reads i
   const joined = byPhase['4'].join(' | ');
   assert.equal([...joined.matchAll(/\]\([^)]*recheck-verdict-binding\.md\)/g)].length, 1, 'one link target ends recheck-verdict-binding.md');
   assert.match(joined, /\]\([^)]*cheap-transitions-slice\.md\)/);
-  for (const [n, want] of [['0', 'in progress'], ['2', 'done'], ['1', 'done'], ['3', 'done'], ['5', 'in progress']]) {
+  for (const [n, want] of [['0', 'in progress'], ['2', 'done'], ['1', 'done'], ['3', 'done']]) {
     assert.equal((cellStatus(byPhase[n]) || '').toLowerCase(), want, 'phase ' + n);
   }
+  assert.equal(phase5RowProblem(text, readRel('docs/analysis/node-first-remaining-plan.md')), '');
 });
 
 // ------------------------------------------------------------------ TEST-2826
