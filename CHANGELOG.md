@@ -30,6 +30,15 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — Node-first cleanup: measured suite weights, release preflight isolation and guard fixes
+
+The skill-suite weights are measured from hosted runs and the selected-sharded leg is bounded again; four guards changed in ways a consumer can see.
+
+- The release preflight now runs each CHANGELOG-reading test in a throwaway clone with no remote and a scrubbed environment (its own HOME and cache), so a developer's remotes, tokens and PowerShell cache no longer change a release verdict, and the clone is removed afterwards.
+- The release dry-run report records a crashed or version-less PowerShell as null with `interpreterErrors` naming the failure, instead of passing it off as a version.
+- The pre-commit index hook close-gates and body-lints a doc renamed in the commit: the staged name lists are read with `--no-renames`, so a draft renamed to its numbered name that adds `status: done` is gated like any added file under `close_gate: enforce` and `body_lint: enforce`.
+- `merge-cleanup` sync-base and the resume of an interrupted sync refuse `write_outside_checkout` when a path they would write resolves outside the checkout (for example a `docs/ai` that is a link to another directory); nothing is written there and the step is kept.
+
 ## [v2026.11.24] — Node-first phase 5 closeout
 
 Every shipped script under `.aai/scripts` is now either a thin launcher or listed on purpose as kept native: the RFC-0017 kept-native table gains five rows (the Claude hook gate pre-filter and four bash libraries sourced by the bash test runner and suite framework), and a strict check in the always-on hygiene corpus fails on any script that is neither. Consumer-visible changes:

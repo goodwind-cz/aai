@@ -4233,6 +4233,69 @@ test_2930_symlink_overlap_never_written_through() {
   echo 'PASS: TEST-2930 a symlink where the sync would write is kept and never written through'
 }
 
+# outside_sig <dir>: every file under dir with its bytes' hash (the tree a refused sync must not touch).
+# The step journal is the engine's own bookkeeping: the steps that run before sync-base append to it
+# through the same link, so it is left out, as tree_sig leaves it out.
+outside_sig() {
+  [[ -n "$1" && "$1" = /* && -d "$1" ]] || fail SETUP 'outside_sig dir'
+  find "$1" -type f -print | LC_ALL=C sort | while IFS= read -r f; do
+    case "$f" in */journal.jsonl) continue ;; esac
+    printf '%s %s\n' "${f#"$1"/}" "$(sha_of "$f")"
+  done
+}
+
+# link_docs_ai: docs/ai of the origin becomes a symlink to an outside directory that holds the old content.
+link_docs_ai() {
+  OUT_AI="$W/outside-ai"
+  run mv "$ORIGIN/docs/ai" "$OUT_AI"
+  run ln -s "$OUT_AI" "$ORIGIN/docs/ai"
+}
+
+test_4045_sync_refuses_parent_link() {
+  local before after
+  build_world parent_link_sync
+  printf '{"v":1,"ts":"2026-10-09T00:00:09Z","actor":"fixture","event":"local-tail","ref":"seed","payload":{}}\n' >> "$ORIGIN/docs/ai/EVENTS.jsonl"
+  link_docs_ai
+  before="$(outside_sig "$OUT_AI")"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-4045 "exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-4045 "$ENG_OUT" '"reason":"write_outside_checkout"'
+  want TEST-4045 "$ENG_OUT" 'Kept: '
+  unwanted TEST-4045 "$ENG_OUT" 'Cleanup: complete.'
+  after="$(outside_sig "$OUT_AI")"
+  [[ "$before" == "$after" ]] || fail TEST-4045 "the directory outside the checkout changed: $(diff <(printf '%s\n' "$before") <(printf '%s\n' "$after"))"
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-4045 'main moved although the sync was kept'
+  echo 'PASS: TEST-4045 a docs/ai that links outside the checkout is kept as write_outside_checkout and the outside tree is untouched'
+}
+
+seed_linked_dir() {
+  run mkdir -p "$ORIGIN/docs/linked"
+  printf 'tracked bytes\n' > "$ORIGIN/docs/linked/note.txt"
+  run git -C "$ORIGIN" add docs/linked/note.txt
+}
+
+test_4046_resume_refuses_parent_link() {
+  local before after head arch
+  BASELINE_SEED=seed_linked_dir build_world parent_link_resume
+  head="$(git -C "$ORIGIN" rev-parse HEAD)"
+  arch="docs/ai/archive/merge-cleanup/pr-$PR/sync/docs/linked/note.txt"
+  run mkdir -p "$ORIGIN/$(dirname "$arch")"
+  printf 'saved local bytes\n' > "$ORIGIN/$arch"
+  printf '{"head":"%s","entries":[{"rel":"docs/linked/note.txt","archive":"%s","ledger":false}]}\n' "$head" "$arch" > "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json"
+  OUT_LINK="$W/outside-linked"
+  run mv "$ORIGIN/docs/linked" "$OUT_LINK"
+  run ln -s "$OUT_LINK" "$ORIGIN/docs/linked"
+  before="$(outside_sig "$OUT_LINK")"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-4046 "exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-4046 "$ENG_OUT" '"reason":"write_outside_checkout"'
+  after="$(outside_sig "$OUT_LINK")"
+  [[ "$before" == "$after" ]] || fail TEST-4046 'the resume wrote into the directory outside the checkout'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-4046 'the pending journal was consumed'
+  BASELINE_SEED=''
+  echo 'PASS: TEST-4046 a pending journal whose entry resolves outside the checkout stops with write_outside_checkout before any write'
+}
+
 test_2928_recovery_waits_for_protection_check() {
   local before
   BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world rec_protected
@@ -4793,7 +4856,8 @@ case "$SELECTED" in
      test_3753_archive_runtime_writes_missing_runs; test_3754_flushed_state_changes_nothing; test_3755_plan_names_the_recovery_read_only; test_3756_unwritable_ledger_kept_with_command
      test_3759_interrupted_cleanup_writes_once; test_3760_run_in_main_ledger_not_rewritten; test_3761_run_merged_on_base_not_yet_pulled
      test_3772_unreadable_base_ledger_keeps_the_step; test_3773_unwritable_tmpdir_keeps_the_step; test_3774_plan_names_the_temp_write_failure
-     test_3771_test_026_is_hermetic; test_3777_changelog_and_product_doc ;;
+     test_3771_test_026_is_hermetic; test_3777_changelog_and_product_doc
+     test_4045_sync_refuses_parent_link; test_4046_resume_refuses_parent_link ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -4896,5 +4960,7 @@ case "$SELECTED" in
   TEST-3774|test_3774_plan_names_the_temp_write_failure) test_3774_plan_names_the_temp_write_failure ;;
   TEST-3771|test_3771_test_026_is_hermetic) test_3771_test_026_is_hermetic ;;
   TEST-3777|test_3777_changelog_and_product_doc) test_3777_changelog_and_product_doc ;;
+  TEST-4045|test_4045_sync_refuses_parent_link) test_4045_sync_refuses_parent_link ;;
+  TEST-4046|test_4046_resume_refuses_parent_link) test_4046_resume_refuses_parent_link ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

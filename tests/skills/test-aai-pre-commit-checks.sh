@@ -1380,6 +1380,35 @@ test_3879_installed_hook_reads_the_commits_index() {
   log_pass "TEST-3879: through the installed hook a partial commit is judged on the commit's own index (blocked, HEAD unmoved) and 40 clean staged files commit"
 }
 
+test_4047_seterr_lint() {
+  local lint="$SCRIPT_DIR/lib/seterr-lint.mjs" out files fx
+  [[ -f "$lint" ]] || log_fail "TEST-4047: $lint does not exist"
+  fx="$TEST_DIR/seterr-fixtures"; mkdir -p "$fx"
+  printf '#!/usr/bin/env bash\nset -euo pipefail\ncheck() { false; }\ncheck || echo recovered\n' > "$fx/with-errexit.sh"
+  printf '#!/usr/bin/env bash\nset -uo pipefail\ncheck() { false; }\ncheck || echo recovered\n' > "$fx/without-errexit.sh"
+  # every tracked .aai shell script: zero findings
+  files="$TEST_DIR/aai-sh-files.txt"
+  git -C "$PROJECT_ROOT" ls-files -z -- '.aai/**/*.sh' > "$files"
+  [[ -s "$files" ]] || log_fail "TEST-4047: git lists no tracked .aai shell script"
+  out="$(node -e '
+    const fs = require("fs");
+    import(process.argv[1]).then((m) => {
+      const paths = fs.readFileSync(process.argv[2], "utf8").split("\0").filter(Boolean);
+      process.stdout.write(paths.length + " " + JSON.stringify(m.lintFiles(paths)));
+    });
+  ' "$lint" "$files")" || log_fail "TEST-4047: the lint crashed over the tracked scripts"
+  [[ "${out#* }" == "[]" ]] || log_fail "TEST-4047: findings in tracked .aai scripts: $out"
+  [[ "${out%% *}" -ge 20 ]] || log_fail "TEST-4047: the lint saw only ${out%% *} scripts"
+  out="$(node -e '
+    import(process.argv[1]).then((m) => {
+      const n = (f) => m.lintFiles([f]).length;
+      process.stdout.write(n(process.argv[2]) + " " + n(process.argv[3]));
+    });
+  ' "$lint" "$fx/with-errexit.sh" "$fx/without-errexit.sh")" || log_fail "TEST-4047: the lint crashed over the fixtures"
+  [[ "$out" == "1 0" ]] || log_fail "TEST-4047: fixture findings (with set -e, without) were '$out', expected '1 0'"
+  log_pass "TEST-4047: the errexit idiom lint is clean over the tracked .aai scripts and exact over the two fixtures"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3887, TEST-3918..3922)"
   check_deps
@@ -1427,6 +1456,7 @@ main() {
   test_3920_no_builtin_redirection_text
   test_3921_preservation_and_moved_pins
   test_3922_changelog_and_product_doc
+  test_4047_seterr_lint
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -67,7 +67,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
   # with no AC table of its own gates through its linked spec inside
   # docs-audit.mjs). docs/releases/ is not gated: a release plan carries no
   # acceptance table and no spec links to it.
-  git diff --cached --name-only -z --diff-filter=ACM > "$_aai_lists/gated"
+  git diff --cached --name-only -z --no-renames --diff-filter=ACM > "$_aai_lists/gated"
   # SPEC-0013 W2: newline-safe iteration -- an unquoted `for` word-splits paths
   # with spaces into nonexistent fragments whose failed `git show` silently
   # SKIPS the gate (the worst failure shape for a gate). D2: NUL-separated.
@@ -75,7 +75,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     case "$f" in docs/issues/*.md|docs/rfc/*.md|docs/specs/*.md|docs/requirements/*.md) ;; *) continue ;; esac
     # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
     # Capture, then here-string into grep -q (round 10, PR #381).
-    _staged_hunk="$(git diff --cached -U0 -- "$f")"
+    _staged_hunk="$(git diff --cached --no-renames -U0 -- "$f")"
     if grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)' <<<"$_staged_hunk"; then
       # Gate the STAGED content, not the worktree: materialize the staged blob so a
       # staged-but-unreconciled done cannot pass merely because the worktree carries
@@ -136,7 +136,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     BODY_LINT_MODE="enforce"
   fi
   BODY_LINT_FAILED=0
-  git diff --cached --name-only -z --diff-filter=ACM > "$_aai_lists/linted"
+  git diff --cached --name-only -z --no-renames --diff-filter=ACM > "$_aai_lists/linted"
   # SPEC-0013 W2: newline-safe iteration (see the close-gate loop above). D2: NUL-separated.
   while IFS= read -r -d '' f; do
     case "$f" in

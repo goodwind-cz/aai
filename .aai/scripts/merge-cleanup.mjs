@@ -382,6 +382,7 @@ function appendJsonl(file, obj) {
 // original+sha256 is already recorded. Never overwrites, never removes `src`.
 // `fresh` tells a repeat (nothing new written) from a first archive.
 function archiveFile(ctx, { src, destBase, original, reason, step }) {
+  if (escapesCheckout(ctx.origin, destBase)) stop('write_outside_checkout', original);
   try {
     if (seam('AAI_MERGE_CLEANUP_FAIL_ARCHIVE') === original) throw new Error('archive failed (test seam)');
     const bytes = fs.readFileSync(src);
@@ -412,8 +413,7 @@ const readBlob = (cwd, spec) => {
 
 // The roadmap as three latin1 strings: the main checkout's file, the HEAD blob, the incoming blob.
 function roadmapTexts(ctx, head, target) {
-  let local;
-  try { local = fs.readFileSync(path.join(ctx.origin, ROADMAP_PATH), 'latin1'); } catch { return null; }
+  let local; try { local = fs.readFileSync(path.join(ctx.origin, ROADMAP_PATH), 'latin1'); } catch { return null; }
   const headBlob = readBlob(ctx.origin, `${head}:${ROADMAP_PATH}`);
   const inBlob = readBlob(ctx.origin, `${target}:${ROADMAP_PATH}`);
   if (!headBlob || !inBlob) return null;
@@ -423,8 +423,7 @@ function roadmapTexts(ctx, head, target) {
 // D4: the local roadmap change against the HEAD blob, compared entry by entry with the incoming roadmap
 // (lib/merge-outcomes.mjs representedChanges). { represented, unrepresented } or null when a text is unreadable.
 function roadmapRepresented(ctx, head, target) {
-  const t = roadmapTexts(ctx, head, target);
-  return t ? representedChanges({ ...t, refs: mergedRefs(ctx), unproven: unprovenRefs(ctx) }) : null;
+  const t = roadmapTexts(ctx, head, target); return t ? representedChanges({ ...t, refs: mergedRefs(ctx), unproven: unprovenRefs(ctx) }) : null;
 }
 
 // The protection check: main checked out on the base, HEAD an ancestor of the fetched base (run before anything writes).
@@ -438,14 +437,19 @@ function syncGate({ origin, base }) {
   return { head, target };
 }
 
+// True when the nearest existing ancestor of abs resolves outside the checkout (a linked parent directory).
+function escapesCheckout(origin, abs) {
+  let p = path.resolve(abs); while (!fs.existsSync(p) && path.dirname(p) !== p) p = path.dirname(p);
+  const root = realOr(origin), real = realOr(p);
+  return real !== root && !real.startsWith(root + path.sep);
+}
 // Never write through a symlink (dangling too) or a directory; only ENOENT counts as deleted locally.
 const notFile = (abs) => { try { return !fs.lstatSync(abs).isFile(); } catch { return false; } };
 
 // Reads and decisions only, no writes. Returns { refusal: [reason, detail] } (a kept reason), { held: {...} } (a
 // decide item: pending or answered keep_local) or a plan. An answered take_incoming joins the plan.
 function planSync(ctx) {
-  const { origin } = ctx;
-  const gate = syncGate(ctx);
+  const { origin } = ctx; const gate = syncGate(ctx);
   if (gate.refusal || gate.head === gate.target) return gate.refusal ? gate : { noop: true, ...gate };
   const { head, target } = gate;
   const diff = git(origin, ['diff', '--name-status', '--no-renames', '-z', head, target]);
@@ -469,7 +473,7 @@ function planSync(ctx) {
     const isIndex = rel === INDEX_PATH;
     const isRoadmap = rel === ROADMAP_PATH;
     if (!isLedger && !isIndex && !incoming.has(rel)) continue;
-    if (notFile(path.join(origin, rel))) return { refusal: ['overlap_not_file', rel] };
+    const bad = notFile(path.join(origin, rel)) ? 'overlap_not_file' : escapesCheckout(origin, path.join(origin, rel)) ? 'write_outside_checkout' : null; if (bad) return { refusal: [bad, rel] };
     const evidence = [read(rel) ?? '', readBlob(origin, `${head}:${rel}`) ?? '', readBlob(origin, `${target}:${rel}`) ?? ''];
     if (staged.has(rel)) return { refusal: ['overlap_staged', rel] };
     if (isIndex) { plan.index = true; plan.replace.push(rel); continue; }
@@ -500,7 +504,7 @@ function planSync(ctx) {
     const abs = path.join(origin, rel);
     let st = null;
     try { st = fs.lstatSync(abs); } catch { continue; }
-    const inBlob = readBlob(origin, `${target}:${rel}`);
+    const inBlob = readBlob(origin, `${target}:${rel}`); if (escapesCheckout(origin, abs)) return { refusal: ['write_outside_checkout', rel] };
     if (st.isFile() && inBlob && fs.readFileSync(abs).equals(inBlob)) { plan.removeEqual.push({ rel, archive: false }); continue; }
     if (!st.isFile()) return { refusal: ['untracked_not_file', rel] };
     const held = clash('untracked_collision', rel, 'differs from the incoming file', [fs.readFileSync(abs), inBlob ?? '']);
@@ -537,14 +541,13 @@ function putBack(saved, headBlob, live) {
 // Re-append (or restore) from one pending journal. Returns a detail string when it
 // did work.
 function resumeSync(ctx, file) {
-  const { origin } = ctx;
-  const rel = posix(path.relative(origin, file));
+  const { origin } = ctx; const rel = posix(path.relative(origin, file));
   let pending;
   try { pending = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { stop('pending_unreadable', rel); }
   const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
   let entries;
   try { entries = pending.entries.map((e) => ({ ...e, saved: fs.readFileSync(path.join(origin, e.archive)), headBlob: readBlob(origin, `${pending.head}:${e.rel}`) })); } catch { stop('pending_unreadable', rel); }
-  if (entries.some((e) => !e.headBlob)) stop('pending_unreadable', `${rel}: HEAD blob of a journalled file is gone`);
+  if (entries.some((e) => !e.headBlob)) stop('pending_unreadable', `${rel}: HEAD blob of a journalled file is gone`); if (entries.some((e) => escapesCheckout(origin, path.join(origin, e.rel)) || escapesCheckout(origin, path.join(origin, e.archive)))) stop('write_outside_checkout', rel);
   let detail;
   if (headNow === pending.head) {
     // the fast-forward never happened: put the local bytes back after anything appended
@@ -571,8 +574,7 @@ function resumeSync(ctx, file) {
 }
 
 function mergeLedgerTails(ctx, items) {
-  const { origin, opts } = ctx;
-  const root = archiveRoot(origin, opts.pr);
+  const { origin, opts } = ctx; const root = archiveRoot(origin, opts.pr);
   const tmp = path.join(root, 'sync', '.tmp');
   for (const s of items) {
     fs.mkdirSync(tmp, { recursive: true });
@@ -601,8 +603,8 @@ function syncBase(ctx) {
   }
   if (plan.noop) return resumed ? { status: 'done', detail: resumed } : { status: 'noop', detail: 'already_at_target' };
   const { origin, opts } = ctx; const root = archiveRoot(origin, opts.pr); const saved = [], pendingEntries = [];
-  const odd = [...plan.ledgers, ...plan.replace, ...plan.removeEqual.map((r) => r.rel)].find((rel) => notFile(path.join(origin, rel)));
-  if (odd) halt('overlap_not_file', odd, { phase: 'plan' });
+  const planned = [...plan.ledgers, ...plan.replace, ...plan.removeEqual.map((r) => r.rel)], odd = planned.find((rel) => notFile(path.join(origin, rel))), outside = planned.find((rel) => escapesCheckout(origin, path.join(origin, rel)));
+  if (odd) halt('overlap_not_file', odd, { phase: 'plan' }); if (outside) halt('write_outside_checkout', outside, { phase: 'plan' });
   // Puts the pre-sync local bytes back after a failed fast-forward, keeping anything another
   // session appended meanwhile. Returns the files it could not prove safe to touch.
   const restore = () => {
@@ -899,8 +901,7 @@ function submoduleIgnored(wtPath, phase = 'verify') {
 // Archive each ignored regular file under worktree-submodules/ and record each entry that is
 // only named in removed.jsonl (deduplicated), before the worktree goes. A repeat adds nothing.
 function archiveSubmoduleIgnored(ctx, wt) {
-  const root = archiveRoot(ctx.origin, ctx.opts.pr);
-  const { files, named } = submoduleIgnored(wt.path, 'archive');
+  const root = archiveRoot(ctx.origin, ctx.opts.pr); const { files, named } = submoduleIgnored(wt.path, 'archive');
   for (const rel of files) {
     archiveFile(ctx, { src: path.join(wt.path, rel), destBase: path.join(root, 'worktree-submodules', rel), original: `worktree:${rel}`, reason: 'submodule_ignored', step: 'remove-worktree' });
   }
@@ -932,8 +933,7 @@ function submoduleTags(wtPath, member) {
 //   annotated:    git hash-object -t tag -w --stdin < objects/<oid>.tag   (prints <oid>), then git update-ref <ref> <oid>
 // Idempotent through archiveFile (one manifest line per file and content, reason submodule_tags).
 function archiveSubmoduleTags(ctx, wt) {
-  const root = archiveRoot(ctx.origin, ctx.opts.pr);
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-cleanup-tags-'));
+  const root = archiveRoot(ctx.origin, ctx.opts.pr); const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-cleanup-tags-'));
   try {
     for (const member of submoduleMembers(wt.path).members) {
       const tags = submoduleTags(wt.path, member);

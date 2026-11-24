@@ -576,7 +576,9 @@ test_307_clone_seam() {
 # Re-pinned by precommit-residual-defects (D2): the hook reads its staged name
 # lists NUL-separated (-z) into a scratch directory -- an intentional, in-scope
 # change, measured by VALIDATION r1's run of this test (its "got" value).
-PRECOMMIT_SHA256_BASELINE="94472712b7b9a4c5c4dd2361c4c1a1fe3c7dbdd26e893997514e37e9c6d8666f"
+# Re-pinned by node-first-cleanup (D-RENAME): the staged-doc lists and the per-file hunk read pass --no-renames
+# -- an intentional, in-scope change, measured by this test's own "got" value.
+PRECOMMIT_SHA256_BASELINE="35578c8d840cad57cd151b214b077d5234ec27498b6397ea5e00e5fea5390e6b"
 
 test_308_installer_contract() {
   local ok=1

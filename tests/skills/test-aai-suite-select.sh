@@ -2486,6 +2486,28 @@ test_4039_selected_sharded_bound() {  # Spec-AC-03 / TEST-4039
   log_pass "TEST-4039 (timeout-minutes 15; the PR #582 plan models runners=2 w2=$w2 <= 600)"
 }
 
+test_4048_cleanup_wiring() {  # Spec-AC-12 / TEST-4048
+  log_info "Test: the CHANGELOG heading names the four consumer-visible changes and the nine amendment records are held (TEST-4048)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" head body out n missing="" tmp
+  head='## [unreleased] — Node-first cleanup: measured suite weights, release preflight isolation and guard fixes'
+  /usr/bin/grep -qxF -- "$head" "$cl" || log_fail "TEST-4048: CHANGELOG.md lacks the exact heading: $head"
+  body="$(awk -v h="$head" '$0==h {on=1; next} on && /^## / {exit} on {print}' "$cl")"
+  for n in 'throwaway clone with no remote' 'scrubbed environment' 'interpreterErrors' 'renamed in the commit' 'sync-base' 'write_outside_checkout'; do
+    [[ "$body" == *"$n"* ]] || log_fail "TEST-4048: the CHANGELOG entry does not mention: $n"
+  done
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-cleanup-wiring.XXXXXX")"
+  ( cd "$PROJECT_ROOT" && node .aai/scripts/spec-amend.mjs list --json --status all --strict ) > "$tmp/out.json" 2> "$tmp/err.txt" \
+    || { cat "$tmp/err.txt" >&2; rm -rf "$tmp"; log_fail "TEST-4048: spec-amend list --strict did not exit 0"; }
+  out="$(cat "$tmp/out.json")"; rm -rf "$tmp"
+  missing="$(printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const have = new Set(j.items.filter((r) => r.ref_id === "node-first-cleanup").map((r) => (/SPEC-(\d{4})-/.exec(r.spec || "") || [])[1]));
+    process.stdout.write(["0310", "0281", "0307", "0306", "0283", "0308", "0284", "0279", "0311"].filter((x) => !have.has(x)).join(" "));
+  ')" || log_fail "TEST-4048: the amendment list was not parseable"
+  [[ -z "$missing" ]] || log_fail "TEST-4048: no node-first-cleanup amendment record for SPEC-$missing"
+  log_pass "TEST-4048 (heading, four changes, spec-amend list --strict exit 0, nine D-AMEND records)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -2569,6 +2591,7 @@ main() {
   test_4037_weights_measured
   test_4038_no_placeholder_pins
   test_4039_selected_sharded_bound
+  test_4048_cleanup_wiring
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
