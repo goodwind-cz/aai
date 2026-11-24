@@ -234,9 +234,10 @@ test_3454_small_input_parity() {
   # precommit-sentinel-trap (PCC_PARSED set to 0, the sentinel keyed on IN_REPO, the CHECK 4 skip-list comment),
   # then +50 -9 from precommit-residual-defects (the read-and-count loop with one re-read, a pipe probe before the batch read, STATE matched in the
   # shell, line lists walked by parameter expansion, tools looked up in a subshell);
+  # then +1 -1 from node-first-leftovers (D-BOM: the doc_number_guard grep accepts an optional leading BOM);
   # the seven fixtures above stay byte-identical.
   [[ "$numstat" == "243 40" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '243 40'"
-  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 242 added and 39 removed lines"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 243 added and 40 removed lines"
 }
 
 # shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.

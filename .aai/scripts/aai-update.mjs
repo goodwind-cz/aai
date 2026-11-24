@@ -70,9 +70,11 @@ const BOOL_WORDS = new Map([['true', true], ['false', false], ['$true', true], [
 const flagKey = (arg) => (arg.startsWith('--') ? arg : arg.toLowerCase());
 
 // isOption(word): a word this parser recognizes as a flag (help, a switch or a value flag, the equals form
-// included); after a value flag it is a missing value, never the value (--repo --dry-run must not drop the dry-run).
+// and the PowerShell colon forms included); after a value flag it is a missing value, never the value (--repo --dry-run
+// and -Ref -DryRun:true must not drop the switch).
 const isOption = (word) => {
-  const k = flagKey(word.startsWith('--') && word.indexOf('=') > 0 ? word.slice(0, word.indexOf('=')) : word);
+  const cut = word.startsWith('--') ? word.indexOf('=') : word.startsWith('-') ? word.indexOf(':') : -1;
+  const k = flagKey(cut > 0 ? word.slice(0, cut) : word);
   return word === '-h' || word === '--help' || Object.prototype.hasOwnProperty.call(SWITCH_FLAGS, k) || Object.prototype.hasOwnProperty.call(VALUE_FLAGS, k);
 };
 

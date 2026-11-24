@@ -609,6 +609,9 @@ describe('TEST-4050 colon and boolean-word grammar (node-first-leftovers D-UPDAT
     assert.equal(parseArgs(['-DryRun:maybe']).outcome, 'unknown', '-DryRun:maybe');
     assert.equal(parseArgs(['-Repo:']).outcome, 'value', '-Repo: with nothing after it');
     assert.equal(parseArgs(['-Repo:', '-DryRun']).outcome, 'value', '-Repo: before a flag');
+    // a colon-form switch after a value flag is a missing value, never the value (review NB-A)
+    assert.deepEqual(parseArgs(['-Ref', '-DryRun:true']), { ...D, outcome: 'value', arg: '-Ref' }, '-Ref before -DryRun:true');
+    assert.equal(parseArgs(['-Repo:', '-Force:false']).outcome, 'value', '-Repo: before -Force:false');
   });
 });
 
