@@ -5,7 +5,7 @@ security_relevant: true
 ```yaml
 review:
   scope: "git diff 0ff18d63..0c9ba67a (48 files: the STATE code_review.scope paths plus tests/skills/lib/phase5-row-status.mjs, its 14 caller files, the ledgers and docs/INDEX.md)"
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md (frozen, plus the 13 spec_amendment records of ref node-first-phase5-closeout)
+  spec: docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md (frozen, plus the 13 spec_amendment records of ref node-first-phase5-closeout)
   spec_compliance:
     verdict: pass
     ac_walk:

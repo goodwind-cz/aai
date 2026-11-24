@@ -5,7 +5,7 @@ capability: node-first-phase5-closeout
 status: current
 delivered_by:
   - node-first-phase5-closeout
-spec: docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md
+spec: docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md
 updated: 2026-11-23
 ---
 
@@ -42,6 +42,6 @@ None. The kept-native table is a Markdown table in RFC-0017; the strict check an
 
 ## Links
 
-- Request: docs/issues/CHANGE-DRAFT-node-first-phase5-closeout.md
-- Spec: docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md
+- Request: docs/issues/CHANGE-0266-node-first-phase5-closeout.md
+- Spec: docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md
 - Validation evidence: docs/ai/tdd/node-first-phase5-closeout/

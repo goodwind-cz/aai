@@ -491,7 +491,7 @@ test('TEST-3423 DR-20 the sh launcher without node prints the refusal on stderr 
 });
 
 // ---- TEST-4029: D-REDACT ----------------------------------------------------------------------------------
-// (docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md D-REDACT, Spec-AC-06; closes fu-cfshare-redact-escape-robust.)
+// (docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md D-REDACT, Spec-AC-06; closes fu-cfshare-redact-escape-robust.)
 // Every case goes through run with an injected failing deploy: the stderr lines run writes must hold no
 // window of 8 consecutive secret characters and no ESC byte. The values are fake test values.
 test('TEST-4029 D-REDACT a failed deploy echo holds no 8-character secret window and no ESC byte under any escape layout', () => {

@@ -1,5 +1,5 @@
 // Shared classifier for the shipped shell and PowerShell scripts under .aai/scripts
-// (docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md D-CLASS). One reading of the
+// (docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md D-CLASS). One reading of the
 // plan's section 1 method (docs/analysis/node-first-remaining-plan.md) and of the
 // "Kept native scripts" table of RFC-0017. Test-only; Node stdlib.
 //

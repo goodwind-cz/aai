@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-phase5-closeout
-# (docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md; TEST-4024, TEST-4033, TEST-4034, TEST-4035 and TEST-4036)
+# (docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md; TEST-4024, TEST-4033, TEST-4034, TEST-4035 and TEST-4036)
 #
 # The classification and record half of the RFC-0017 phase 5 closeout. TEST-4024 reads the Kept native scripts table of
 # RFC-0017 through parseKeptNative of tests/skills/lib/script-classes.mjs; TEST-4035 installs the extended profile with

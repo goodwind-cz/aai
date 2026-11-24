@@ -1,8 +1,8 @@
 ---
 id: node-first-phase5-closeout
 type: change
-number: null
-status: draft
+number: 266
+status: done
 capability: node-first-phase5-closeout
 user_visible: true
 parent: smaller-node-core-and-faster-feedback

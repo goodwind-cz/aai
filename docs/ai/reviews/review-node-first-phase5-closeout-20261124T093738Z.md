@@ -5,7 +5,7 @@ security_relevant: true
 ```yaml
 review:
   scope: "git diff 0c9ba67a..b315e492 (b3e9295d, f8c82711 and the EVENTS-only commits 9ecc17c3, 4194a7b5, b315e492); delta recheck of review r1 (0ff18d63..0c9ba67a)"
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md (frozen, plus the spec_amendment records of ref node-first-phase5-closeout); docs/specs/SPEC-0310-spec-sync-on-node.md for TEST-4021 and TEST-4022
+  spec: docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md (frozen, plus the spec_amendment records of ref node-first-phase5-closeout); docs/specs/SPEC-0310-spec-sync-on-node.md for TEST-4021 and TEST-4022
   spec_compliance:
     verdict: pass
     ac_walk:

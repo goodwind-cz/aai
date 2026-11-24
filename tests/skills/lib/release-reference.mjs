@@ -1,5 +1,5 @@
 // release-reference.mjs - the frozen release launcher reference and the scratch-safety helpers
-// (docs/specs/SPEC-DRAFT-spec-node-first-phase5-closeout.md, D-RELEASE).
+// (docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md, D-RELEASE).
 //
 // The reference is a byte copy of .aai/scripts/aai-release.ps1 (blob 1c910b53) at commit 0ff18d63, kept outside .aai/ so it is
 // never vendored. Its param block binds the PowerShell flags itself, so it is the oracle for the new thin launcher.

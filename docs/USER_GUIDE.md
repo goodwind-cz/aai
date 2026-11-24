@@ -2817,6 +2817,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Every shipped script is a thin launcher or kept native on purpose
+
+The AAI layer's shell and PowerShell scripts used to carry two copies of the same logic. After this change every script under `.aai/scripts` is either a thin launcher of one Node module (20 code lines or fewer, no policy of its own) or sits on a short, public list of scripts that stay native, each with a stated reason. A check that runs on every pull request fails when a new script is neither. Three smaller things ship with it: `aai-release.ps1` becomes a thin launcher and its module reads the PowerShell flag forms, the failure message of `/aai-share` no longer prints a run of 8 or more consecutive characters of `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_API_KEY`, nor an ESC byte (characters an unterminated escape consumes can still leave shorter fragments), and the install-path parity harness now also runs the shipped sync and update launchers and checks, on the native Windows job, that the update leaves no oddly named directory behind and that the sync records Windows paths in the Windows spelling.
+
+[Product doc](product/node-first-phase5-closeout.md) · [Spec](specs/SPEC-0311-spec-node-first-phase5-closeout.md)
+
 ### The git hook installer runs on Node behind thin launchers
 
 The hook installer puts the three AAI git hooks into the hooks directory git actually uses (`git rev-parse --git-path hooks/<name>`, which follows `core.hooksPath` and linked worktrees):
