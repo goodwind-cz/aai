@@ -1,10 +1,10 @@
 ---
 id: spec-node-first-leftovers
 type: spec
-number: null
-status: implementing
+number: 312
+status: done
 mutation_gate: v1
-frozen_sha256: 28d53573d060695097b1f9e7928b3c1b4849c9a12c4502c921d37c593447de99
+frozen_sha256: c6ede1fe6650e254335e1359dc56b758b0ce6ed48a71e5d465fc6aa1b48279d4
 ceremony_level: 3
 links:
   requirement: node-first-leftovers
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-node-first-leftovers.md (owner brief
+- Requirement: docs/issues/CHANGE-0267-node-first-leftovers.md (owner brief
   2026-11-24, second ride).
 - Sibling ride: `node-first-cleanup` (P2 items and suite weights). It edits
   other lines of `.aai/templates/git-hooks/pre-commit-index.sh`.

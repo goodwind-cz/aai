@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD of chore/node-first-leftovers (head 06ceb099, base 492f8b26)
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-leftovers.md
+  spec: docs/specs/SPEC-0312-spec-node-first-leftovers.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -61,7 +61,7 @@ security_relevant: true
 ## Scope and inputs
 
 - Scope: `git diff origin/main...HEAD` in /Users/ales/Projects/aai-worktrees/node-first-leftovers, head 06ceb099, 32 files.
-- Spec: docs/specs/SPEC-DRAFT-spec-node-first-leftovers.md (frozen, ceremony_level 3).
+- Spec: docs/specs/SPEC-0312-spec-node-first-leftovers.md (frozen, ceremony_level 3).
 - Read, not relied on: docs/ai/reports/VALIDATION-20261124T2046Z-node-first-leftovers.md (PASS).
 - Dispatch note (anti-gaming rule): the dispatch told the reviewer that a conflict with the sibling ride on the `git diff --cached` lines of pre-commit-index.sh and on the TEST-308 hash pin is "expected, not a finding", and named the validation NBs already filed. That is a scope exclusion. It is recorded here. The re-pin was reviewed anyway: the TEST-308 baseline comment names the D-BOM lines as the cause, and the two BOM greps are the only changes to that template in this diff. A merge order with the sibling needs one more re-pin on whichever lands second. That is a sequencing fact, not a defect in this diff.
 

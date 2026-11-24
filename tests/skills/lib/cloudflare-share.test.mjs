@@ -549,7 +549,7 @@ test('TEST-4029 D-REDACT a failed deploy echo holds no 8-character secret window
 });
 
 // ---- TEST-4049: D-ECHO gapped window ----------------------------------------------------------------------
-// (docs/specs/SPEC-DRAFT-spec-node-first-leftovers.md D-ECHO, Spec-AC-01; closes fu-cfshare-redact-eaten-chars.)
+// (docs/specs/SPEC-0312-spec-node-first-leftovers.md D-ECHO, Spec-AC-01; closes fu-cfshare-redact-eaten-chars.)
 // A complete CSI eats the character after the escape, so the echo can hold a secret with characters missing.
 // The property: no 8 consecutive echo characters appear in order inside any 10 consecutive secret characters.
 test('TEST-4049 D-ECHO the echo holds no gapped 8-character secret window and no ESC byte, for the repro and 200 seeded variants', () => {

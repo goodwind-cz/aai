@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "delta 06ceb099..HEAD, read inside origin/main...HEAD of chore/node-first-leftovers (head 35a5854f, base 492f8b26)"
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-leftovers.md
+  spec: docs/specs/SPEC-0312-spec-node-first-leftovers.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -53,7 +53,7 @@ security_relevant: true
 ## Scope and inputs
 
 - Scope: the delta `git diff 06ceb099..HEAD` (3 commits: 441e9bf1, ed75833f, 35a5854f), read in the context of the whole diff `git diff origin/main...HEAD` (33 files). Worktree /Users/ales/Projects/aai-worktrees/node-first-leftovers, HEAD 35a5854f, base 492f8b26.
-- Spec: docs/specs/SPEC-DRAFT-spec-node-first-leftovers.md (frozen, ceremony_level 3). It has not changed since 06ceb099.
+- Spec: docs/specs/SPEC-0312-spec-node-first-leftovers.md (frozen, ceremony_level 3). It has not changed since 06ceb099.
 - Prior record: docs/ai/reviews/review-node-first-leftovers-20261124T2156Z.md (PASS at 06ceb099). Read, not relied on: docs/ai/reports/VALIDATION-20261124T2212Z-node-first-leftovers.md (round 2, PASS at ed75833f).
 - Dispatch note (anti-gaming rule): the dispatch named the content of the delta (the NB-A fix, the NB-C text, ledger lines). It did not pre-rate severity or exclude an area. The whole diff was still read for context.
 - Preflight: STATE has `worktree.user_decision: worktree` and `base_ref: origin/main`. `git status --porcelain` was clean before the review. Only the two suite-run lines that the framework appends to docs/ai/tests/test-runs.jsonl were added during the review (see Probes).

@@ -181,7 +181,7 @@ pairs:
   - capability: node-first-phase5-closeout
     status: done
   - capability: node-first-leftovers
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
