@@ -2345,7 +2345,10 @@ test('CHANGELOG preflight clone is scrubbed',()=>{
  assert.ok(/^## \[(?:unreleased|v[^\]]+)\] — feat: alpha/m.test(fs.readFileSync('CHANGELOG.md','utf8')));
  assert.equal(rp(g('rev-parse','--git-dir')),rp(g('rev-parse','--git-common-dir')),'the checkout is a linked worktree');
  assert.equal(g('remote'),'','the checkout has a remote');
- for(const k of Object.keys(process.env))assert.ok(!/^(GH_|GITHUB_|GIT_|AAI_)/.test(k),k+' leaked into the preflight');
+ const own={GIT_CONFIG_NOSYSTEM:'1',GIT_TERMINAL_PROMPT:'0'};
+ for(const k of Object.keys(process.env))assert.ok(own[k]===process.env[k]||!/^(GH_|GITHUB_|GIT_|AAI_)/.test(k),k+' leaked into the preflight');
+ let helper='';try{helper=g('config','--get-all','credential.helper');}catch{}
+ assert.equal(helper,'','a git credential helper reaches the preflight: '+helper);
  const base=rp(path.dirname(process.cwd()));
  for(const k of ['HOME','XDG_CACHE_HOME'])assert.ok(process.env[k]&&rp(process.env[k]).startsWith(base+path.sep),k+' is outside the preflight temp root');
  fs.writeFileSync(MARKER,base);

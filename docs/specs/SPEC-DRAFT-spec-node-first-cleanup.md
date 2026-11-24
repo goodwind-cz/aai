@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: fba03693ad00e106a5082ca451b5217cb97169a33f0869d9b9328d86e7b27abd
+frozen_sha256: 1d3f57fd9de51f7315bfd281d0494a4d30495efde462ebc2c5ac597d191c799b
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -140,8 +140,11 @@ worktree of the real repository. It works in a fresh temp root:
      `PATHEXT`;
    - set to new directories under the temp root: `HOME` (also
      `USERPROFILE`), `XDG_CACHE_HOME`, `XDG_CONFIG_HOME`;
-   - nothing else. No `GH_*`, `GITHUB_*` or `GIT_*` variable, no SSH agent
-     socket, no `AAI_*` variable.
+   - `GIT_CONFIG_NOSYSTEM=1` and `GIT_TERMINAL_PROMPT=0`, so the system git
+     config (which can name an OS credential helper) is not read and git never
+     prompts;
+   - nothing else. No other `GH_*`, `GITHUB_*` or `GIT_*` variable, no SSH
+     agent socket, no `AAI_*` variable.
 3. It removes the whole temp root afterwards.
 
 Process-group handling and the timeout are unchanged. The

@@ -446,10 +446,12 @@ function preflightRun(commit,file){
  try{
   const wt=path.join(tmp,'repo'),home=path.join(tmp,'home'),cache=path.join(tmp,'cache'),conf=path.join(tmp,'config');
   for(const d of [home,cache,conf])fs.mkdirSync(d,{recursive:true});
-  // An allowlisted environment: the operator's credentials, GIT_*/GH_*/GITHUB_*/AAI_* variables and caches never reach the test.
+  // An allowlisted environment: the operator's credentials, GIT_*/GH_*/GITHUB_*/AAI_* variables and caches never reach the test
+  // (the only GIT_* keys it holds are the two set below).
   const env={};
   for(const k of ['PATH','LANG','LC_ALL','LC_CTYPE','TZ','TERM','TMPDIR','TEMP','TMP','SYSTEMROOT','WINDIR','COMSPEC','PATHEXT'])if(process.env[k]!==undefined)env[k]=process.env[k];
-  Object.assign(env,{HOME:home,USERPROFILE:home,XDG_CACHE_HOME:cache,XDG_CONFIG_HOME:conf});
+  // The system git config is not read either (it can name an OS credential helper), and git never prompts.
+  Object.assign(env,{HOME:home,USERPROFILE:home,XDG_CACHE_HOME:cache,XDG_CONFIG_HOME:conf,GIT_CONFIG_NOSYSTEM:'1',GIT_TERMINAL_PROMPT:'0'});
   const sh=(args,cwd)=>{const r=spawnSync('git',args,{cwd,encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024,env});if(r.error||r.status!==0)refuse('git-command',`git ${args.join(' ')}: ${r.error?.message||r.stderr?.trim()||`exit ${r.status}`}`);return r;};
   sh(['clone','--quiet','--shared','--no-checkout',root,wt],tmp);
   sh(['-C',wt,'checkout','--quiet','--detach',commit],tmp);
