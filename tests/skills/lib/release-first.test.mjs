@@ -594,3 +594,27 @@ test('TEST-011 profile inventory suite ownership product and release notes',()=>
   assert.match(product,/missing.*tool/i);
   assert.match(fs.readFileSync(path.join(root,changelog),'utf8'),/release.*dry-run/i);
 });
+test('TEST-4040 a crashing PowerShell probe is recorded as null with its exit status, never its output',t=> {
+  const dir=fixture(t, {
+    'tests/new.test.mjs':nodeReader(true).replace("includes('## [v2099.01.01] — Fixture')","match(/## \\[(?:unreleased|v2099.01.01)\\] — Fixture/ )")
+  });
+  const stub=path.join(dir,'..',path.basename(dir)+'-pwsh-stub.sh');
+  fs.writeFileSync(stub,'#!/bin/sh\necho "Unhandled exception. System.IO.FileLoadException: Could not load file or assembly"\nexit 134\n', {
+    mode:0o755
+  });
+  t.after(()=>fs.rmSync(stub, {
+    force:true
+  }));
+  const report=path.join(dir,'..',path.basename(dir)+'-report.json');
+  t.after(()=>fs.rmSync(report, {
+    force:true
+  }));
+  const r=dry(dir,['--report',report], {
+    AAI_RELEASE_DRY_PWSH:stub
+  });
+  assert.equal(r.status,0,r.text);
+  const j=JSON.parse(fs.readFileSync(report,'utf8'));
+  assert.equal(j.interpreters.powershell,null);
+  assert.equal(j.interpreterErrors.powershell,'exit 134');
+  assert.ok(!JSON.stringify(j).includes('FileLoadException'),'probe output is never recorded');
+});

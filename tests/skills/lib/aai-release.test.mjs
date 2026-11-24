@@ -757,6 +757,15 @@ const MATRIX_ENV = (extra = {}) => {
   for (const [k, v] of Object.entries(process.env)) if (!/^GIT_/.test(k)) env[k] = v;
   return { ...env, AAI_ROLE: '', AAI_GIT_WRITE: '', AAI_RELEASE_DATE: '2026-07-20', AAI_RELEASE_NO_REMOTE: '', GIT_CONFIG_NOSYSTEM: '1', ...extra };
 };
+// Every pwsh spawn gets its own cache directory, so a broken operator PowerShell cache cannot fail these cases.
+const PWSH_CACHES = [];
+after(() => { for (const d of PWSH_CACHES) fs.rmSync(d, { recursive: true, force: true }); });
+function pwshEnv(t, env = process.env) {
+  const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-pwsh-cache-'));
+  if (t && typeof t.after === 'function') t.after(() => fs.rmSync(cache, { recursive: true, force: true }));
+  else PWSH_CACHES.push(cache);
+  return { ...env, XDG_CACHE_HOME: cache };
+}
 const D = (...t) => t;
 const MATRIX = [
   ['M01', D('-h')], ['M02', D('--help')], ['M03', D('-Version', 'v9', '-DryRun')], ['M04', D('-Version:v9', '-DryRun')],
@@ -810,7 +819,7 @@ function gitOnlyBin() {
 function runPwsh(mode, launcher, tokens, { cwd, env }) {
   const base = ['-NoProfile', '-NonInteractive'];
   const args = mode === 'file' ? [...base, '-File', launcher, ...tokens] : [...base, '-Command', `& '${launcher}' ${tokens.join(' ')}; exit $LASTEXITCODE`];
-  return spawnSync(PWSH, args, { cwd, encoding: 'utf8', env });
+  return spawnSync(PWSH, args, { cwd, encoding: 'utf8', env: pwshEnv(null, env) });
 }
 const normalize = (s, pairs) => pairs.reduce((t, [from, to]) => t.split(from).join(to), s)
   .replace(/[0-9a-f]{40}/g, '<SHA>').replace(/(Commit: +)[0-9a-f]{7,}/g, '$1<SHORT>');

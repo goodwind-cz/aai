@@ -442,17 +442,25 @@ function recutRelease(newBase){
 }
 // Release preflight: the tracked node tests that read CHANGELOG run against the rolled tree before any push of a release head.
 function preflightRun(commit,file){
- const wt=fs.mkdtempSync(path.join(os.tmpdir(),'aai-release-pf.'));
+ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'aai-release-pf.'));
  try{
-  command('git',['worktree','add','-q','--detach',wt,commit]);
+  const wt=path.join(tmp,'repo'),home=path.join(tmp,'home'),cache=path.join(tmp,'cache'),conf=path.join(tmp,'config');
+  for(const d of [home,cache,conf])fs.mkdirSync(d,{recursive:true});
+  // An allowlisted environment: the operator's credentials, GIT_*/GH_*/GITHUB_*/AAI_* variables and caches never reach the test.
+  const env={};
+  for(const k of ['PATH','LANG','LC_ALL','LC_CTYPE','TZ','TERM','TMPDIR','TEMP','TMP','SYSTEMROOT','WINDIR','COMSPEC','PATHEXT'])if(process.env[k]!==undefined)env[k]=process.env[k];
+  Object.assign(env,{HOME:home,USERPROFILE:home,XDG_CACHE_HOME:cache,XDG_CONFIG_HOME:conf});
+  const sh=(args,cwd)=>{const r=spawnSync('git',args,{cwd,encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024,env});if(r.error||r.status!==0)refuse('git-command',`git ${args.join(' ')}: ${r.error?.message||r.stderr?.trim()||`exit ${r.status}`}`);return r;};
+  sh(['clone','--quiet','--shared','--no-checkout',root,wt],tmp);
+  sh(['-C',wt,'checkout','--quiet','--detach',commit],tmp);
+  sh(['-C',wt,'remote','remove','origin'],tmp);
   // Own process group: the timeout kills only the runner, so the whole group is killed afterwards (POSIX). Windows has no group; taskkill /T reaches only children the dead runner still parents, a documented limit.
-  const r=spawnSync(process.execPath,['--test',file],{cwd:wt,encoding:'utf8',timeout:preflightSeconds*1000,killSignal:'SIGKILL',maxBuffer:8*1024*1024,detached:process.platform!=='win32'});
+  const r=spawnSync(process.execPath,['--test',file],{cwd:wt,env,encoding:'utf8',timeout:preflightSeconds*1000,killSignal:'SIGKILL',maxBuffer:8*1024*1024,detached:process.platform!=='win32'});
   const timedOut=Boolean(r.error&&r.error.code==='ETIMEDOUT');
   if(r.pid){if(process.platform==='win32'){if(timedOut)spawnSync('taskkill',['/PID',String(r.pid),'/T','/F'],{windowsHide:true});}else{try{process.kill(-r.pid,'SIGKILL');}catch{}}}
   return {ok:!r.error&&r.status===0,timedOut,tail:`${r.stdout||''}${r.stderr||''}`.trim().split('\n').slice(-20).join('\n')};
  }finally{
-  command('git',['worktree','remove','--force',wt],root,true);
-  fs.rmSync(wt,{recursive:true,force:true});
+  fs.rmSync(tmp,{recursive:true,force:true});
  }
 }
 function releasePreflight(){
