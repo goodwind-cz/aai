@@ -434,8 +434,8 @@ test_3458_wiring() {
   done
   "$GREP" -qxF '      - tests/skills/pre-commit-checks-retired.Tests.ps1' <<< "$(row_globs aai-pre-commit-checks)" || log_fail "TEST-3458: the aai-pre-commit-checks row lacks the Pester glob"
   n="$(awk -F'\t' '$1=="aai-pre-commit-checks"{c++; w=$2} END{print c+0 ":" w}' "$tsv")"
-  [[ "$n" == "1:196" ]] || log_fail "TEST-3458: suite-weights holds aai-pre-commit-checks as '$n' (rows:weight), expected 1:196"
-  "$GREP" -qxF '# sample aai-pre-commit-checks fallback unsampled (new suite of pre-commit-checks-ps1-retire; no successful observation)' "$tsv" || log_fail "TEST-3458: suite-weights lacks the fallback-unsampled line"
+  [[ "$n" =~ ^1:[1-9][0-9]*$ ]] || log_fail "TEST-3458: suite-weights holds aai-pre-commit-checks as '$n' (rows:weight), expected one positive-integer row"
+  "$GREP" -qE '^# sample aai-pre-commit-checks (measured|fallback unsampled)' "$tsv" || log_fail "TEST-3458: suite-weights lacks the aai-pre-commit-checks sample line"
   [[ "$("$GREP" -cE '"\$row_count" -eq [0-9]+ \]\]' "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || true)" == 1 ]] || log_fail "TEST-3458: the hygiene pack does not hold exactly one literal row-count -eq line"
   for sel in test_090_suite_map_pin test_129_mutation_gate_suite_registration test_133_nested_suite_lint_live_and_base; do
     env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$sel" >"$TEST_DIR/w.out" 2>&1 || { tail -8 "$TEST_DIR/w.out" >&2; log_fail "TEST-3458: test-aai-hygiene-pack.sh $sel failed"; }

@@ -361,9 +361,9 @@ test_3512_wiring() {
     out="$(selected_in "$PROJECT_ROOT" "$f")"
     [[ "$out" == *'SELECTED aai-hook-gate '* ]] || log_fail "TEST-3512: $f does not select aai-hook-gate: $out"
   done
-  n="$(awk -F'\t' '$1=="aai-hook-gate" && $2==196{c++} END{print c+0}' "$tsv")"
-  [[ "$n" == 1 ]] || log_fail "TEST-3512: suite-weights holds $n aai-hook-gate rows at 196, expected 1"
-  grep -qxF '# sample aai-hook-gate fallback unsampled (new suite of hook-gate-on-node; no successful observation)' "$tsv" || log_fail "TEST-3512: suite-weights lacks the aai-hook-gate fallback line"
+  n="$(awk -F'\t' '$1=="aai-hook-gate" && $2 ~ /^[1-9][0-9]*$/{c++} END{print c+0}' "$tsv")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3512: suite-weights holds $n aai-hook-gate positive-integer rows, expected 1"
+  grep -qE '^# sample aai-hook-gate (measured|fallback unsampled)' "$tsv" || log_fail "TEST-3512: suite-weights lacks the aai-hook-gate sample line"
   for f in test_090_suite_map_pin test_129_mutation_gate_suite_registration; do
     env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$f" >"$TEST_DIR/t3512.out" 2>&1 || { tail -n 8 "$TEST_DIR/t3512.out" >&2; log_fail "TEST-3512: test-aai-hygiene-pack.sh $f failed"; }
   done

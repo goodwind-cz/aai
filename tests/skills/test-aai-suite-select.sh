@@ -1962,22 +1962,21 @@ _weights_header_sha() {
 }
 
 test_1760_weights_provenance() {  # Spec-AC-10 / TEST-016
-  log_info "Test: the weights header names a re-seed run other than 37930287459, four job ids and a head SHA; the balance bound holds (TEST-016)..."
-  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header run jobs sha
+  log_info "Test: the weights header names source runs with head SHAs (none of the retired seed runs); the balance bound holds (TEST-016)..."
+  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header run sha n
   [[ -f "$f" ]] || log_fail "TEST-016: missing $f"
   header="$(sed -n '/^#/p' "$f")"
-  run="$(_weights_header_run "$header")"
-  [[ -n "$run" ]] || log_fail "TEST-016: the header must carry a line starting '# Actions run <id>'"
+  # node-first-cleanup D-WEIGHTS: the provenance is the '# source run <id> head SHA <sha>' lines.
+  run="$(awk '$1=="#" && $2=="source" && $3=="run" && !seen {print $4; seen=1}' <<<"$header")"
+  [[ "$run" =~ ^[0-9]{8,}$ ]] || log_fail "TEST-016: the header must carry a '# source run <id> head SHA <sha>' line"
   [[ "$run" != "37930287459" ]] || log_fail "TEST-016: the header still names the previous seed run 37930287459"
-  jobs="$(_weights_header_jobs "$header")"
-  [[ "$jobs" == "4" ]] || log_fail "TEST-016: the header must name four distinct leg job ids on its '# legs' line, found $jobs"
-  # The SHA is read from the run line itself (the first 'head SHA' after '# Actions run'),
-  # so the previous seed's SHA, which the header still records, cannot satisfy it.
-  sha="$(_weights_header_sha "$header")"
-  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || log_fail "TEST-016: the run line must name a 40-hex head SHA"
+  sha="$(awk '$1=="#" && $2=="source" && $3=="run" && !seen {print $7; seen=1}' <<<"$header")"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || log_fail "TEST-016: the first source run line must name a 40-hex head SHA"
   [[ "$sha" != "8e08f059448ca3853d87255f1d167aea74a4deda" ]] || log_fail "TEST-016: the run line names the previous seed's head SHA"
+  n="$(awk '$1=="#" && $2=="source" && $3=="run" {c++} END{print c+0}' <<<"$header")"
+  [[ "$n" -ge 1 ]] || log_fail "TEST-016: no source run lines"
   test_1423_real_repo_balance_bound "$PROJECT_ROOT"
-  log_pass "TEST-016: weights re-seeded from run $run, four job ids and a head SHA named, balance bound holds"
+  log_pass "TEST-016: weights provenance names $n source runs (first $run) with head SHAs, balance bound holds"
 }
 
 test_3280_header_readers_survive_ignored_sigpipe() {  # Spec-AC-01 / TEST-3280
@@ -2427,6 +2426,66 @@ JS
   log_pass "TEST-3338 (one weights row, one sample line (unsampled 196 or measured), one map row and a gate glob per new suite; audit covers every suite file)"
 }
 
+# node-first-cleanup D-WEIGHTS: the weights are measured from the five named runs.
+test_4037_weights_measured() {  # Spec-AC-01 / TEST-4037
+  log_info "Test: the weights are audited over every suite, name exactly the five D-WEIGHTS runs, and fall back only for aai-state and aai-hermes-skills (TEST-4037)..."
+  node --input-type=module - "$PROJECT_ROOT" <<'JS' || log_fail "TEST-4037: the measured-weights contract does not hold (see the assertion above)"
+import fs from 'node:fs'; import assert from 'node:assert/strict';
+const root = process.argv[2];
+const { auditWeights } = await import(root + '/tests/skills/lib/selected-scheduling-benchmark-check.mjs');
+const text = fs.readFileSync(root + '/tests/skills/suite-weights.tsv', 'utf8');
+const names = fs.readdirSync(root + '/tests/skills', { withFileTypes: true }).filter((e) => e.isFile() && /^test-aai-.*\.sh$/.test(e.name)).map((e) => e.name.slice(5, -3));
+assert.equal(auditWeights(text, names).suites, names.length, 'TEST-4037: auditWeights suite count');
+const want = ['45459216102', '45093987222', '45025432502', '45013455954', '44915915697'];
+const got = [...text.matchAll(/^# source run ([0-9]+) head SHA [0-9a-f]{40} /gm)].map((m) => m[1]);
+assert.deepEqual([...got].sort(), [...want].sort(), 'TEST-4037: the source run lines are not exactly the five D-WEIGHTS runs: ' + got.join(','));
+const fallback = [];
+for (const line of text.split('\n')) {
+  const m = line.match(/^# sample (aai-\S+) (fallback|measured)\b/);
+  if (!m) continue;
+  if (m[2] === 'fallback') { fallback.push(m[1]); continue; }
+  const r = line.match(/ runs=([0-9,]+) /);
+  assert(r, 'TEST-4037: measured sample without runs: ' + m[1]);
+  for (const id of r[1].split(',')) assert(want.includes(id), 'TEST-4037: sample ' + m[1] + ' names a run outside D-WEIGHTS: ' + id);
+}
+assert.deepEqual(fallback.sort(), ['aai-hermes-skills', 'aai-state'], 'TEST-4037: fallback unsampled rows are ' + fallback.join(','));
+JS
+  log_pass "TEST-4037 (auditWeights passes over every suite; five D-WEIGHTS source runs; fallback rows are aai-state and aai-hermes-skills)"
+}
+
+# node-first-cleanup D-PINS: no placeholder weight is pinned by a test.
+test_4038_no_placeholder_pins() {  # Spec-AC-02 / TEST-4038
+  log_info "Test: the eight D-PINS assertions hold no literal 196 weight assertion and keep a one-row check (TEST-4038)..."
+  local s f n
+  for s in aai-sync-node aai-release-cut aai-update-node aai-bootstrap-node aai-hook-gate aai-hook-installer-node aai-install-parity aai-pre-commit-checks; do
+    f="$PROJECT_ROOT/tests/skills/test-$s.sh"
+    [[ -f "$f" ]] || log_fail "TEST-4038: missing $f"
+    n="$(awk '/(^|[^0-9])196([^0-9]|$)/ {c++} END{print c+0}' "$f")"
+    [[ "$n" == 0 ]] || log_fail "TEST-4038: tests/skills/test-$s.sh holds $n line(s) with a literal 196 weight assertion"
+    n="$(awk 'index($0, "[1-9][0-9]*") {c++} END{print c+0}' "$f")"
+    [[ "$n" -ge 1 ]] || log_fail "TEST-4038: tests/skills/test-$s.sh has no positive-integer weight row check"
+  done
+  log_pass "TEST-4038 (eight D-PINS assertions: no literal 196, each keeps a positive-integer one-row check)"
+}
+
+# node-first-cleanup D-BOUND: the selected-sharded job fits 15 minutes.
+test_4039_selected_sharded_bound() {  # Spec-AC-03 / TEST-4039
+  log_info "Test: skills-selected-sharded has timeout-minutes 15 and the PR #582 plan models runners=2 with w2 <= 600 (TEST-4039)..."
+  local t fixture="$PROJECT_ROOT/tests/skills/fixtures/selected-plan-pr582.txt" out line w2
+  t="$(awk '/^  [a-z0-9-]+:$/ {job=$1} job=="skills-selected-sharded:" && $1=="timeout-minutes:" {print $2; exit}' "$WORKFLOW_FILE")"
+  [[ "$t" == 15 ]] || log_fail "TEST-4039: skills-selected-sharded timeout-minutes is '$t', expected 15"
+  [[ -f "$fixture" ]] || log_fail "TEST-4039: missing fixture $fixture"
+  out="$(node "$SELECTOR" --selected-plan-from "$fixture" --weights "$PROJECT_ROOT/tests/skills/suite-weights.tsv" 2>&1)" \
+    || log_fail "TEST-4039: select-suites refused the fixture plan: $out"
+  line="$(awk '$1=="SELECTED_DECISION" {print; exit}' <<<"$out")"
+  [[ -n "$line" ]] || log_fail "TEST-4039: no SELECTED_DECISION line: $out"
+  [[ " $line " == *" runners=2 "* ]] || log_fail "TEST-4039: expected runners=2, got: $line"
+  w2="$(awk '{for(i=1;i<=NF;i++) if ($i ~ /^w2=/) {print substr($i,4); exit}}' <<<"$line")"
+  [[ "$w2" =~ ^[0-9]+$ ]] || log_fail "TEST-4039: no numeric w2 in: $line"
+  [[ "$w2" -le 600 ]] || log_fail "TEST-4039: w2=$w2 exceeds 600 under the shipped weights"
+  log_pass "TEST-4039 (timeout-minutes 15; the PR #582 plan models runners=2 w2=$w2 <= 600)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -2507,6 +2566,9 @@ main() {
   test_2311_core_list_weights_product_doc
   test_3335_split_selection
   test_3338_split_weights_rows
+  test_4037_weights_measured
+  test_4038_no_placeholder_pins
+  test_4039_selected_sharded_bound
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -463,9 +463,9 @@ test_3571_wiring() {
     out="$(selected_in "$PROJECT_ROOT" "$TEST_DIR/t3571/files.txt")"
     [[ "$out" == *"FULL_RUN reason=protected-l3 path=$f"* ]] || log_fail "TEST-3571: $f is not FULL_RUN protected-l3: $out"
   done
-  n="$(awk -F'\t' '$1=="aai-install-parity" && $2==196{c++} END{print c+0}' "$tsv")"
-  [[ "$n" == 1 ]] || log_fail "TEST-3571: suite-weights holds $n aai-install-parity rows at 196, expected 1"
-  grep -qxF '# sample aai-install-parity fallback unsampled (new suite of install-path-parity-harness; no successful observation)' "$tsv" || log_fail "TEST-3571: suite-weights lacks the aai-install-parity fallback line"
+  n="$(awk -F'\t' '$1=="aai-install-parity" && $2 ~ /^[1-9][0-9]*$/{c++} END{print c+0}' "$tsv")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3571: suite-weights holds $n aai-install-parity positive-integer rows, expected 1"
+  grep -qE '^# sample aai-install-parity (measured|fallback unsampled)' "$tsv" || log_fail "TEST-3571: suite-weights lacks the aai-install-parity sample line"
   for f in test_090_suite_map_pin test_129_mutation_gate_suite_registration; do
     env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$f" >"$TEST_DIR/t3571.out" 2>&1 || { tail -n 8 "$TEST_DIR/t3571.out" >&2; log_fail "TEST-3571: test-aai-hygiene-pack.sh $f failed"; }
   done

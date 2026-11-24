@@ -1,316 +1,303 @@
 # tests/skills/suite-weights.tsv — measured scheduling weights.
-# Actions run 39495369884 (head SHA f394f154bfdbe88242af9fcbf32be8440b03ab0d)
-# legs 118879072541 118879072576 118879072719 118879072803
-# Five successful main-push full runs captured 2026-10-20 23:02:14 UTC.
-# Positive rounded median PASS seconds, floor 1; SKIP/FAIL never measured.
-# Unsampled suites use the maximum measured weight (196).
-# Raw summaries + run identities: docs/ai/validation/selected-ci-weight-{source,runs}.json.
-# History: previous seed run 37966091223, SHA 77cfd944f5304502bb7c8670666de44fe3186cbf.
+# Re-measured 2026-11-24 from 5 successful main-push skill-suite runs (full framework legs, AAI_TEST_PARALLEL=4).
+# Positive rounded median PASS seconds, floor 1; SKIP/FAIL never measured; a suite counts every run it PASSed in (count below 5 = newer suite).
+# Suites with no successful hosted observation (SKIP-only on the hosted runner) use the maximum measured weight (450).
+# History: the 2026-10-20 measurement (runs 39495369884, 39115816366, 39113529141, 39113283748, 39074575880) and the
+# 2026-11-07 aai-docs-audit re-measure (runs 42232580971, 42129127915, 42027298193, 41954346556, 41851872305) are superseded.
 # Historical balanced leg observation retained (not a current speed claim):
 # Leg walls (run 37972288462): 146 160 159 171
-# source run 39495369884 head SHA f394f154bfdbe88242af9fcbf32be8440b03ab0d https://github.com/goodwind-cz/aai/actions/runs/39495369884
-# source run 39115816366 head SHA cb43e894ee95e7644d0096c35a790b40ff358697 https://github.com/goodwind-cz/aai/actions/runs/39115816366
-# source run 39113529141 head SHA 42989cfb8baf58d3d2299993f0a015e39e13aac6 https://github.com/goodwind-cz/aai/actions/runs/39113529141
-# source run 39113283748 head SHA f607d1f8eb43208f9d12db81efdaa18c16b4f0c2 https://github.com/goodwind-cz/aai/actions/runs/39113283748
-# source run 39074575880 head SHA b0b9ab1575e0b92cd07b43fb8abb4ddc28eb1d62 https://github.com/goodwind-cz/aai/actions/runs/39074575880
-# aai-docs-audit re-measured 2026-11-07 (SPEC-0245 Spec-AC-06) from five successful main-push skill-suite runs, aai-docs-audit PASS lines:
-# source run 42232580971 head SHA bd519bb381840103c040818f5a950752eb61e53a https://github.com/goodwind-cz/aai/actions/runs/42232580971
-# source run 42129127915 head SHA 8293605d25acfd681e6064192278fe7b2eb727d6 https://github.com/goodwind-cz/aai/actions/runs/42129127915
-# source run 42027298193 head SHA f324b66fdee12223a4ed7acfcc0ca672684b8e0e https://github.com/goodwind-cz/aai/actions/runs/42027298193
-# source run 41954346556 head SHA de76acb1fd70971f73047aa6481f7e9ef480391a https://github.com/goodwind-cz/aai/actions/runs/41954346556
-# source run 41851872305 head SHA f8297dbc4be4dd98ccdf6e6b571d932abc1b16ec https://github.com/goodwind-cz/aai/actions/runs/41851872305
-# sample aai-advisory-skills measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,2,4,4,4
+# source run 45459216102 head SHA 1aec7030cb056b81c52e93b003bc3c0a80309ee2 https://github.com/goodwind-cz/aai/actions/runs/45459216102
+# source run 45093987222 head SHA 0ff18d631fbbb5105c38d26d11fa0d774f1b4c97 https://github.com/goodwind-cz/aai/actions/runs/45093987222
+# source run 45025432502 head SHA 46712c917800d16ea9749d8c958ef6edf4d8494e https://github.com/goodwind-cz/aai/actions/runs/45025432502
+# source run 45013455954 head SHA 077ee6495014ca5b759533769c5d63b1b1c4c582 https://github.com/goodwind-cz/aai/actions/runs/45013455954
+# source run 44915915697 head SHA bf0148d615b1a9056e47a7f9bb537e34b38fe36d https://github.com/goodwind-cz/aai/actions/runs/44915915697
+# sample aai-advisory-skills measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,4,5,4,4
 aai-advisory-skills	4
-# sample aai-antigravity-project-skills measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,0,0,0,0
+# sample aai-antigravity-project-skills measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,0,0,0,0
 aai-antigravity-project-skills	1
-# sample aai-bootstrap measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,6,7,11,6
-aai-bootstrap	6
-# sample aai-branch-guard measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,6,7,8,7
-aai-branch-guard	7
-# sample aai-canon measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,5,8,7,7
-aai-canon	7
-# sample aai-ceremony-levels measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=15,15,14,13,10
-aai-ceremony-levels	14
-# sample aai-check-state measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,2,3,2,3
-aai-check-state	3
-# sample aai-ci-carry-forward measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,5,8,8,8
-aai-ci-carry-forward	8
-# sample aai-close-reconcile measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=14,13,14,10,14
-aai-close-reconcile	14
-# sample aai-close-work-item measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=132,130,131,130,101
-aai-close-work-item	130
-# sample aai-codex-usage fallback unsampled (SKIP or absent; no successful observation)
-aai-codex-usage	196
-# sample aai-constitution measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,3,6,6,5
-aai-constitution	5
-# sample aai-current-head-ci fallback unsampled (SKIP or absent; no successful observation)
-aai-current-head-ci	196
-# sample aai-dashboard measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,1,2,1,1
+# sample aai-bootstrap measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,2,2,1,2
+aai-bootstrap	2
+# sample aai-branch-guard measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=9,6,6,6,7
+aai-branch-guard	6
+# sample aai-canon measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=8,11,11,12,10
+aai-canon	11
+# sample aai-ceremony-levels measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=15,11,10,11,10
+aai-ceremony-levels	11
+# sample aai-check-state measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,2,2,2,2
+aai-check-state	2
+# sample aai-ci-carry-forward measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=11,9,9,7,8
+aai-ci-carry-forward	9
+# sample aai-close-reconcile measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=17,11,13,9,8
+aai-close-reconcile	11
+# sample aai-close-work-item measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=106,99,77,80,105
+aai-close-work-item	99
+# sample aai-codex-usage measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=13,12,8,8,8
+aai-codex-usage	8
+# sample aai-constitution measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=7,6,7,4,4
+aai-constitution	6
+# sample aai-current-head-ci measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=35,43,50,38,40
+aai-current-head-ci	40
+# sample aai-dashboard measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,2,1,1
 aai-dashboard	1
-# sample aai-debug-gate measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,4,4,5,4
+# sample aai-debug-gate measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,4,3,4,3
 aai-debug-gate	4
-# sample aai-delta-stage1 measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,0,0,0,1
+# sample aai-delta-stage1 measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,0,1,0,0
 aai-delta-stage1	1
-# sample aai-delta-stage2 measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,4,4,5,4
-aai-delta-stage2	4
-# sample aai-delta-stage3 measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,5,5,8,6
-aai-delta-stage3	5
-# sample aai-deslop measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=27,21,26,18,28
-aai-deslop	26
-# sample aai-doc-number-reservation measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=6,6,9,9,9
-aai-doc-number-reservation	9
-# sample aai-doc-numbering measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=39,32,40,28,39
-aai-doc-numbering	39
-# sample aai-docs-audit measured count=5 runs=42232580971,42129127915,42027298193,41954346556,41851872305 seconds=86,72,91,90,110
-aai-docs-audit	90
-# sample aai-docs-content fallback unsampled (SKIP or absent; no successful observation)
-aai-docs-content	196
-# sample aai-docs-canon measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,3,4,3,5
-aai-docs-canon	4
-# sample aai-docs-hub measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,2,3,3,2
+# sample aai-delta-stage2 measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=4,4,3,3,3
+aai-delta-stage2	3
+# sample aai-delta-stage3 measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,5,4,4,4
+aai-delta-stage3	4
+# sample aai-deslop measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=29,33,29,32,27
+aai-deslop	29
+# sample aai-doc-number-reservation measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=10,8,5,8,6
+aai-doc-number-reservation	8
+# sample aai-doc-numbering measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=44,30,25,34,26
+aai-doc-numbering	30
+# sample aai-docs-audit measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=84,102,78,88,78
+aai-docs-audit	84
+# sample aai-docs-content measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=48,35,29,37,28
+aai-docs-content	35
+# sample aai-docs-canon measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=3,4,4,3,2
+aai-docs-canon	3
+# sample aai-docs-hub measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=3,2,3,2,2
 aai-docs-hub	2
-# sample aai-docs-lock measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=7,6,6,6,7
+# sample aai-docs-lock measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=6,6,7,7,6
 aai-docs-lock	6
-# sample aai-doctor measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=62,67,67,103,65
-aai-doctor	67
-# sample aai-downstream-autopilot measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,1,1,2,1
+# sample aai-doctor measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=95,132,163,121,86
+aai-doctor	121
+# sample aai-downstream-autopilot measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,2,1,1,1
 aai-downstream-autopilot	1
-# sample aai-expert-fetch fallback unsampled (SKIP or absent; no successful observation)
-aai-expert-fetch	196
-# sample aai-factory-report measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=13,12,13,13,9
-aai-factory-report	13
-# sample aai-feedback-status measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,2,2,3,2
+# sample aai-expert-fetch measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=60,59,59,52,57
+aai-expert-fetch	59
+# sample aai-factory-report measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=14,10,9,10,10
+aai-factory-report	10
+# sample aai-feedback-status measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,2,3,2,2
 aai-feedback-status	2
-# sample aai-feedback-triage measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,2,2,2,3
+# sample aai-feedback-triage measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=3,2,2,2,2
 aai-feedback-triage	2
-# sample aai-feedback-upsert measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=12,9,11,7,12
-aai-feedback-upsert	11
-# sample aai-follow-ups measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=64,73,72,112,72
-aai-follow-ups	72
-# sample aai-friction measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=9,7,9,7,9
-aai-friction	9
-# sample aai-friction-capture-points measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=11,6,11,5,8
+# sample aai-feedback-upsert measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=16,14,8,12,12
+aai-feedback-upsert	12
+# sample aai-follow-ups measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=408,337,288,238,203
+aai-follow-ups	288
+# sample aai-friction measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=6,10,8,7,6
+aai-friction	7
+# sample aai-friction-capture-points measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,10,8,12,8
 aai-friction-capture-points	8
-# sample aai-friction-wiring measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,0,1,1,1
+# sample aai-friction-wiring measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,0,0,0
 aai-friction-wiring	1
-# sample aai-git-ref-guard measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=16,15,22,23,22
-aai-git-ref-guard	22
-# sample aai-golden-flow measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=89,87,88,87,71
-aai-golden-flow	87
-# sample aai-harness-shims fallback unsampled (SKIP or absent; no successful observation)
-aai-harness-shims	196
-# sample aai-heartbeat measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,4,4,5,4
+# sample aai-git-ref-guard measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=36,31,35,24,19
+aai-git-ref-guard	31
+# sample aai-golden-flow measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=77,63,92,84,102
+aai-golden-flow	84
+# sample aai-harness-shims measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=35,40,108,80,86
+aai-harness-shims	80
+# sample aai-heartbeat measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,5,4,4,3
 aai-heartbeat	4
-# sample aai-hitl-channel measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=6,7,6,6,5
+# sample aai-hitl-channel measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=6,5,6,6,5
 aai-hitl-channel	6
-# sample aai-hitl-propagation measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,2,1,1,0
+# sample aai-hitl-propagation measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,1,1,1
 aai-hitl-propagation	1
-# sample aai-hooks-overlay measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=27,30,30,49,30
-aai-hooks-overlay	30
-# sample aai-hygiene-corpus fallback unsampled (new suite of reuse-split-corpus-cases; no successful observation)
-aai-hygiene-corpus	196
-# sample aai-hygiene-pack measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=98,74,98,64,97
-aai-hygiene-pack	97
-# sample aai-implementation-mode measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,0,0,0
+# sample aai-hooks-overlay measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=28,25,29,23,18
+aai-hooks-overlay	25
+# sample aai-hygiene-corpus measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=135,88,78,103,77
+aai-hygiene-corpus	88
+# sample aai-hygiene-pack measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=44,45,30,27,31
+aai-hygiene-pack	31
+# sample aai-implementation-mode measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,0,0,0,0
 aai-implementation-mode	1
-# sample aai-intake measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=16,19,19,29,18
-aai-intake	19
-# sample aai-issues measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,2,2,3,1
+# sample aai-intake measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=17,17,14,14,14
+aai-intake	14
+# sample aai-issues measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,1,1,2,2
 aai-issues	2
-# sample aai-layer-drift measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,3,4,3,3
-aai-layer-drift	3
-# sample aai-layer-profiles measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=82,62,80,56,80
-aai-layer-profiles	80
-# sample aai-legacy-migrations fallback unsampled (new suite of retire-legacy-migrations; no successful observation)
-aai-legacy-migrations	196
-# sample aai-learned-append measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,1,2,3,1
+# sample aai-layer-drift measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=3,2,2,2,2
+aai-layer-drift	2
+# sample aai-layer-profiles measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=12,13,66,78,66
+aai-layer-profiles	66
+# sample aai-legacy-migrations measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=115,85,75,73,75
+aai-legacy-migrations	75
+# sample aai-learned-append measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,1,1,1
 aai-learned-append	1
-# sample aai-learned-routing measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,4,6,6,5
-aai-learned-routing	5
-# sample aai-ledger-merge measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,0,0,1
+# sample aai-learned-routing measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=11,9,11,9,6
+aai-learned-routing	9
+# sample aai-ledger-merge measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,0,0,1,0
 aai-ledger-merge	1
-# sample aai-lightweight-lane measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,4,6,6,5
+# sample aai-lightweight-lane measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=7,5,4,6,5
 aai-lightweight-lane	5
-# sample aai-live-serve measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=20,18,20,18,19
-aai-live-serve	19
-# sample aai-live-status measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=14,13,14,14,14
-aai-live-status	14
-# sample aai-merge-cleanup measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=128,113,161,167,160
-aai-merge-cleanup	160
-# sample aai-merge-policy measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=42,41,40,41,31
-aai-merge-policy	41
-# sample aai-metrics measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=102,89,138,144,134
-aai-metrics	134
-# sample aai-mutation-gate measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=82,79,79,94,79
+# sample aai-live-serve measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=20,19,17,17,17
+aai-live-serve	17
+# sample aai-live-status measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=48,49,34,47,33
+aai-live-status	47
+# sample aai-merge-cleanup measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=372,308,403,344,221
+aai-merge-cleanup	344
+# sample aai-merge-policy measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=52,37,52,44,30
+aai-merge-policy	44
+# sample aai-metrics measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=252,278,186,254,261
+aai-metrics	254
+# sample aai-mutation-gate measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=79,79,75,82,84
 aai-mutation-gate	79
-# sample aai-orchestration-dispatch measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=37,35,54,57,55
-aai-orchestration-dispatch	54
-# sample aai-orchestration-mode measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,4,4,6,4
-aai-orchestration-mode	4
-# sample aai-orphan-sweep measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,3,3,4,3
-aai-orphan-sweep	3
-# sample aai-outcome-backcheck measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=12,10,12,8,12
-aai-outcome-backcheck	12
-# sample aai-overview measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,3,4,3,4
+# sample aai-orchestration-dispatch measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=52,61,46,57,51
+aai-orchestration-dispatch	52
+# sample aai-orchestration-mode measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=4,3,3,2,3
+aai-orchestration-mode	3
+# sample aai-orphan-sweep measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=3,3,2,2,2
+aai-orphan-sweep	2
+# sample aai-outcome-backcheck measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=8,10,14,9,8
+aai-outcome-backcheck	9
+# sample aai-overview measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=4,4,4,3,4
 aai-overview	4
-# sample aai-pipe-safe measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,1,2,1,1
+# sample aai-pipe-safe measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,1,1,1,1
 aai-pipe-safe	1
-# sample aai-planning-probes measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,1,1,1
+# sample aai-planning-probes measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,0,2,1
 aai-planning-probes	1
-# sample aai-platform-adapter measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=32,28,29,33,27
-aai-platform-adapter	29
-# sample aai-pr-platform measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=8,8,12,13,12
-aai-pr-platform	12
-# sample aai-pr-preflight measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=88,74,88,68,87
-aai-pr-preflight	87
-# sample aai-pr-waiver measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=38,27,36,24,39
-aai-pr-waiver	36
-# sample aai-pricing measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,0,0,0
-aai-pricing	1
-# sample aai-product-docs measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,4,4,5,3
-aai-product-docs	4
-# sample aai-prompt-diet measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=7,7,8,10,8
+# sample aai-platform-adapter measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=33,27,26,24,27
+aai-platform-adapter	27
+# sample aai-pr-platform measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=13,13,15,12,8
+aai-pr-platform	13
+# sample aai-pr-preflight measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=85,68,87,70,62
+aai-pr-preflight	70
+# sample aai-pr-waiver measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=73,66,84,71,45
+aai-pr-waiver	71
+# sample aai-pricing measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=3,4,2,3,3
+aai-pricing	3
+# sample aai-product-docs measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=3,4,5,3,3
+aai-product-docs	3
+# sample aai-prompt-diet measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=10,8,9,6,7
 aai-prompt-diet	8
-# sample aai-prompt-hash measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,1,1,1,1
+# sample aai-prompt-hash measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,1,0,1
 aai-prompt-hash	1
-# sample aai-prune-stale-briefs measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,0,0,0
+# sample aai-prune-stale-briefs measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,1,0,1,0
 aai-prune-stale-briefs	1
-# sample aai-r-guard measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,1,1,1,0
+# sample aai-r-guard measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,0,1,0,0
 aai-r-guard	1
-# sample aai-reap-tests fallback unsampled (SKIP or absent; no successful observation)
-aai-reap-tests	196
-# sample aai-reconcile-telemetry measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,1,2,1,1
+# sample aai-reap-tests measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=111,116,112,113,115
+aai-reap-tests	113
+# sample aai-reconcile-telemetry measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,1,1,1
 aai-reconcile-telemetry	1
-# sample aai-recheck fallback unsampled (SKIP or absent; no successful observation)
-aai-recheck	196
-# sample aai-redact measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,2,2,1,2
+# sample aai-recheck measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=196,158,195,153,114
+aai-recheck	158
+# sample aai-redact measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,2,2,1,2
 aai-redact	2
-# sample aai-release measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=162,159,157,158,111
-aai-release	158
-# sample aai-release-first fallback unsampled (SKIP or absent; no successful observation)
-aai-release-first	196
-# sample aai-release-notes measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=9,11,9,10,9
-aai-release-notes	9
-# sample aai-repo-tripwire measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=52,50,69,74,74
-aai-repo-tripwire	69
-# sample aai-retired-loop-runner fallback unsampled (new suite of retire-shell-loop-runner; no successful observation)
-aai-retired-loop-runner	196
-# sample aai-ride-handoff fallback unsampled (SKIP or absent; no successful observation)
-aai-ride-handoff	196
-# sample aai-ride-select measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=42,31,41,27,42
-aai-ride-select	41
-# sample aai-ride-status fallback unsampled (SKIP or absent; no successful observation)
-aai-ride-status	196
-# sample aai-roadmap measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=23,23,33,35,33
-aai-roadmap	33
-# sample aai-role-output measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,7,6,10,6
+# sample aai-release measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=321,393,410,334,271
+aai-release	334
+# sample aai-release-first measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=82,65,55,54,69
+aai-release-first	65
+# sample aai-release-notes measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=14,12,9,10,12
+aai-release-notes	12
+# sample aai-repo-tripwire measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=111,62,64,68,61
+aai-repo-tripwire	64
+# sample aai-retired-loop-runner measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=14,19,16,14,15
+aai-retired-loop-runner	15
+# sample aai-ride-handoff measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=23,20,25,20,15
+aai-ride-handoff	20
+# sample aai-ride-select measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=34,36,29,31,37
+aai-ride-select	34
+# sample aai-ride-status measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=15,16,14,20,13
+aai-ride-status	15
+# sample aai-roadmap measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=34,25,20,21,30
+aai-roadmap	25
+# sample aai-role-output measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=7,6,6,5,5
 aai-role-output	6
-# sample aai-routine measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=8,7,8,6,9
-aai-routine	8
-# sample aai-run-tests measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=85,89,89,94,93
-aai-run-tests	89
-# sample aai-runtime-file measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,2,2,2,1
+# sample aai-routine measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=8,7,7,5,8
+aai-routine	7
+# sample aai-run-tests measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=86,86,93,90,91
+aai-run-tests	90
+# sample aai-runtime-file measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,1,2,2,1
 aai-runtime-file	2
-# sample aai-secrets-preflight measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=16,19,18,25,18
-aai-secrets-preflight	18
-# sample aai-session-lock measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=2,2,2,2,2
+# sample aai-secrets-preflight measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=13,16,22,14,15
+aai-secrets-preflight	15
+# sample aai-session-lock measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=2,1,2,1,2
 aai-session-lock	2
-# sample aai-share measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,0,0,0
+# sample aai-share measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,0,0,0,0
 aai-share	1
-# sample aai-spec-amend measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=97,106,105,150,107
-aai-spec-amend	106
-# sample aai-spec-lint measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=34,38,38,68,37
-aai-spec-lint	38
-# sample aai-spec-tools measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,5,8,8,7
+# sample aai-spec-amend measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=291,211,188,155,145
+aai-spec-amend	188
+# sample aai-spec-lint measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=67,58,44,39,40
+aai-spec-lint	44
+# sample aai-spec-tools measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=8,7,8,7,5
 aai-spec-tools	7
-# sample aai-state fallback unsampled (SKIP or absent; no successful observation)
-aai-state	196
-# sample aai-suite-isolation measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=44,36,51,52,52
-aai-suite-isolation	51
-# sample aai-suite-reuse fallback unsampled (SKIP or absent; no successful observation)
-aai-suite-reuse	196
-# sample aai-suite-select measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=12,15,14,24,14
-aai-suite-select	14
-# sample aai-sweep-parallel measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=89,90,91,113,92
-aai-sweep-parallel	91
-# sample aai-sync-seed measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=199,200,196,195,152
-aai-sync-seed	196
-# sample aai-tdd measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,0,1,0
+# sample aai-state fallback unsampled (SKIP-only on the hosted runner; no successful observation)
+aai-state	450
+# sample aai-suite-isolation measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=63,56,43,61,53
+aai-suite-isolation	56
+# sample aai-suite-reuse measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=139,115,133,104,79
+aai-suite-reuse	115
+# sample aai-suite-select measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=47,39,38,30,34
+aai-suite-select	38
+# sample aai-sweep-parallel measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=103,91,102,97,93
+aai-sweep-parallel	97
+# sample aai-sync-seed measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=52,48,216,287,226
+aai-sync-seed	216
+# sample aai-tdd measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,0,0,0,0
 aai-tdd	1
-# sample aai-tdd-evidence measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=6,5,5,6,4
-aai-tdd-evidence	5
-# sample aai-test-canon measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,6,5,9,6
-aai-test-canon	6
-# sample aai-token-capture measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,4,5,4,5
-aai-token-capture	5
-# sample aai-tracked-ignored measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=25,26,26,25,19
-aai-tracked-ignored	25
-# sample aai-triage fallback unsampled (SKIP or absent; no successful observation)
-aai-triage	196
-# sample aai-unattended measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=7,7,7,7,6
-aai-unattended	7
-# sample aai-update measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,5,7,6,6
-aai-update	6
-# sample aai-update-check measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=32,34,33,42,32
-aai-update-check	33
-# sample aai-userguide-drift measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,1,1,1,1
+# sample aai-tdd-evidence measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=4,5,4,4,4
+aai-tdd-evidence	4
+# sample aai-test-canon measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=6,5,5,6,4
+aai-test-canon	5
+# sample aai-token-capture measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=6,7,7,6,6
+aai-token-capture	6
+# sample aai-tracked-ignored measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=6,6,6,4,3
+aai-tracked-ignored	6
+# sample aai-triage measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=45,40,30,27,30
+aai-triage	30
+# sample aai-unattended measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=13,14,10,9,9
+aai-unattended	10
+# sample aai-update measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,5,4,5,6
+aai-update	5
+# sample aai-update-check measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=30,32,29,30,32
+aai-update-check	30
+# sample aai-userguide-drift measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,1,0,0,1
 aai-userguide-drift	1
-# sample aai-userguide-rollup measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,0,0,1,0
+# sample aai-userguide-rollup measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=1,0,0,1,1
 aai-userguide-rollup	1
-# sample aai-validate-skills fallback unsampled (SKIP or absent; no successful observation)
-aai-validate-skills	196
-# sample aai-validator-isolation measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,1,0,0,0
+# sample aai-validate-skills measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=33,27,30,31,37
+aai-validate-skills	31
+# sample aai-validator-isolation measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,0,0,0,0
 aai-validator-isolation	1
-# sample aai-verify-gate measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,4,4,4,3
+# sample aai-verify-gate measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,5,4,3,3
 aai-verify-gate	4
-# sample aai-win-fallback measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=48,43,50,45,45
-aai-win-fallback	45
-# sample aai-win-fallback-corpus fallback unsampled (new suite of reuse-split-corpus-cases; no successful observation)
-aai-win-fallback-corpus	196
-# sample aai-worktree measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,1,0,0
+# sample aai-win-fallback measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=72,56,74,76,51
+aai-win-fallback	72
+# sample aai-win-fallback-corpus measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=16,15,19,19,20
+aai-win-fallback-corpus	19
+# sample aai-worktree measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,1,0,0,0
 aai-worktree	1
-# sample aai-worktree-seed measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=20,20,27,29,27
-aai-worktree-seed	27
-
-# sample aai-hermes-skills fallback unsampled (native runtime unavailable in CI; local timing is not a CI sample)
-aai-hermes-skills	196
-
-# sample aai-cloudflare-share fallback unsampled (new suite of cloudflare-share-on-node; no successful observation)
-aai-cloudflare-share	196
-
-# sample aai-git-hook-templates fallback unsampled (new suite of git-hook-bodies-single-source; no successful observation)
-aai-git-hook-templates	196
-
-# sample aai-pre-commit-checks fallback unsampled (new suite of pre-commit-checks-ps1-retire; no successful observation)
-aai-pre-commit-checks	196
-
-# sample aai-release-cut fallback unsampled (new suite of release-on-node; no successful observation)
-aai-release-cut	196
-# sample aai-hook-gate fallback unsampled (new suite of hook-gate-on-node; no successful observation)
-aai-hook-gate	196
-# sample aai-install-parity fallback unsampled (new suite of install-path-parity-harness; no successful observation)
-aai-install-parity	196
-# sample aai-round-budget fallback unsampled (new suite of factory-round-cap; no successful observation)
-aai-round-budget	196
-# sample aai-model-effort fallback unsampled (new suite of model-effort-routing; no successful observation)
-aai-model-effort	196
-# sample aai-project-config fallback unsampled (new suite of consumer-config-routing-override; no successful observation)
-aai-project-config	196
-# sample aai-test-residue fallback unsampled (new suite of test-residue-safe-cleanup; no successful observation)
-aai-test-residue	196
-# sample aai-bootstrap-node fallback unsampled (new suite of bootstrap-on-node; no successful observation)
-aai-bootstrap-node	196
-# sample aai-update-node fallback unsampled (new suite of update-on-node; no successful observation)
-aai-update-node	196
-# sample aai-update-docs fallback unsampled (new suite split from aai-update-node by update-on-node; no successful observation)
-aai-update-docs	196
-# sample aai-hook-installer-node fallback unsampled (new suite of pre-commit-installer-on-node; no successful observation)
-aai-hook-installer-node	196
-# sample aai-hook-installer-docs fallback unsampled (split from aai-hook-installer-node by pre-commit-installer-on-node; no successful observation)
-aai-hook-installer-docs	196
-# sample aai-sync-node fallback unsampled (new suite of sync-on-node; no successful observation)
-aai-sync-node	196
-# sample aai-sync-docs fallback unsampled (split from aai-sync-node by sync-on-node; no successful observation)
-aai-sync-docs	196
-# sample aai-phase5-closeout fallback unsampled (new suite of node-first-phase5-closeout; no successful observation)
-aai-phase5-closeout	196
+# sample aai-worktree-seed measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=23,19,20,28,20
+aai-worktree-seed	20
+# sample aai-hermes-skills fallback unsampled (SKIP-only on the hosted runner; no successful observation)
+aai-hermes-skills	450
+# sample aai-cloudflare-share measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=28,28,33,29,33
+aai-cloudflare-share	29
+# sample aai-git-hook-templates measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=97,78,59,55,54
+aai-git-hook-templates	59
+# sample aai-pre-commit-checks measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=74,64,60,77,59
+aai-pre-commit-checks	64
+# sample aai-release-cut measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=279,116,107,142,99
+aai-release-cut	116
+# sample aai-hook-gate measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=117,106,90,94,86
+aai-hook-gate	94
+# sample aai-install-parity measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=198,160,148,149,190
+aai-install-parity	160
+# sample aai-round-budget measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=80,65,61,60,69
+aai-round-budget	65
+# sample aai-model-effort measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=58,67,79,61,54
+aai-model-effort	61
+# sample aai-project-config measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=61,46,53,54,62
+aai-project-config	54
+# sample aai-test-residue measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=28,26,29,27,25
+aai-test-residue	27
+# sample aai-bootstrap-node measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=192,134,131,158,114
+aai-bootstrap-node	134
+# sample aai-update-node measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=179,187,156,221,158
+aai-update-node	179
+# sample aai-update-docs measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=20,18,22,19,18
+aai-update-docs	19
+# sample aai-hook-installer-node measured count=4 runs=45459216102,45093987222,45025432502,45013455954 seconds=212,256,304,227
+aai-hook-installer-node	242
+# sample aai-hook-installer-docs measured count=4 runs=45459216102,45093987222,45025432502,45013455954 seconds=29,25,21,20
+aai-hook-installer-docs	23
+# sample aai-sync-node measured count=2 runs=45459216102,45093987222 seconds=499,400
+aai-sync-node	450
+# sample aai-sync-docs measured count=2 runs=45459216102,45093987222 seconds=9,7
+aai-sync-docs	8
+# sample aai-phase5-closeout measured count=1 runs=45459216102 seconds=35
+aai-phase5-closeout	35

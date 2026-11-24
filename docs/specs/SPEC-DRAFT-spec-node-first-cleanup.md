@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 04e8df14af285ba9c5165e1cf044ec67a415300a974ae7a720cc529f1ef2b306
+frozen_sha256: 9ed98c62d28b34c42591e1468983659bca0d0b84f4539376b4762cea3ac8c5ad
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -259,9 +259,9 @@ directory, which `mkdirSync` would then create inside the checkout).
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
-| TEST-4037 | Spec-AC-01 | inspection | tests/skills/test-aai-suite-select.sh | test_4037_weights_measured runs auditWeights over every suite name, requires the five D-WEIGHTS source runs, measured samples naming only them, and fallback rows exactly aai-state and aai-hermes-skills | `sed:s/^aai-sync-node\t[0-9]+$/aai-sync-node\t196/m` on tests/skills/suite-weights.tsv | pending |
+| TEST-4037 | Spec-AC-01 | inspection | tests/skills/test-aai-suite-select.sh | test_4037_weights_measured runs auditWeights over every suite name, requires the five D-WEIGHTS source runs, measured samples naming only them, and fallback rows exactly aai-state and aai-hermes-skills | `sed:s/\naai-sync-node\t[0-9]+\n/\naai-sync-node\t196\n/` on tests/skills/suite-weights.tsv | pending |
 | TEST-4038 | Spec-AC-02 | inspection | tests/skills/test-aai-suite-select.sh | test_4038_no_placeholder_pins scans the eight D-PINS assertions and refuses any literal 196 weight assertion, and requires each to keep a one-row check | `sed:s/\$2 ~ \/\^\[1-9\]\[0-9\]\*\$\//$2==196/` on tests/skills/test-aai-hook-gate.sh | pending |
-| TEST-4039 | Spec-AC-03 | integration | tests/skills/test-aai-suite-select.sh | test_4039_selected_sharded_bound requires timeout-minutes 15 on skills-selected-sharded and plans the D-BOUND fixture, requiring runners=2 and w2 of at most 600 | `sed:s/^aai-release\t[0-9]+$/aai-release\t2000/m` on tests/skills/suite-weights.tsv | pending |
+| TEST-4039 | Spec-AC-03 | integration | tests/skills/test-aai-suite-select.sh | test_4039_selected_sharded_bound requires timeout-minutes 15 on skills-selected-sharded and plans the D-BOUND fixture, requiring runners=2 and w2 of at most 600 | `sed:s/\naai-release\t[0-9]+\n/\naai-release\t2000\n/` on tests/skills/suite-weights.tsv | pending |
 | TEST-4040 | Spec-AC-04 | integration | tests/skills/lib/release-first.test.mjs | TEST-4040 runs release-dry-run with AAI_RELEASE_DRY_PWSH set to a stub that prints FileLoadException text and exits 134, and requires interpreters.powershell null and interpreterErrors.powershell exit 134 | `sed:s/r\.status!==0/false/` on .aai/scripts/release-dry-run.mjs | pending |
 | TEST-4041 | Spec-AC-05 | integration | tests/skills/test-aai-release-cut.sh | test_4041_release_tests_own_pwsh_cache runs node --test --test-name-pattern TEST-4027 on aai-release.test.mjs with XDG_CACHE_HOME naming a directory whose powershell entry is a file, requiring exit 0 (SKIP with a named reason when pwsh is absent) | `sed:s/XDG_CACHE_HOME:/XDG_CACHE_HOME_OFF:/` on tests/skills/lib/aai-release.test.mjs | pending |
 | TEST-4042 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh | test_4042_preflight_clone_scrubbed runs a fixture cut whose CHANGELOG-reading test fails when its checkout is a linked worktree, has a remote, sees GH_TOKEN, GITHUB_TOKEN or GIT_DIR, or has HOME outside its temp root; requires the cut to pass the preflight and the temp root to be gone | `sed:s/'remote','remove','origin'/'remote','-v'/` on .aai/scripts/release-finish.mjs | pending |

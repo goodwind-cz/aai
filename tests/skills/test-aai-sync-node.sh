@@ -869,12 +869,11 @@ test_4019_wiring() {
   qgrep -qxF "READER tests/skills/test-aai-sync-docs.sh" <<< "$out" || log_fail "TEST-4019: the release rehearsal does not list test-aai-sync-docs.sh as a reader"
   if qgrep -qxF "READER tests/skills/test-aai-sync-node.sh" <<< "$out"; then log_fail "TEST-4019: the release rehearsal lists this suite as a reader (a line of this file names the change log)"; fi
   for sel in aai-sync-node aai-sync-docs; do
-    qgrep -qxF "$(printf '%s\t196' "$sel")" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-4019: the weights row $sel 196 is missing"
+    [[ "$(awk -F'\t' -v s="$sel" '$1==s && $2 ~ /^[1-9][0-9]*$/ {c++} END{print c+0}' "$PROJECT_ROOT/tests/skills/suite-weights.tsv")" == 1 ]] || log_fail "TEST-4019: suite-weights does not hold exactly one positive-integer row for $sel"
   done
-  qgrep -qxF "# sample aai-sync-node fallback unsampled (new suite of sync-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
-    || log_fail "TEST-4019: the weights fallback line for aai-sync-node is missing"
-  qgrep -qxF "# sample aai-sync-docs fallback unsampled (split from aai-sync-node by sync-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
-    || log_fail "TEST-4019: the weights fallback line for aai-sync-docs is missing"
+  for sel in aai-sync-node aai-sync-docs; do
+    qgrep -qE "^# sample $sel (measured|fallback unsampled)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-4019: the weights sample line for $sel is missing"
+  done
   for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_128_shipping_scripts_pipe_safe_at_zero" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" \
     "test-aai-win-fallback.sh test_034" "test-aai-win-fallback.sh test_035"; do
     rc=0

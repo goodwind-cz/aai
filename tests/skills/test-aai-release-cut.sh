@@ -364,9 +364,9 @@ test_3475_wiring() {
   done
   out="$(printf '%s\n' .aai/scripts/release-cut.mjs | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
   [[ "$out" == *'SELECTED aai-release '* ]] || log_fail "TEST-3475: the module does not select aai-release: $out"
-  n="$(awk -F'\t' '$1=="aai-release-cut" && $2==196{c++} END{print c+0}' "$tsv")"
-  [[ "$n" == 1 ]] || log_fail "TEST-3475: suite-weights holds $n aai-release-cut rows at 196, expected 1"
-  grep -qxF '# sample aai-release-cut fallback unsampled (new suite of release-on-node; no successful observation)' "$tsv" || log_fail "TEST-3475: suite-weights lacks the aai-release-cut fallback line"
+  n="$(awk -F'\t' '$1=="aai-release-cut" && $2 ~ /^[1-9][0-9]*$/{c++} END{print c+0}' "$tsv")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3475: suite-weights holds $n aai-release-cut positive-integer rows, expected 1"
+  grep -qE '^# sample aai-release-cut (measured|fallback unsampled)' "$tsv" || log_fail "TEST-3475: suite-weights lacks the aai-release-cut sample line"
   n="$(grep -cE '"\$row_count" -eq [0-9]+ \]\]' "$hyg" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3475: the hygiene pack holds $n literal row-count -eq lines, expected exactly 1"
   pin="$(grep -E '"\$row_count" -eq [0-9]+ \]\]' "$hyg" | sed -n 1p | sed 's/.*-eq \([0-9][0-9]*\) \]\].*/\1/')"

@@ -850,13 +850,10 @@ test_3997_wiring() {
     printf '%s\n' "$rows" | qgrep -qxF "$(printf 'aai-install-parity\t%s' "$sel")" || log_fail "TEST-3997: the row aai-install-parity does not list $sel"
   done
   printf '%s\n' "$rows" | qgrep -qxF "$(printf 'aai-hook-installer-docs\ttests/skills/test-aai-hook-installer-docs.sh')" || log_fail "TEST-3997: the row aai-hook-installer-docs does not list its own file"
-  qgrep -qxF "# sample aai-hook-installer-node fallback unsampled (new suite of pre-commit-installer-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
-    || log_fail "TEST-3997: the weights fallback line for aai-hook-installer-node is missing"
   for sel in aai-hook-installer-node aai-hook-installer-docs; do
-    qgrep -qxF "$(printf '%s\t196' "$sel")" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3997: the weights row $sel 196 is missing"
+    qgrep -qE "^# sample $sel (measured|fallback unsampled)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3997: the weights sample line for $sel is missing"
+    [[ "$(awk -F'\t' -v s="$sel" '$1==s && $2 ~ /^[1-9][0-9]*$/ {c++} END{print c+0}' "$PROJECT_ROOT/tests/skills/suite-weights.tsv")" == 1 ]] || log_fail "TEST-3997: suite-weights does not hold exactly one positive-integer row for $sel"
   done
-  qgrep -qxF "# sample aai-hook-installer-docs fallback unsampled (split from aai-hook-installer-node by pre-commit-installer-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
-    || log_fail "TEST-3997: the weights fallback line for aai-hook-installer-docs is missing"
   for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" "test-aai-win-fallback.sh test_034" "test-aai-win-fallback.sh test_035"; do
     rc=0
     # shellcheck disable=SC2086

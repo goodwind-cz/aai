@@ -563,9 +563,9 @@ test_3958_wiring() {
     qgrep -q "^SELECTED aai-bootstrap-node " < "$work/sel.out" || { cat "$work/sel.out" >&2; log_fail "TEST-3958: select-suites does not route $f to aai-bootstrap-node"; }
   done
   # the weights row and its fallback line
-  qgrep -qxF "# sample aai-bootstrap-node fallback unsampled (new suite of bootstrap-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
-    || log_fail "TEST-3958: the weights fallback line for aai-bootstrap-node is missing"
-  qgrep -qxF "$(printf 'aai-bootstrap-node\t196')" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3958: the weights row aai-bootstrap-node 196 is missing"
+  qgrep -qE "^# sample aai-bootstrap-node (measured|fallback unsampled)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-3958: the weights sample line for aai-bootstrap-node is missing"
+  [[ "$(awk -F'\t' '$1=="aai-bootstrap-node" && $2 ~ /^[1-9][0-9]*$/ {c++} END{print c+0}' "$PROJECT_ROOT/tests/skills/suite-weights.tsv")" == 1 ]] || log_fail "TEST-3958: suite-weights does not hold exactly one positive-integer row for aai-bootstrap-node"
   for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" "test-aai-win-fallback.sh test_034"; do
     rc=0
     # shellcheck disable=SC2086

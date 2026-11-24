@@ -290,7 +290,7 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.select.outputs.selected_shard_ids) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       AAI_TEST_PARALLEL: '4'
     steps:

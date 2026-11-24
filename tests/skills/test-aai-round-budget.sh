@@ -647,7 +647,7 @@ test_3613_wiring() {
     grep -qE "^(SELECTED|CORE) $s( |$)" <<<"$sel" || log_fail "TEST-3613: round-budget.mjs does not select $s: $sel"
   done
   [[ "$(grep -c '^aai-round-budget'$'\t' "$SCRIPT_DIR/suite-weights.tsv")" == 1 ]] || log_fail "TEST-3613: suite-weights does not hold exactly one aai-round-budget row"
-  grep -qxF '# sample aai-round-budget fallback unsampled (new suite of factory-round-cap; no successful observation)' "$SCRIPT_DIR/suite-weights.tsv" || log_fail "TEST-3613: suite-weights lacks the aai-round-budget fallback line"
+  grep -qE '^# sample aai-round-budget (measured|fallback unsampled) ' "$SCRIPT_DIR/suite-weights.tsv" || log_fail "TEST-3613: suite-weights lacks the aai-round-budget sample line"
   log_pass "TEST-3613: round-budget.mjs is core, selects the four suites, and the suite has its weight row"
 }
 
