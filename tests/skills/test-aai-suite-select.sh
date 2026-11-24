@@ -2497,8 +2497,10 @@ test_4039_selected_sharded_bound() {  # Spec-AC-03 / TEST-4039
 test_4048_cleanup_wiring() {  # Spec-AC-12 / TEST-4048
   log_info "Test: the CHANGELOG heading names the four consumer-visible changes and the nine amendment records are held (TEST-4048)..."
   local cl="$PROJECT_ROOT/CHANGELOG.md" head body out n missing="" tmp
-  head='## [unreleased] — Node-first cleanup: measured suite weights, release preflight isolation and guard fixes'
-  /usr/bin/grep -qxF -- "$head" "$cl" || log_fail "TEST-4048: CHANGELOG.md lacks the exact heading: $head"
+  # The heading is [unreleased] on the branch and [vYYYY.MM.DD] once a release rolls it (the release dry-run reads the rolled tree).
+  local title='Node-first cleanup: measured suite weights, release preflight isolation and guard fixes'
+  [[ "$(/usr/bin/grep -cE -- "^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[0-9A-Za-z.-]*)\] — ${title}\$" "$cl")" == 1 ]] || log_fail "TEST-4048: CHANGELOG.md lacks exactly one heading ending in: $title"
+  head="$(/usr/bin/grep -E -- "^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[0-9A-Za-z.-]*)\] — ${title}\$" "$cl")"
   body="$(awk -v h="$head" '$0==h {on=1; next} on && /^## / {exit} on {print}' "$cl")"
   for n in 'throwaway clone with no remote' 'scrubbed environment' 'interpreterErrors' 'renamed in the commit' 'sync-base' 'write_outside_checkout'; do
     [[ "$body" == *"$n"* ]] || log_fail "TEST-4048: the CHANGELOG entry does not mention: $n"
