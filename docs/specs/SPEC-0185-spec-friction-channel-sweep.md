@@ -5,7 +5,7 @@ type: spec
 status: done
 mutation_gate: v1
 mutation_uncomparable: 17
-frozen_sha256: 9346fa7fbb5cdb63c44106f087f0b23140d370819f3959c1991af541558ed51a
+frozen_sha256: 9c63da240f6ce298b0a66d3dc9499e389de06108ba8b9eeeaf8e46e1a38b2667
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0190-friction-channel-sweep.md
@@ -848,3 +848,25 @@ and the mutation gate covers it like any other.
 
 Sign-off: none (tracked).
 
+
+## Amendment 2026-11-25 (test-infra-p2-fixes)
+
+Additive. The original text above stays as written.
+
+- Original: TEST-655 and TEST-659 each drive "a real failing command" (a
+  non-zero exit) through `aai-run-tests.sh` and read the line the wrapper
+  appends.
+- New rule (test-infra-p2-fixes D4): the wrapper no longer records an ordinary
+  failure, so TEST-655 and TEST-659 drive a timed-out command
+  (`AAI_TEST_TIMEOUT=2`, `sleep 30`, exit 124) instead. Their asserted
+  properties do not change: no `--promote` token and no summary field in the
+  wrapper's record call, one appended line without a summary key, and the
+  wrapped command's own status preserved.
+- Edited tests: `test_655_wrapper_never_promotes` and
+  `test_659_note_never_masks_the_caller` in
+  `tests/skills/test-aai-friction-capture-points.sh`.
+
+Canon assigns this scope change to HITL. No prior sign-off was obtained; the
+owner may reverse it.
+
+Sign-off: none (tracked).
