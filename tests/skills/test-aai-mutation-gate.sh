@@ -386,19 +386,20 @@ test_474_three_verdicts_and_rotation() {
   local rec1_run_at; rec1_run_at="$(grep '^run_at_utc: ' "$rec1")"
   local rec1_bytes; rec1_bytes="$(cat "$rec1")"
 
-  # A mutation that breaks the target's syntax (unterminated string) -> the
-  # fixture's own node invocation crashes before any FAIL line names
+  # A mutation that crashes the target at runtime but still parses (an
+  # undefined call; a syntax break is refused at exit 2 since D5, TEST-4115)
+  # -> the fixture's own node invocation crashes before any FAIL line names
   # TEST-9001 -> INCONCLUSIVE, exit 6. Also proves rotation: the STAYED GREEN
   # record from above must survive, byte-identical, under its run-stamped name.
-  out="$(cd "$fx" && node "$MUTATION_RUN" "${common[@]}" --sed "s/'hello'/'hello/" 2>&1)" && rc=0 || rc=$?
-  [[ "$rc" -eq 6 ]] || log_fail "TEST-474: a syntax-breaking mutation must exit 6 (INCONCLUSIVE), got $rc: $out"
+  out="$(cd "$fx" && node "$MUTATION_RUN" "${common[@]}" --sed "s/'hello'/undefinedFn()/" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 6 ]] || log_fail "TEST-474: a runtime-crashing mutation must exit 6 (INCONCLUSIVE), got $rc: $out"
   local rec2; rec2="$(mg_record_path "$fx" fixture-spec-474 TEST-9001)"
   [[ -f "$rec2" ]] || log_fail "TEST-474: INCONCLUSIVE must still write a record"
   grep -qF 'verdict: INCONCLUSIVE' "$rec2" || log_fail "TEST-474: record's verdict is not INCONCLUSIVE: $(cat "$rec2")"
   grep -qF 'first_fail: (no FAIL line naming TEST-9001' "$rec2" \
     || log_fail "TEST-474: an INCONCLUSIVE record's first_fail must say no FAIL line named the test (the suite died for another reason): $(cat "$rec2")"
 
-  local rotated; rotated="$(dirname "$rec2")/mutation-TEST-9001.${rec1_run_at#run_at_utc: }.txt"
+  local rotated; rotated="$(dirname "$rec2")/mutation-TEST-9001.$(mg_stamp "${rec1_run_at#run_at_utc: }").txt"
   [[ -f "$rotated" ]] || log_fail "TEST-474: rotation did not preserve the prior STAYED GREEN record at $rotated"
   [[ "$(cat "$rotated")" == "$rec1_bytes" ]] \
     || log_fail "TEST-474: the rotated record's bytes changed — rotation must never rewrite the old file"
@@ -1162,7 +1163,7 @@ EOF
     --target lib/greeting.mjs --patch "$patch2" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-492 setup 2: expected a second RED record (rotating the first), got exit $rc: $out"
 
-  local rotated_txt; rotated_txt="$(dirname "$rec")/mutation-TEST-9001.${run_at1}.txt"
+  local rotated_txt; rotated_txt="$(dirname "$rec")/mutation-TEST-9001.$(mg_stamp "$run_at1").txt"
   [[ -f "$rotated_txt" ]] || log_fail "TEST-492: rotated record not found at $rotated_txt"
   local rotated_patch_rel; rotated_patch_rel="$(grep '^mutation: patch:' "$rotated_txt" | sed 's/^mutation: patch://')"
   [[ -n "$rotated_patch_rel" ]] || log_fail "TEST-492: rotated record's mutation field is not a patch: pointer: $(cat "$rotated_txt")"
@@ -1186,7 +1187,7 @@ EOF
   # is a documented invariant checked via final state, not process-kill
   # timing injection (too flake-prone to simulate reliably, per this ride's
   # own NB7-r3 disposition for a sibling ordering claim).
-  local rotated_patch_by_name; rotated_patch_by_name="$(dirname "$rec")/mutation-TEST-9001.${run_at1}.patch"
+  local rotated_patch_by_name; rotated_patch_by_name="$(dirname "$rec")/mutation-TEST-9001.$(mg_stamp "$run_at1").patch"
   [[ -f "$rotated_patch_by_name" ]] \
     || log_fail "TEST-492 (NB-3): the rotated .patch sibling (by naming convention, $(basename "$rotated_patch_by_name")) must exist whenever the rotated .txt does — a rotated record must never be able to name a patch that was not yet moved"
 
@@ -1574,7 +1575,7 @@ EOF
   [[ "$rc" -eq 0 ]] || log_fail "TEST-500 setup: expected a RED record, got exit $rc: $out"
 
   local rec; rec="$(mg_record_path "$fx" fixture-spec-500 TEST-9001)"
-  local stamp; stamp="$(grep '^run_at_utc: ' "$rec" | sed 's/^run_at_utc: //')"
+  local stamp; stamp="$(mg_stamp "$(grep '^run_at_utc: ' "$rec" | sed 's/^run_at_utc: //')")"
   local dir; dir="$(dirname "$rec")"
 
   # Pre-occupy the bare rotated name the NEXT run would try first, with a
@@ -1658,7 +1659,7 @@ EOF
     --target lib/greeting.mjs --patch "$patch2" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-501 setup 2: expected a second RED record (rotating the first), got exit $rc: $out"
 
-  local rotated_txt; rotated_txt="$(dirname "$rec")/mutation-TEST-9001.${run_at1}.txt"
+  local rotated_txt; rotated_txt="$(dirname "$rec")/mutation-TEST-9001.$(mg_stamp "$run_at1").txt"
   [[ -f "$rotated_txt" ]] || log_fail "TEST-501: rotated record not found at $rotated_txt"
 
   # The parser is the authority on whether the record is intact — a
@@ -1890,7 +1891,7 @@ EOF
   [[ "$rc" -eq 5 ]] || log_fail "TEST-509 / TEST-506 (NB3-r7): a deleted target must turn the row OFFENDING, got $rc: $out"
   assert_payload_contains "$out" "STALE TEST-9003" "TEST-509 / TEST-506 (NB3-r7): the offending reason must name the STALE class: $out"
   assert_payload_contains "$out" "${target3_rel} missing" "TEST-509 / TEST-506 (NB3-r7): a deleted target must be reported MISSING: $out"
-  assert_payload_not_contains "$out" "${target3_rel} changed since the record" "TEST-509 / TEST-506 (NB3-r7): a deleted target must not borrow the CHANGED wording: $out"
+  [[ "$out" != *"${target3_rel} changed since the record"* ]] || log_fail "TEST-509 / TEST-506 (NB3-r7): a deleted target must not borrow the CHANGED wording: $out"
 
   # NB1-r7 (validation round 7): the PRODUCER half of the D8 amendment (the
   # REAL mutation-run.mjs stamping target_sha256 into every new record) had
@@ -2121,7 +2122,7 @@ test_517_flag_value_usage_errors() {
   out="$(node "$MUTATION_GATE" --spec --json 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 2 ]] || log_fail "TEST-517 arm A: mutation-gate.mjs --spec --json must exit 2 (usage), got $rc: $out"
   assert_payload_contains "$out" "usage:" "TEST-517 arm A: expected a usage message: $out"
-  assert_payload_not_contains "$out" "cannot read" "TEST-517 arm A: must not fall through to a file-read error: $out"
+  [[ "$out" != *"cannot read"* ]] || log_fail "TEST-517 arm A: must not fall through to a file-read error: $out"
 
   # mutation-gate.mjs: --spec with nothing after it.
   out="$(node "$MUTATION_GATE" --spec 2>&1)" && rc=0 || rc=$?
@@ -3178,7 +3179,7 @@ EOS
     --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
     --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-007: want RED (exit 0) after a protection-allowed clone, got $rc: $out"
-  assert_payload_not_contains "$out" "post-checkout" "TEST-007: clone protection fatal reached the runner: $out"
+  [[ "$out" != *"post-checkout"* ]] || log_fail "TEST-007: clone protection fatal reached the runner: $out"
   [[ "$(cat "$probe" 2>/dev/null)" == "allowed" ]] || log_fail "TEST-007: clone did not run with GIT_CLONE_PROTECTION_ACTIVE=false (probe=$(cat "$probe" 2>/dev/null))"
   log_pass "TEST-007 local clone set GIT_CLONE_PROTECTION_ACTIVE=false and recorded RED"
 }
@@ -3247,6 +3248,471 @@ EOS
   log_pass "TEST-008 gitignored test wrapper reproduced; mutation RED recorded"
 }
 
+# === mutation-tooling-p2-fixes (SPEC-DRAFT mutation-tooling-p2-fixes) =========
+# Every test below runs the REAL mutation-run.mjs with cwd inside a mktemp
+# fixture repo: nothing here writes into this checkout's docs/ai/tdd.
+
+# mg_stamp <run_at_utc> — the D8 stampForFileName mapping, written independently
+# in bash so the assertion never inherits a bug in the tool's own helper.
+mg_stamp() { local s="$1"; printf '%s' "${s//[^A-Za-z0-9._-]/-}"; }
+
+# mg_p2_fixture <spec-id> -> a fixture repo (committed, untracked marker present)
+# whose parent dir is also a throwaway dir, so a `../outside.txt` target is safe.
+mg_p2_fixture() {
+  local spec_id="$1" base fx
+  base="$(mg_new_fixture)"
+  [[ -n "$base" && -d "$base" ]] || log_fail "fixture base dir was not created"
+  fx="$base/repo"
+  mkdir -p "$fx"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "$spec_id"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  printf '%s\n' "$fx"
+}
+
+# mg_p2_run <fx> <target> <sed-expr> — one runner invocation from inside the fixture.
+mg_p2_run() {
+  ( cd "$1" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target "$2" --sed "$3" )
+}
+
+# --- TEST-4110 — Spec-AC-01 / D1: a target is a regular file inside the repo --
+test_4110_target_must_be_regular_file() {
+  log_info "Test: a symlink, symlinked-parent, outside or directory --target is refused at exit 2; a regular one records RED (TEST-4110)..."
+  local fx; fx="$(mg_p2_fixture fixture-spec-4110)"
+  local evid="$fx/docs/ai/tdd/fixture-spec-4110"
+  local suite_before; suite_before="$(cat "$fx/tests/skills/fixture-suite.sh")"
+  local out rc
+
+  # symlink leaf: an untracked relative symlink to the suite
+  ln -s ../tests/skills/fixture-suite.sh "$fx/lib/link.mjs"
+  out="$(mg_p2_run "$fx" lib/link.mjs 's/greet/GREET/g' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4110: a symlink target must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "symlink" "TEST-4110: the symlink refusal must name the reason: $out"
+  [[ ! -e "$evid" ]] || log_fail "TEST-4110: a refused symlink target wrote a record: $(ls "$evid")"
+  [[ "$(cat "$fx/tests/skills/fixture-suite.sh")" == "$suite_before" ]] \
+    || log_fail "TEST-4110: the symlink destination (the suite) changed"
+
+  # symlinked parent directory
+  ln -s lib "$fx/liblink"
+  out="$(mg_p2_run "$fx" liblink/greeting.mjs 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4110: a symlinked-parent target must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "symlink" "TEST-4110: the symlinked-parent refusal must name the reason: $out"
+  [[ ! -e "$evid" ]] || log_fail "TEST-4110: a refused symlinked-parent target wrote a record"
+
+  # outside the repository
+  printf 'OUTSIDE-ORIGINAL\n' > "$fx/../outside.txt"
+  out="$(mg_p2_run "$fx" ../outside.txt 's/ORIGINAL/CHANGED/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4110: an outside target must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "is outside the repository" "TEST-4110: the outside refusal must name the reason: $out"
+  [[ "$(cat "$fx/../outside.txt")" == 'OUTSIDE-ORIGINAL' ]] || log_fail "TEST-4110: the outside file changed"
+  [[ ! -e "$evid" ]] || log_fail "TEST-4110: a refused outside target wrote a record"
+
+  # a directory
+  out="$(mg_p2_run "$fx" lib 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4110: a directory target must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "regular file" "TEST-4110: the directory refusal must name the reason: $out"
+  [[ ! -e "$evid" ]] || log_fail "TEST-4110: a refused directory target wrote a record"
+
+  # a --patch that type-changes the target into a symlink to a file outside
+  # the repository (the victim lives in this test's own mktemp parent)
+  local victim="$fx/../victim.mjs" gen="$fx/../gen-typechange" tc_patch="$fx/../typechange.patch" vhash
+  printf 'console.log("hello"); // victim\n' > "$victim"
+  vhash="$(shasum -a 256 "$victim" | cut -d' ' -f1)"
+  git clone -q "$fx" "$gen" || log_fail "TEST-4110 typechange arm setup: clone failed"
+  ( cd "$gen" && rm lib/greeting.mjs && ln -s "$victim" lib/greeting.mjs && git add -A && git diff --cached --binary > "$tc_patch" ) \
+    || log_fail "TEST-4110 typechange arm setup: patch generation failed"
+  grep -qF 'new file mode 120000' "$tc_patch" || log_fail "TEST-4110 typechange arm setup: the patch is not a typechange, so this arm would prove nothing"
+  out="$( cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$tc_patch" 2>&1 )" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4110: a patch that symlinks the target must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "symlink" "TEST-4110: the typechange refusal must name the reason: $out"
+  [[ "$(shasum -a 256 "$victim" | cut -d' ' -f1)" == "$vhash" ]] || log_fail "TEST-4110: a typechange patch rewrote a file outside the clone"
+  [[ ! -e "$evid" ]] || log_fail "TEST-4110: a refused typechange patch wrote a record"
+  out="$( cd "$fx" && node "$MUTATION_RUN" --check --target lib/greeting.mjs --patch "$tc_patch" 2>&1 )" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4110: --check of a typechange patch must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "TARGET-REFUSED" "TEST-4110: --check must classify the typechange as TARGET-REFUSED: $out"
+  [[ "$(shasum -a 256 "$victim" | cut -d' ' -f1)" == "$vhash" ]] || log_fail "TEST-4110: --check of a typechange patch rewrote a file outside"
+
+  # negative control: a regular target still records RED
+  out="$(mg_p2_run "$fx" lib/greeting.mjs 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4110: a regular target must still record RED (exit 0), got $rc: $out"
+  [[ -f "$evid/mutation-TEST-9001.txt" ]] || log_fail "TEST-4110: the regular target wrote no record"
+  log_pass "TEST-4110 symlink, symlinked-parent, outside and directory targets are refused at exit 2 with no record; a regular target records RED"
+}
+
+# --- TEST-4111 — Spec-AC-02 / D2: the sed applier honours every parsed flag ---
+test_4111_sed_honours_flags() {
+  log_info "Test: --sed flags m and i are applied, and g still changes every occurrence (TEST-4111)..."
+  local fx; fx="$(mg_p2_fixture fixture-spec-4111)"
+  local evid="$fx/docs/ai/tdd/fixture-spec-4111"
+  local out rc
+
+  # m: `;$` matches before a newline only with the m flag (the file ends in "\n")
+  out="$(mg_p2_run "$fx" lib/greeting.mjs "s/hello'\\);\$/goodbye');/m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4111: the m flag must be applied (RED, exit 0), got $rc: $out"
+  assert_payload_contains "$out" "greeting mismatch" "TEST-4111: m-flag run did not redden on the greeting: $out"
+
+  # i: a case-folded pattern
+  out="$(mg_p2_run "$fx" lib/greeting.mjs 's/HELLO/goodbye/i' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4111: the i flag must be applied (RED, exit 0), got $rc: $out"
+  assert_payload_contains "$out" "greeting mismatch" "TEST-4111: i-flag run did not redden on the greeting: $out"
+
+  # g: every occurrence changes (negative control for the flag change)
+  out="$(mg_p2_run "$fx" lib/greeting.mjs 's/l(?=l|o\x27)/L/g' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4111: a g expression must record RED, got $rc: $out"
+  assert_payload_contains "$out" "got 'heLLo'" "TEST-4111: the g flag must change every occurrence: $out"
+
+  # a no-flag expression still changes the first occurrence only
+  out="$(mg_p2_run "$fx" lib/greeting.mjs 's/l(?=l|o\x27)/L/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4111: a no-flag expression must record RED, got $rc: $out"
+  assert_payload_contains "$out" "got 'heLlo'" "TEST-4111: a no-flag expression must change the first occurrence only: $out"
+  [[ -f "$evid/mutation-TEST-9001.txt" ]] || log_fail "TEST-4111: no record written"
+  log_pass "TEST-4111 the m and i flags are honoured, g changes every occurrence, no flag changes the first"
+}
+
+# --- TEST-4118 — Spec-AC-08 / D7: tracked deletions are reproduced -----------
+test_4118_tracked_delete_reproduced() {
+  log_info "Test: a tracked delete plus a binary change that defeats git apply still builds a matching clone (TEST-4118)..."
+  local base fx
+  base="$(mg_new_fixture)"; [[ -n "$base" && -d "$base" ]] || log_fail "fixture base dir was not created"
+  fx="$base/repo"; mkdir -p "$fx"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-4118"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'TO-BE-DELETED\n' > "$fx/lib/gone.txt"
+  mg_write_binary "$fx/lib/blob.bin" AAAA
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  rm -f "$fx/lib/gone.txt"
+  mg_write_binary "$fx/lib/blob.bin" BBBB
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local out rc
+  out="$(mg_p2_run "$fx" lib/greeting.mjs 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4118: a tracked delete must still record RED (exit 0), got $rc: $out"
+  [[ "$out" != *"skipping tracked overlay lib/gone.txt"* ]] || log_fail "TEST-4118: the deleted path was skipped, not reproduced: $out"
+  [[ -f "$fx/docs/ai/tdd/fixture-spec-4118/mutation-TEST-9001.txt" ]] || log_fail "TEST-4118: no record written"
+  [[ ! -e "$fx/lib/gone.txt" ]] || log_fail "TEST-4118: the source tree's deleted file came back"
+
+  # ITEM 4: a git shim in this test's own mktemp dir. Arm A: `git -C <dir> apply`
+  # with NO path argument (the stdin form) sleeps, like an open stdin would.
+  # Arm B: every `git apply` sleeps, AAI_MUTATION_GIT_TIMEOUT_MS is small.
+  local shim; shim="$(mg_new_fixture)"; [[ -n "$shim" && -d "$shim" ]] || log_fail "TEST-4118: shim dir was not created"
+  local real_git; real_git="$(command -v git)"
+  cat > "$shim/git" <<SHIM
+#!/bin/bash
+if [[ "\${AAI_SHIM_MODE:-}" == stdin && "\$1" == -C && "\$3" == apply && \$# -eq 3 ]]; then
+  echo "\$\$" >> "$shim/pids"; exec sleep 600
+fi
+if [[ "\${AAI_SHIM_MODE:-}" == all ]]; then
+  for a in "\$@"; do
+    if [[ "\$a" == apply ]]; then echo "\$\$" >> "$shim/pids"; exec sleep 600; fi
+  done
+fi
+exec "$real_git" "\$@"
+SHIM
+  chmod +x "$shim/git"
+  : > "$shim/pids"
+  local p
+  # Arm A: bounded by a 45 s alarm (no GNU timeout on macOS); 142 = still hung.
+  out="$( cd "$fx" && PATH="$shim:$PATH" AAI_SHIM_MODE=stdin perl -e 'alarm 45; exec @ARGV' node "$MUTATION_RUN" \
+    --spec docs/specs/fixture-spec.md --test-id TEST-9001 --suite tests/skills/fixture-suite.sh \
+    --selector test_9001_greet_and_marker --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1 )" && rc=0 || rc=$?
+  while read -r p; do [[ -n "$p" ]] && kill "$p" 2>/dev/null; done < "$shim/pids"
+  [[ "$rc" -ne 142 ]] || log_fail "TEST-4118 ITEM 4: the overlay git apply hung (stdin form) until the alarm: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4118 ITEM 4: with a path-argument apply the run must record RED (exit 0), got $rc: $out"
+  # Arm B: a hung apply is a prompt, named failure and leaves no temp dir.
+  : > "$shim/pids"
+  local priv="$shim/tmp"; mkdir -p "$priv"
+  out="$( cd "$fx" && TMPDIR="$priv" PATH="$shim:$PATH" AAI_SHIM_MODE=all AAI_MUTATION_GIT_TIMEOUT_MS=1500 \
+    perl -e 'alarm 45; exec @ARGV' node "$MUTATION_RUN" \
+    --spec docs/specs/fixture-spec.md --test-id TEST-9001 --suite tests/skills/fixture-suite.sh \
+    --selector test_9001_greet_and_marker --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1 )" && rc=0 || rc=$?
+  while read -r p; do [[ -n "$p" ]] && kill "$p" 2>/dev/null; done < "$shim/pids"
+  [[ "$rc" -ne 0 && "$rc" -ne 142 ]] || log_fail "TEST-4118 ITEM 4: a hung git apply must fail promptly (not 0, not the alarm), got $rc: $out"
+  [[ "$out" == *"git apply timed out"* ]] || log_fail "TEST-4118 ITEM 4: the failure must name the timeout: $out"
+  [[ -z "$(ls "$priv" 2>/dev/null)" ]] || log_fail "TEST-4118 ITEM 4: a timed-out run left temp state: $(ls "$priv")"
+  log_pass "TEST-4118 a tracked delete is reproduced in the clone and the run records RED"
+}
+
+# --- TEST-4119 — Spec-AC-09 / D8: rotated names are valid on Windows ---------
+test_4119_rotated_names_windows_valid() {
+  log_info "Test: rotated record and patch names hold no colon, and a slash stamp rotates inside the evidence dir (TEST-4119)..."
+  local fx; fx="$(mg_p2_fixture fixture-spec-4119)"
+  local evid="$fx/docs/ai/tdd/fixture-spec-4119"
+  local patch; patch="$(mg_new_fixture)/p.patch"
+  cat > "$patch" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('goodbye');
+EOF
+  local out rc i
+  for i in 1 2; do
+    out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+      --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+      --target lib/greeting.mjs --patch "$patch" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-4119 run $i: expected RED, got $rc: $out"
+  done
+  local live="$evid/mutation-TEST-9001.txt"
+  grep -q '^run_at_utc: .*:' "$live" || log_fail "TEST-4119: the live record's run_at_utc holds no colon stamp (premise): $(grep '^run_at_utc' "$live")"
+
+  # a hand-edited live record whose run_at_utc holds a slash, rotated by a third run
+  sed 's#^run_at_utc: .*#run_at_utc: x/../../escape-marker#' "$live" > "$live.new" && mv "$live.new" "$live"
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4119 run 3 (slash stamp): expected RED, got $rc: $out"
+
+  local f n=0
+  for f in "$evid"/*; do
+    f="$(basename "$f")"; n=$((n + 1))
+    case "$f" in *:*) log_fail "TEST-4119: a file name holds a colon: $f" ;; esac
+    [[ "$f" =~ ^mutation-TEST-9001(\.[A-Za-z0-9._-]+)?\.(txt|patch)$ ]] \
+      || log_fail "TEST-4119: file name does not match the D8 pattern: $f"
+  done
+  [[ "$n" -ge 5 ]] || log_fail "TEST-4119: expected the live pair plus two rotated pairs, found $n files: $(ls "$evid")"
+  [[ -f "$evid/mutation-TEST-9001.$(mg_stamp 'x/../../escape-marker').txt" ]] \
+    || log_fail "TEST-4119: the slash-stamp record did not rotate inside the evidence dir: $(ls "$evid")"
+  local stray; stray="$(ls "$fx/docs/ai/tdd")"
+  [[ "$stray" == "fixture-spec-4119" ]] || log_fail "TEST-4119: something was written beside the evidence dir: $stray"
+  log_pass "TEST-4119 every rotated name is colon-free and matches the D8 pattern; a slash stamp rotates inside the evidence dir"
+}
+
+# --- TEST-4114 — Spec-AC-04 / D4: a --patch re-record from its own canonical copy ---
+test_4114_patch_rerecord_from_own_canonical() {
+  log_info "Test: a --patch run whose patch is the record's own canonical .patch re-records RED and rotates a paired copy (TEST-4114)..."
+  local fx; fx="$(mg_p2_fixture fixture-spec-4114)"
+  local evid="$fx/docs/ai/tdd/fixture-spec-4114"
+  local patch; patch="$(mg_new_fixture)/p.patch"
+  cat > "$patch" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('goodbye');
+EOF
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4114 first run: expected RED, got $rc: $out"
+  [[ -f "$evid/mutation-TEST-9001.patch" ]] || log_fail "TEST-4114: the first run stored no canonical patch"
+  cmp -s "$patch" "$evid/mutation-TEST-9001.patch" || log_fail "TEST-4114: the stored patch differs from the source patch"
+
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch docs/ai/tdd/fixture-spec-4114/mutation-TEST-9001.patch 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4114: a re-record from the canonical patch must record RED (exit 0), got $rc: $out"
+  [[ -f "$evid/mutation-TEST-9001.txt" && -f "$evid/mutation-TEST-9001.patch" ]] \
+    || log_fail "TEST-4114: the canonical pair is missing after the re-record: $(ls "$evid")"
+  cmp -s "$patch" "$evid/mutation-TEST-9001.patch" || log_fail "TEST-4114: the canonical patch bytes changed in the re-record"
+
+  local rtxt rpatch rtxts
+  rtxts=( "$evid"/mutation-TEST-9001.*.txt )
+  rtxt="${rtxts[0]}"
+  [[ -e "$rtxt" ]] || rtxt=""
+  [[ -n "$rtxt" ]] || log_fail "TEST-4114: no rotated record exists: $(ls "$evid")"
+  rpatch="$(sed -n 's/^mutation: patch://p' "$rtxt")"
+  [[ -n "$rpatch" && -f "$fx/$rpatch" ]] || log_fail "TEST-4114: the rotated record names no existing rotated patch ($rpatch)"
+  [[ "$rpatch" != "docs/ai/tdd/fixture-spec-4114/mutation-TEST-9001.patch" ]] || log_fail "TEST-4114: the rotated record names the LIVE patch"
+  cmp -s "$patch" "$fx/$rpatch" || log_fail "TEST-4114: the rotated patch bytes differ from the original"
+  log_pass "TEST-4114 a re-record from the canonical patch records RED; the rotated record names a rotated patch with the same bytes"
+}
+
+# mg_write_ignoring_suite <fx> — a suite that runs the targets but IGNORES their exit status.
+mg_write_ignoring_suite() {
+  cat > "$1/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+test_9001_greet_and_marker() {
+  local out tool
+  out="$(node "$FROOT/lib/greeting.mjs" 2>&1 || true)"
+  tool="$(bash "$FROOT/lib/tool.sh" 2>&1 || true)"
+  [[ "$out" == "hello" ]] || { echo "FAIL TEST-9001 greeting mismatch: got '$out'" >&2; exit 1; }
+  [[ "$tool" == "tool-ok" ]] || { echo "FAIL TEST-9001 tool mismatch: got '$tool'" >&2; exit 1; }
+  echo "PASS: TEST-9001"
+}
+main() {
+  if [[ -n "${1:-}" ]]; then declare -F "$1" >/dev/null || exit 2; "$1"; return; fi
+  test_9001_greet_and_marker
+}
+main "$@"
+EOS
+  printf 'echo tool-ok\n' > "$1/lib/tool.sh"
+  ( cd "$1" && git add -A && git commit -q -m ignoring-suite )
+}
+
+# --- TEST-4115 — Spec-AC-05 / D5: a mutation that breaks parsing is refused ---
+test_4115_parse_break_refused() {
+  log_info "Test: a sed that breaks the target's syntax exits 2 with no record; a parse-preserving one records RED (TEST-4115)..."
+  local fx; fx="$(mg_p2_fixture fixture-spec-4115)"
+  mg_write_ignoring_suite "$fx"
+  local evid="$fx/docs/ai/tdd/fixture-spec-4115"
+  local out rc
+
+  out="$(mg_p2_run "$fx" lib/greeting.mjs "s/hello'\\);/hello'/" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4115: a parse-breaking .mjs mutation must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "no longer parses" "TEST-4115: the refusal must say the target no longer parses: $out"
+  [[ ! -e "$evid" ]] || log_fail "TEST-4115: a refused parse-break wrote a record: $(ls "$evid")"
+
+  out="$(mg_p2_run "$fx" lib/tool.sh 's/echo tool-ok/echo "tool-ok/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4115: a parse-breaking .sh mutation must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "no longer parses" "TEST-4115: the .sh refusal must say the target no longer parses: $out"
+  [[ ! -e "$evid" ]] || log_fail "TEST-4115: a refused .sh parse-break wrote a record"
+
+  out="$(mg_p2_run "$fx" lib/greeting.mjs 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4115: a parse-preserving mutation must record RED (exit 0), got $rc: $out"
+  [[ -f "$evid/mutation-TEST-9001.txt" ]] || log_fail "TEST-4115: the parse-preserving run wrote no record"
+  log_pass "TEST-4115 parse-breaking mutations are refused at exit 2 with no record; a parse-preserving one records RED"
+}
+
+# --- TEST-4121 — Spec-AC-11 / D9: --check is a dry run ---------------------
+test_4121_check_dry_run() {
+  log_info "Test: --check classifies a cell without a clone or a write (TEST-4121)..."
+  local fx; fx="$(mg_p2_fixture fixture-spec-4121)"
+  printf "console.log(1);\nconsole.log(1);\n" > "$fx/lib/two.mjs"
+  ln -s greeting.mjs "$fx/lib/link.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m check-fixtures )
+  local tmpd; tmpd="$(dirname "$fx")/tmp"; mkdir -p "$tmpd"
+  local out rc
+  mg_check() { ( cd "$fx" && TMPDIR="$tmpd" node "$MUTATION_RUN" --check --target "$1" --sed "$2" ); }
+
+  out="$(mg_check lib/greeting.mjs 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4121: a usable cell must exit 0, got $rc: $out"
+  [[ "${out%%$'\n'*}" == CHECK\ OK:* ]] || log_fail "TEST-4121: first line must be CHECK OK: $out"
+
+  out="$(mg_check lib/greeting.mjs 's/zzz/y/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4121: NO-CHANGE must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "CHECK FAIL NO-CHANGE" "TEST-4121: NO-CHANGE class not named: $out"
+
+  out="$(mg_check lib/two.mjs 's/1/2/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4121: AMBIGUOUS must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "CHECK FAIL AMBIGUOUS" "TEST-4121: AMBIGUOUS class not named: $out"
+  assert_payload_contains "$out" "2" "TEST-4121: AMBIGUOUS must name the match count: $out"
+
+  out="$(mg_check lib/greeting.mjs "s/hello'\\);/hello'/" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4121: PARSE-BREAK must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "CHECK FAIL PARSE-BREAK" "TEST-4121: PARSE-BREAK class not named: $out"
+
+  out="$(mg_check lib/greeting.mjs 'not-a-sed-expression' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4121: UNPARSEABLE-EXPR must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "CHECK FAIL UNPARSEABLE-EXPR" "TEST-4121: UNPARSEABLE-EXPR class not named: $out"
+
+  out="$(mg_check lib/link.mjs 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4121: TARGET-REFUSED must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "CHECK FAIL TARGET-REFUSED" "TEST-4121: TARGET-REFUSED class not named: $out"
+
+  printf 'this is not a patch\n' > "$fx/bad.patch"
+  out="$(cd "$fx" && TMPDIR="$tmpd" node "$MUTATION_RUN" --check --target lib/greeting.mjs --patch bad.patch 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4121: a malformed --patch must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "CHECK FAIL UNPARSEABLE-EXPR" "TEST-4121: a malformed --patch must be UNPARSEABLE-EXPR, not TARGET-REFUSED: $out"
+
+  out="$( cd "$fx" && node "$MUTATION_RUN" --check --sed 's/a/b/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-4121: --check without --target is a usage error (exit 2), got $rc: $out"
+
+  [[ ! -e "$fx/docs/ai/tdd" ]] || log_fail "TEST-4121: --check created docs/ai/tdd"
+  [[ -z "$(ls -A "$tmpd")" ]] || log_fail "TEST-4121: --check left a temp dir behind: $(ls "$tmpd")"
+  log_pass "TEST-4121 --check classifies OK, NO-CHANGE, AMBIGUOUS, PARSE-BREAK, UNPARSEABLE-EXPR and TARGET-REFUSED with no clone and no write"
+}
+
+test_4116_require_evidence_absent_tree() {
+  log_info "Test: --require-evidence turns an absent evidence tree into per-row refusals (TEST-4116)..."
+  local fx; fx="$(mg_p2_fixture fixture-spec-4116)"
+  [[ -n "$fx" && -d "$fx" ]] || log_fail "TEST-4116: fixture repo was not created"
+  local suite="tests/skills/fixture-suite.sh"
+  mg_write_gate_spec "$fx/gated.md" "mg-fixture-4116" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | sed:s/A/B/ | deferred |
+EOF
+  local out rc
+  out="$( cd "$fx" && node "$MUTATION_GATE" --spec "$fx/gated.md" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4116: the default run must keep exit 0, got $rc: $out"
+  assert_payload_contains "$out" "DEGRADED: evidence tree absent" "TEST-4116: default run lost the DEGRADED class: $out"
+
+  out="$( cd "$fx" && node "$MUTATION_GATE" --spec "$fx/gated.md" --require-evidence 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-4116: --require-evidence on an absent tree must exit 5, got $rc: $out"
+  assert_payload_contains "$out" "OFFENDING TEST-9001: missing record at" "TEST-4116: pending row not named as a missing record: $out"
+  assert_payload_contains "$out" "EXEMPT TEST-9002" "TEST-4116: deferred row not named EXEMPT: $out"
+  [[ "$out" != *"OFFENDING TEST-9002"* ]] || log_fail "TEST-4116: exempt row was refused: $out"
+
+  # negative control: an all-exempt plan keeps its DEGRADED exit 0 under the flag
+  mg_write_gate_spec "$fx/exempt.md" "mg-fixture-4116b" tdd "mutation_gate: v1" <<EOF
+| TEST-9003 | Spec-AC-01 | unit | ${suite} | c | sed:s/A/B/ | deferred |
+EOF
+  out="$( cd "$fx" && node "$MUTATION_GATE" --spec "$fx/exempt.md" --require-evidence 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4116: an all-exempt plan must stay exit 0 under the flag, got $rc: $out"
+  assert_payload_contains "$out" "DEGRADED: every row exempt" "TEST-4116: all-exempt class lost: $out"
+  log_pass "TEST-4116 --require-evidence refuses an absent evidence tree per row and leaves the default run alone"
+}
+
+# mg_bare_only_suites <dir>... -> prints each *.sh under the dirs that
+# dispatches on a "test_${VAR}" expansion (command position, or after
+# declare -f/-F) without a #test_} strip or a declare -f/-F "$1" fallback.
+# Static: a dispatch idiom outside those two shapes is not seen (D3).
+mg_bare_only_suites() {
+  local f
+  for f in "$@"; do
+    [[ -f "$f" ]] || continue
+    if /usr/bin/grep -qE '^[[:space:]]*(declare -[fF] )?"test_\$\{[A-Za-z_][A-Za-z_0-9]*\}"' "$f" \
+       && ! /usr/bin/grep -qF '#test_}' "$f" \
+       && ! /usr/bin/grep -qE 'declare -[fF] "\$1"' "$f"; then
+      printf '%s\n' "$f"
+    fi
+  done
+}
+
+test_4112_no_bare_only_dispatch() {
+  log_info "Test: no suite dispatches on a bare-only test_\${VAR} (TEST-4112)..."
+  local fx; fx="$(mg_new_fixture)"
+  [[ -n "$fx" && -d "$fx" ]] || log_fail "TEST-4112: fixture dir missing"
+  printf '%s\n' 'main() {' '  for t in "$@"; do' '    "test_${t}"' '  done' '}' > "$fx/bare.sh"
+  printf '%s\n' 'main() {' '  for t in "$@"; do' '    t="${t#test_}"' '    declare -F "test_${t}" >/dev/null || exit 2' '    "test_${t}"' '  done' '}' > "$fx/strip.sh"
+  local pos neg
+  pos="$(mg_bare_only_suites "$fx/bare.sh")"
+  [[ "$pos" == "$fx/bare.sh" ]] || log_fail "TEST-4112: positive control must name the bare-only fixture, got: $pos"
+  neg="$(mg_bare_only_suites "$fx/strip.sh")"
+  [[ -z "$neg" ]] || log_fail "TEST-4112: negative control must not name a stripping fixture, got: $neg"
+  local hits
+  hits="$(mg_bare_only_suites "$PROJECT_ROOT"/tests/skills/*.sh "$PROJECT_ROOT"/tests/*.sh)"
+  [[ -z "$hits" ]] || log_fail "TEST-4112: bare-only dispatch suites found: $hits"
+  log_pass "TEST-4112 no suite under tests/skills or tests dispatches on a bare-only test_\${VAR}; controls hold"
+}
+
+test_4113_full_selector_dispatches() {
+  log_info "Test: the full test_* selector dispatches in session-lock and test-canon (TEST-4113)..."
+  local out rc
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE bash tests/skills/test-aai-session-lock.sh test_409 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4113: session-lock test_409 exit $rc: $out"
+  [[ "$out" != *"Unknown test"* ]] || log_fail "TEST-4113: session-lock: Unknown test: $out"
+  [[ "$out" != *"command not found"* ]] || log_fail "TEST-4113: session-lock: command not found: $out"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE bash tests/skills/test-aai-test-canon.sh test_001 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4113: test-canon test_001 exit $rc: $out"
+  [[ "$out" != *"Unknown test"* ]] || log_fail "TEST-4113: test-canon: Unknown test: $out"
+  [[ "$out" != *"command not found"* ]] || log_fail "TEST-4113: test-canon: command not found: $out"
+  log_pass "TEST-4113 test_409 and test_001 run through the real suites"
+}
+
+test_4122_changelog_and_amendment() {
+  log_info "Test: the CHANGELOG heading and the SPEC-0181 amendment exist (TEST-4122)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" sp="$PROJECT_ROOT/docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md"
+  [[ -f "$cl" && -f "$sp" ]] || log_fail "TEST-4122: CHANGELOG.md or SPEC-0181 missing"
+  /usr/bin/grep -qE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — Mutation tooling: the ten P2 follow-ups$' "$cl" \
+    || log_fail "TEST-4122: CHANGELOG.md lacks the D-WIRE heading"
+  /usr/bin/grep -qxF '## Amendment 2026-11-25 (mutation-tooling-p2-fixes)' "$sp" \
+    || log_fail "TEST-4122: SPEC-0181 lacks the D-AMEND heading line"
+  log_pass "TEST-4122 CHANGELOG heading and SPEC-0181 amendment heading present"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -3295,6 +3761,17 @@ main() {
   test_006_wt_dir_symlink_not_replaced_by_overlay
   test_007_lfs_clone_protection
   test_008_gitignored_test_wrapper
+  test_4110_target_must_be_regular_file
+  test_4111_sed_honours_flags
+  test_4114_patch_rerecord_from_own_canonical
+  test_4115_parse_break_refused
+  test_4116_require_evidence_absent_tree
+  test_4118_tracked_delete_reproduced
+  test_4119_rotated_names_windows_valid
+  test_4112_no_bare_only_dispatch
+  test_4113_full_selector_dispatches
+  test_4121_check_dry_run
+  test_4122_changelog_and_amendment
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

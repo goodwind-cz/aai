@@ -71,7 +71,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (701)
+## Done (703)
 
 | ID | Type | Path |
 |---|---|---|
@@ -338,6 +338,7 @@ _None._
 | CHANGE-0266 | issues | docs/issues/CHANGE-0266-node-first-phase5-closeout.md |
 | CHANGE-0267 | issues | docs/issues/CHANGE-0267-node-first-leftovers.md |
 | CHANGE-0268 | issues | docs/issues/CHANGE-0268-node-first-cleanup.md |
+| CHANGE-0269 | issues | docs/issues/CHANGE-0269-mutation-tooling-p2-fixes.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -774,6 +775,7 @@ _None._
 | SPEC-0312 | specs | docs/specs/SPEC-0312-spec-node-first-leftovers.md |
 | SPEC-0313 | specs | docs/specs/SPEC-0313-spec-node-first-cleanup.md |
 | SPEC-0314 | specs | docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md |
+| SPEC-0315 | specs | docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -809,7 +811,7 @@ _None._
 
 _None._
 
-## Broken references (617)
+## Broken references (622)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1162,6 +1164,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-acflip-hash.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-lean.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-740-bogus.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-760-twobad.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7801-lint.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7802-lint.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7803-lint.md | NOT FOUND |
@@ -1347,6 +1350,10 @@ _None._
 | tests/skills/test-aai-spec-lint.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/test-aai-spec-lint.sh | docs/specs/NOPE.md | NOT FOUND |
 | tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-0112-control.md | NOT FOUND |
+| tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-DRAFT-a.md | NOT FOUND |
+| tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-DRAFT-b.md | NOT FOUND |
+| tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-DRAFT-c.md | NOT FOUND |
+| tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-DRAFT-d.md | NOT FOUND |
 | tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-DRAFT-flag.md | NOT FOUND |
 | tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-DRAFT-mg-nomarker.md | NOT FOUND |
 | tests/skills/test-aai-spec-lint.sh | docs/specs/SPEC-DRAFT-mg-terminal.md | NOT FOUND |
