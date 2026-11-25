@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: fe2d395bf480e4a97fb422922a67f43cb4d1165f2ff0e5b9c629b21bc5e36a09
+frozen_sha256: a431c1ec43eedb9ad62d279909a99dcc3a401f26cbc9a563a54a2766ac36e933
 ceremony_level: 2
 links:
   requirement: onboarding-tech-contract-and-lint-gaps
@@ -453,5 +453,24 @@ doctor items listed there (`fu-doctor-declined-vocab-undeclared`,
   functions, and `mutation-gate.mjs` requires the record's suite to equal the
   row's File path cell; the node:test file defines none. The test code, the
   Spec-AC mapping, the mutation cells and the descriptions are unchanged.
+- Sign-off: `--signoff none` (autopilot default); the owner's merge direction
+  signs it.
+
+## Amendment (post-freeze, D4 local bin needs an eslintrc)
+
+- What: D4 step 1 above says a local eslint includes a regular file at
+  `node_modules/.bin/eslint` or `.cmd` under the root with no further
+  condition. It now reads: the bin counts only beside a legacy `.eslintrc*`
+  (eslintrc plus bin gives the package manager exec form; eslintrc alone gives
+  `npx eslint@8 .`). A bin with no eslint config selects nothing, so the chain
+  falls through to Biome, Ruff and the rest exactly as at 5f02b0e5; an `eslint`
+  dependency in any of the four blocks counts as before. Spec-AC-06 and the
+  five #589 measurement fixtures are unchanged. TEST-4128 gains a negative
+  control (Biome plus bin, Ruff plus bin, bin only, `.cmd` bin only).
+- Why: Validation found that the bin alone chose `<pm exec> eslint .` with no
+  eslint config, overriding Biome or Ruff and inventing a failing lint skill.
+  The frozen text did not say the bin needs a config; the code followed it
+  literally. The SPEC-0306 amendment claim that the reference is unchanged for
+  a local bin was wrong for that code and is corrected the same way.
 - Sign-off: `--signoff none` (autopilot default); the owner's merge direction
   signs it.

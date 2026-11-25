@@ -360,9 +360,11 @@ function buildCommand(pc) {
   return null;
 }
 
-// A local eslint: a dependency of the project, or a regular file at node_modules/.bin/eslint or eslint.cmd.
+// A local eslint: a dependency of the project, or, next to a legacy .eslintrc only, a regular file at node_modules/.bin/eslint or eslint.cmd.
+// A bin without any eslint config proves nothing (it may be a transitive tool), so it never selects eslint on its own.
 function hasLocalEslint(pc) {
-  return pc.hasDep('eslint') || pc.file('node_modules/.bin/eslint') || pc.file('node_modules/.bin/eslint.cmd');
+  if (pc.hasDep('eslint')) return true;
+  return Boolean(pc.glob('.eslintrc')) && Boolean(pc.file('node_modules/.bin/eslint') || pc.file('node_modules/.bin/eslint.cmd'));
 }
 
 // A legacy .eslintrc with no eslint in the project: ESLint 9 and later ignore eslintrc, so the one-off form pins 8.

@@ -1938,6 +1938,17 @@ describe('TEST-4128 the project own eslint is preferred', () => {
     }
   });
 
+  test('TEST-4128 negative controls: a local bin without an eslint config never selects eslint and never beats Biome or Ruff', async () => {
+    const bin = { 'node_modules/.bin/eslint': '#!/bin/sh\n' };
+    assert.equal((await lintPlan(fx({ ...P({ name: 'x' }), 'biome.json': '', ...bin }))).cmd, 'npx biome check .', 'biome plus bin');
+    assert.equal((await lintPlan(fx({ 'ruff.toml': '', ...bin }))).cmd, 'ruff check .', 'ruff plus bin');
+    const lone = await lintPlan(fx({ ...P({ name: 'x' }), ...bin }));
+    assert.equal(lone.cmd, null, 'bin only');
+    assert.ok(!lone.skill, 'bin only gives no lint skill');
+    const cmd = await lintPlan(fx({ 'node_modules/.bin/eslint.cmd': '@echo off\n' }));
+    assert.equal(cmd.cmd, null, '.cmd bin only');
+  });
+
   test('TEST-4128 a runner or package-script lint target still wins over every eslint rule', async () => {
     assert.equal((await lintPlan(fx({ '.eslintrc.json': '{}', ...P({ scripts: { lint: 'x' } }) }))).cmd, 'npm run lint');
     assert.equal((await lintPlan(fx({ '.eslintrc.json': '{}', Makefile: 'lint:\n\tx\n' }))).cmd, 'make lint');

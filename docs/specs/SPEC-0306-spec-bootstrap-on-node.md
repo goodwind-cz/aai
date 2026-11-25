@@ -4,7 +4,7 @@ type: spec
 number: 306
 status: done
 mutation_gate: v1
-frozen_sha256: 26539f7ccf6fbe1df89fdb7ed9f07cad67659e473cbb3bc10f71ed61aa99112e
+frozen_sha256: eb67055a7db7344410bfeb1b86249bd377ca1d3108f6aac49ba91f69c7a238f6
 ceremony_level: 2
 links:
   requirement: bootstrap-on-node
@@ -1041,8 +1041,11 @@ test row it changes.
 What stays visible: the D-COMMANDS lint chain above still reads
 ``lint (runner lint, check, lint-check; scripts lint, check, typecheck; `eslint .`; ...)``.
 That is the reference behaviour and it is unchanged for a flat config, for a
-project whose own eslint is a dependency or a local bin, and for a runner or
-package-script target. The one case that changes (GitHub #589, rule D4 of
+project whose own eslint is a dependency, and for a runner or
+package-script target. A local `node_modules/.bin/eslint` counts as a local eslint
+only beside a legacy `.eslintrc*` (then `<pm exec> eslint .`, as in the
+reference); a bin with no eslint config selects nothing and does not outrank
+Biome or Ruff, again as in the reference. The one case that changes (GitHub #589, rule D4 of
 docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md): a legacy
 `.eslintrc*` in the root and no local eslint (no `eslint` in any of the four
 dependency blocks, no regular file at `node_modules/.bin/eslint` or
