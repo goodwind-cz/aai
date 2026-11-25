@@ -90,7 +90,7 @@ const FROZEN_STATUS = 'implementing';
 // the strategy check), so this refuses a tdd/hybrid spec at freeze time when
 // its Test Plan has no Mutation column — never a document this tool would
 // otherwise stamp `mutation_gate: v1` on with nothing to gate.
-const PRECONDITION_RULES = ['ac-without-test', 'frozen-without-strategy', 'unresolved-clarification', 'mutation-cell-missing'];
+const PRECONDITION_RULES = ['ac-without-test', 'frozen-without-strategy', 'unresolved-clarification', 'mutation-cell-missing', 'mutation-cell-undeclared'];
 // Statuses a spec may be frozen FROM. Anything else (done, superseded,
 // rejected, deferred, legacy, an unknown token) is refused rather than
 // silently reopened.

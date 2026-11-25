@@ -2074,6 +2074,64 @@ EOF
     || log_fail "TEST-541 shared specimen masker"
 }
 
+# --- TEST-4120 (Spec-AC-10) — a Mutation cell the gate cannot read refuses the freeze
+# mc_draft <id> <cell> <frozen:0|1> <status> -> a tdd draft (or frozen) spec whose one
+# Test Plan row carries <cell> as its Mutation cell.
+mc_draft() {
+  local id="$1" cell="$2" frozen="$3" status="$4" rowstatus="${5:-pending}"
+  printf -- '---\nid: %s\ntype: spec\nnumber: null\nstatus: %s\n' "$id" "$status"
+  [[ "$frozen" == 1 ]] && printf 'mutation_gate: v1\n'
+  printf 'links:\n  pr: []\n---\n\n# Fixture — undeclared cell (%s)\n\n' "$id"
+  [[ "$frozen" == 1 ]] && printf 'SPEC-FROZEN: true\n\n'
+  printf '## Implementation strategy\n- Strategy: tdd\n- Rationale: fixture\n\n## Acceptance Criteria Status\n\n| Spec-AC    | Description | Status  | Evidence | Review-By | Notes |\n|------------|-------------|---------|----------|-----------|-------|\n| Spec-AC-01 | first       | planned | —        | —         | —     |\n\n## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (expected) | Description | Mutation | Status |\n|-----------|------------|------|-----------------------|--------------|----------|--------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh            | a            | %s | %s |\n' "$cell" "$rowstatus"
+}
+
+test_4120_undeclared_cell_refuses_freeze() {
+  local out rc ok=1 sf="$PROJECT_ROOT/.aai/scripts/spec-freeze.mjs"
+  local hash_cell='`sed:s#OLD#NEW#` on tests/x.sh'
+  local slash_cell='`sed:s/OLD/NEW/` on tests/x.sh'
+
+  # (A) a hash-delimited sed cell: spec-lint names the row, spec-freeze refuses without writing.
+  new_fixture_root
+  mc_draft spec-fixture-4120a "$hash_cell" 0 draft > "$FIX/docs/specs/SPEC-DRAFT-a.md"
+  local before; before="$(cat "$FIX/docs/specs/SPEC-DRAFT-a.md")"
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-a.md 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-4120(A) lint" || ok=0
+  assert_payload_line_matches "$out" 'mutation-cell-undeclared.*TEST-9001' \
+    "TEST-4120(A): spec-lint did not report mutation-cell-undeclared for TEST-9001: $out" || ok=0
+  out="$(cd "$FIX" && node "$sf" --path docs/specs/SPEC-DRAFT-a.md --no-event 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || { log_info "TEST-4120(A): spec-freeze exit $rc (want 3): $out"; ok=0; }
+  assert_payload_contains "$out" 'mutation-cell-undeclared' "TEST-4120(A): freeze refusal did not name the rule: $out" || ok=0
+  [[ "$(cat "$FIX/docs/specs/SPEC-DRAFT-a.md")" == "$before" ]] || { log_info "TEST-4120(A): the refused freeze wrote the spec"; ok=0; }
+
+  # (B) the same draft with a slash-delimited cell freezes, and the gate's own
+  # extractor yields the token (a cell that freezes is a cell the gate compares).
+  new_fixture_root
+  mc_draft spec-fixture-4120b "$slash_cell" 0 draft > "$FIX/docs/specs/SPEC-DRAFT-b.md"
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-b.md 2>&1)"; rc=$?
+  assert_payload_not_contains "$out" 'mutation-cell-undeclared' "TEST-4120(B): a declared cell was flagged: $out" || ok=0
+  out="$(cd "$FIX" && node "$sf" --path docs/specs/SPEC-DRAFT-b.md --no-event 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-4120(B): spec-freeze exit $rc (want 0): $out"; ok=0; }
+  local tok
+  tok="$(node --input-type=module -e "import { extractDeclaredMutations } from '$PROJECT_ROOT/.aai/scripts/lib/mutation-record.mjs'; process.stdout.write(extractDeclaredMutations(process.argv[1]).join('|'))" -- "$slash_cell")"
+  [[ "$tok" == "sed:s/OLD/NEW/" ]] || { log_info "TEST-4120(B): the gate extractor yielded '$tok'"; ok=0; }
+
+  # (C) a frozen spec with the same prose cell gets no such finding.
+  new_fixture_root
+  mc_draft spec-fixture-4120c "$hash_cell" 1 implementing > "$FIX/docs/specs/SPEC-DRAFT-c.md"
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-c.md 2>&1)"; rc=$?
+  assert_payload_not_contains "$out" 'mutation-cell-undeclared' "TEST-4120(C): a frozen spec was linted for an undeclared cell: $out" || ok=0
+
+  # (D) negative controls: an exempt (deferred) row and an empty-declaration placeholder are not this rule's.
+  new_fixture_root
+  mc_draft spec-fixture-4120d "$hash_cell" 0 draft deferred > "$FIX/docs/specs/SPEC-DRAFT-d.md"
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-d.md 2>&1)"; rc=$?
+  assert_payload_not_contains "$out" 'mutation-cell-undeclared' "TEST-4120(D): a deferred row was flagged: $out" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-4120 an undeclared Mutation cell is reported by spec-lint and refuses the freeze with no write; a declared cell freezes; frozen and exempt rows are not flagged" \
+    || log_fail "TEST-4120 undeclared Mutation cell"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -2135,6 +2193,7 @@ main() {
   test_479_column_by_name
   test_494_header_prefix_match_and_unmapped_finding
   test_541_shared_specimen_masker
+  test_4120_undeclared_cell_refuses_freeze
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

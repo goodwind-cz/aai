@@ -776,22 +776,32 @@ function resolveUpstreamDefaultRef(root) {
   return null;
 }
 
+// isPostMergeClose(root, commit) — a --commit was given and is already an
+// ancestor of the resolved upstream default ref. False on every git failure,
+// an absent remote or an absent commit (the close is then treated as pre-merge).
+// Shared by the advisory below and by mutationGateArgs.
+function isPostMergeClose(root, commit) {
+  if (!commit) return false;
+  const ref = resolveUpstreamDefaultRef(root);
+  if (!ref) return false;
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', commit, ref], {
+      cwd: root, stdio: ['ignore', 'ignore', 'ignore'],
+    });
+    return true;
+  } catch {
+    return false; // not an ancestor (or the commit/ref is unresolvable)
+  }
+}
+
 // emitPostMergeCloseWarning(root, commit, pr) — called ONCE per invocation
 // (never once per ref, so a pair-close still prints at most one line). Prints
 // to stderr only; never touches stdout or the exit code. Any unexpected
 // failure here is swallowed — this advisory must never affect the close.
 function emitPostMergeCloseWarning(root, commit, pr) {
   try {
-    if (!commit) return;
+    if (!isPostMergeClose(root, commit)) return;
     const ref = resolveUpstreamDefaultRef(root);
-    if (!ref) return;
-    try {
-      execFileSync('git', ['merge-base', '--is-ancestor', commit, ref], {
-        cwd: root, stdio: ['ignore', 'ignore', 'ignore'],
-      });
-    } catch {
-      return; // not an ancestor (or the commit/ref is unresolvable) -> silence
-    }
     process.stderr.write(
       `close-work-item: WARN post-merge-close - delivery commit ${commit} is already an ` +
       `ancestor of ${ref}; commits produced by this close will be in neither PR #${pr} nor its CI\n`
@@ -1212,7 +1222,14 @@ function formatMutationNotice(n) {
 // "spec" — normally just the --spec doc (D5), but a ride that closes a spec
 // AS ITS PRIMARY --ref is covered too, since resolved[0] is scanned the same
 // way.
-function evaluateMutationGate(resolved) {
+// mutationGateArgs(commit) — a close before merge is a merge criterion, so it
+// requires the evidence tree; a post-merge close (the worktree's evidence no
+// longer exists) keeps the gate's default behaviour.
+function mutationGateArgs(commit) {
+  return isPostMergeClose(ROOT, commit) ? [] : ['--require-evidence'];
+}
+
+function evaluateMutationGate(resolved, commit) {
   const specDocs = resolved.filter((d) => String(d.fm?.type ?? '').toLowerCase() === 'spec');
   if (specDocs.length === 0) return { severity: 'none' };
   const gateScript = path.join(ROOT, '.aai/scripts/mutation-gate.mjs');
@@ -1226,7 +1243,7 @@ function evaluateMutationGate(resolved) {
     let out = '';
     let status = 0;
     try {
-      out = execFileSync('node', [gateScript, '--spec', doc.abs], { encoding: 'utf8', cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+      out = execFileSync('node', [gateScript, '--spec', doc.abs, ...mutationGateArgs(commit)], { encoding: 'utf8', cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (err) {
       status = typeof err.status === 'number' ? err.status : 1;
       out = `${err.stdout ?? ''}${err.stderr ?? ''}`;
@@ -1997,9 +2014,12 @@ function main() {
   // reports the verdict in its JSON below and never acts on it. New exit 8
   // (3, 4, 5 are the three gates above, 6 is the STATE-reconcile PARTIAL, 7
   // is the HEAD pin).
-  const mutationGate = evaluateMutationGate(resolved);
+  const mutationGate = evaluateMutationGate(resolved, args.commit);
   if (!args.dryRun && mutationGate.severity === 'refuse') {
-    process.stderr.write(`close-work-item: REFUSED (mutation gate) — ${mutationGate.reason}\n`);
+    const remedy = mutationGateArgs(args.commit).length
+      ? ' | remedy: close in the checkout that holds the evidence, or pass --commit <merge sha> for a post-merge close'
+      : '';
+    process.stderr.write(`close-work-item: REFUSED (mutation gate) — ${mutationGate.reason}${remedy}\n`);
     exit(8);
   }
   if (!args.dryRun && mutationGate.severity === 'warn') {

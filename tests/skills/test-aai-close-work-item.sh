@@ -4322,6 +4322,73 @@ JS
   log_pass "TEST-673: a hung backlog child is bounded by the timeout and degrades to a NOTE without blocking the close (${elapsed}s elapsed, Spec-AC-12/B4)"
 }
 
+test_4117_close_requires_evidence_before_merge() {
+  log_info "Test: a pre-merge close requires the evidence tree, a post-merge close keeps today's behaviour (TEST-4117)..."
+
+  # Arm A - enforce, no --commit, no evidence directory: refused (exit 8),
+  # naming the missing record, nothing flipped.
+  local dir_a; dir_a=$(new_fixture_repo_with_remote "t4117a")
+  seed_mutation_gate_engine "$dir_a"
+  set_mutation_gate_dial "$dir_a" "enforce"
+  write_change_doc "$dir_a/docs/issues/CHANGE-0001-t4117a.md" "t4117a-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_a/docs/specs/SPEC-0001-t4117a.md" "t4117a-spec" "implementing"
+  commit_fixture_docs "$dir_a"
+  [[ ! -e "$dir_a/docs/ai/tdd/t4117a-spec" ]] || log_fail "TEST-4117 arm A setup: the evidence directory must not exist"
+  local out="$TEST_DIR/t4117a.out" err="$TEST_DIR/t4117a.err" code
+  code=$(run_close "$dir_a" "$out" "$err" --ref t4117a-change --spec t4117a-spec --pr 4117)
+  assert_exit "TEST-4117 arm A: enforce refuses a pre-merge close with no evidence tree" 8 "$code"
+  grep -qF 'REFUSED (mutation gate)' "$err" || log_fail "TEST-4117 arm A: no mutation-gate REFUSED line: $(cat "$err")"
+  grep -qF 'missing record' "$err" || log_fail "TEST-4117 arm A: the refusal must name the missing record: $(cat "$err")"
+  grep -qF 'TEST-001' "$err" || log_fail "TEST-4117 arm A: the refusal must name TEST-001: $(cat "$err")"
+  grep -qF 'close in the checkout that holds the evidence' "$err" || log_fail "TEST-4117 arm A: the refusal must name the remedy (close where the evidence is): $(cat "$err")"
+  grep -qF -- '--commit' "$err" || log_fail "TEST-4117 arm A: the refusal must name --commit for a post-merge close: $(cat "$err")"
+  if grep -q '^status: done$' "$dir_a/docs/specs/SPEC-0001-t4117a.md" "$dir_a/docs/issues/CHANGE-0001-t4117a.md"; then
+    log_fail "TEST-4117 arm A: a doc was flipped to done despite the refusal"
+  fi
+  [[ -z "$(git -C "$dir_a" status --porcelain)" ]] || log_fail "TEST-4117 arm A: the refused close wrote: $(git -C "$dir_a" status --porcelain)"
+
+  # Arm B - the same shape but the --commit is already an ancestor of
+  # origin/main (a post-merge close): not refused by the mutation gate.
+  local dir_b; dir_b=$(new_fixture_repo_with_remote "t4117b")
+  seed_mutation_gate_engine "$dir_b"
+  set_mutation_gate_dial "$dir_b" "enforce"
+  write_change_doc "$dir_b/docs/issues/CHANGE-0001-t4117b.md" "t4117b-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_b/docs/specs/SPEC-0001-t4117b.md" "t4117b-spec" "implementing"
+  commit_fixture_docs "$dir_b"
+  local sha; sha=$(git -C "$dir_b" rev-parse HEAD)
+  push_head_to_origin_main "$dir_b"
+  out="$TEST_DIR/t4117b.out"; err="$TEST_DIR/t4117b.err"
+  code=$(run_close "$dir_b" "$out" "$err" --ref t4117b-change --spec t4117b-spec --pr 4117 --commit "$sha")
+  assert_exit "TEST-4117 arm B: a post-merge close is not refused by the mutation gate" 0 "$code"
+  grep -q '^status: done$' "$dir_b/docs/specs/SPEC-0001-t4117b.md" || log_fail "TEST-4117 arm B: the post-merge close did not complete"
+
+  # Arm C - negative control: a --commit that is NOT an ancestor of
+  # origin/main is still a pre-merge close and is refused.
+  local dir_c; dir_c=$(new_fixture_repo_with_remote "t4117c")
+  seed_mutation_gate_engine "$dir_c"
+  set_mutation_gate_dial "$dir_c" "enforce"
+  write_change_doc "$dir_c/docs/issues/CHANGE-0001-t4117c.md" "t4117c-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_c/docs/specs/SPEC-0001-t4117c.md" "t4117c-spec" "implementing"
+  commit_fixture_docs "$dir_c"
+  sha=$(git -C "$dir_c" rev-parse HEAD)
+  out="$TEST_DIR/t4117c.out"; err="$TEST_DIR/t4117c.err"
+  code=$(run_close "$dir_c" "$out" "$err" --ref t4117c-change --spec t4117c-spec --pr 4117 --commit "$sha")
+  assert_exit "TEST-4117 arm C: an unmerged --commit is still a pre-merge close" 8 "$code"
+
+  # Arm D - report-only: a pre-merge close with no evidence tree warns and closes.
+  local dir_d; dir_d=$(new_fixture_repo_with_remote "t4117d")
+  seed_mutation_gate_engine "$dir_d"
+  set_mutation_gate_dial "$dir_d" "report-only"
+  write_change_doc "$dir_d/docs/issues/CHANGE-0001-t4117d.md" "t4117d-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_d/docs/specs/SPEC-0001-t4117d.md" "t4117d-spec" "implementing"
+  commit_fixture_docs "$dir_d"
+  out="$TEST_DIR/t4117d.out"; err="$TEST_DIR/t4117d.err"
+  code=$(run_close "$dir_d" "$out" "$err" --ref t4117d-change --spec t4117d-spec --pr 4117)
+  assert_exit "TEST-4117 arm D: report-only warns and closes" 0 "$code"
+  grep -qF 'WARNING (mutation gate)' "$err" || log_fail "TEST-4117 arm D: no mutation-gate WARNING line: $(cat "$err")"
+  log_pass "TEST-4117 a pre-merge close requires the evidence tree; a post-merge close does not"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -4410,6 +4477,7 @@ main() {
   test_530_skip_keeps_planned_echo
   test_531_mutation_notice_names_counts
   test_532_product_doc_shares_an_id
+  test_4117_close_requires_evidence_before_merge
   test_533_pin_has_exactly_one_new_entry
   test_671_close_surfaces_the_backlog
   test_673_hung_backlog_step_never_blocks_close

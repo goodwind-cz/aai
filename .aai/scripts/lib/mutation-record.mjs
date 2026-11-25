@@ -147,7 +147,14 @@ export function recordFileName(testId) {
 // the SECOND) would otherwise silently overwrite the earlier archive, the
 // one case D2's "never delete, never overwrite" rule did not itself cover.
 export function rotatedFileName(testId, runAtUtc, suffix) {
-  return `mutation-${testId}.${runAtUtc}${suffix ? `.${suffix}` : ''}.txt`;
+  return `mutation-${testId}.${stampForFileName(runAtUtc)}${suffix ? `.${suffix}` : ''}.txt`;
+}
+
+// D8: a rotated name is valid on Windows and cannot leave the evidence
+// directory — every character outside [A-Za-z0-9._-] (colon, slash, ...)
+// becomes `-`. The record's own run_at_utc header value is unchanged.
+export function stampForFileName(runAtUtc) {
+  return String(runAtUtc).replace(/[^A-Za-z0-9._-]/g, '-');
 }
 
 // isRotatedFileName(name, testId) -> true for a rotated sibling of testId's
@@ -168,7 +175,7 @@ export function patchFileName(testId) {
 }
 
 export function rotatedPatchFileName(testId, runAtUtc, suffix) {
-  return `mutation-${testId}.${runAtUtc}${suffix ? `.${suffix}` : ''}.patch`;
+  return `mutation-${testId}.${stampForFileName(runAtUtc)}${suffix ? `.${suffix}` : ''}.patch`;
 }
 
 // --- declared-mutation grammar (SPEC-DRAFT spec-gate-checks-declared-

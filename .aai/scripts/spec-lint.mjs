@@ -88,6 +88,7 @@ import {
   isMutationCellPlaceholder, TERMINAL_DOC_STATUS,
 } from './lib/docs-model.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { extractDeclaredMutations } from './lib/mutation-record.mjs';
 // spec-close-ceremony-sweep Spec-AC-14 (fu-mask-duplicates-docs-audit-core) —
 // the fenced/inline code-specimen masker used by the clarification-marker and
 // ac-vague-term rules below is lib/docs-audit-core.mjs's own maskSpecimens;
@@ -599,6 +600,8 @@ export function lintContent(content, opts = {}) {
   // the exemption is not itself pushed as a finding — callers read it via
   // mutationGateApplicability() / lintFileAt()'s `mutationGate` field.
   const mutationGate = mutationGateApplicability(norm, { fm, fmStatus, frozenMarker: mutationGateFrozenMarker, strategy });
+  // mutation-cell-undeclared (mutation-tooling-p2-fixes D9): the gate's own EXEMPT_STATUSES.
+  const mutationExemptStatuses = ['deferred', 'dropped', 'rejected'];
   for (const row of tp.rows) {
     const { ids, malformed } = expandAcRefs(row.acCell);
     for (const tok of malformed) {
@@ -616,6 +619,8 @@ export function lintContent(content, opts = {}) {
         add('mutation-cell-missing', `${row.testId} has no Mutation column, or an empty Mutation cell — every row of a gated (mutation_gate) tdd/hybrid spec needs the mutation that must redden it`, row.line);
       } else if (isMutationCellPlaceholder(mCell)) {
         add('mutation-cell-malformed', `${row.testId}'s Mutation cell "${mCell}" is a placeholder, not a named mutation — state the actual mutation (e.g. "sed:s/OLD/NEW/") that must redden this test`, row.line);
+      } else if (!mutationGateFrozenMarker && !mutationExemptStatuses.includes((row.statusCell ?? '').trim().toLowerCase()) && extractDeclaredMutations(mCell).length === 0) {
+        add('mutation-cell-undeclared', `${row.testId}'s Mutation cell "${mCell}" holds no machine-readable declaration (a \`sed:s/.../.../\` or \`patch:<path>\` token) — mutation-gate.mjs could never compare it, so the spec cannot be frozen`, row.line);
       }
     }
   }
