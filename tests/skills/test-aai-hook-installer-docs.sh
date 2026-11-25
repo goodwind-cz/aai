@@ -240,11 +240,40 @@ test_3999_follow_ups() {
   log_pass "TEST-3999: the eighteen follow-ups are closed with resolved_by pre-commit-installer-on-node and a source naming a test file and a TEST id it holds, fu-seterr-suspended-left-of-or stays open, and the four suggested follow-ups are filed with ref pre-commit-installer-on-node and open unless a later ride resolved them"
 }
 
+# node-first-leftovers D-DOCS and D-AMEND (Spec-AC-11): the DR-20 clause, the CHANGELOG entry with its erratum, the amendment records.
+test_4059_leftover_docs() {
+  local spec="$PROJECT_ROOT/docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md" log="$PROJECT_ROOT/CHANGELOG.md"
+  local heading body phrase json rc=0
+  grep -qF 'except that a `PWD` with a leading `//` collapses to `/` in module messages; the hook lands in the same place' "$spec" \
+    || log_fail "TEST-4059: the DR-20 cell of SPEC-0308 lacks the leading-// clause"
+  # The heading is [unreleased] on the branch and [vYYYY.MM.DD] once a release rolls it (the release dry-run reads the rolled tree).
+  local title='Node-first leftovers: share echo, launcher arguments, sync output and guard config fixes'
+  [[ "$(grep -cE -- "^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[0-9A-Za-z.-]*)\] — ${title}\$" "$log")" == 1 ]] || log_fail "TEST-4059: CHANGELOG.md does not carry the leftovers heading exactly once"
+  heading="$(grep -E -- "^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[0-9A-Za-z.-]*)\] — ${title}\$" "$log")"
+  body="$(awk -v h="$heading" '$0 == h { on = 1; next } on && /^## / { exit } on { print }' "$log")"
+  [[ -n "$body" ]] || log_fail "TEST-4059: the leftovers CHANGELOG entry has no body"
+  for phrase in 'share echo' 'gapped' 'colon' 'array' 'trailing backslash' 'DR-33' 'which the sync manages' 'EAGAIN' 'BOM' \
+                'the first one with a value wins' '--hooks together with --print' 'exits 2'; do
+    [[ "$body" == *"$phrase"* ]] || log_fail "TEST-4059: the leftovers CHANGELOG entry does not name '$phrase'"
+  done
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --strict >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-4059: spec-amend list --strict exited $rc"
+  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4059: spec-amend list failed"
+  for phrase in SPEC-0307 SPEC-0308 SPEC-0310 SPEC-0311; do
+    [[ "$(node -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      process.stdout.write(String(d.items.filter((i) => i.ref_id === "node-first-leftovers" && i.amendment_class === "contract" && i.spec.includes(process.argv[1])).length > 0));
+    ' "$phrase" <<<"$json")" == true ]] || log_fail "TEST-4059: no contract amendment record of ref node-first-leftovers for $phrase"
+  done
+  log_pass "TEST-4059: SPEC-0308 carries the DR-20 clause, CHANGELOG.md the leftovers entry with the --hooks together with --print erratum, and the four amendment records exist with spec-amend list --strict at 0"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3998 and TEST-3999)"
   check_deps
   test_3998_docs
   test_3999_follow_ups
+  test_4059_leftover_docs
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

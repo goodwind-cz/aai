@@ -576,7 +576,9 @@ test_307_clone_seam() {
 # Re-pinned by precommit-residual-defects (D2): the hook reads its staged name
 # lists NUL-separated (-z) into a scratch directory -- an intentional, in-scope
 # change, measured by VALIDATION r1's run of this test (its "got" value).
-PRECOMMIT_SHA256_BASELINE="94472712b7b9a4c5c4dd2361c4c1a1fe3c7dbdd26e893997514e37e9c6d8666f"
+# Re-pinned by node-first-leftovers (D-BOM): the close_gate and body_lint dial greps accept an optional leading
+# byte order mark (one line each) -- an intentional, in-scope change, measured by this test's own "got" value.
+PRECOMMIT_SHA256_BASELINE="73ee6cb9859ee627fe2a563ebe0a21ab0edf1e471853fbd7d8ee427d59dcd1cb"
 
 test_308_installer_contract() {
   local ok=1

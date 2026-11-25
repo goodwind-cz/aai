@@ -70,7 +70,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (695)
+## Done (697)
 
 | ID | Type | Path |
 |---|---|---|
@@ -335,6 +335,7 @@ _None._
 | CHANGE-0264 | issues | docs/issues/CHANGE-0264-installer-l3-protected.md |
 | CHANGE-0265 | issues | docs/issues/CHANGE-0265-sync-on-node.md |
 | CHANGE-0266 | issues | docs/issues/CHANGE-0266-node-first-phase5-closeout.md |
+| CHANGE-0267 | issues | docs/issues/CHANGE-0267-node-first-leftovers.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -767,6 +768,7 @@ _None._
 | SPEC-0309 | specs | docs/specs/SPEC-0309-spec-installer-l3-protected.md |
 | SPEC-0310 | specs | docs/specs/SPEC-0310-spec-sync-on-node.md |
 | SPEC-0311 | specs | docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md |
+| SPEC-0312 | specs | docs/specs/SPEC-0312-spec-node-first-leftovers.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

@@ -9,6 +9,7 @@ if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPat
     if ($a -is [bool]) { if (-not $a -and $argv.Count -gt 0) { $argv.RemoveAt($argv.Count - 1) }; continue }
     $s = if ($a -is [array]) { $a -join ',' } else { [string]$a }
     if ($s -match '^-[A-Za-z][A-Za-z0-9-]*:$') { $s = $s.Substring(0, $s.Length - 1) }
+    if ($s -match '\s' -and $s.EndsWith('\') -and $PSVersionTable.PSVersion.Major -lt 6) { $s += '\' }
     $argv.Add($s)
   }
   & node $Module @argv

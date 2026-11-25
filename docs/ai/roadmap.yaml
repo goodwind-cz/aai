@@ -180,6 +180,8 @@ pairs:
     status: done
   - capability: node-first-phase5-closeout
     status: done
+  - capability: node-first-leftovers
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

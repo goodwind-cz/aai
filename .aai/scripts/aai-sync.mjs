@@ -60,7 +60,28 @@ const overlapsSource = (roots) => isUnderOrSame(roots.targetReal, roots.srcReal)
 const targetInSource = (roots) => [overlapsSource(roots), ancestorIsFile(roots.targetReal, roots.srcReal)].some(Boolean);
 const PIN_VERSION_PREFIX = '- Template version: ';
 const runChild = (file, args, opts) => spawnSync(file, args, opts);
-const writeFd = (fd) => (s) => { fs.writeSync(fd, s); };
+// Writes the whole string as bytes: a partial count continues from the offset, and EAGAIN (a non-blocking pipe) waits
+// 5 ms and retries, giving up with the original error after 30 s without progress.
+const writeFd = (fd) => (s) => {
+  const buf = Buffer.from(s, 'utf8');
+  let off = 0;
+  let stalledSince = 0;
+  while (off < buf.length) {
+    try {
+      off += fs.writeSync(fd, buf, off, buf.length - off);
+      stalledSince = 0;
+    } catch (e) {
+      if (e.code === 'EAGAIN') {
+        const now = Date.now();
+        if (stalledSince === 0) stalledSince = now;
+        if (now - stalledSince > 30000) throw e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+      } else {
+        throw e;
+      }
+    }
+  }
+};
 
 const USAGE_LINE = 'Usage: .aai/scripts/aai-sync.sh <path-to-target-project> [--profile core|extended]';
 const PROFILE_NEEDS_VALUE = 'ERROR: --profile needs a value (core|extended)';
@@ -257,7 +278,7 @@ function sourceInManagedRefusal(roots) {
     const managed = path.join(roots.target, rel);
     const st = statOrNull(managed);
     if (st !== null && st.isDirectory() && ancestorIsFile(roots.srcReal, managed)) {
-      return refusal(`ERROR: the source ${roots.srcReal} lies inside ${rel} of the target ${roots.target}, which the sync replaces; nothing was written.`);
+      return refusal(`ERROR: the source ${roots.srcReal} lies inside ${rel} of the target ${roots.target}, which the sync manages; nothing was written.`);
     }
   }
   return null;

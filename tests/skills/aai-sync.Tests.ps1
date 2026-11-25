@@ -21,9 +21,9 @@ Describe 'aai-sync.ps1' {
         return $d
       }
       function Invoke-Engine {
-        param([string]$EngineArgs, [string]$WorkDir, [string]$Path)
+        param([string]$EngineArgs, [string]$WorkDir, [string]$Path, [string]$EnginePath = $script:Engine)
         $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = $script:Engine
+        $psi.FileName = $EnginePath
         $psi.Arguments = $EngineArgs
         $psi.WorkingDirectory = $WorkDir
         $psi.UseShellExecute = $false
@@ -89,6 +89,19 @@ Describe 'aai-sync.ps1' {
       $r2.ExitCode | Should -Be 7 -Because "stderr: $($r2.Stderr)"
       $got2 = $r2.Stdout | ConvertFrom-Json
       @($got2.argv) | Should -Be @('-Profile', 'core,extended')
+    }
+
+    It 'hands a -TargetRoot that holds a space and ends in a backslash to the module unchanged (D-PS51), through powershell.exe on Windows and pwsh elsewhere' {
+      $d = New-LaunchDir 'launch-backslash'
+      Copy-Item -LiteralPath $script:Launcher -Destination (Join-Path $d 'aai-sync.ps1')
+      Write-StubModule $d
+      $isWin = ($env:OS -eq 'Windows_NT')
+      $enginePath = if ($isWin) { Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe' } else { $script:Engine }
+      # the child engine reads this command line with the usual Windows rules, so the trailing backslash is doubled before the closing quote
+      $r = Invoke-Engine ('-NoProfile -NonInteractive -File "' + (Join-Path $d 'aai-sync.ps1') + '" -TargetRoot "C:\My Projects\app\\"') $d $env:PATH $enginePath
+      $r.ExitCode | Should -Be 7 -Because "stderr: $($r.Stderr)"
+      $got = $r.Stdout | ConvertFrom-Json
+      @($got.argv) | Should -Be @('-TargetRoot', 'C:\My Projects\app\')
     }
 
     It 'refuses with the one line, prints nothing on stdout and changes nothing when node is not on PATH' {

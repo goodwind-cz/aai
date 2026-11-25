@@ -414,7 +414,7 @@ fi
 DOC_NUMBER_GUARD="$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs"
 if [ -f "$DOC_NUMBER_GUARD" ] && ( command -v node ) >/dev/null 2>&1; then
   DN_MODE="report-only"
-  if grep -Eq '^doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
+  if grep -Eq $'^(\xef\xbb\xbf)?doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
        "$PROJECT_ROOT/docs/ai/docs-audit.yaml" 2>/dev/null; then
     DN_MODE="enforce"
   fi

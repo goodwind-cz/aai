@@ -433,6 +433,8 @@ test_031_guard_config_conformance() {  # CHANGE-0009 TEST-018 / Spec-AC-09
   local dn_pat cg_pat
   dn_pat="$(awk -F"'" '/grep -Eq/ && /doc_number_guard:/ { print $(NF-1); exit }' "$sh_hook")"
   cg_pat="$(awk -F"'" '/grep -Eq/ && /close_gate:/ { print $(NF-1); exit }' "$ps_hook")"
+  # The mirrors write the optional leading BOM as a bash $'...' string (D-BOM); decode the \x escapes.
+  dn_pat="$(printf '%b' "$dn_pat")"; cg_pat="$(printf '%b' "$cg_pat")"
   [[ -n "$dn_pat" ]] || log_fail "could not extract the doc_number_guard grep pattern from pre-commit-checks.sh"
   [[ -n "$cg_pat" ]] || log_fail "could not extract the close_gate grep pattern from the pre-commit index template"
 
@@ -471,6 +473,8 @@ test_031_guard_config_conformance() {  # CHANGE-0009 TEST-018 / Spec-AC-09
     check_variant "enforce" "$key" "$pat" "$key: enforce"
     check_variant "report-only" "$key" "$pat" "$key: report-only"
     check_variant "trailing comment" "$key" "$pat" "$key: enforce  # note"
+    check_variant "BOM enforce" "$key" "$pat" $'\xef\xbb\xbf'"$key: enforce"
+    check_variant "BOM report-only" "$key" "$pat" $'\xef\xbb\xbf'"$key: report-only"
     check_variant "commented out" "$key" "$pat" "# $key: enforce"
     check_variant "invalid value" "$key" "$pat" "$key: enforced"
     # Review CHANGE-0009 W2 variants: these four used to diverge (or were
