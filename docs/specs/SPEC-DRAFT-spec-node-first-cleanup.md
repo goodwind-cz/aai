@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 1d3f57fd9de51f7315bfd281d0494a4d30495efde462ebc2c5ac597d191c799b
+frozen_sha256: 64a3e7eb5d78878385b82533e15909461132adf4c0dff0c1640c5829cc5b67b7
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -210,7 +210,9 @@ D-PWSH-CACHE edit of the TEST-4027 spawns). The owner's merge signs them
   `## [unreleased] — Node-first cleanup: measured suite weights, release preflight isolation and guard fixes`,
   that names each consumer-visible change: the preflight clone and
   environment, the dry-run identity, the renamed-doc gate, and the
-  merge-cleanup refusal.
+  merge-cleanup refusal. A release rolls `[unreleased]` to
+  `[vYYYY.MM.DD]`; the heading check accepts either form (the release
+  dry-run reads the rolled tree).
 - No new `.aai/**` file, so no PROFILES.yaml change.
 
 ## Acceptance Criteria Mapping
@@ -278,7 +280,7 @@ directory, which `mkdirSync` would then create inside the checkout).
 | TEST-4045 | Spec-AC-09 | integration | tests/skills/test-aai-merge-cleanup.sh | test_4045_sync_refuses_parent_link symlinks docs/ai of a scratch origin to an outside directory holding a dirty ledger, runs merge-cleanup apply, and requires REFUSE write_outside_checkout, exit 3 and a byte-identical outside tree | `sed:s/function escapesCheckout\(origin, abs\) \{/function escapesCheckout(origin, abs) { return false;/` on .aai/scripts/merge-cleanup.mjs | green |
 | TEST-4046 | Spec-AC-10 | integration | tests/skills/test-aai-merge-cleanup.sh | test_4046_resume_refuses_parent_link plants a pending journal whose entry path resolves outside the checkout and requires write_outside_checkout before any write, outside tree unchanged | `sed:s/function escapesCheckout\(origin, abs\) \{/function escapesCheckout(origin, abs) { return false;/` on .aai/scripts/merge-cleanup.mjs | green |
 | TEST-4047 | Spec-AC-11 | unit | tests/skills/test-aai-pre-commit-checks.sh | test_4047_seterr_lint runs seterr-lint over every tracked .aai shell script (zero findings) and over two fixtures (one finding with set -e, zero without) | `sed:s/return findings;/return [];/` on tests/skills/lib/seterr-lint.mjs | green |
-| TEST-4048 | Spec-AC-12 | inspection | tests/skills/test-aai-suite-select.sh | test_4048_cleanup_wiring requires the D-WIRE CHANGELOG heading with the four named changes and spec-amend list --strict exit 0 with the nine D-AMEND records | `sed:s/## \[unreleased\] — Node-first cleanup/## [unreleased] — Node first cleanup/` on CHANGELOG.md | green |
+| TEST-4048 | Spec-AC-12 | inspection | tests/skills/test-aai-suite-select.sh | test_4048_cleanup_wiring requires exactly one D-WIRE CHANGELOG heading, [unreleased] or a rolled [vYYYY.MM.DD], with the four named changes and spec-amend list --strict exit 0 with the nine D-AMEND records | `sed:s/## \[unreleased\] — Node-first cleanup/## [unreleased] — Node first cleanup/` on CHANGELOG.md | green |
 
 ## Verification
 
