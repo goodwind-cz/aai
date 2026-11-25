@@ -233,25 +233,426 @@ fi
 [ "$IN_REPO" -eq 0 ] || [ "$PCC_PARSED" -eq 1 ] || staged_read_fail "parse did not complete"
 
 # --- CHECK 2: Secrets Detection ---
+# A finding is one line of a staged blob that looks like a credential. What counts is the VALUE, judged by shape (a
+# value with a blank, a word, a reference, a placeholder, a URL or a relative path is not a credential); a file name
+# only picks the rules (a name hit also gets the unquoted-assignment and URL-credential rules) and blocks by itself
+# only for a key file or a blob holding a NUL byte. A project-owned allowlist read from the index exempts reviewed
+# false positives; every finding prints its line number and a fingerprint, never the value. The two awk programs
+# are plain POSIX awk (no interval expression, no gawk extension) and run under LC_ALL=C; they contain no apostrophe
+# because they sit in shell single quotes. Per file: a grep prefilter (every rule needs one of its words), then awk.
 SECRETS_FOUND=0
+PCC_VALUE_MINLEN=8
+PCC_ALLOWLIST="docs/ai/secrets-allowlist.txt"
+PCC_PRE='password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|A[KS]IA|g[h][pousr]_|github[_]pat_|-----BEGIN'
+PCC_AWK='
+function has_space(v) {
+  return (index(v, " ") > 0 || index(v, "\t") > 0)
+}
+function is_letter(c) {
+  return ((c >= "A" && c <= "Z") || (c >= "a" && c <= "z") || (c > "~" && c != "\177"))
+}
+function is_wordlike(v) {
+  wl_n = length(v)
+  if (wl_n > 0 && index(".!?:", substr(v, wl_n, 1)) > 0) wl_n--
+  wl_st = 0
+  for (wl_i = 1; wl_i <= wl_n; wl_i++) {
+    wl_c = substr(v, wl_i, 1)
+    if (is_letter(wl_c)) wl_st = 1
+    else if ((wl_c == "-" || wl_c == "\047" || wl_c == ".") && wl_st == 1) wl_st = 0
+    else return 0
+  }
+  return (wl_st == 1)
+}
+function is_reference(v) {
+  if (substr(v, 1, 1) == "$" || index(v, "${") > 0 || substr(v, 1, 2) == "{{") return 1
+  if (length(v) > 1 && substr(v, 1, 1) == "%" && substr(v, length(v), 1) == "%") return 1
+  if (index(v, "process.env.") == 1 || index(v, "import.meta.env.") == 1 || index(v, "os.environ") == 1) return 1
+  if (index(v, "os.getenv(") == 1 || index(v, "System.getenv(") == 1 || index(v, "ENV[") == 1 || index(v, "env(") == 1) return 1
+  return 0
+}
+function is_placeholder(v) {
+  pl_v = tolower(v)
+  if (substr(pl_v, 1, 1) == "<" && index(pl_v, ">") > 0) return 1
+  pl_same = 1
+  for (pl_i = 2; pl_i <= length(pl_v); pl_i++) {
+    if (substr(pl_v, pl_i, 1) != substr(pl_v, 1, 1)) { pl_same = 0; break }
+  }
+  if (pl_same == 1) return 1
+  if (index(pl_v, "changeme") > 0 || index(pl_v, "change_me") > 0 || index(pl_v, "change-me") > 0) return 1
+  if (index(pl_v, "replaceme") > 0 || index(pl_v, "replace_me") > 0 || index(pl_v, "replace-me") > 0) return 1
+  if (index(pl_v, "placeholder") > 0 || index(pl_v, "example") > 0 || index(pl_v, "dummy") > 0) return 1
+  if (index(pl_v, "redacted") > 0 || index(pl_v, "xxxx") > 0) return 1
+  if (index(pl_v, "your_") == 1 || index(pl_v, "your-") == 1) return 1
+  if (length(pl_v) >= 5 && (substr(pl_v, length(pl_v) - 4) == "_here" || substr(pl_v, length(pl_v) - 4) == "-here")) return 1
+  return 0
+}
+function is_url(v) {
+  return (v ~ "^[A-Za-z][A-Za-z0-9+.-]*://")
+}
+function cred(v) {
+  if (length(v) < minlen) return 0
+  if (has_space(v)) return 0
+  if (is_reference(v)) return 0
+  if (is_placeholder(v)) return 0
+  if (is_wordlike(v)) return 0
+  if (is_url(v)) return 0
+  if (substr(v, 1, 2) == "./" || substr(v, 1, 3) == "../" || substr(v, 1, 2) == "~/") return 0
+  return 1
+}
+function trim(s) {
+  sub(/^[ \t]+/, "", s)
+  sub(/[ \t]+$/, "", s)
+  return s
+}
+function emit(n, text,   fn) {
+  if (n == last) return
+  last = n
+  print n "\n"
+  if (fpon == "1") {
+    fn = fpb "." n
+    print fnm "\n" trim(text) > fn
+    close(fn)
+    print fn "\n" >> fpl
+  }
+}
+function r1(s,   lc, off, e, q, v, p) {
+  lc = tolower(s)
+  off = 0
+  while (match(substr(lc, off + 1), R1RE)) {
+    e = off + RSTART + RLENGTH
+    q = substr(s, e - 1, 1)
+    v = substr(s, e)
+    p = index(v, q)
+    if (p > 0) v = substr(v, 1, p - 1)
+    if (substr(v, 1, 8) !~ /["\047]/ && cred(v)) return 1
+    off = e - 1
+  }
+  return 0
+}
+function r2(s,   lc, off, e, c, v, p) {
+  lc = tolower(s)
+  off = 0
+  while (match(substr(lc, off + 1), R2RE)) {
+    e = off + RSTART + RLENGTH
+    v = substr(s, e)
+    sub(/^[ \t]+/, "", v)
+    c = substr(v, 1, 1)
+    if (c == "\"" || c == "\047") {
+      v = substr(v, 2)
+      p = index(v, c)
+      if (p > 0) v = substr(v, 1, p - 1)
+    } else {
+      p = match(v, /[ \t]/)
+      if (p > 0) v = substr(v, 1, p - 1)
+    }
+    if (cred(v)) return 1
+    off = e - 1
+  }
+  return 0
+}
+function r3(s,   off, p, a, k, at, u, c) {
+  off = 0
+  while ((p = index(substr(s, off + 1), "://")) > 0) {
+    p = off + p
+    off = p + 2
+    if (substr(s, 1, p - 1) !~ /[A-Za-z][A-Za-z0-9+.-]*$/) continue
+    a = substr(s, p + 3)
+    k = match(a, "[/?# \t\"\047]")
+    if (k > 0) a = substr(a, 1, k - 1)
+    at = 0
+    for (k = 1; k <= length(a); k++) if (substr(a, k, 1) == "@") at = k
+    if (at == 0) continue
+    u = substr(a, 1, at - 1)
+    c = index(u, ":")
+    if (c > 0 && cred(substr(u, c + 1))) return 1
+  }
+  return 0
+}
+function r5(s,   v, c, p) {
+  if (!match(s, /^[ \t]*(export[ \t]+)?[A-Za-z_][A-Za-z0-9_.-]*[ \t]*=/)) return 0
+  v = substr(s, RLENGTH + 1)
+  sub(/^[ \t]+/, "", v)
+  c = substr(v, 1, 1)
+  if (c == "\"" || c == "\047") {
+    v = substr(v, 2)
+    p = index(v, c)
+    if (p > 0) v = substr(v, 1, p - 1)
+  } else {
+    p = match(v, /[ \t]/)
+    if (p > 0) v = substr(v, 1, p - 1)
+  }
+  return cred(v)
+}
+function r7(s) {
+  if (!match(s, /^[ \t]*export[ \t]/)) return 0
+  return r5(s)
+}
+function aws(s,   p, b, t) {
+  p = 1
+  while (p <= length(s)) {
+    if (!match(substr(s, p), /(AKIA|ASIA)[A-Z0-9]+/)) return 0
+    b = p + RSTART - 1
+    t = substr(s, b, RLENGTH)
+    if (length(t) == 20 && (b == 1 || substr(s, b - 1, 1) !~ /[A-Z0-9]/) && !is_placeholder(t)) return 1
+    p = b + 1
+  }
+  return 0
+}
+function ghc(s,   p, b, t) {
+  p = 1
+  while (p <= length(s)) {
+    if (!match(substr(s, p), /gh[pousr]_[A-Za-z0-9]+/)) return 0
+    b = p + RSTART - 1
+    t = substr(s, b, RLENGTH)
+    if (length(t) >= 40 && !is_placeholder(t)) return 1
+    p = b + 4
+  }
+  return 0
+}
+function ghf(s,   p, b, t, u, i) {
+  p = 1
+  while (p <= length(s)) {
+    if (!match(substr(s, p), /github_pat_[A-Za-z0-9]+_[A-Za-z0-9]+/)) return 0
+    b = p + RSTART - 1
+    t = substr(s, b, RLENGTH)
+    u = substr(t, 12)
+    i = index(u, "_")
+    if (i - 1 >= 22 && length(u) - i >= 59 && !is_placeholder(t)) return 1
+    p = b + 11
+  }
+  return 0
+}
+function pkpos(t) {
+  return index(t, "PRIVATE KEY")
+}
+function pkh(s,   t, k) {
+  t = trim(s)
+  if (index(t, "-----BEGIN ") != 1) return 0
+  k = pkpos(t)
+  if (k == 0) return 0
+  if (substr(t, 12, k - 12) !~ "^([A-Za-z0-9]+ )*$") return 0
+  return (substr(t, k + 11) == "-----" || substr(t, k + 11) == " BLOCK-----")
+}
+function pkscan(s,   off, a, t, k, r, c, again) {
+  off = 0
+  while ((a = index(substr(s, off + 1), "-----BEGIN ")) > 0) {
+    a = off + a
+    off = a + 10
+    t = substr(s, a + 11)
+    k = pkpos(t)
+    if (k == 0) continue
+    if (substr(t, 1, k - 1) !~ "^([A-Za-z0-9]+ )*$") continue
+    r = substr(t, k + 11)
+    if (substr(r, 1, 5) == "-----") r = substr(r, 6)
+    else if (substr(r, 1, 12) == " BLOCK-----") r = substr(r, 13)
+    else continue
+    again = 1
+    while (again == 1) {
+      again = 0
+      sub(/^[ \t"\047,+;)]+/, "", r)
+      if (substr(r, 1, 1) == "\\") {
+        sub(/^\\+/, "", r)
+        c = substr(r, 1, 1)
+        if (c == "n" || c == "r") r = substr(r, 2)
+        again = 1
+      }
+    }
+    if (r == "") return 2
+    if (index(r, "Proc-Type:") == 1) return 1
+    if (match(r, /^[A-Za-z0-9+\/=]+/) && RLENGTH >= 40) return 1
+  }
+  return 0
+}
+function r6(s,   off, b, e, sep, pv, nx, v, c, p) {
+  off = 0
+  while (match(substr(s, off + 1), /[A-Za-z_][A-Za-z0-9_.-]*["\047]?[ \t]*[:=]/)) {
+    b = off + RSTART
+    e = off + RSTART + RLENGTH
+    off = e - 1
+    sep = substr(s, e - 1, 1)
+    pv = ""
+    if (b > 1) pv = substr(s, b - 1, 1)
+    if ((pv == "\"" || pv == "\047") && b > 2) pv = substr(s, b - 2, 1)
+    if (pv != "" && index(" \t{,;([#", pv) == 0) continue
+    nx = substr(s, e, 1)
+    if (sep == ":") {
+      if (nx != "" && nx != " " && nx != "\t" && nx != "\"" && nx != "\047") continue
+    } else if (nx == "=") continue
+    v = substr(s, e)
+    sub(/^[ \t]+/, "", v)
+    c = substr(v, 1, 1)
+    if (c == "\"" || c == "\047") {
+      v = substr(v, 2)
+      p = index(v, c)
+      if (p > 0) v = substr(v, 1, p - 1)
+    } else {
+      p = match(v, /[ \t]/)
+      if (p > 0) v = substr(v, 1, p - 1)
+    }
+    if (cred(v)) return 1
+  }
+  return 0
+}
+BEGIN {
+  ORS = ""
+  fnm = ENVIRON["PCC_FILE"]
+  fpb = ENVIRON["PCC_FPBASE"]
+  fpl = ENVIRON["PCC_FPLIST"]
+  fpon = ENVIRON["PCC_FPON"]
+  R1RE = "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)[ \t]*[:=][ \t]*[\"\047]"
+  R2RE = "(password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]*[\"\047]?[ \t]*[:=]"
+}
+{
+  sub(/\r$/, "")
+  if (pend == 1) {
+    pb = trim($0)
+    if (pb != "") {
+      pend = 0
+      if (pl == 1) sub(/^[ \t"\047,+]+/, "", pb)
+      if (index(pb, "Proc-Type:") == 1) emit(pn, pt)
+      else if (pl == 1 && match(pb, /^[A-Za-z0-9+\/=]+/) && RLENGTH >= 40) emit(pn, pt)
+      else if (pl == 0 && length(pb) >= 40 && pb ~ "^[A-Za-z0-9+/=]+$") emit(pn, pt)
+    }
+  }
+  if (pkh($0)) { pend = 1; pl = 0; pn = NR; pt = $0; next }
+  pk = pkscan($0)
+  if (pk == 1) { emit(NR, $0); next }
+  if (pk == 2) { pend = 1; pl = 1; pn = NR; pt = $0 }
+  if (aws($0) || ghc($0) || ghf($0)) { emit(NR, $0); next }
+  if (r1($0) || (nh == 1 && (r2($0) || r3($0))) || (ak == 2 && r6($0)) || (ak == 1 && r7($0))) emit(NR, $0)
+}
+END { print "done" }
+'
+PCC_AWK_AL='
+BEGIN { ORS = "" }
+{
+  l = $0
+  if (NR == 1) sub(/^\357\273\277/, "", l)
+  sub(/\r$/, "", l)
+  sub(/^[ \t]+/, "", l)
+  sub(/[ \t]+$/, "", l)
+  if (l == "" || substr(l, 1, 1) == "#") next
+  if (index(l, "path ") == 1) {
+    g = substr(l, 6)
+    sub(/^[ \t]+/, "", g)
+    if (g != "") { print "P " NR " " g "\n"; next }
+  } else if (index(l, "fingerprint ") == 1) {
+    h = substr(l, 13)
+    sub(/^[ \t]+/, "", h)
+    if ((length(h) == 40 || length(h) == 64) && h ~ /^[0-9a-f]+$/) { print "F " h "\n"; next }
+  }
+  print "B " NR "\n"
+}
+END { print "done" }
+'
+PCC_ALLOWED=0
+PCC_APATHS=""
+PCC_AFPS=""
+PCC_HASHES=""
+pcc_nfind=0
+PCC_FL=()
+PCC_KF=()
+PCC_NL=$'\n'
 
 if [ "${#STAGED[@]}" -gt 0 ]; then
+  pcc_judged=0
+  for idx in "${!STAGED[@]}"; do
+    [ -z "${STAGED_BLOB[$idx]:-}" ] || pcc_judged=$((pcc_judged + 1))
+  done
+
+  # The allowlist in effect is the index's: the staged blob when the commit stages it, else the entry the index holds.
+  if [ "$pcc_judged" -gt 0 ]; then
+    pcc_ablob=""
+    pcc_astaged=0
+    for idx in "${!STAGED[@]}"; do
+      if [ "${STAGED[$idx]}" = "$PCC_ALLOWLIST" ]; then
+        pcc_astaged=1
+        pcc_ablob="${STAGED_BLOB[$idx]:-}"
+      fi
+    done
+    if [ "$pcc_astaged" -eq 0 ]; then
+      pcc_aid="$(git -C "$PROJECT_ROOT" rev-parse -q --verify ":$PCC_ALLOWLIST" 2>/dev/null)" || pcc_aid=""
+      if [ -n "$pcc_aid" ]; then
+        pcc_ablob="$PCC_TMP/allow"
+        git -C "$PROJECT_ROOT" cat-file blob "$pcc_aid" > "$pcc_ablob" 2>/dev/null || staged_read_fail "secrets allowlist"
+      fi
+    fi
+    if [ -n "$pcc_ablob" ]; then
+      [ -f "$pcc_ablob" ] && [ -r "$pcc_ablob" ] || staged_read_fail "secrets allowlist"
+      pcc_ap="$(LC_ALL=C awk "$PCC_AWK_AL" < "$pcc_ablob" 2>/dev/null || true)"
+      case "$pcc_ap" in done|*$'\n'done) ;; *) staged_read_fail "secrets allowlist" ;; esac
+      PCC_REST="$pcc_ap"
+      while [ -n "$PCC_REST" ]; do
+        pcc_next_line
+        case "$PCC_LINE" in
+          "P "*)
+            pcc_g="${PCC_LINE#P }"
+            pcc_n="${pcc_g%% *}"
+            pcc_g="${pcc_g#* }"
+            pcc_catch_all=0
+            # A glob with no literal character once its wildcards, bracket expressions and slashes are removed
+            # (a negated class like [!z]* included) is judged as the bare wildcard.
+            pcc_lit=""
+            pcc_s="$pcc_g"
+            while [ -n "$pcc_s" ]; do
+              pcc_c="${pcc_s%"${pcc_s#?}"}"
+              pcc_s="${pcc_s#?}"
+              if [ "$pcc_c" = "[" ]; then
+                # A bracket expression: a leading ! or ^ negates, a leading ] is literal, [:class:] holds a ].
+                pcc_t="$pcc_s"
+                case "$pcc_t" in '!'*|'^'*) pcc_t="${pcc_t#?}" ;; esac
+                case "$pcc_t" in ']'*) pcc_t="${pcc_t#?}" ;; esac
+                pcc_closed=0
+                while [ -n "$pcc_t" ]; do
+                  case "$pcc_t" in
+                    '[:'*)
+                      pcc_aft="${pcc_t#??}"
+                      case "$pcc_aft" in
+                        *:\]*) pcc_t="${pcc_aft#*:\]}"; continue ;;
+                      esac
+                      ;;
+                    ']'*) pcc_t="${pcc_t#?}"; pcc_closed=1; break ;;
+                  esac
+                  pcc_t="${pcc_t#?}"
+                done
+                if [ "$pcc_closed" -eq 1 ]; then pcc_s="$pcc_t"; continue; fi
+              fi
+              pcc_lit="$pcc_lit$pcc_c"
+            done
+            pcc_gm="$pcc_g"
+            pcc_lit="${pcc_lit//[*?\/]/}"
+            [ -n "$pcc_lit" ] || pcc_gm='*'
+            for pcc_probe in zz-aai-allowlist-probe zz/aai/allowlist/probe.zz; do
+              case "$pcc_probe" in $pcc_gm) pcc_catch_all=1 ;; esac
+            done
+            if [ "$pcc_catch_all" -eq 1 ]; then
+              error "Secrets allowlist line $pcc_n: catch-all path glob '$pcc_g' rejected — commit blocked"
+              SECRETS_FOUND=1
+            else
+              PCC_APATHS="$PCC_APATHS$pcc_g$PCC_NL"
+            fi
+            ;;
+          "F "*) PCC_AFPS="$PCC_AFPS${PCC_LINE#F }$PCC_NL" ;;
+          "B "*)
+            error "Secrets allowlist line ${PCC_LINE#B }: unrecognised entry — commit blocked"
+            SECRETS_FOUND=1
+            ;;
+        esac
+      done
+    fi
+  fi
+
+  # Phase 1: classify and scan each staged blob; a finding that needs a fingerprint is written to a scratch file.
   for idx in "${!STAGED[@]}"; do
     file="${STAGED[$idx]}"
     blob="${STAGED_BLOB[$idx]:-}"
     [ -n "$blob" ] || continue
 
-    # Check for common secret patterns in the staged blob (what the commit records). A copy that cannot be
-    # opened must not read as zero hits: grep -c always prints a number, so anything else is a failed scan.
+    # A copy that cannot be opened must not read as zero hits: grep -c always prints a number, so anything else is
+    # a failed scan.
     [ -f "$blob" ] && [ -r "$blob" ] || staged_read_fail "copy failed for $file"
-    hits=$(grep -cEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" < "$blob" || true)
-    case "$hits" in ''|*[!0-9]*) staged_read_fail "copy failed for $file" ;; esac
-    if [ "$hits" -gt 0 ]; then
-      error "Potential secret detected in $file"
-      SECRETS_FOUND=1
-    fi
 
-    # Name check. AAI evidence folders are judged by content alone, except a dotenv file.
+    # Name hit. AAI evidence folders are judged by content alone, except a dotenv file.
     name_check=1
     case "$file" in
       docs/ai/reports/*|docs/ai/tdd/*|docs/ai/validation/*|docs/ai/reviews/*) name_check=0 ;;
@@ -259,12 +660,133 @@ if [ "${#STAGED[@]}" -gt 0 ]; then
     case "${file##*/}" in
       .env|.env.*|*.env) name_check=1 ;;
     esac
+    pcc_namehit=0
+    pcc_keyfile=0
+    pcc_anykey=0
+    pcc_anydata=0
     if [ "$name_check" -eq 1 ] && { [[ "$file" == *.env* ]] || [[ "$file" == *credentials* ]] || [[ "$file" == *secret* ]]; }; then
+      pcc_namehit=1
+      # R6: a name hit that is not a dotenv template judges a credential-shaped value under any key; in a data or
+      # config file (dotenv, yaml, json, toml, ini, txt, no extension) every pair, in any other file only export KEY=value.
+      case "${file##*/}" in
+        .env.example|.env.sample|.env.template|.env.dist|.env.defaults) ;;
+        *) pcc_anykey=1 ;;
+      esac
+      case "${file##*/}" in
+        .env|.env.*|*.env|*.yaml|*.yml|*.json|*.toml|*.ini|*.cfg|*.conf|*.properties|*.tfvars|*.txt|*.xml|*.plist) pcc_anydata=1 ;;
+        ?*.*) ;;
+        *) pcc_anydata=1 ;;
+      esac
+    fi
+    if [ "$pcc_namehit" -eq 1 ]; then
+      pcc_kext=0
+      case "${file##*/}" in
+        *.key|*.pem|*.p12|*.pfx|*.jks|*.keystore) pcc_kext=1 ;;
+      esac
+      LC_ALL=C tr -cd '\000' < "$blob" > "$PCC_TMP/nulbytes" || staged_read_fail "copy failed for $file"
+      pcc_nul="$(wc -c < "$PCC_TMP/nulbytes")" || staged_read_fail "copy failed for $file"
+      case "$pcc_nul" in ''|*[!0-9\ ]*) staged_read_fail "copy failed for $file" ;; esac
+      if [ "$pcc_kext" -eq 1 ] || [ "$pcc_nul" -gt 0 ]; then
+        pcc_keyfile=1
+      fi
+    fi
+
+    pcc_pathok=0
+    PCC_REST="$PCC_APATHS"
+    while [ -n "$PCC_REST" ]; do
+      pcc_next_line
+      case "$file" in
+        $PCC_LINE) pcc_pathok=1 ;;
+      esac
+    done
+
+    if [ "$pcc_keyfile" -eq 1 ]; then
+      if [ "$pcc_pathok" -eq 1 ]; then
+        PCC_ALLOWED=$((PCC_ALLOWED + 1))
+      else
+        PCC_KF[$idx]=1
+      fi
+      continue
+    fi
+
+    pcc_pre="$PCC_PRE"
+    [ "$pcc_namehit" -eq 0 ] || pcc_pre="$PCC_PRE|://"
+    [ "$pcc_anykey" -eq 0 ] || pcc_pre="$pcc_pre|:|="
+    hits=$(grep -cEi "$pcc_pre" < "$blob" || true)
+    case "$hits" in ''|*[!0-9]*) staged_read_fail "copy failed for $file" ;; esac
+    [ "$hits" -gt 0 ] || continue
+    # A blob with a NUL byte reaches awk as a copy with each NUL turned into a newline: BWK awk cuts a record at its
+    # first NUL, mawk and gawk do not, and the old grep matched around it. A name-hit blob with a NUL was blocked above.
+    pcc_src="$blob"
+    if [ "$pcc_namehit" -eq 0 ]; then
+      LC_ALL=C tr -cd '\000' < "$blob" > "$PCC_TMP/nulbytes" || staged_read_fail "copy failed for $file"
+      pcc_nul="$(wc -c < "$PCC_TMP/nulbytes")" || staged_read_fail "copy failed for $file"
+      case "$pcc_nul" in ''|*[!0-9\ ]*) staged_read_fail "copy failed for $file" ;; esac
+      if [ "$pcc_nul" -gt 0 ]; then
+        pcc_src="$PCC_TMP/nulfree.$idx"
+        LC_ALL=C tr '\000' '\n' < "$blob" > "$pcc_src" || staged_read_fail "copy failed for $file"
+      fi
+    fi
+    pcc_fpon=1
+    [ "$pcc_pathok" -eq 0 ] || pcc_fpon=0
+    pcc_out="$(PCC_FILE="$file" PCC_FPBASE="$PCC_TMP/fp.$idx" PCC_FPLIST="$PCC_TMP/fplist" PCC_FPON="$pcc_fpon" LC_ALL=C awk -v nh="$pcc_namehit" -v ak="$((pcc_anykey * (1 + pcc_anydata)))" -v minlen="$PCC_VALUE_MINLEN" "$PCC_AWK" < "$pcc_src" 2>/dev/null || true)"
+    case "$pcc_out" in done|*$'\n'done) ;; *) staged_read_fail "copy failed for $file" ;; esac
+    pcc_fl="${pcc_out%done}"
+    pcc_cnt="${pcc_fl//[!$PCC_NL]/}"
+    [ "${#pcc_cnt}" -gt 0 ] || continue
+    if [ "$pcc_pathok" -eq 1 ]; then
+      PCC_ALLOWED=$((PCC_ALLOWED + ${#pcc_cnt}))
+    else
+      PCC_FL[$idx]="$pcc_fl"
+      pcc_nfind=$((pcc_nfind + ${#pcc_cnt}))
+    fi
+  done
+
+  # Phase 2: every fingerprint of the run comes from one git hash-object, made only when a finding needs one.
+  if [ "$pcc_nfind" -gt 0 ]; then
+    git -C "$PROJECT_ROOT" hash-object --no-filters --stdin-paths < "$PCC_TMP/fplist" > "$PCC_TMP/fphash" 2>/dev/null || staged_read_fail "fingerprints"
+    PCC_HASHES="$(cat "$PCC_TMP/fphash")" || staged_read_fail "fingerprints"
+    pcc_cnt="${PCC_HASHES//[!$PCC_NL]/}"
+    [ "$((${#pcc_cnt} + 1))" -eq "$pcc_nfind" ] || staged_read_fail "fingerprints"
+  fi
+
+  # Phase 3: report in staged order.
+  for idx in "${!STAGED[@]}"; do
+    file="${STAGED[$idx]}"
+    if [ "${PCC_KF[$idx]:-0}" -eq 1 ]; then
       error "Sensitive file staged: $file"
+      SECRETS_FOUND=1
+    fi
+    pcc_fl="${PCC_FL[$idx]:-}"
+    [ -n "$pcc_fl" ] || continue
+    pcc_bad=0
+    pcc_det=""
+    PCC_REST="$pcc_fl"
+    while [ -n "$PCC_REST" ]; do
+      pcc_next_line
+      pcc_n="$PCC_LINE"
+      pcc_h="${PCC_HASHES%%$PCC_NL*}"
+      case "$PCC_HASHES" in
+        *$PCC_NL*) PCC_HASHES="${PCC_HASHES#*$PCC_NL}" ;;
+        *) PCC_HASHES="" ;;
+      esac
+      case "$PCC_NL$PCC_AFPS" in
+        *"$PCC_NL$pcc_h$PCC_NL"*) PCC_ALLOWED=$((PCC_ALLOWED + 1)) ;;
+        *)
+          pcc_bad=$((pcc_bad + 1))
+          if [ "$pcc_bad" -le 3 ]; then pcc_det="$pcc_det    line $pcc_n, fingerprint $pcc_h$PCC_NL"; fi
+          ;;
+      esac
+    done
+    if [ "$pcc_bad" -gt 0 ]; then
+      error "Potential secret detected in $file"
+      printf '%s' "$pcc_det"
+      if [ "$pcc_bad" -gt 3 ]; then echo "    ... and $((pcc_bad - 3)) more"; fi
       SECRETS_FOUND=1
     fi
   done
 
+  [ "$PCC_ALLOWED" -eq 0 ] || pass "Secrets allowlist: $PCC_ALLOWED finding(s) allowed by $PCC_ALLOWLIST"
   if [ "$SECRETS_FOUND" -eq 0 ]; then
     pass "No secrets detected in staged files"
   fi

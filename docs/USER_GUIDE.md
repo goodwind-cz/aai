@@ -2424,6 +2424,8 @@ successful sync; nothing here is a fix you can miss):
    commits drafts on branches by design (numbering is assigned at merge). The
    shipped default stays `report-only`.
 
+**Secrets detection.** CHECK 2 of `pre-commit-checks.sh` judges the value of a keyed assignment, not the file name: references (`${X}`), placeholders, plain words, labels with blanks and plain URLs pass, a credential-shaped value blocks, and an AWS key id, a GitHub token or a private key block blocks in any file. A path containing `.env`, `credentials` or `secret` is read like any other file; only key files (`.key`, `.pem`, `.p12`, `.pfx`, `.jks`, `.keystore`) and binary blobs still block by name. Every finding prints a line number and a fingerprint, never the value. A reviewed false positive is exempted in the project-owned file `docs/ai/secrets-allowlist.txt` (`path <glob>` or `fingerprint <hex>` per line, read from the index, never written by sync or update; a catch-all glob blocks loudly) instead of `git commit --no-verify`. Details: `docs/product/pre-commit-secrets-gate.md`.
+
 **The pre-push close gate.** For each pushed ref the hook resolves the default
 branch (`refs/remotes/origin/HEAD`, else `main`, and it says so), then runs
 `close-reconcile.mjs --check` over one range: a default-branch push as

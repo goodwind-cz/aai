@@ -54,6 +54,7 @@ overview.html
 pr-config.yaml
 project-config.yaml
 roadmap.yaml
+secrets-allowlist.txt
 update-config.yaml
 .pre-compact-state-backup.yaml
 .session-context.md

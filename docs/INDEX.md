@@ -6,18 +6,19 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-secrets-gate-false-positives | specs | implementing | 25 planned | docs/specs/SPEC-DRAFT-secrets-gate-false-positives.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (48)
+## Product (49)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -51,6 +52,7 @@ _None._
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
 | pre-commit-installer-on-node | pre-commit-installer-on-node | 1 | docs/product/pre-commit-installer-on-node.md |
+| pre-commit-secrets-gate | pre-commit-secrets-gate | 1 | docs/product/pre-commit-secrets-gate.md |
 | precise-suite-evidence-reuse | precise-suite-evidence-reuse | 4 | docs/product/precise-suite-evidence-reuse.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
@@ -774,7 +776,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (13)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -790,6 +792,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| secrets-gate-false-positives (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-secrets-gate-false-positives.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
@@ -806,7 +809,7 @@ _None._
 
 _None._
 
-## Broken references (616)
+## Broken references (621)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1294,6 +1297,11 @@ _None._
 | tests/skills/test-aai-planning-probes.sh | docs/ai/briefs/CHANGE-0113.md | NOT FOUND |
 | tests/skills/test-aai-planning-probes.sh | docs/analysis/altitude-disposition-PLANNING.md | NOT FOUND |
 | tests/skills/test-aai-planning-probes.sh | docs/specs/SPEC-DRAFT-x.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/issues/CHANGE-DRAFT-x.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/pk-mention.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/pk-prose.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/secret-rotation.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/specs/SPEC-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/canonical/auth.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/issues/CHANGE-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/cap-t013.md | NOT FOUND |
