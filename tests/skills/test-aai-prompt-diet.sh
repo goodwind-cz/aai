@@ -271,14 +271,16 @@ test_4135_dry_run_never_writes_project_root() {
   mkdir -p "$scratch/$(dirname "$E2E_DRAFT")"
   printf 'SENTINEL-4135 do not touch\n' > "$scratch/$E2E_DRAFT"
   cp "$scratch/$E2E_DRAFT" "$scratch/sentinel.orig"
-  before="$(cd "$scratch" && find . ! -name sentinel.orig | LC_ALL=C sort | cksum)"
-  out="$(cd "$scratch" && env -u AAI_ROLE bash tests/skills/test-aai-prompt-diet.sh test_004_intake_dry_run 2>&1)" || rc=$?
+  before="$(find "$scratch" ! -name sentinel.orig | LC_ALL=C sort | cksum)"
+  (cd "$scratch" && env -u AAI_ROLE bash tests/skills/test-aai-prompt-diet.sh test_004_intake_dry_run) > "$scratch.out" 2>&1 || rc=$?
+  out="$(<"$scratch.out")"
+  rm -f "$scratch.out"
   [[ "$rc" == "0" ]] || { log_fail "TEST-4135 the copied suite's TEST-004 must exit 0 (got $rc): ${out:0:400}"; return; }
   if ! cmp -s "$scratch/$E2E_DRAFT" "$scratch/sentinel.orig"; then
     log_fail "TEST-4135 the sentinel at the real-root draft path was changed or removed"
     return
   fi
-  after="$(cd "$scratch" && find . ! -name sentinel.orig | LC_ALL=C sort | cksum)"
+  after="$(find "$scratch" ! -name sentinel.orig | LC_ALL=C sort | cksum)"
   if [[ "$after" != "$before" ]]; then
     log_fail "TEST-4135 the scratch project tree listing changed during the dry run"
     return

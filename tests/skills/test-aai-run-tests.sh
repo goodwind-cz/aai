@@ -1338,7 +1338,49 @@ mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
   log_pass "TEST-4130: XDG_CACHE_HOME is private per wrapper run (set, unset and keep modes), gone afterwards, and no powershell entry reached the fake HOME or fake XDG"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 4130_private_xdg_cache"
+# test-infra-p2-fixes D-AMEND / D-WIRE: the consumer-visible record of the change.
+test_4141_changelog_amendments_and_ledger() {
+  log_info "TEST-4141: the CHANGELOG heading, the TECHNOLOGY.md sentence, the three amendment headings and the closed ledger"
+  local cl="$PROJECT_ROOT/CHANGELOG.md" tech="$PROJECT_ROOT/docs/TECHNOLOGY.md" f rc out ids id open_json
+  [[ -f "$cl" && -f "$tech" ]] || log_fail "TEST-4141: CHANGELOG.md or docs/TECHNOLOGY.md missing"
+  /usr/bin/grep -qE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — Test infrastructure: the nine P2 follow-ups$' "$cl" \
+    || log_fail "TEST-4141: CHANGELOG.md lacks the D-WIRE heading"
+  /usr/bin/grep -qF 'always overrides `XDG_CACHE_HOME`' "$tech" \
+    || log_fail "TEST-4141: docs/TECHNOLOGY.md does not name the XDG_CACHE_HOME override"
+  for f in docs/issues/CHANGE-0099-deterministic-friction-capture.md docs/specs/SPEC-0185-spec-friction-channel-sweep.md docs/specs/SPEC-0231-spec-docs-index-broken-refs-scope.md; do
+    /usr/bin/grep -qxF '## Amendment 2026-11-25 (test-infra-p2-fixes)' "$PROJECT_ROOT/$f" \
+      || log_fail "TEST-4141: $f lacks the D-AMEND heading line"
+  done
+  rc=0
+  open_json="$(mktemp "${TMPDIR:-/tmp}/aai-t4141.XXXXXX")" || log_fail "TEST-4141: no scratch file"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/spec-amend.mjs list --strict) > "$open_json" 2>&1 || rc=$?
+  out="$(<"$open_json")"
+  rm -f "$open_json"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4141: spec-amend.mjs list --strict exited $rc: ${out:0:400}"
+  ids="fu-prompt-diet-fixture-real-root-race fu-suite-fail-text-blocks-attribution fu-docs-audit-suite-has-no-selector fu-runtests-capture-is-unscored-noise fu-framework-discover-exit-swallowed fu-lib-graph-narrowing-after-sharding fu-assertions-pinned-to-one-world fu-reuse-docs-closure-suites fu-tests-share-real-pwsh-cache"
+  open_json="$(mktemp "${TMPDIR:-/tmp}/aai-t4141.XXXXXX")" || log_fail "TEST-4141: no scratch file"
+  rc=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/follow-ups.mjs list --status all --json) > "$open_json" 2>/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { rm -f "$open_json"; log_fail "TEST-4141: follow-ups.mjs list exited $rc"; }
+  rc=0
+  out="$(T4141_IDS="$ids" node -e '
+const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const want = process.env.T4141_IDS.split(" ");
+const bad = [];
+for (const id of want) {
+  const it = j.items.find((x) => x.id === id);
+  if (!it) bad.push(id + ": absent from the ledger");
+  else if (it.status === "open") bad.push(id + ": still open");
+  else if (it.resolved_by !== "test-infra-p2-fixes") bad.push(id + ": resolved_by " + it.resolved_by);
+}
+if (bad.length) { console.log(bad.join("; ")); process.exit(1); }
+' "$open_json" 2>&1)" || rc=$?
+  rm -f "$open_json"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4141: ledger: $out"
+  log_pass "TEST-4141: the D-WIRE heading, the TECHNOLOGY.md override sentence, three D-AMEND headings, spec-amend list --strict and nine closed follow-ups"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 4130_private_xdg_cache 4141_changelog_amendments_and_ledger"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"
