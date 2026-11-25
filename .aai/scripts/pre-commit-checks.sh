@@ -289,12 +289,20 @@ function is_placeholder(v) {
 function is_url(v) {
   return (v ~ "^[A-Za-z][A-Za-z0-9+.-]*://")
 }
-function cred(v) {
+function kwkey(k) {
+  return (tolower(k) ~ /password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key/ || ("_" tolower(k)) ~ /[^a-z]pass(phrase)?[^a-z]/)
+}
+function is_label(v) {
+  lb_c = substr(v, 1, 1)
+  if (length(v) > 20 || !((lb_c >= "A" && lb_c <= "Z") || (lb_c > "~" && lb_c != "\177"))) return 0
+  return (substr(v, 2) !~ /[A-Z]/)
+}
+function cred(v, kw) {
   if (length(v) < minlen) return 0
   if (has_space(v)) return 0
   if (is_reference(v)) return 0
   if (is_placeholder(v)) return 0
-  if (is_wordlike(v)) return 0
+  if (is_wordlike(v) && (kw != 1 || is_label(v))) return 0
   if (is_url(v)) return 0
   if (substr(v, 1, 2) == "./" || substr(v, 1, 3) == "../" || substr(v, 1, 2) == "~/") return 0
   return 1
@@ -324,7 +332,7 @@ function r1(s,   lc, off, e, q, v, p) {
     v = substr(s, e)
     p = index(v, q)
     if (p > 0) v = substr(v, 1, p - 1)
-    if (substr(v, 1, 8) !~ /["\047]/ && cred(v)) return 1
+    if (substr(v, 1, 8) !~ /["\047]/ && cred(v, 1)) return 1
     off = e - 1
   }
   return 0
@@ -345,7 +353,7 @@ function r2(s,   lc, off, e, c, v, p) {
       p = match(v, /[ \t]/)
       if (p > 0) v = substr(v, 1, p - 1)
     }
-    if (cred(v)) return 1
+    if (cred(v, 1)) return 1
     off = e - 1
   }
   return 0
@@ -364,12 +372,13 @@ function r3(s,   off, p, a, k, at, u, c) {
     if (at == 0) continue
     u = substr(a, 1, at - 1)
     c = index(u, ":")
-    if (c > 0 && cred(substr(u, c + 1))) return 1
+    if (c > 0 && cred(substr(u, c + 1), 1)) return 1
   }
   return 0
 }
-function r5(s,   v, c, p) {
+function r5(s,   v, c, p, kk) {
   if (!match(s, /^[ \t]*(export[ \t]+)?[A-Za-z_][A-Za-z0-9_.-]*[ \t]*=/)) return 0
+  kk = kwkey(substr(s, 1, RLENGTH))
   v = substr(s, RLENGTH + 1)
   sub(/^[ \t]+/, "", v)
   c = substr(v, 1, 1)
@@ -381,7 +390,7 @@ function r5(s,   v, c, p) {
     p = match(v, /[ \t]/)
     if (p > 0) v = substr(v, 1, p - 1)
   }
-  return cred(v)
+  return cred(v, kk)
 }
 function r7(s) {
   if (!match(s, /^[ \t]*export[ \t]/)) return 0
@@ -463,7 +472,7 @@ function pkscan(s,   off, a, t, k, r, c, again) {
   }
   return 0
 }
-function r6(s,   off, b, e, sep, pv, nx, v, c, p) {
+function r6(s,   off, b, e, sep, pv, nx, v, c, p, kk) {
   off = 0
   while (match(substr(s, off + 1), /[A-Za-z_][A-Za-z0-9_.-]*["\047]?[ \t]*[:=]/)) {
     b = off + RSTART
@@ -478,6 +487,7 @@ function r6(s,   off, b, e, sep, pv, nx, v, c, p) {
     if (sep == ":") {
       if (nx != "" && nx != " " && nx != "\t" && nx != "\"" && nx != "\047") continue
     } else if (nx == "=") continue
+    kk = kwkey(substr(s, b, e - b))
     v = substr(s, e)
     sub(/^[ \t]+/, "", v)
     c = substr(v, 1, 1)
@@ -489,7 +499,7 @@ function r6(s,   off, b, e, sep, pv, nx, v, c, p) {
       p = match(v, /[ \t]/)
       if (p > 0) v = substr(v, 1, p - 1)
     }
-    if (cred(v)) return 1
+    if (cred(v, kk)) return 1
   }
   return 0
 }
@@ -712,7 +722,7 @@ if [ "${#STAGED[@]}" -gt 0 ]; then
     pcc_pre="$PCC_PRE"
     [ "$pcc_namehit" -eq 0 ] || pcc_pre="$PCC_PRE|://"
     [ "$pcc_anykey" -eq 0 ] || pcc_pre="$pcc_pre|:|="
-    hits=$(grep -cEi "$pcc_pre" < "$blob" || true)
+    hits=$(LC_ALL=C grep -cEi "$pcc_pre" < "$blob" || true)
     case "$hits" in ''|*[!0-9]*) staged_read_fail "copy failed for $file" ;; esac
     [ "$hits" -gt 0 ] || continue
     # A blob with a NUL byte reaches awk as a copy with each NUL turned into a newline: BWK awk cuts a record at its

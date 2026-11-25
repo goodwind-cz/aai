@@ -38,8 +38,14 @@ A finding is one line of a staged blob.
   `os.getenv(`, `System.getenv(`, `ENV[` or `env(`), a placeholder (starts
   with `<` and holds `>`, one repeated character, or holds `changeme`,
   `replaceme`, `placeholder`, `example`, `dummy`, `redacted` or `xxxx`, starts
-  with `your_` or `your-`, ends with `_here` or `-here`), a plain word such as
-  `Passwort` or `Přihlášení`, a URL, or a relative path.
+  with `your_` or `your-`, ends with `_here` or `-here`), a plain word, a URL,
+  or a relative path. A plain word (letters joined by single `-`, an apostrophe or `.`)
+  passes under a key that names a secret (`password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `access_key`, `private_key`, or `pass` or `passphrase` as a whole word of the key, as `DB_PASS`, `GPG_PASSPHRASE`; `BYPASS_CACHE` does not) only as a short
+  capitalised label: at most 20 bytes, the first byte `A-Z` or a non-ASCII
+  byte, no other `A-Z` (`Password`, `Heslo`, `Passwort`, `Přihlášení`,
+  `Forgot-password`). `correcthorsebattery`, `CorrectHorse`, `SUPERSECRET` and
+  `abcdefghijklmnopqrstuvwxyz` under such a key block. Under any other key a
+  plain word of any length still passes.
 - Tokens (every file, whatever the key): an AWS access key id, a GitHub token
   (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` or `github_pat_`) and a private key
   block. A private key block is a `-----BEGIN ... PRIVATE KEY-----` marker
@@ -60,22 +66,19 @@ A finding is one line of a staged blob.
   is a data or config file (a dotenv file, `.yaml`, `.yml`, `.json`, `.toml`,
   `.ini`, `.cfg`, `.conf`, `.properties`, `.tfvars`, `.txt`, `.xml`, `.plist`
   or a name with no extension such as `.envrc` or `credentials`), a
-  `key = value` or `key: value` pair is judged by the value alone, whatever
-  the key is called. In any other name hit (code, shell, documentation) only
+  `key = value` or `key: value` pair is judged whatever the key is called (a plain word blocks only under a key that names a secret, as above). In any other name hit (code, shell, documentation) only
   a line starting `export KEY=value` is judged that way, so a document with
   `updated: 2026-11-25` in its front matter or a script with
   `const base = basename(path)` commits. Examples that block:
   `export DB_PASS=...`, YAML `DB_PASS: ...` or `- stripe: ...`, JSON
   `"stripe": "..."`, TOML and a commented `# STRIPE_KEY=...` block when
   the value is credential-shaped. A label with a space, a reference, a
-  placeholder, a plain word, a URL, an empty value and prose pass.
+  placeholder, a plain word under a key that names no secret, a URL, an empty value and prose pass.
 - Real dotenv files (basename `.env`, `.env.<anything>` or `<name>.env`, but
   not the template forms `.env.example`, `.env.sample`, `.env.template`,
   `.env.dist` and `.env.defaults`): every `KEY=value` line (an `export`
-  prefix and quotes allowed) is judged by the value alone, whatever the key is
-  called, so `DB_PASS`, `MYSQL_PWD`, `ENCRYPTION_KEY`, `STRIPE_KEY` and
-  `JWT_SIGNING_KEY` holding a credential-shaped value block like `PASSWORD`
-  does. Plain settings (`NODE_ENV=production`, `PORT=3000`, `LOG_LEVEL=debug`,
+  prefix and quotes allowed) is judged whatever the key is called, so `DB_PASS`, `MYSQL_PWD`, `ENCRYPTION_KEY`, `STRIPE_KEY` and
+  `JWT_SIGNING_KEY` holding a credential-shaped value block like `PASSWORD` does. A plain word blocks there only under a key that names a secret. Plain settings (`NODE_ENV=production`, `PORT=3000`, `LOG_LEVEL=debug`,
   a URL without credentials), empty values, placeholders and references still
   pass. A commented assignment (`# STRIPE_KEY=...`) is judged like any other
   line; a comment without an assignment passes. A template form keeps the
@@ -141,9 +144,13 @@ docs audit does not report it. Nothing else is stored.
 
 ## Limits and non-goals
 
-- A word-like value (letters only, for example `hunterhunter`) and any value
-  shorter than 8 bytes pass in every file, including a real `.env`; they stay
+- A value that begins with `$` is read as a variable reference (`$VAR`), so a literal password that starts with `$` (a bcrypt hash, a human password) is never a finding; the shape cannot tell the two apart.
+- A word-like value (letters only) under a non-keyword key, and any value
+  shorter than 8 bytes, pass in every file, including a real `.env`; they stay
   exempt there so that `NODE_ENV=production` and `LOG_LEVEL=debug` commit.
+  Under a keyword key a lowercase word such as `correcthorsebattery` blocks;
+  a plain setting under a keyword key (a token type named `authorization`)
+  blocks too and needs an allowlist entry.
   Before this change every `.env` blocked by name.
 - Over-blocking of plain settings: a real `.env`, and any other name-hit
   file that is not a template, blocks a line whose value is credential-shaped

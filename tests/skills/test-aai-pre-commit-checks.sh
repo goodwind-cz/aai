@@ -3,7 +3,7 @@
 # Test: aai-pre-commit-checks
 # (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461; the later cases TEST-3831..3868
 # and TEST-3871..3882 belong to the staged-content and batched-read specs, TEST-3883..3887 to
-# spec-precommit-sentinel-trap, TEST-3918..3922 to spec-precommit-residual-defects, TEST-4080..4104 to
+# spec-precommit-sentinel-trap, TEST-3918..3922 to spec-precommit-residual-defects, TEST-4080..4112 to
 # secrets-gate-false-positives)
 #
 # Two things: the PowerShell pre-commit checks are a deprecation launcher (one retired line
@@ -240,8 +240,9 @@ test_3454_small_input_parity() {
   # then +620 -42 in total after secrets-gate-false-positives (CHECK 2 rewritten: value-shape rules, key-file and NUL name block, the
   # reviewed allowlist read from the index, fingerprints; the awk programs and their grep prefilter),
   # then +45 -0 from its VALIDATION r1 remediation (NUL-free awk copy of a blob, R5 real-dotenv rule, bracket-only catch-all globs),
-  # then +101 -0 from its VALIDATION r3 remediation (inline private key markers, R6 any-key judging in name-hit files, bracket expression parser)
-  [[ "$numstat" == "767 42" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '767 42'"
+  # then +101 -0 from its VALIDATION r3 remediation (inline private key markers, R6 any-key judging in name-hit files, bracket expression parser),
+  # then +10 -0 from its VALIDATION r4 remediation (a letters-only value under a keyword key blocks unless it is a short capitalised label)
+  [[ "$numstat" == "777 42" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '777 42'"
   log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 767 added and 42 removed lines"
 }
 
@@ -524,8 +525,9 @@ test_3461_line_budget_and_follow_up() {
   # re-read loop, a pipe probe, in-shell STATE matches, parameter-expansion line walks, +41/+29), then 901/747 after
   # secrets-gate-false-positives (CHECK 2 rewritten: the value-shape awk program, the allowlist read and parse, fingerprints, +375/+357),
   # then 947/788 after its VALIDATION r1 remediation (NUL-free awk copy, R5 real-dotenv rule, bracket-only catch-all globs, +45/+41),
-  # then 1048/887 after its VALIDATION r3 remediation (inline private key markers, R6 any-key judging in name-hit files, bracket expression parser, +101/+99).
-  [[ "$sh_t" == 1048 && "$sh_c" == 887 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 1048 and 887"
+  # then 1048/887 after its VALIDATION r3 remediation (inline private key markers, R6 any-key judging in name-hit files, bracket expression parser, +101/+99),
+  # then 1058/897 after its VALIDATION r4 remediation (keyword-key judging of letters-only values, +10/+10).
+  [[ "$sh_t" == 1058 && "$sh_c" == 897 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 1058 and 897"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -2272,6 +2274,50 @@ test_4110_bracket_class_catch_all_rejected() {
   log_pass "TEST-4110: a negated class holding a leading ] or a POSIX class is parsed as one bracket expression, so a glob made only of such classes is a catch-all; anchored ones are accepted"
 }
 
+# --- secrets-gate-false-positives remediation round 4 (VALIDATION round 3 V5; TEST-4111..4112) -----------------------
+
+test_4111_keyword_key_plain_words_block() {
+  local fx="$TEST_DIR/t4111" w
+  w="$(printf '%s%s' abcdefghijklm nopqrstuvwxyz)"
+  make_fx "$fx"
+  stage_file "$fx" notes/config.txt "$(printf '%s = "%s"' api_key "$w")"
+  stage_file "$fx" notes/pass.txt "$(printf '%s = "%s"' password correcthorsebattery)"
+  stage_file "$fx" notes/camel.yml "$(printf '%s: "%s"' password CorrectHorseBattery)"
+  stage_file "$fx" notes/caps.yml "$(printf '%s: "%s"' secret_key SUPERSECRETVALUE)"
+  stage_file "$fx" notes/long.yml "$(printf '%s: "%s"' password Wordthatistoolongforalabel)"
+  stage_file "$fx" .env "$(printf 'DB_%s=%s' PASSWORD correcthorsebattery)"
+  sg_blocks TEST-4111 "$fx" "$SECRET_HIT" notes/config.txt notes/pass.txt notes/camel.yml notes/caps.yml notes/long.yml .env
+  log_pass "TEST-4111: a letters-only value under a keyword key blocks unless it is a short capitalised label (the 26-letter run, a lowercase word, CamelCase, ALLCAPS, a 26-byte word, a dotenv password)"
+}
+
+test_4112_short_labels_pass() {
+  local fx="$TEST_DIR/t4112"
+  make_fx "$fx"
+  sg_stage_kv "$fx" locales/a.yml passwordLabel Password
+  sg_stage_kv "$fx" locales/b.yml password Heslo
+  sg_stage_kv "$fx" locales/c.yml forgotPassword 'Forgot your password?'
+  sg_stage_kv "$fx" locales/d.yml password 'Přihlášení'
+  sg_stage_kv "$fx" locales/e.yml token 'Čeština'
+  sg_stage_kv "$fx" locales/f.yml password 'Forgot-password'
+  stage_file "$fx" .env "$(printf 'NODE_ENV=production\nLOG_LEVEL=debug\nAPP_MODE=development\nDB_PASSWORD=Production')"
+  sg_pass TEST-4112 "$fx"
+  log_pass "TEST-4112: short capitalised or non-ASCII labels (Password, Heslo, Přihlášení, Čeština), a label with blanks and plain dotenv settings under non-keyword keys are not findings"
+}
+
+test_4113_pass_keys_name_a_secret() {
+  local fx="$TEST_DIR/t4113"
+  make_fx "$fx"
+  stage_file "$fx" .env "$(printf 'DB_%s=%s' PASS sunshinesunny)"
+  stage_file "$fx" .env.local "$(printf 'GPG_%s=%s' PASSPHRASE correcthorsebattery)"
+  stage_file "$fx" .env.prod "$(printf 'export SMTP_%s=%s' PASS sunshinesunny)"
+  sg_blocks TEST-4113 "$fx" "$SECRET_HIT" .env .env.local .env.prod
+  fx="$TEST_DIR/t4113b"
+  make_fx "$fx"
+  stage_file "$fx" .env "$(printf 'BY%s_CACHE=%s\nCOM%s_URL=%s' PASS sunshinesunny PASS sunshinesunny)"
+  sg_pass TEST-4113 "$fx"
+  log_pass "TEST-4113: DB_PASS and GPG_PASSPHRASE name a secret (a plain word blocks), BYPASS_CACHE and COMPASS_URL do not (the same plain word passes)"
+}
+
 test_4047_seterr_lint() {
   local lint="$SCRIPT_DIR/lib/seterr-lint.mjs" out files fx
   [[ -f "$lint" ]] || log_fail "TEST-4047: $lint does not exist"
@@ -2355,7 +2401,7 @@ test_4056_shell_mirrors_bom() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3887, TEST-3918..3922, TEST-4080..4110)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3887, TEST-3918..3922, TEST-4080..4112)"
   check_deps
   setup_fixture
   test_3448_ps1_retired_run
@@ -2433,6 +2479,9 @@ main() {
   test_4108_inline_private_key_blocks
   test_4109_name_hit_any_key_blocks
   test_4110_bracket_class_catch_all_rejected
+  test_4111_keyword_key_plain_words_block
+  test_4112_short_labels_pass
+  test_4113_pass_keys_name_a_secret
   test_4055_guard_config_bom
   test_4056_shell_mirrors_bom
   echo ""

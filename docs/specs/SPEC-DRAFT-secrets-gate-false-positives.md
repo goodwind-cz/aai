@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 32d3779eb7ddbb85e54d5081c0c23c327e328ca828a2e190a3d25e37593c5bc1
+frozen_sha256: 1e07ee61eb08a6caa120a51e76150177c841215d5b467a4fac6cfb0765206bbb
 ceremony_level: 3
 links:
   requirement: secrets-gate-false-positives
@@ -390,6 +390,7 @@ None.
 | Spec-AC-23 | WHEN a line holds a private key begin marker anywhere in it (`-----BEGIN PRIVATE KEY-----` or with words such as RSA before `PRIVATE KEY`) followed on the same line by a base64 run of 40 or more characters, after optional blanks, quotes and backslash-n or backslash-r escapes, or followed by nothing and the next non-empty line begins with such a run (quotes and plus signs before it ignored), the run SHALL exit 1 with one `Potential secret detected in <path>` line per file, in JS, Terraform, Python, YAML, JSON, `.env`, `.env.local` and string-concatenation forms; a marker followed by prose, by a short body or by a placeholder body SHALL pass. | planned | — | — | D-RULES R4 widened, amendment A2 (V3) |
 | Spec-AC-24 | WHEN a name-hit file that is not one of the template basenames `.env.example`, `.env.sample`, `.env.template`, `.env.dist` or `.env.defaults` holds a credential-shaped value (D-VALUE) under any key, as `export KEY=value`, YAML `key: value` or `- key: value`, JSON `"key": "value"`, TOML `key = "value"` or a commented `# KEY=value`, in a data or config file (a dotenv file, `.yaml`, `.yml`, `.json`, `.toml`, `.ini`, `.cfg`, `.conf`, `.properties`, `.tfvars`, `.txt`, `.xml`, `.plist` or a name with no extension), and an `export KEY=value` line in any other name-hit file, the run SHALL exit 1 with one secret line per file; labels with spaces, references, placeholders, empty values, word-like values, URLs and prose in the same file kinds, plain assignments and comments in a documentation or code file (`.md`, `.js`, `.sh`), and any value in a template basename under a non-keyword key, SHALL pass. | planned | — | — | D-RULES R6, amendment A2 (V4) |
 | Spec-AC-25 | WHEN the indexed allowlist holds `path [!]z]*`, `[![:digit:]z]*`, `[^]z]*`, `*[!]z]` or `[![:digit:][:alpha:]]*` and a clean file is staged the run SHALL exit 1 with exactly one catch-all error; `[]a]foo/*`, `[[:alpha:]]bar/*` and `docs/[![:digit:]]x.md` SHALL raise none. | planned | — | — | D-ALLOW bracket expressions, amendment A2 (N5) |
+| Spec-AC-26 | WHEN a keyed value under a key that names a secret (`password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `access_key`, `private_key`) is a single plain word (letters joined by single hyphens, apostrophes or dots, as `abcdefghijklmnopqrstuvwxyz`, `correcthorsebattery`, `CorrectHorse`, `SUPERSECRET` or a word longer than 20 bytes) the run SHALL exit 1 with one secret line per file, in a free-text file, YAML and a real `.env`; WHEN the plain word is a short capitalised label (at most 20 bytes, first byte A to Z or at or above 0x80, no other A to Z: `Password`, `Heslo`, `Passwort`, `Přihlášení`, `Čeština`, `Forgot-password`), or the key does not name a secret (`NODE_ENV=production`, `LOG_LEVEL=debug`), the run SHALL exit 0 with no secret line. | planned | — | — | D-VALUE e, amendment A3 (V5) |
 | Spec-AC-19 | CHANGELOG.md SHALL hold the D-DOCS heading exactly once; docs/product/pre-commit-secrets-gate.md SHALL name the allowlist path, both entry kinds and the catch-all rule; docs/USER_GUIDE.md SHALL name the allowlist path; the intake SHALL carry `user_visible: true`; spec-amend list --strict SHALL exit 0 holding the three D-AMEND records. | planned | — | — | D-DOCS and D-AMEND |
 
 ## Implementation plan
@@ -453,6 +454,9 @@ inside `.git` (TEST-3876: the allowlist resolves or not, no new output).
 | TEST-4108 | Spec-AC-23 | integration | tests/skills/test-aai-pre-commit-checks.sh | test_4108_inline_private_key_blocks stages the eight inline and multi-line key forms (built at runtime) and requires one secret line each, then a mention, a prose tail, a short body and a placeholder body that pass | `sed:s/pk = pkscan\(\$0\)/pk = 0/` on .aai/scripts/pre-commit-checks.sh | green |
 | TEST-4109 | Spec-AC-24 | integration | tests/skills/test-aai-pre-commit-checks.sh | test_4109_name_hit_any_key_blocks stages an `.envrc`, a Kubernetes Secret, credentials.json, a TOML, a commented `.env.staging` line and a YAML list entry under non-keyword keys and requires one secret line each, an `export` line in a shell script, then labels, references, placeholders, prose, a document with a date and a path in its front matter, a code file with plain assignments and a `.env.example` that pass | `sed:s/pcc_anykey=1/pcc_anykey=0/` on .aai/scripts/pre-commit-checks.sh | green |
 | TEST-4110 | Spec-AC-25 | integration | tests/skills/test-aai-pre-commit-checks.sh | test_4110_bracket_class_catch_all_rejected runs the five bracket-only globs with a clean staged file and requires one catch-all error each, then accepts three anchored bracket globs | `sed:s/'\[:'\*\)/'[:Z'*)/` on .aai/scripts/pre-commit-checks.sh | green |
+| TEST-4111 | Spec-AC-26 | integration | tests/skills/test-aai-pre-commit-checks.sh | test_4111_keyword_key_plain_words_block stages the 26-letter run under api_key, a lowercase word, a CamelCase word, an ALLCAPS word and a 26-byte capitalised word under password and secret_key, and a dotenv DB_PASSWORD word, requiring one secret line per file | `sed:s/kw != 1/1 == 1/` on .aai/scripts/pre-commit-checks.sh | green |
+| TEST-4112 | Spec-AC-26 | integration | tests/skills/test-aai-pre-commit-checks.sh | test_4112_short_labels_pass stages short capitalised and non-ASCII labels under keyword keys, a label with blanks, and a dotenv with NODE_ENV, LOG_LEVEL, APP_MODE and a capitalised DB_PASSWORD label, requiring exit 0 and no secret line | `sed:s/length\(v\) > 20/length(v) > 2/` on .aai/scripts/pre-commit-checks.sh | green |
+| TEST-4113 | Spec-AC-26 | integration | tests/skills/test-aai-pre-commit-checks.sh | test_4113_pass_keys_name_a_secret stages three real dotenv files holding a plain word under DB_PASS, GPG_PASSPHRASE and export SMTP_PASS, requiring one secret line each, then BYPASS_CACHE and COMPASS_URL holding the same plain word, requiring exit 0 and no secret line | `sed:s/pass\(phrase\)\?\[\^a-z\]/pass(phrasx)?[^a-z]/` on .aai/scripts/pre-commit-checks.sh | green |
 
 ## Verification
 
@@ -613,3 +617,75 @@ Residual risks added by A2 (disclosed, not fixed):
   other text on the marker line, or whose body is split into lines shorter
   than 40 characters directly after the marker line, is not detected (the
   frozen whole-line R4 has the same limit).
+
+## Amendment A3 (VALIDATION round 3, additive with disclosure)
+
+Post-freeze, recorded with `spec-amend.mjs add --signoff none`; the owner's
+merge signs it. Nothing above is edited; where A3 and the text above differ,
+A3 governs. Round 4 (a recorded round extension, owner-authorised).
+
+- D-VALUE e, narrowed (V5; Spec-AC-26, TEST-4111 and TEST-4112). The frozen
+  rule exempted every word-like value, so `api_key = "abcdefghijklmnopqrstuvwxyz"`
+  (the fixture of SPEC-0201 TEST-801 in tests/skills/test-aai-hygiene-pack.sh,
+  which origin/main blocks) committed. That fixture is not changed. The rule
+  is key-aware. A value is judged under a secret key when the key names one:
+  R1 and R3 always; R2 always (its key holds a keyword); R6 and the real
+  dotenv `KEY=value` rule when the key, case-insensitively, contains
+  `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `apikey`,
+  `api-key`, `access_key`, `access-key`, `private_key` or `private-key`.
+  Under a secret key a word-like value stays exempt only when it is a short
+  capitalised label, exactly: (1) at most 20 bytes (`LC_ALL=C`, so an accented
+  letter counts 2); (2) its first byte is `A` to `Z` or at or above 0x80; and
+  (3) no byte after the first is `A` to `Z` (ALLCAPS and CamelCase block).
+  Any other word-like value under a secret key is credential-shaped when it
+  passes the other D-VALUE clauses (length at least 8, no blank, not a
+  reference, placeholder, URL or path), so `correcthorsebattery`,
+  `CorrectHorse`, `SUPERSECRET` and the 26-letter run block. Under a key that
+  does not name a secret the frozen word-like exemption is unchanged (any
+  length), so `NODE_ENV=production` and `LOG_LEVEL=debug` commit.
+- The i18n labels still pass: `forgotPassword: "Forgot your password?"` (it
+  has blanks, D-VALUE b), `passwordLabel: "Password"`, `password: "Heslo"`,
+  `resetPassword: "Passwort"`, `password: "Přihlášení"`.
+- Mutation anchors: `kw != 1` and `length(v) > 20` each occur once. The pins
+  of TEST-3454 and TEST-3461 move again (777 added and 42 removed; 1058
+  lines and 897 code lines).
+
+Residual risks added by A3 (disclosed, not fixed):
+
+- A capitalised single word under a secret key passes (`Correcthorsebattery`
+  of 19 letters); a lowercase label under a secret key blocks (`password:
+  "heslo"`, `"passwordHint": "enter your"` passes by its blank but
+  `passwordHint: "newpassword"` blocks). A plain setting under a secret key
+  (`TOKEN_TYPE=authorization`, `SECRET_STORE=production-vault`) blocks; a
+  `path` or `fingerprint` allowlist entry is the remedy.
+- A letters-only value of any length under a key that does not name a secret
+  still passes (`FOO=abcdefghijklmnopqrstuvwxyz` in a real `.env`), as under A2.
+
+## Amendment A4 (REVIEW non-blocking fold, additive with disclosure)
+
+Post-freeze, recorded with `spec-amend.mjs add --class contract --signoff none`;
+the owner's merge signs it. Nothing above is edited; where A4 and the text above
+differ, A4 governs.
+
+- A3 key list, widened (NB-2; Spec-AC-26, TEST-4113). A key also names a secret
+  when it holds `pass` or `passphrase` as a whole word: the key, lowercased and
+  prefixed with an underscore, matches a non-letter, `pass`, an optional
+  `phrase`, then a non-letter. `DB_PASS`, `SMTP_PASS`, `REDIS_PASS`, `PASS` and
+  `GPG_PASSPHRASE` name a secret, so a plain word under them blocks like
+  `DB_PASSWORD`; `BYPASS_CACHE`, `COMPASS_URL`, `passthrough` and camelCase
+  `dbPass` do not. Mutation anchor: `pass(phrase)?` occurs once.
+- The prefilter `grep` of CHECK 2 runs under `LC_ALL=C` (NB-3), so a file whose
+  only keyword lines hold invalid UTF-8 is still scanned.
+- Allowlist (NB-1): the three whole-file `path` entries for the
+  secrets-preflight script, SPEC-0045 and its test are replaced by the five
+  `fingerprint` entries of the lines that were findings.
+- Docs (NB-6): the product doc, CHANGELOG and USER_GUIDE say that the key
+  decides whether a plain word blocks, as A3 does.
+
+Residual risks added by A4 (disclosed, not fixed):
+
+- A value that begins with `$` is read as a variable reference (D-VALUE c), so a
+  `$`-leading literal password or bcrypt hash is never a finding; it cannot be
+  told from `$VAR` by shape (NB-7, P3, accepted residual).
+- A camelCase key such as `dbPass` does not name a secret under the whole-word
+  rule.
