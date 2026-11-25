@@ -2,8 +2,8 @@
 id: secrets-gate-false-positives
 type: issue
 capability: pre-commit-secrets-gate
-number: null
-status: draft
+number: 126
+status: done
 user_visible: true
 links:
   pr: []

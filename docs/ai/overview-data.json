@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-25T18:02:52.447Z",
+  "generatedAt": "2026-11-25T20:37:33.234Z",
   "project": "aai",
   "counts": {
-    "delivered": 385,
+    "delivered": 386,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 217483937
@@ -232,7 +232,7 @@
       "token_total": 2225322,
       "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-mutation-tooling-p2-fixes-20261125T173057Z.md"
     },
     {
       "ref": "index-schema-warning-prominence",
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
       "validation": null,
       "review": "docs/ai/reviews/review-index-schema-warning-prominence-20261125T144136Z.md"
+    },
+    {
+      "ref": "secrets-gate-false-positives",
+      "title": "Pre-commit secrets gate false-positives force --no-verify (GitHub #585, #576)",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0126-secrets-gate-false-positives.md",
+      "closed_on": "2026-11-25",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-secrets-gate-false-positives-20261125T192733Z.md"
     },
     {
       "ref": "node-first-phase5-closeout",
@@ -5264,7 +5277,7 @@
           "token_total": 2225322,
           "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-mutation-tooling-p2-fixes-20261125T173057Z.md"
         },
         {
           "ref": "index-schema-warning-prominence",
@@ -5278,6 +5291,19 @@
           "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
           "validation": null,
           "review": "docs/ai/reviews/review-index-schema-warning-prominence-20261125T144136Z.md"
+        },
+        {
+          "ref": "secrets-gate-false-positives",
+          "title": "Pre-commit secrets gate false-positives force --no-verify (GitHub #585, #576)",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0126-secrets-gate-false-positives.md",
+          "closed_on": "2026-11-25",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-secrets-gate-false-positives-20261125T192733Z.md"
         },
         {
           "ref": "node-first-phase5-closeout",

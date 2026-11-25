@@ -5,7 +5,7 @@ capability: pre-commit-secrets-gate
 status: current
 delivered_by:
   - secrets-gate-false-positives
-spec: docs/specs/SPEC-DRAFT-secrets-gate-false-positives.md
+spec: docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md
 updated: 2026-11-25
 ---
 
@@ -184,6 +184,6 @@ docs audit does not report it. Nothing else is stored.
 
 ## Links
 
-- Request: docs/issues/ISSUE-DRAFT-secrets-gate-false-positives.md
-- Spec: docs/specs/SPEC-DRAFT-secrets-gate-false-positives.md
+- Request: docs/issues/ISSUE-0126-secrets-gate-false-positives.md
+- Spec: docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md
 - Validation evidence: docs/ai/reports/ (written by the validation role)

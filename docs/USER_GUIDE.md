@@ -2825,6 +2825,12 @@ The docs index generator rebuilds `docs/INDEX.md` from the frontmatter of the pr
 
 [Product doc](product/docs-index-regeneration.md) · [Spec](specs/SPEC-0314-spec-index-schema-warning-prominence.md)
 
+### Pre-commit secrets gate
+
+Before a commit, the AAI pre-commit checks read every staged file, as the commit records it, and block the commit when a line looks like a credential. The gate judges the value, not the file name and not the word next to it. A translated label such as `Forgot your password?`, a variable reference such as `${DB_PASSWORD}`, a placeholder such as `<your-api-key>` and a plain URL are not credentials and commit. A real-looking value behind a key such as `api_key`, `password`, `secret_key`, `access_token` or `private_key` blocks. A project exempts a reviewed false positive in one committed allowlist file instead of passing `git commit --no-verify`, which would switch off every other check as well.
+
+[Product doc](product/pre-commit-secrets-gate.md) · [Spec](specs/SPEC-0316-spec-secrets-gate-false-positives.md)
+
 ### Every shipped script is a thin launcher or kept native on purpose
 
 The AAI layer's shell and PowerShell scripts used to carry two copies of the same logic. After this change every script under `.aai/scripts` is either a thin launcher of one Node module (20 code lines or fewer, no policy of its own) or sits on a short, public list of scripts that stay native, each with a stated reason. A check that runs on every pull request fails when a new script is neither. Three smaller things ship with it: `aai-release.ps1` becomes a thin launcher and its module reads the PowerShell flag forms, the failure message of `/aai-share` no longer prints a run of 8 or more consecutive characters of `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_API_KEY`, nor an ESC byte (characters an unterminated escape consumes can still leave shorter fragments), and the install-path parity harness now also runs the shipped sync and update launchers and checks, on the native Windows job, that the update leaves no oddly named directory behind and that the sync records Windows paths in the Windows spelling.

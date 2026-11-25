@@ -1430,7 +1430,7 @@ test_3879_installed_hook_reads_the_commits_index() {
   log_pass "TEST-3879: through the installed hook a partial commit is judged on the commit's own index (blocked, HEAD unmoved) and 40 clean staged files commit"
 }
 
-# --- secrets-gate-false-positives (docs/specs/SPEC-DRAFT-secrets-gate-false-positives.md, TEST-4080..4110) -------
+# --- secrets-gate-false-positives (docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md, TEST-4080..4110) -------
 # CHECK 2 judges values by shape, a name hit selects rules instead of blocking, and a reviewed allowlist read from
 # the index exempts false positives. Every fixture value any rule would flag is assembled at run time (D-FIXTURES),
 # so this suite passes the gate it tests with no allowlist entry (TEST-4100).

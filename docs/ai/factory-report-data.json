@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-25T18:02:57.981Z",
+  "generatedAt": "2026-11-25T20:37:38.637Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 275,
-    "delivered": 708,
+    "delivered": 710,
     "active_weeks": 22,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (708 closes vs 275 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 708,
-    "delivered_per_week_avg": 32.2,
+    "note": "\"delivered\" counts every work_item_closed event (710 closes vs 275 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 710,
+    "delivered_per_week_avg": 32.3,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -36,7 +36,7 @@
       "2026-W45": 28,
       "2026-W46": 26,
       "2026-W47": 32,
-      "2026-W48": 10
+      "2026-W48": 12
     },
     "delivered_groups": [
       {
@@ -683,7 +683,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 100,
+        "count": 102,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -784,7 +784,9 @@
           "index-schema-warning-prominence",
           "spec-index-schema-warning-prominence",
           "mutation-tooling-p2-fixes",
-          "spec-mutation-tooling-p2-fixes"
+          "spec-mutation-tooling-p2-fixes",
+          "secrets-gate-false-positives",
+          "spec-secrets-gate-false-positives"
         ]
       }
     ],
@@ -3621,12 +3623,20 @@
         {
           "ref": "spec-mutation-tooling-p2-fixes",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "secrets-gate-false-positives",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-secrets-gate-false-positives",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 8431,
       "mean_seconds": 73824.8,
       "measured": 268,
-      "unmeasurable": 440
+      "unmeasurable": 442
     }
   },
   "speed": {
@@ -7780,7 +7790,7 @@
     },
     {
       "week": "2026-W48",
-      "delivered": 10,
+      "delivered": 12,
       "median_lead_time_seconds": 24914,
       "busy_seconds": 109044,
       "tokens": 5489790,
@@ -7789,14 +7799,14 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 354,
-    "oldest_age_days": 73,
+    "open_count": 359,
+    "oldest_age_days": 74,
     "items": [
       {
         "id": "fu-azure-live-proof-on-adoption",
         "ref": "platform-portable-pr",
         "severity": "P3",
-        "age_days": 73,
+        "age_days": 74,
         "what": "the live Azure round-trip proof withdrawn from SPEC-0103/Spec-AC-06 and SPEC-0104/Spec-AC-03 still wants doing on the first real Azure adoption: run the az command shapes and the az-boards degrade path against a genuine Azure remote and log the round trip under docs/ai/reports/",
         "status": "open"
       },
@@ -7940,7 +7950,7 @@
         "id": "fu-deferred-row-empty-mutation-cell",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 71,
+        "age_days": 72,
         "what": "a deferred/dropped/rejected Test Plan row with an empty Mutation cell is EXEMPT for the gate but still a mutation-cell-missing spec-freeze precondition (spec-freeze.mjs:93 vs mutation-gate.mjs:68)",
         "status": "open"
       },
@@ -7948,7 +7958,7 @@
         "id": "fu-runmain-runs-main-on-import",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 71,
+        "age_days": 72,
         "what": "runMain(() => main()) unconditionally runs main on import (mutation-gate.mjs:299, docs-audit.mjs, check-state.mjs, append-event.mjs); harmless while nothing imports them, invisible to TEST-439",
         "status": "open"
       },
@@ -7956,7 +7966,7 @@
         "id": "fu-test439-single-line-guard-grep",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 71,
+        "age_days": 72,
         "what": "doctor TEST-439 Part A greps a single line for the argv[1] main guard and Part B covers three scripts only — a line-split realpath-free guard passes, and mutation-run.mjs's guard is not in Part B",
         "status": "open"
       },
@@ -7964,7 +7974,7 @@
         "id": "fu-testplan-fallback-wrong-cell",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 71,
+        "age_days": 72,
         "what": "positional fallback for an unrecognized Test Plan header can yield a silently WRONG cell (Type's value as the AC cell) and the test-plan-header-unmapped lint is in-flight-only, so a frozen spec carries it silently (unreachable on the live corpus: 0 of 1939 rows)",
         "status": "open"
       },
@@ -7996,7 +8006,7 @@
         "id": "fu-numbering-rewrites-dated-reports",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 68,
+        "age_days": 69,
         "what": "allocate-doc-number.mjs rewrites DRAFT paths inside historical review reports (docs/ai/reviews/*), so a quoted command names a numbered spec the reviewer never ran it against",
         "status": "open"
       },
@@ -8044,7 +8054,7 @@
         "id": "fu-changelog-merge-gate-optin",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Add the opt-in qualifier to the `pr_sweep` bullet in CHANGELOG.md's new entry.",
         "status": "open"
       },
@@ -8052,7 +8062,7 @@
         "id": "fu-changelog-shape-third-statement",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Widen TEST-570's statement count to the corpus and reconcile `aai-release.sh:383`, which prints a divergent `'## [unreleased] — <title>'` hint.",
         "status": "open"
       },
@@ -8060,7 +8070,7 @@
         "id": "fu-commits-cite-wrong-doc-ids",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Reword `1d2f95b9`, `15a178fc`, `838869fe`, whose subjects cite `CHANGE-0186 / SPEC-0180` — the dispatch-state-sweep ride merged as #382.",
         "status": "open"
       },
@@ -8068,7 +8078,7 @@
         "id": "fu-cwi-skip-shape-unify",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Give `close-work-item.mjs planStateReconcile` one `skip(reason, { commands, echo })` shape.",
         "status": "open"
       },
@@ -8076,7 +8086,7 @@
         "id": "fu-cwi-slug-distinctness",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "`new Set(slugs)` (or an explicit usage error) across `--ref` / `--spec` / `--paired` in `close-work-item.mjs:1795`.",
         "status": "open"
       },
@@ -8084,7 +8094,7 @@
         "id": "fu-docsmodel-split-generated-pages",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Move `SHARED_GENERATED_PAGES` out of `lib/docs-model.mjs` into `lib/generated-pages.mjs`.",
         "status": "open"
       },
@@ -8092,7 +8102,7 @@
         "id": "fu-lanegate-readstate-duplicate",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Collapse `lane-gate.mjs:391 resolveDefaultSpecFromState` and `:168 readStrategy` into one `readStateScalar(path, block, key)`.",
         "status": "open"
       },
@@ -8100,7 +8110,7 @@
         "id": "fu-leanaccepted-doc-level-scope",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Make `docs-model.mjs:1182-1187`'s `leanAccepted` a per-table fact, as `neitherParses` is documented to be.",
         "status": "open"
       },
@@ -8108,7 +8118,7 @@
         "id": "fu-parsesweepcount-name-mismatch",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Rename `parseSweepCount` to `parseNonNegativeInt` (or give it `{ min }`) and fix its doc comment, which still says \"a pr_sweep count field (--threads-",
         "status": "open"
       },
@@ -8116,7 +8126,7 @@
         "id": "fu-spec-ac-table-two-rules",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Pick one rule for the spec's AC Status table and state it in Verification.",
         "status": "open"
       },
@@ -8124,7 +8134,7 @@
         "id": "fu-vendordeps-rationale-stated-twice",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 67,
+        "age_days": 68,
         "what": "Keep one statement of the v1/v2/v3 design rationale in `check-vendored-script-deps.mjs`; move the round-by-round narration to the amendments.",
         "status": "open"
       },
@@ -8492,7 +8502,7 @@
         "id": "fu-gitforwindows-shell-drive-rel",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 54,
+        "age_days": 55,
         "what": "gitForWindowsShell treats a drive-relative MSYS exec-path as absolute, so the derived sh.exe path resolves against the current working drive",
         "status": "open"
       },
@@ -8500,7 +8510,7 @@
         "id": "fu-nearmiss-vocab-column-name-only",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 54,
+        "age_days": 55,
         "what": "the Spec-AC-10 status-vocabulary widening gates on column-NAME reuse (AC plus Status plus Review-By or Evidence), not on the table actually being a spec-AC table",
         "status": "open"
       },
@@ -8556,7 +8566,7 @@
         "id": "fu-release-unlogged-pr-three-classes",
         "ref": "release-prep-v2026-10-02",
         "severity": "P3",
-        "age_days": 53,
+        "age_days": 54,
         "what": "aai-release's unlogged-PR warning collapses three different situations into one line, so the operator cannot tell a genuine omission from a formatting artefact",
         "status": "open"
       },
@@ -8652,7 +8662,7 @@
         "id": "fu-worktree-seed-nul-membership",
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
         "severity": "P3",
-        "age_days": 49,
+        "age_days": 50,
         "what": "A genuine registered POSIX worktree whose path contains a newline is safely but falsely refused as NOT_REGISTERED.",
         "status": "open"
       },
@@ -8660,7 +8670,7 @@
         "id": "fu-worktree-seed-privileged-skip",
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
         "severity": "P3",
-        "age_days": 49,
+        "age_days": 50,
         "what": "Privileged runners can bypass chmod 000, causing the intended TEST-004 EACCES skip to fail its later unconditional postcondition.",
         "status": "open"
       },
@@ -8740,7 +8750,7 @@
         "id": "fu-sync-seed-cache-no-ci-gain",
         "ref": "slowest-suite-hot-spots",
         "severity": "P2",
-        "age_days": 46,
+        "age_days": 47,
         "what": "aai-sync-seed CI weight stayed at 169 (was 168) after 19 first syncs moved to a cached golden; locally it dropped 245->201 s",
         "status": "open"
       },
@@ -8748,7 +8758,7 @@
         "id": "fu-test013-mutation-bite-load-dependent",
         "ref": "slowest-suite-hot-spots",
         "severity": "P3",
-        "age_days": 46,
+        "age_days": 47,
         "what": "TEST-013 (test_018) mutation stays green under host load; red 4/4 standalone",
         "status": "open"
       },
@@ -8876,7 +8886,7 @@
         "id": "fu-4b-item-absent-with-runs-wedge",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P2",
-        "age_days": 44,
+        "age_days": 45,
         "what": "a closed focus with no active_work_items entry but recorded agent_runs still dispatches Metrics Flush and no remedy acts",
         "status": "open"
       },
@@ -8884,7 +8894,7 @@
         "id": "fu-retire-hint-release-item-absent",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "--retire hint suggests --release for an item-absent ref, which --release refuses",
         "status": "open"
       },
@@ -8892,7 +8902,7 @@
         "id": "fu-sweep-ignores-reopen",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "metrics-flush --sweep treats a close superseded by a later reopen as closed",
         "status": "open"
       },
@@ -9012,7 +9022,7 @@
         "id": "fu-merge-gh-line-powershell",
         "ref": "git-platform-detected-at-bootstrap",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "GitHub merge line AAI_OPERATOR_MERGE=1 gh pr merge uses a POSIX env prefix that PowerShell cannot run; the hook gate recognizes only the env form",
         "status": "open"
       },
@@ -9068,7 +9078,7 @@
         "id": "fu-release-grace-upper-bound",
         "ref": "release-checks-registration-grace",
         "severity": "P3",
-        "age_days": 38,
+        "age_days": 39,
         "what": "AAI_RELEASE_CHECKS_GRACE_SECONDS has no upper bound; a value like 1e19 (or a 300-digit plain decimal below the overflow) is accepted and waits effectively forever",
         "status": "open"
       },
@@ -9076,7 +9086,7 @@
         "id": "fu-verify-closures-none-blank-line",
         "ref": "release-changelog-eol",
         "severity": "P3",
-        "age_days": 38,
+        "age_days": 39,
         "what": "follow-ups verify-closures ignores an explicit 'Registry items closed by this scope: none.' when a blank line follows the label and reads the next paragraph's fu- ids as closure claims",
         "status": "open"
       },
@@ -9140,7 +9150,7 @@
         "id": "fu-learned-standing-annotation-anchor",
         "ref": "slim-standing-role-context",
         "severity": "P3",
-        "age_days": 33,
+        "age_days": 34,
         "what": "learned-standing lint treats 'guard shipped:'/'routed to canon' anywhere in an entry as shipped; anchor on the opening '(' annotation form",
         "status": "open"
       },
@@ -9268,7 +9278,7 @@
         "id": "fu-follow-ups-verify-closures-argv",
         "ref": "cheap-transitions-slice",
         "severity": "P3",
-        "age_days": 31,
+        "age_days": 32,
         "what": "test-aai-follow-ups.sh:1815/1828 passes verify-closures --json (54 KB, growing with the ledger) as one argv element",
         "status": "open"
       },
@@ -9572,7 +9582,7 @@
         "id": "fu-aai-live-output-normalize",
         "ref": "node-first-small-pairs",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "aai-live.mjs:22 passes an absolute --output unnormalized; explorer.exe on Windows may get C:/ forward slashes",
         "status": "open"
       },
@@ -9708,7 +9718,7 @@
         "id": "fu-migrate-state-verify-ls-files",
         "ref": "retire-legacy-migrations",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "migrate-state-to-local: unchecked verify ls-files (false success record, NB-r5-1); untested plan ls-files guard (NB-r5-2); restore hint fails on truncated index (NB-r5-3)",
         "status": "open"
       },
@@ -9772,7 +9782,7 @@
         "id": "fu-hook-cp-guard-midline",
         "ref": "git-hook-bodies-single-source",
         "severity": "P3",
-        "age_days": 17,
+        "age_days": 18,
         "what": "test-aai-git-hook-templates.sh:499 bare_cp_sites only catches line-leading cp; misses && cp, ( cp ) and cp -R .aai/scripts",
         "status": "open"
       },
@@ -9780,7 +9790,7 @@
         "id": "fu-delete-retired-pre-commit-checks-ps1",
         "ref": "pre-commit-checks-ps1-retire",
         "severity": "P3",
-        "age_days": 17,
+        "age_days": 18,
         "what": "Delete the retired .aai/scripts/pre-commit-checks.ps1 deprecation launcher in the next release, and remove its entries from PROFILES.yaml (core), WORKFLOW.md (L3 protected-surface line), docs-audit.yaml and docs-audit.template.yaml (protected_paths_l3), and the RFC-0017 pre-commit-checks inventory row",
         "status": "open"
       },
@@ -10020,7 +10030,7 @@
         "id": "fu-continuation-rerecords-human-time",
         "ref": "flush-drops-reopened-runs",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "a flush continuation line re-records human_time_minutes (global LOOP_TICKS reviews, STATE intake) that the earlier line already counted",
         "status": "open"
       },
@@ -10028,7 +10038,7 @@
         "id": "fu-dispatch-flushed-probe-ref-keyed",
         "ref": "flush-drops-reopened-runs",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "orchestration-dispatch rules 14/4a still decide already-flushed per ref, so a reopened ride's new runs are not routed to a flush automatically",
         "status": "open"
       },
@@ -10036,7 +10046,7 @@
         "id": "fu-unattended-007-age-days-race",
         "ref": "flush-drops-reopened-runs",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "test-aai-unattended TEST-007 compares follow-ups list --json before/after a step and age_days can tick over mid-test",
         "status": "open"
       },
@@ -10124,7 +10134,7 @@
         "id": "fu-gate-ac-nnn-own-table",
         "ref": "issue-gate-via-spec",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "an intake doc's own AC status table numbered AC-NNN (not Spec-AC-NN) is not counted as its own table, so a non-terminal own row is ignored and the doc gates through its linked spec",
         "status": "open"
       },
@@ -10268,7 +10278,7 @@
         "id": "fu-hook-upgrade-resets-mode",
         "ref": "pre-commit-installer-on-node",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "an upgraded or rewritten hook takes mode 0777 minus umask, not its old mode",
         "status": "open"
       },
@@ -10316,7 +10326,7 @@
         "id": "fu-unattended-t007-day-boundary-flake",
         "ref": "node-first-leftovers",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "test-aai-unattended TEST-007 compares two follow-ups list --json calls whose age_days come from Date.now; a follow-up whose time of day falls between the calls ticks a day and the outputs differ",
         "status": "open"
       },
@@ -10324,7 +10334,7 @@
         "id": "fu-precommit-pwsh-crash-reads-as-parse",
         "ref": "node-first-leftovers",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "pre-commit-checks.sh reports a pwsh that crashes at startup (Abort trap, corrupted PowerShell startup cache) as a PowerShell parse error in every staged .ps1 and blocks the commit",
         "status": "open"
       },
@@ -10332,7 +10342,7 @@
         "id": "fu-release-ps1-51-trailing-backslash",
         "ref": "node-first-leftovers",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "aai-release.ps1 has the same Windows PowerShell 5.1 legacy-quoting exposure for an argument holding a space and ending in a backslash that aai-sync.ps1 and aai-update.ps1 now handle (D-PS51)",
         "status": "open"
       },
@@ -10489,11 +10499,35 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-mutation-gate-for-tests-694986",
-        "ref": "mutation-tooling-p2-fixes",
+        "id": "fu-amend-pr-ceremony-friction-fix-289cf3",
+        "ref": "secrets-gate-false-positives",
         "severity": "P2",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-mutation-gate-for-tests: Withdraw in part D2 (rotated record name now uses stampForFileName, Windows-valid; old colon-stamped local records not renamed) and D12/Spec-AC-06 (an absent evidence tree is a failure under --require-evidence); TEST-474, TEST-492 and TEST-500 name expectations edited, and TEST-474 sed changed to s/'hello'/undefinedFn()/ because parse-breaking mutations are now refused at exit 2",
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-pr-ceremony-friction-fixes: TEST-3833: .env, .env.local, config/credentials.json, docs/ai/validation/.env and docs/ai/tdd/.env.prod holding harmless now pass; each holding a real-looking value blocks with Potential secret detected; keys/secret.key still blocks by name",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-hook-gate-staged-content-625cdf",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-hook-gate-staged-content: TEST-3865: the four evidence-folder *.env files holding harmless now pass and holding a real-looking value block; TEST-3866: the non-ASCII name-check fixture becomes secrets/clé.key",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-precommit-blob-read-cost-c936f1",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-precommit-blob-read-cost: TEST-3876 compares stdout after removing the finding detail lines (line n, fingerprint hex and ... and k more) from the new script output only",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-secrets-gate-false-positives",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-secrets-gate-false-positives: Amendment A1: R5 (a real dotenv file judges every KEY=value by value shape), D-NUL (a NUL blob is scanned as a NUL-free copy), bracket-only catch-all globs rejected, Spec-AC-20 to 22, TEST-4105 to 4107, pins moved to 666 42 and 947/788",
         "status": "open"
       },
       {
@@ -10553,27 +10587,11 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-spec-mutation-tooling-p2-fixes",
-        "ref": "mutation-tooling-p2-fixes",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-mutation-tooling-p2-fixes: prefixed the five 'touches but does not close' open-item bullets with the NOT CLOSED label; no decision, AC or test changed",
-        "status": "open"
-      },
-      {
         "id": "fu-postmerge-predicate-any-ancestor",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
         "age_days": 0,
         "what": "close-work-item isPostMergeClose accepts any --commit that is an ancestor of origin/main, so a pre-merge close passing an origin/main sha skips --require-evidence",
-        "status": "open"
-      },
-      {
-        "id": "fu-close-remedy-suffix-unconditional",
-        "ref": "mutation-tooling-p2-fixes",
-        "severity": "P3",
-        "age_days": 0,
-        "what": "close-work-item appends the exit-8 remedy sentence to every pre-merge mutation refusal, including rows refused for reasons other than a missing record",
         "status": "open"
       },
       {
@@ -10617,11 +10635,43 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-mutation-gate-for-tests-341ca9",
+        "id": "fu-mutation-remedy-suffix-unconditional",
         "ref": "mutation-tooling-p2-fixes",
-        "severity": "P2",
+        "severity": "P3",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-mutation-gate-for-tests: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
+        "what": "close-work-item appends the exit-8 mutation-gate remedy sentence to every pre-merge mutation refusal, including rows refused for reasons other than a missing record",
+        "status": "open"
+      },
+      {
+        "id": "fu-sg-allowlist-near-catch-all",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "allowlist catch-all probe paths miss one-letter near-catch-all globs (*v*, *n*, *c*)",
+        "status": "open"
+      },
+      {
+        "id": "fu-sg-r6-linear-scan",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "R6 re-copies the rest of the line per pair: quadratic on one-line name-hit data files",
+        "status": "open"
+      },
+      {
+        "id": "fu-sg-r6-config-ext-and-xml",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "name-hit .hcl/.config/.yml.j2/.csv/key:value .properties and XML element values take the code branch",
+        "status": "open"
+      },
+      {
+        "id": "fu-sg-pk-armored-header-lines",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "private-key lookahead needs a pure base64 next line: PGP Version: header or body ending in \\ or \", passes",
         "status": "open"
       }
     ]

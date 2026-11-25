@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff origin/main of the working tree of fix/secrets-gate-false-positives (86468e12 + merge f2a55bf4 + uncommitted round-4 edits)"
-  spec: docs/specs/SPEC-DRAFT-secrets-gate-false-positives.md (frozen + Amendments A1, A2, A3)
+  spec: docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md (frozen + Amendments A1, A2, A3)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -73,7 +73,7 @@ security_relevant: true
   fix/secrets-gate-false-positives, HEAD f2a55bf4 = 86468e12 + merge of
   origin/main 01cd7f78, plus the uncommitted round-4 edits). STATE
   `worktree.user_decision: worktree`; 13 files, +2537/-32.
-- Spec: docs/specs/SPEC-DRAFT-secrets-gate-false-positives.md, frozen, plus
+- Spec: docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md, frozen, plus
   Amendments A1, A2, A3 (A3 governs where they differ).
 - Process notes (anti-gaming contract):
   - The dispatch prompt named two expected findings (NB-1 whole-file allowlist

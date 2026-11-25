@@ -4571,3 +4571,7 @@
 {"v":1,"ts":"2026-11-25T19:18:11Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"secrets-gate-false-positives","payload":{"head":"f2a55bf419ec4f6b89a8ca53929f0b9b3b199656","clean":false,"flags":1}}
 {"v":1,"ts":"2026-11-25T19:18:12Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"secrets-gate-false-positives","payload":{"role":"code_review","head":"f2a55bf419ec4f6b89a8ca53929f0b9b3b199656","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-25T19:18:12Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"secrets-gate-false-positives","payload":{"status":"pass","hash":"46acd78f1c198fe4afb38752c976892130ef9e905f7612d12bb633b2d51cfc2c"}}
+{"v":1,"ts":"2026-11-25T20:37:22Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"secrets-gate-false-positives","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-25T20:37:22Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"secrets-gate-false-positives","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-25T20:37:22Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-secrets-gate-false-positives","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-25T20:37:22Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-secrets-gate-false-positives","payload":{"validation":"pass","code_review":"pass"}}
