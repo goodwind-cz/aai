@@ -14,6 +14,12 @@
 // violation) for CI / pre-commit enforcement. The schema RULES are unchanged;
 // only the failure mode differs between default and strict.
 //
+// Output order (non-strict): a doc dropped by a whole-doc schema violation is
+// reported as the LAST stderr block (DROPPED header, one line per doc, one Fix
+// line), so a long run of standing warnings cannot bury it. The standing
+// zero-placement coverage gaps print one summary line; --verbose lists each doc.
+// --verbose never changes docs/INDEX.md, docs/INDEX.violations.md or any exit code.
+//
 // Marker discipline: refuses to overwrite an existing INDEX.md whose
 // first non-empty line is not the auto-generated marker.
 
@@ -34,6 +40,8 @@ const ARGV = process.argv.slice(2);
 // Default (no flag): degrade-and-report — always write a best-effort index.
 // --continue-on-error: retained as a no-op alias (degrade-and-report is now the default).
 const strict = ARGV.includes('--strict') || ARGV.includes('lint-docs');
+// --verbose: list every standing coverage-gap doc on stderr (default: one summary line).
+const verbose = ARGV.includes('--verbose');
 // RFC-0003 / SPEC-0002 + spec-product-docs-capability-model D1 (SEAM-1,
 // Spec-AC-02): index every DOC_FAMILIES directory (canonical, product, ...)
 // alongside the intake dirs, derived from the SAME shared registry
@@ -298,6 +306,18 @@ function ensureIndexPath() {
 }
 
 function main() {
+  // Whole-doc schema violations that dropped a doc from the index (not the legacy
+  // window); printed last by reportDropped() so they are never buried.
+  const hard = [];
+  const reportDropped = () => {
+    if (hard.length === 0) return;
+    // One doc can fail on several rows (e.g. two invalid Review-By cells): count docs, list every reason.
+    const droppedDocs = new Set(hard.map(f => f.slice(0, f.indexOf(': ')))).size;
+    console.error(`WARNING: ${droppedDocs} doc(s) DROPPED from ${toPosix(path.relative(ROOT, OUT_PATH))} by schema violations — missing from the index until fixed (run with --strict to fail):`);
+    for (const f of hard) console.error(`  - ${f}`);
+    console.error(`  Fix: set frontmatter status to one of ${[...DOC_STATUS_ENUM].join(', ')}, and write Review-By as an ISO date, a skill label, label:date, or "<actor> <method>"; the full list is in ${toPosix(path.relative(ROOT, VIOLATIONS_PATH))}.`);
+  };
+
   if (!checkMarker()) {
     console.error(`ERROR: ${path.relative(ROOT, OUT_PATH)} exists without the auto-generated marker.`);
     console.error(`       Rename or delete it, or restore the marker line: "${MARKER}"`);
@@ -421,7 +441,6 @@ function main() {
   let legacySkipped = [];
   if (failures.length > 0) {
     const legacyUntil = loadConfig(ROOT)?.legacy_until_date ?? null;
-    const hard = [];
     for (const f of failures) {
       const rel = f.slice(0, f.indexOf(': '));
       const first = legacyUntil ? firstCommitDate(ROOT, rel) : null;
@@ -436,10 +455,6 @@ function main() {
       exit(1);
     }
     // Non-strict default: never abort — every violation is already in `skipped`.
-    if (hard.length > 0) {
-      console.warn(`WARNING: ${hard.length} schema violation(s) — skipped from index (run with --strict to fail):`);
-      for (const f of hard) console.warn(`  - ${f}`);
-    }
     const failedRels = new Set(failures.map(f => f.slice(0, f.indexOf(': '))));
     for (let i = docs.length - 1; i >= 0; i -= 1) {
       if (failedRels.has(docs[i].path)) docs.splice(i, 1);
@@ -570,8 +585,8 @@ function main() {
       console.error('Add a doc-level section for that status, or fix the doc frontmatter; run without --strict for a best-effort index.');
       exit(1);
     }
-    console.warn(`WARNING: ${coverageGaps.length} doc(s) land in zero placement sections — surfaced as Coverage gaps (run with --strict to fail):`);
-    for (const d of coverageGaps) console.warn(`  - ${d.id} (${d.path}, status: ${d.status})`);
+    console.warn(`WARNING: ${coverageGaps.length} doc(s) land in zero placement sections — listed under "Coverage gaps" in ${toPosix(path.relative(ROOT, OUT_PATH))} (run with --verbose to list them here, --strict to fail).`);
+    if (verbose) for (const d of coverageGaps) console.warn(`  - ${d.id} (${d.path}, status: ${d.status})`);
   }
 
   const lines = [];
@@ -764,6 +779,7 @@ function main() {
     console.warn(`${warnings.length} warning(s):`);
     for (const w of warnings) console.warn(`  - ${w}`);
   }
+  reportDropped();
 }
 
 runMain(() => main());

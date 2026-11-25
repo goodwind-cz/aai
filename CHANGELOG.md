@@ -43,6 +43,10 @@ The pre-commit secrets check (CHECK 2 of `.aai/scripts/pre-commit-checks.sh`) no
 - A reviewed allowlist: the project-owned, committed file `docs/ai/secrets-allowlist.txt` holds one entry per line, `path <glob>` (a bash pattern over the repo-relative path) or `fingerprint <hex>` (the one finding with that fingerprint). It is read from the index, so an untracked or unstaged file has no effect; sync and update never write it. A catch-all `path` glob (`*`, `**`, `*.*`, `?*`, `[a-z]*`, `[!z]*`, `[!]z]*`) or any malformed line blocks the commit with an error, and allowed findings are counted in one printed line.
 - Every finding prints `line <n>, fingerprint <hex>` (never the value); the fingerprint is `printf '%s\n%s' <path> <line> | git hash-object --stdin`, so editing the line or moving the file needs a new review. See `docs/product/pre-commit-secrets-gate.md`.
 
+## [unreleased] — fix: a doc dropped from the docs index is reported last and coverage gaps are summarised
+
+When `generate-docs-index.mjs` drops a document for a schema violation (for example an unknown frontmatter `status`), it now prints that as the last block on stderr: a `DROPPED from docs/INDEX.md` header, one line per document with its reason, and a `Fix:` line naming the allowed status values, the Review-By forms and `docs/INDEX.violations.md`. The standing coverage-gap warning is one summary line by default; the new `--verbose` flag lists each document, and the full list stays under "Coverage gaps" in `docs/INDEX.md`. Exit codes, `--strict` and the bytes of `docs/INDEX.md` and `docs/INDEX.violations.md` are unchanged. Projects get it with `/aai-update`.
+
 ## [unreleased] — Node-first cleanup: measured suite weights, release preflight isolation and guard fixes
 
 The skill-suite weights are measured from hosted runs (the selected-sharded leg keeps its 25-minute bound: every-suite selection models a 933 s shard); four guards changed in ways a consumer can see.

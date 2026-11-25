@@ -2819,6 +2819,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Docs index regeneration
+
+The docs index generator rebuilds `docs/INDEX.md` from the frontmatter of the project documents, on every docs commit through the installed pre-commit hook and on demand. A document whose frontmatter breaks the schema (for example an unknown `status`) cannot be indexed, so the generator leaves it out and keeps going. That used to be easy to miss: the one line about the dropped document sat in the middle of a long list of standing warnings. The generator now prints the dropped documents as a block at the very end of its output, headed `DROPPED from docs/INDEX.md`, with one line per document and one line telling you how to fix it. Documents that sit in no index section (coverage gaps) are summarised in a single line; the full list stays in the index under "Coverage gaps".
+
+[Product doc](product/docs-index-regeneration.md) · [Spec](specs/SPEC-0314-spec-index-schema-warning-prominence.md)
+
 ### Every shipped script is a thin launcher or kept native on purpose
 
 The AAI layer's shell and PowerShell scripts used to carry two copies of the same logic. After this change every script under `.aai/scripts` is either a thin launcher of one Node module (20 code lines or fewer, no policy of its own) or sits on a short, public list of scripts that stay native, each with a stated reason. A check that runs on every pull request fails when a new script is neither. Three smaller things ship with it: `aai-release.ps1` becomes a thin launcher and its module reads the PowerShell flag forms, the failure message of `/aai-share` no longer prints a run of 8 or more consecutive characters of `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_API_KEY`, nor an ESC byte (characters an unterminated escape consumes can still leave shorter fragments), and the install-path parity harness now also runs the shipped sync and update launchers and checks, on the native Windows job, that the update leaves no oddly named directory behind and that the sync records Windows paths in the Windows spelling.

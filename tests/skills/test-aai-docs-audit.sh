@@ -9933,6 +9933,177 @@ test_3917_hook_lints_quoted_doc_name() {  # TEST-3917 / Spec-AC-03
   log_pass "The hook body-lints a doc whose name git quotes (TEST-3917)"
 }
 
+# --- index-schema-warning-prominence: a dropped doc is reported last, standing
+# coverage gaps are summarised (TEST-4070 .. TEST-4074) -------------------------
+
+# isp_doc <file> <id> <status>: a spec-typed doc with frontmatter and no AC table.
+isp_doc() {
+  printf -- '---\nid: %s\ntype: spec\nstatus: %s\nlinks:\n  pr: []\n---\n# Doc %s\n' "$2" "$3" "$2" > "$1"
+}
+
+# isp_fill <repo> [with-bogus] [with-nofm]: three coverage-gap docs (status legacy),
+# optionally one unknown-status doc and one doc without frontmatter; docs are git-added.
+isp_fill() {
+  local d="$1" n
+  mkdir -p "$d/docs/specs"
+  for n in 1 2 3; do isp_doc "$d/docs/specs/SPEC-7${n}0-gap.md" "spec-isp-gap$n" legacy; done
+  [[ " ${*:2} " == *" with-bogus "* ]] && isp_doc "$d/docs/specs/SPEC-740-bogus.md" spec-isp-bogus bogus
+  [[ " ${*:2} " == *" with-nofm "* ]] && printf '# A legacy doc without frontmatter\n' > "$d/docs/specs/SPEC-750-nofm.md"
+  (cd "$d" && git add docs) || log_fail "isp_fill: git add failed"
+}
+
+# isp_gen <repo> <out> <err> [flags]: runs the generator, prints its exit code.
+isp_gen() {
+  local d="$1" o="$2" e="$3" ec=0
+  shift 3
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs "$@" > "$o" 2> "$e") || ec=$?
+  printf '%s' "$ec"
+}
+
+# isp_line <file> <fixed-text>: first line number holding the text, or 0.
+isp_line() {
+  awk -v t="$2" 'index($0, t) { print NR; found = 1; exit } END { if (!found) print 0 }' "$1"
+}
+
+test_4070_dropped_doc_reported_last() {  # TEST-4070 / Spec-AC-01
+  log_info "Test: a dropped doc is reported last on stderr (TEST-4070)..."
+  igs_own_root
+  local d ec n hdr gap leg
+  d="$(setup_iso_repo isp-4070)"
+  isp_fill "$d" with-bogus with-nofm
+  ec="$(isp_gen "$d" "$d/o.txt" "$d/e.txt")"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4070: a default run must exit 0 (got $ec): $(cat "$d/e.txt")"
+  awk 'NF' "$d/e.txt" > "$d/e.ne"
+  n="$(wc -l < "$d/e.ne" | tr -d ' ')"
+  [[ "$n" -ge 3 ]] || log_fail "TEST-4070: stderr too short: $(cat "$d/e.txt")"
+  tail -n 3 "$d/e.ne" > "$d/e.last3"
+  sed -n 1p "$d/e.last3" > "$d/l1"; sed -n 2p "$d/e.last3" > "$d/l2"; sed -n 3p "$d/e.last3" > "$d/l3"
+  grep -qF "WARNING: 1 doc(s) DROPPED from docs/INDEX.md by schema violations" "$d/l1" || log_fail "TEST-4070: third-last non-empty line must be the DROPPED header: $(cat "$d/e.last3")"
+  grep -qF "docs/specs/SPEC-740-bogus.md" "$d/l2" || log_fail "TEST-4070: second-last line must name the dropped doc path: $(cat "$d/e.last3")"
+  grep -qF 'unknown frontmatter status "bogus"' "$d/l2" || log_fail "TEST-4070: second-last line must carry the reason: $(cat "$d/e.last3")"
+  grep -qF "Fix:" "$d/l3" || log_fail "TEST-4070: last line must be the Fix line: $(cat "$d/e.last3")"
+  grep -qF "docs/INDEX.violations.md" "$d/l3" || log_fail "TEST-4070: the Fix line must name docs/INDEX.violations.md: $(cat "$d/e.last3")"
+  hdr="$(isp_line "$d/e.ne" "DROPPED")"
+  gap="$(isp_line "$d/e.ne" "zero placement sections")"
+  leg="$(isp_line "$d/e.ne" "warning(s):")"
+  [[ "$gap" -gt 0 && "$leg" -gt 0 ]] || log_fail "TEST-4070: coverage-gap line and legacy list must be present: $(cat "$d/e.txt")"
+  [[ "$hdr" -gt "$gap" && "$hdr" -gt "$leg" ]] || log_fail "TEST-4070: DROPPED header ($hdr) must follow the coverage line ($gap) and the legacy list ($leg): $(cat "$d/e.txt")"
+  # negative control: no skipped doc, no DROPPED line
+  rm -f "$d/docs/specs/SPEC-740-bogus.md"
+  (cd "$d" && git rm -q --cached docs/specs/SPEC-740-bogus.md) || log_fail "TEST-4070: git rm failed"
+  ec="$(isp_gen "$d" "$d/o2.txt" "$d/e2.txt")"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4070: control run must exit 0 (got $ec)"
+  if grep -qF "DROPPED" "$d/e2.txt"; then log_fail "TEST-4070: no skipped doc must mean no DROPPED line: $(cat "$d/e2.txt")"; fi
+  # one doc with two invalid Review-By rows is one dropped doc, with both reasons listed (PR #587 review)
+  printf -- '---\nid: spec-isp-twobad\ntype: spec\nstatus: implementing\nlinks:\n  pr: []\n---\n# Two bad rows\n\n## Acceptance Criteria Status\n\n| Spec-AC | Description | Status | Evidence | Review-By | Notes |\n|---|---|---|---|---|---|\n| Spec-AC-01 | a | deferred | x | not-a-date | n |\n| Spec-AC-02 | b | deferred | x | also-not-a-date | n |\n' > "$d/docs/specs/SPEC-760-twobad.md"
+  (cd "$d" && git add docs/specs/SPEC-760-twobad.md) || log_fail "TEST-4070: git add failed"
+  ec="$(isp_gen "$d" "$d/o3.txt" "$d/e3.txt")"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4070: two-row run must exit 0 (got $ec)"
+  grep -qF "WARNING: 1 doc(s) DROPPED" "$d/e3.txt" || log_fail "TEST-4070: two invalid rows in one doc must count one dropped doc: $(cat "$d/e3.txt")"
+  n="$(grep -cF "SPEC-760-twobad.md: invalid Review-By" "$d/e3.txt" || true)"
+  [[ "$n" == 2 ]] || log_fail "TEST-4070: both invalid Review-By reasons must be listed (got $n): $(cat "$d/e3.txt")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "The dropped-doc block is the last stderr output and absent when no doc is dropped (TEST-4070)"
+}
+
+test_4071_coverage_gaps_summarised() {  # TEST-4071 / Spec-AC-02
+  log_info "Test: standing coverage gaps are one summary line unless --verbose (TEST-4071)..."
+  igs_own_root
+  local d ec n n2 p
+  d="$(setup_iso_repo isp-4071)"
+  isp_fill "$d"
+  ec="$(isp_gen "$d" "$d/o.txt" "$d/e.txt")"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4071: default run must exit 0 (got $ec): $(cat "$d/e.txt")"
+  n="$(grep -cF "zero placement sections" "$d/e.txt" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-4071: exactly one zero-placement line expected (got $n): $(cat "$d/e.txt")"
+  grep -F "zero placement sections" "$d/e.txt" > "$d/summary.txt"
+  grep -qF -- "--verbose" "$d/summary.txt" || log_fail "TEST-4071: the summary line must name --verbose: $(cat "$d/summary.txt")"
+  for p in SPEC-710-gap SPEC-720-gap SPEC-730-gap; do
+    if grep -qF "$p" "$d/e.txt"; then log_fail "TEST-4071: default stderr must not name $p: $(cat "$d/e.txt")"; fi
+  done
+  ec="$(isp_gen "$d" "$d/o2.txt" "$d/e2.txt" --verbose)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4071: --verbose run must exit 0 (got $ec)"
+  for p in SPEC-710-gap SPEC-720-gap SPEC-730-gap; do
+    grep -qF "$p" "$d/e2.txt" || log_fail "TEST-4071: --verbose stderr must name $p: $(cat "$d/e2.txt")"
+  done
+  rm -rf "$d"
+  igs_release_root
+  log_pass "Coverage gaps print one summary line by default and every doc with --verbose (TEST-4071)"
+}
+
+test_4072_bytes_and_strict_unchanged() {  # TEST-4072 / Spec-AC-03
+  log_info "Test: --verbose leaves the index bytes alone and --strict still names every doc (TEST-4072)..."
+  igs_own_root
+  local d ec p
+  d="$(setup_iso_repo isp-4072)"
+  isp_fill "$d" with-bogus
+  ec="$(isp_gen "$d" "$d/o1.txt" "$d/e1.txt")"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4072: default run must exit 0 (got $ec)"
+  cp "$d/docs/INDEX.md" "$d/INDEX.default"; cp "$d/docs/INDEX.violations.md" "$d/VIOL.default"
+  ec="$(isp_gen "$d" "$d/o2.txt" "$d/e2.txt" --verbose)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4072: --verbose run must exit 0 (got $ec)"
+  cmp -s "$d/docs/INDEX.md" "$d/INDEX.default" || log_fail "TEST-4072: INDEX.md bytes must not depend on --verbose"
+  cmp -s "$d/docs/INDEX.violations.md" "$d/VIOL.default" || log_fail "TEST-4072: INDEX.violations.md bytes must not depend on --verbose"
+  grep -qF "Coverage gaps" "$d/docs/INDEX.md" || log_fail "TEST-4072: INDEX.md must hold the Coverage gaps section"
+  for p in SPEC-710-gap SPEC-720-gap SPEC-730-gap; do
+    grep -qF "$p" "$d/docs/INDEX.md" || log_fail "TEST-4072: Coverage gaps must list $p"
+  done
+  # strict with the skipped doc and the gaps: exit 1 naming the doc
+  ec="$(isp_gen "$d" "$d/o3.txt" "$d/e3.txt" --strict)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-4072: --strict with a skipped doc must exit 1 (got $ec)"
+  grep -qF "SPEC-740-bogus.md" "$d/e3.txt" || log_fail "TEST-4072: --strict must name the skipped doc: $(cat "$d/e3.txt")"
+  # strict with gaps only
+  rm -f "$d/docs/specs/SPEC-740-bogus.md"
+  (cd "$d" && git rm -q --cached docs/specs/SPEC-740-bogus.md) || log_fail "TEST-4072: git rm failed"
+  ec="$(isp_gen "$d" "$d/o4.txt" "$d/e4.txt" --strict)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-4072: --strict with coverage gaps must exit 1 (got $ec)"
+  for p in SPEC-710-gap SPEC-720-gap SPEC-730-gap; do
+    grep -qF "$p" "$d/e4.txt" || log_fail "TEST-4072: --strict must name $p: $(cat "$d/e4.txt")"
+  done
+  rm -rf "$d"
+  igs_release_root
+  log_pass "--verbose does not change the written files and --strict still lists every offending doc (TEST-4072)"
+}
+
+test_4073_hook_shows_dropped_doc() {  # TEST-4073 / Spec-AC-04
+  log_info "Test: the installed index hook shows the dropped doc after the coverage line (TEST-4073)..."
+  igs_own_root
+  local d ec hdr gap last p
+  d="$(setup_spec0011_hook_repo isp-4073)"
+  isp_fill "$d" with-bogus
+  ec=0
+  (cd "$d" && git commit -qm "docs: a dropped doc beside coverage gaps" > c.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-4073: the commit must succeed (got $ec): $(cat "$d/c.out")"
+  hdr="$(isp_line "$d/c.out" "DROPPED")"
+  gap="$(isp_line "$d/c.out" "zero placement sections")"
+  [[ "$hdr" -gt 0 ]] || log_fail "TEST-4073: the commit output must hold the DROPPED header: $(cat "$d/c.out")"
+  [[ "$gap" -gt 0 && "$hdr" -gt "$gap" ]] || log_fail "TEST-4073: DROPPED ($hdr) must follow the coverage line ($gap): $(cat "$d/c.out")"
+  for p in SPEC-710-gap SPEC-720-gap SPEC-730-gap; do
+    if grep -E "^[[:space:]]*- .*$p" "$d/c.out" > /dev/null; then log_fail "TEST-4073: the hook output must not list $p on its own line: $(cat "$d/c.out")"; fi
+  done
+  last="$(awk 'NF { l = $0 } END { print l }' "$d/c.out")"
+  case "$last" in
+    *"regenerated and staged"*) ;;
+    *) log_fail "TEST-4073: the output must end with the regenerated and staged line (got: $last): $(cat "$d/c.out")" ;;
+  esac
+  rm -rf "$d"
+  igs_release_root
+  log_pass "The installed hook output carries the DROPPED block and ends with its own staged line (TEST-4073)"
+}
+
+test_4074_changelog_and_product_doc() {  # TEST-4074 / Spec-AC-05
+  log_info "Test: one changelog heading and a product doc describing the block and --verbose (TEST-4074)..."
+  local n doc="$PROJECT_ROOT/docs/product/docs-index-regeneration.md"
+  # Release-tolerant: a release cut renames the entry heading to '## [vYYYY.MM.DD] — fix: ...'; exactly one heading either way.
+  n="$(grep -cE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[^]]*)\] — fix: a doc dropped from the docs index is reported last' "$PROJECT_ROOT/CHANGELOG.md" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-4074: CHANGELOG.md must hold exactly one heading for this fix, unreleased or released (got $n)"
+  [[ -f "$doc" ]] || log_fail "TEST-4074: $doc is missing"
+  grep -qF "DROPPED" "$doc" || log_fail "TEST-4074: the product doc must describe the DROPPED block"
+  grep -qF -- "--verbose" "$doc" || log_fail "TEST-4074: the product doc must name --verbose"
+  log_pass "CHANGELOG heading and product doc are in place (TEST-4074)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -10142,6 +10313,11 @@ main() {
   test_2301_split_note_inventory
   test_2309_gate_batch_measurement
   test_2304_content_suite_fails_on_planted_orphan
+  test_4070_dropped_doc_reported_last  # index-schema-warning-prominence
+  test_4071_coverage_gaps_summarised  # index-schema-warning-prominence
+  test_4072_bytes_and_strict_unchanged  # index-schema-warning-prominence
+  test_4073_hook_shows_dropped_doc  # index-schema-warning-prominence
+  test_4074_changelog_and_product_doc  # index-schema-warning-prominence
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
