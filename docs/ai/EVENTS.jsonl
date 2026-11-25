@@ -4558,3 +4558,4 @@
 {"v":1,"ts":"2026-11-25T18:02:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"mutation-tooling-p2-fixes","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-25T18:02:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-mutation-tooling-p2-fixes","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-25T18:02:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-mutation-tooling-p2-fixes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-25T20:27:02Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-onboarding-tech-contract-and-lint-gaps","payload":{"from":"draft","to":"implementing"}}
