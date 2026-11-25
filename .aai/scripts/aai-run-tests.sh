@@ -910,9 +910,41 @@ aai_residue_finish() {
   return 0
 }
 
-trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 130' INT
-trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 143' TERM
-trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
+# Private XDG_CACHE_HOME (test-infra-p2-fixes D1): pwsh keeps its startup
+# profile data under $XDG_CACHE_HOME/powershell (falling back to
+# $HOME/.cache/powershell), so a caller's cache - usually the owner's real one -
+# must never reach the wrapped command. A caller-provided value is NOT
+# respected and there is no opt-out. An owned run keeps the cache inside its
+# temp root (removed with it); otherwise it is a mktemp directory of its own,
+# and when neither can be made the value is a path that cannot exist.
+AAI_XDG_CACHE_OWN=0
+AAI_XDG_CACHE_DIR=''
+if [ "$AAI_TREE_OWN" -eq 1 ]; then
+  AAI_XDG_CACHE_DIR="$AAI_TREE_ROOT/xdg-cache"
+  mkdir -- "$AAI_XDG_CACHE_DIR" 2>/dev/null || AAI_XDG_CACHE_DIR=''
+fi
+if [ -z "$AAI_XDG_CACHE_DIR" ]; then
+  AAI_XDG_CACHE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/aai-xdg-cache.XXXXXX" 2>/dev/null) || AAI_XDG_CACHE_DIR=''
+  if [ -n "$AAI_XDG_CACHE_DIR" ]; then AAI_XDG_CACHE_OWN=1; fi
+fi
+[ -n "$AAI_XDG_CACHE_DIR" ] || AAI_XDG_CACHE_DIR='/nonexistent/aai-test-no-xdg-cache'
+XDG_CACHE_HOME="$AAI_XDG_CACHE_DIR"
+export XDG_CACHE_HOME
+
+# aai_xdg_cache_finish - once: remove the mktemp cache this wrapper made. Only
+# an absolute path whose basename starts with aai-xdg-cache. is ever removed.
+aai_xdg_cache_finish() {
+  [ "$AAI_XDG_CACHE_OWN" -eq 1 ] || return 0
+  AAI_XDG_CACHE_OWN=0
+  case "$AAI_XDG_CACHE_DIR" in
+    /*/aai-xdg-cache.*) rm -rf -- "$AAI_XDG_CACHE_DIR" 2>/dev/null ;;
+  esac
+  return 0
+}
+
+trap 'aai_reap_group; aai_xdg_cache_finish; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 130' INT
+trap 'aai_reap_group; aai_xdg_cache_finish; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 143' TERM
+trap 'aai_reap_group; aai_xdg_cache_finish; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
 
 # Launch the command as the leader of a NEW session / process group so that even
 # descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
@@ -1038,6 +1070,7 @@ rm -f "$TIMED_OUT_FILE"
 # is TERM'd, then KILL'd after a short grace - the same aai_reap_group the
 # signal traps above now call, so this path and a Ctrl-C cannot disagree.
 aai_reap_group
+aai_xdg_cache_finish
 
 # Leftover processes and the temp root of an owned run (after the group reap,
 # so only what escaped the group is left to prove and signal).

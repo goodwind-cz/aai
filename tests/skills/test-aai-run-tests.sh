@@ -1277,7 +1277,68 @@ test_030() {
   log_pass "7 AGE-WAIT tags, each sleep at or above its documented minimum"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030"
+# --- TEST-4130 (Spec-AC-01 / D1, test-infra-p2-fixes) — the wrapper gives the
+# wrapped command a private XDG_CACHE_HOME, never the caller's -----------------
+# A fake HOME and a fake XDG_CACHE_HOME live under ONE mktemp root; the owner's
+# real ~/.cache/powershell is never read, listed or written. The wrapped sh
+# records the XDG_CACHE_HOME it sees and writes the pwsh startup-profile entry
+# under it (the fallback is $HOME/.cache, exactly as pwsh resolves it).
+test_4130_private_xdg_cache() {
+  log_info "TEST-4130: the wrapped command sees a private XDG_CACHE_HOME (not the caller's, not under HOME), removed afterwards, and no powershell entry reaches the fakes (Spec-AC-01)..."
+  local root fh fx tmpd mode seen rc entries
+  root="$(mktemp -d "${TMPDIR:-/tmp}/aai-t4130.XXXXXX")" || log_fail "TEST-4130: no scratch root could be made"
+  [[ -n "$root" && "$root" == /* && -d "$root" ]] || log_fail "TEST-4130: unsafe scratch root '$root'"
+  fh="$root/home"; fx="$root/xdg"; tmpd="$root/tmp"
+  mkdir -p "$fh" "$fx" "$tmpd" || log_fail "TEST-4130: fixture dirs could not be made"
+  # The probe: record what the command sees, then do what pwsh does with it.
+  local probe='printf "%s\n" "${XDG_CACHE_HOME-UNSET}" > "$AAI_T4130_OUT"
+c="${XDG_CACHE_HOME:-$HOME/.cache}/powershell"
+mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
+  for mode in set unset keep; do
+    rm -f "$root/seen"
+    rc=0
+    case "$mode" in
+      set)   env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      unset) env -u XDG_CACHE_HOME HOME="$fh" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      keep)  env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_TEST_TMPDIR=keep AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+    esac
+    [[ "$rc" -eq 0 ]] || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the wrapped probe must exit 0 (got $rc)"; }
+    seen="$(cat "$root/seen" 2>/dev/null || true)"
+    [[ -n "$seen" && "$seen" == /* ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command saw no absolute XDG_CACHE_HOME (got '$seen')"; }
+    [[ "$seen" != "$fx" && "$seen" != "$fx"/* ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command saw the caller's XDG_CACHE_HOME ($seen)"; }
+    [[ "$seen" != "$fh" && "$seen" != "$fh"/* ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command's XDG_CACHE_HOME lies under the fake HOME ($seen)"; }
+    [[ ! -e "$seen" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the private cache $seen survived the wrapper"; }
+    entries="$(find "$fx" "$fh" -iname 'powershell*' 2>/dev/null || true)"
+    [[ -z "$entries" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): a powershell entry reached the fakes: $entries"; }
+  done
+
+  # Real pwsh arm: only where pwsh is installed. pwsh may create its own
+  # per-user config/data dirs under the fake HOME; the cache is what the
+  # follow-up is about, so the assertion is scoped to the cache locations.
+  if command -v pwsh >/dev/null 2>&1; then
+    rc=0
+    env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" \
+      sh "$RUN_TESTS_SCRIPT" pwsh -NoLogo -Command 'exit 0' >/dev/null 2>&1 || rc=$?
+    [[ "$rc" -eq 0 ]] || { rm -rf "$root"; log_fail "TEST-4130 (pwsh): a real pwsh start through the wrapper must exit 0 (got $rc)"; }
+    entries="$(find "$fx" -iname 'powershell*' 2>/dev/null || true)$(find "$fh/.cache" -iname 'powershell*' 2>/dev/null || true)"
+    [[ -z "$entries" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 (pwsh): a real pwsh start left a powershell cache entry in the fakes: $entries"; }
+  else
+    log_info "NOTE: TEST-4130 skipped the real pwsh arm: pwsh is not on PATH"
+  fi
+  rm -rf "$root"
+  log_pass "TEST-4130: XDG_CACHE_HOME is private per wrapper run (set, unset and keep modes), gone afterwards, and no powershell entry reached the fake HOME or fake XDG"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 4130_private_xdg_cache"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"
