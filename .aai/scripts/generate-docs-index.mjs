@@ -311,7 +311,9 @@ function main() {
   const hard = [];
   const reportDropped = () => {
     if (hard.length === 0) return;
-    console.error(`WARNING: ${hard.length} doc(s) DROPPED from ${toPosix(path.relative(ROOT, OUT_PATH))} by schema violations — missing from the index until fixed (run with --strict to fail):`);
+    // One doc can fail on several rows (e.g. two invalid Review-By cells): count docs, list every reason.
+    const droppedDocs = new Set(hard.map(f => f.slice(0, f.indexOf(': ')))).size;
+    console.error(`WARNING: ${droppedDocs} doc(s) DROPPED from ${toPosix(path.relative(ROOT, OUT_PATH))} by schema violations — missing from the index until fixed (run with --strict to fail):`);
     for (const f of hard) console.error(`  - ${f}`);
     console.error(`  Fix: set frontmatter status to one of ${[...DOC_STATUS_ENUM].join(', ')}, and write Review-By as an ISO date, a skill label, label:date, or "<actor> <method>"; the full list is in ${toPosix(path.relative(ROOT, VIOLATIONS_PATH))}.`);
   };

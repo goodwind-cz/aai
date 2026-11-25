@@ -9994,6 +9994,14 @@ test_4070_dropped_doc_reported_last() {  # TEST-4070 / Spec-AC-01
   ec="$(isp_gen "$d" "$d/o2.txt" "$d/e2.txt")"
   [[ "$ec" == 0 ]] || log_fail "TEST-4070: control run must exit 0 (got $ec)"
   if grep -qF "DROPPED" "$d/e2.txt"; then log_fail "TEST-4070: no skipped doc must mean no DROPPED line: $(cat "$d/e2.txt")"; fi
+  # one doc with two invalid Review-By rows is one dropped doc, with both reasons listed (PR #587 review)
+  printf -- '---\nid: spec-isp-twobad\ntype: spec\nstatus: implementing\nlinks:\n  pr: []\n---\n# Two bad rows\n\n## Acceptance Criteria Status\n\n| Spec-AC | Description | Status | Evidence | Review-By | Notes |\n|---|---|---|---|---|---|\n| Spec-AC-01 | a | deferred | x | not-a-date | n |\n| Spec-AC-02 | b | deferred | x | also-not-a-date | n |\n' > "$d/docs/specs/SPEC-760-twobad.md"
+  (cd "$d" && git add docs/specs/SPEC-760-twobad.md) || log_fail "TEST-4070: git add failed"
+  ec="$(isp_gen "$d" "$d/o3.txt" "$d/e3.txt")"
+  [[ "$ec" == 0 ]] || log_fail "TEST-4070: two-row run must exit 0 (got $ec)"
+  grep -qF "WARNING: 1 doc(s) DROPPED" "$d/e3.txt" || log_fail "TEST-4070: two invalid rows in one doc must count one dropped doc: $(cat "$d/e3.txt")"
+  n="$(grep -cF "SPEC-760-twobad.md: invalid Review-By" "$d/e3.txt" || true)"
+  [[ "$n" == 2 ]] || log_fail "TEST-4070: both invalid Review-By reasons must be listed (got $n): $(cat "$d/e3.txt")"
   rm -rf "$d"
   igs_release_root
   log_pass "The dropped-doc block is the last stderr output and absent when no doc is dropped (TEST-4070)"
