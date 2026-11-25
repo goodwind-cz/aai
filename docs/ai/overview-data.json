@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-25T01:18:15.626Z",
+  "generatedAt": "2026-11-25T15:09:26.650Z",
   "project": "aai",
   "counts": {
-    "delivered": 383,
+    "delivered": 384,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 214446016
+    "tokens_total": 215258615
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -220,6 +220,19 @@
       "spec": "docs/specs/SPEC-0313-spec-node-first-cleanup.md",
       "validation": null,
       "review": "docs/ai/reviews/review-node-first-cleanup-20261125T011421Z.md"
+    },
+    {
+      "ref": "index-schema-warning-prominence",
+      "title": "A doc dropped from the index is buried under standing coverage-gap output",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0125-index-schema-warning-prominence.md",
+      "closed_on": "2026-11-25",
+      "agent_minutes": 272,
+      "token_total": 812599,
+      "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "node-first-phase5-closeout",
@@ -5226,6 +5239,19 @@
           "spec": "docs/specs/SPEC-0313-spec-node-first-cleanup.md",
           "validation": null,
           "review": "docs/ai/reviews/review-node-first-cleanup-20261125T011421Z.md"
+        },
+        {
+          "ref": "index-schema-warning-prominence",
+          "title": "A doc dropped from the index is buried under standing coverage-gap output",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0125-index-schema-warning-prominence.md",
+          "closed_on": "2026-11-25",
+          "agent_minutes": 272,
+          "token_total": 812599,
+          "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "node-first-phase5-closeout",

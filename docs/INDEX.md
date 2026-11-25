@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (48)
+## Product (49)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -36,6 +36,7 @@ _None._
 | directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
 | docs-close-gate | docs-close-gate | 3 | docs/product/docs-close-gate.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
+| docs-index-regeneration | docs-index-regeneration | 1 | docs/product/docs-index-regeneration.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
@@ -70,7 +71,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (699)
+## Done (701)
 
 | ID | Type | Path |
 |---|---|---|
@@ -442,6 +443,7 @@ _None._
 | ISSUE-0122 | issues | docs/issues/ISSUE-0122-hook-gate-staged-content.md |
 | ISSUE-0123 | issues | docs/issues/ISSUE-0123-precommit-sentinel-trap.md |
 | ISSUE-0124 | issues | docs/issues/ISSUE-0124-precommit-residual-defects.md |
+| ISSUE-0125 | issues | docs/issues/ISSUE-0125-index-schema-warning-prominence.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -771,6 +773,7 @@ _None._
 | SPEC-0311 | specs | docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md |
 | SPEC-0312 | specs | docs/specs/SPEC-0312-spec-node-first-leftovers.md |
 | SPEC-0313 | specs | docs/specs/SPEC-0313-spec-node-first-cleanup.md |
+| SPEC-0314 | specs | docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -806,7 +809,7 @@ _None._
 
 _None._
 
-## Broken references (616)
+## Broken references (617)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1158,6 +1161,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-6009-both.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-acflip-hash.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7101-lean.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-740-bogus.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7801-lint.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7802-lint.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-7803-lint.md | NOT FOUND |
