@@ -1320,9 +1320,11 @@ mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
       || { rm -rf "$root"; log_fail "TEST-4130 ($mode): a powershell entry reached the fakes: $entries"; }
   done
 
-  # Real pwsh arm: only where pwsh is installed. pwsh may create its own
-  # per-user config/data dirs under the fake HOME; the cache is what the
-  # follow-up is about, so the assertion is scoped to the cache locations.
+  # Real pwsh arm: only where pwsh is installed. pwsh creates its own data
+  # dir under the fake HOME (.local/share/powershell); that is not the cache.
+  # The follow-up is about the cache (StartupProfileData under
+  # $XDG_CACHE_HOME/powershell or $HOME/.cache/powershell), so the assertion
+  # is scoped to exactly those two locations.
   if command -v pwsh >/dev/null 2>&1; then
     rc=0
     env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" \
@@ -1335,7 +1337,7 @@ mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
     log_info "NOTE: TEST-4130 skipped the real pwsh arm: pwsh is not on PATH"
   fi
   rm -rf "$root"
-  log_pass "TEST-4130: XDG_CACHE_HOME is private per wrapper run (set, unset and keep modes), gone afterwards, and no powershell entry reached the fake HOME or fake XDG"
+  log_pass "TEST-4130: XDG_CACHE_HOME is private per wrapper run (set, unset and keep modes), gone afterwards, and no powershell cache entry (XDG_CACHE_HOME/powershell, HOME/.cache/powershell) reached the fake XDG or fake HOME"
 }
 
 # test-infra-p2-fixes D-AMEND / D-WIRE: the consumer-visible record of the change.

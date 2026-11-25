@@ -59,7 +59,10 @@ cleanup() {
 trap cleanup EXIT
 
 # Copy E2E_FIXTURE_FILES from the working tree into a fresh mktemp root and
-# print its path. The root is registered with the EXIT cleanup above.
+# leave its path in the global E2E_ROOT. Never call this inside a command
+# substitution: the registration with the EXIT cleanup above would happen in a
+# subshell and be lost, leaking the root.
+E2E_ROOT=""
 e2e_fixture_root() {
   local root rel
   root="$(mktemp -d "${TMPDIR:-/tmp}/aai-prompt-diet-e2e.XXXXXX")" || return 1
@@ -70,7 +73,7 @@ e2e_fixture_root() {
       cp -R "$PROJECT_ROOT/$rel" "$root/$rel"
     fi
   done
-  printf '%s' "$root"
+  E2E_ROOT="$root"
 }
 
 log_pass() { echo "PASS $*"; }
@@ -194,7 +197,9 @@ test_004_intake_dry_run() {
     return
   fi
   local e2e_root
-  e2e_root="$(e2e_fixture_root)"
+  E2E_ROOT=""
+  e2e_fixture_root || true
+  e2e_root="$E2E_ROOT"
   if [[ -z "$e2e_root" || ! -d "$e2e_root" ]]; then
     log_fail "TEST-004 cannot create its fixture root"
     return
@@ -268,11 +273,11 @@ test_4135_dry_run_never_writes_project_root() {
     mkdir -p "$scratch/$(dirname "$rel")"
     cp -R "$PROJECT_ROOT/$rel" "$scratch/$rel"
   done
-  mkdir -p "$scratch/$(dirname "$E2E_DRAFT")"
+  mkdir -p "$scratch/$(dirname "$E2E_DRAFT")" "$scratch/tmp"
   printf 'SENTINEL-4135 do not touch\n' > "$scratch/$E2E_DRAFT"
   cp "$scratch/$E2E_DRAFT" "$scratch/sentinel.orig"
   before="$(find "$scratch" ! -name sentinel.orig | LC_ALL=C sort | cksum)"
-  (cd "$scratch" && env -u AAI_ROLE bash tests/skills/test-aai-prompt-diet.sh test_004_intake_dry_run) > "$scratch.out" 2>&1 || rc=$?
+  (cd "$scratch" && env -u AAI_ROLE TMPDIR="$scratch/tmp" bash tests/skills/test-aai-prompt-diet.sh test_004_intake_dry_run) > "$scratch.out" 2>&1 || rc=$?
   out="$(<"$scratch.out")"
   rm -f "$scratch.out"
   [[ "$rc" == "0" ]] || { log_fail "TEST-4135 the copied suite's TEST-004 must exit 0 (got $rc): ${out:0:400}"; return; }
@@ -280,12 +285,19 @@ test_4135_dry_run_never_writes_project_root() {
     log_fail "TEST-4135 the sentinel at the real-root draft path was changed or removed"
     return
   fi
+  # The copied suite's own fixture root lived under the fake TMPDIR; its EXIT
+  # cleanup must have removed it (a root registered inside a command
+  # substitution never reaches that cleanup and leaks here).
+  if [[ -n "$(ls -A "$scratch/tmp")" ]]; then
+    log_fail "TEST-4135 the copied suite left a fixture root in its TMPDIR: $(ls -A "$scratch/tmp" | tr '\n' ' ')"
+    return
+  fi
   after="$(find "$scratch" ! -name sentinel.orig | LC_ALL=C sort | cksum)"
   if [[ "$after" != "$before" ]]; then
     log_fail "TEST-4135 the scratch project tree listing changed during the dry run"
     return
   fi
-  log_pass "TEST-4135 the dry run left the scratch project root untouched"
+  log_pass "TEST-4135 the dry run left the scratch project root untouched and removed its fixture root from TMPDIR"
 }
 
 # TEST-005 — SKILL_PROFILE contains no fiction and is <= 8988 bytes

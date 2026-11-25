@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: d69a2d5fc8573d1b7ae28b20ab4e88a17a08a521823d418a0520bd5d5f2b7537
+frozen_sha256: 73d0cc2629d860333296b64dbe4842d2f7dd86f8b1e51167965d0283ff8372d5
 ceremony_level: 2
 links:
   requirement: test-infra-p2-fixes
@@ -388,7 +388,7 @@ the CHANGELOG, TECHNOLOGY.md and the D-AMEND sections, as article 5 requires.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN aai-run-tests.sh runs a command with a fake HOME and a fake XDG_CACHE_HOME (and again with XDG_CACHE_HOME unset) THEN the command SHALL see an XDG_CACHE_HOME that is neither the fake XDG path nor under the fake HOME, that directory SHALL not exist after the wrapper exits, and neither the fake XDG path nor the fake HOME SHALL contain a powershell entry; where pwsh is installed a real pwsh start through the wrapper SHALL leave both fakes without a powershell entry, and where it is not the test SHALL print a NOTE naming the skipped arm. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4130.log | — | D1, item 9 |
+| Spec-AC-01 | WHEN aai-run-tests.sh runs a command with a fake HOME and a fake XDG_CACHE_HOME (and again with XDG_CACHE_HOME unset) THEN the command SHALL see an XDG_CACHE_HOME that is neither the fake XDG path nor under the fake HOME, that directory SHALL not exist after the wrapper exits, and neither the fake XDG path nor the fake HOME SHALL contain a powershell entry; where pwsh is installed a real pwsh start through the wrapper SHALL leave no powershell cache entry (StartupProfileData under XDG_CACHE_HOME/powershell or HOME/.cache/powershell) in either fake (the data folder pwsh creates under HOME/.local/share/powershell is not the cache and is outside this clause), and where it is not the test SHALL print a NOTE naming the skipped arm. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4130.log | — | D1, item 9 |
 | Spec-AC-02 | WHEN test-framework.sh runs two fixture suites with a fake HOME and a fake XDG_CACHE_HOME, both with isolation on and with AAI_TEST_ISOLATION=0 THEN each suite SHALL see its own XDG_CACHE_HOME, the two SHALL differ, neither SHALL equal the fake XDG path or lie under the fake HOME, neither SHALL exist after the run, and the fake XDG path SHALL hold no powershell entry. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4131.log | — | D2, item 9 |
 | Spec-AC-03 | WHEN test-framework.sh is given --skill for an existing suite and --skill for a missing one THEN it SHALL exit 2 with Test file not found and SHALL print no Found line and run no suite; an empty --skill value SHALL exit 2 the same way. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4132.log | — | D3, item 5 |
 | Spec-AC-04 | WHEN a command run through aai-run-tests.sh exits 7 or 127 with friction capture on and a fixture spool THEN the spool SHALL hold zero observations and the wrapper SHALL exit 7 or 127. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4133.log | — | D4, item 4 |
@@ -469,7 +469,7 @@ holds ids up to TEST-4112.
 | TEST-4132 | Spec-AC-03 | integration | tests/skills/test-aai-suite-isolation.sh | test_4132_missing_selected_suite_fails_the_run: fixture framework with one suite; --skill for it plus a missing name exits 2 with Test file not found and no Found line; an empty --skill exits 2 | `sed:s/    exit "\$discover_rc"/    :/` on tests/skills/test-framework.sh | green |
 | TEST-4133 | Spec-AC-04 | integration | tests/skills/test-aai-friction-capture-points.sh | test_4133_ordinary_failure_records_nothing: capture on, fixture spool; sh -c exit 7 and a missing command (127) each leave zero observations and keep their exit code | `sed:s/^exit "\$STATUS"$/aai_capture_friction "$AAI_CMD_REAL_STATUS" deterministic_script_failure low low; exit "$STATUS"/m` on .aai/scripts/aai-run-tests.sh | green |
 | TEST-4134 | Spec-AC-05 | integration | tests/skills/test-aai-friction-capture-points.sh | test_4134_stall_record_carries_signal: AAI_TEST_TIMEOUT=2 with sleep 30 twice into one fixture spool; one stalled_progress line per stall with confidence medium and impact low; the real triage CLI over the spool after one stall reports retain and after two reports review_candidate | `sed:s/aai_capture_friction 124 stalled_progress medium low/aai_capture_friction 124 stalled_progress low low/` on .aai/scripts/aai-run-tests.sh | green |
-| TEST-4135 | Spec-AC-06 | integration | tests/skills/test-aai-prompt-diet.sh | test_4135_dry_run_never_writes_project_root: scratch project holding a copy of the suite, its sourced libs and E2E_FIXTURE_FILES; a sentinel at the draft path; the copied suite's test_004_intake_dry_run exits 0, the sentinel is byte-identical and the scratch tree listing is unchanged | `sed:s/e2e_root="\$\(e2e_fixture_root\)"/e2e_root="$PROJECT_ROOT"/` on tests/skills/test-aai-prompt-diet.sh | green |
+| TEST-4135 | Spec-AC-06 | integration | tests/skills/test-aai-prompt-diet.sh | test_4135_dry_run_never_writes_project_root: scratch project holding a copy of the suite, its sourced libs and E2E_FIXTURE_FILES; a sentinel at the draft path; the copied suite's test_004_intake_dry_run, run with a TMPDIR inside the scratch project, exits 0, the sentinel is byte-identical, that TMPDIR is empty afterwards (the suite's fixture root was removed by its EXIT cleanup) and the scratch tree listing is unchanged | `sed:s/^  e2e_root="\$E2E_ROOT"$/  e2e_root="$E2E_ROOT"; E2E_FIXTURE_ROOTS=()/m` on tests/skills/test-aai-prompt-diet.sh | green |
 | TEST-4136 | Spec-AC-07 | integration | tests/skills/test-aai-docs-audit.sh | test_4136_vanished_doc_degrades: fixture repo; baseline run without the draft gives the expected exit; with a planted draft and a node preload that unlinks it on its first read, the same command exits the same, prints the NOTE line naming it and no ENOENT | `sed:s/if \(err\?\.code !== 'ENOENT'\) throw err;/throw err;/` on .aai/scripts/lib/docs-audit-core.mjs | green |
 | TEST-4137 | Spec-AC-08 | integration | tests/skills/test-aai-docs-audit.sh | test_4137_selected_arm_replays_its_setup: nested runs of this suite with test_drift_verdicts, test_reviewby_literals and an undefined name; asserts the Spec-AC-08 exit codes, pass texts and absent texts | `sed:s/^  da_replay_setup "\$fn"$/  :/m` on tests/skills/test-aai-docs-audit.sh | green |
 | TEST-4138 | Spec-AC-09 | inspection | tests/skills/test-aai-mutation-gate.sh | test_4138_fail_wrappers_print_fail: the D8 corpus guard over tests/skills and tests reports zero offenders; a planted wrapper without FAIL is named and a conforming one is not; each fixed wrapper called with TEST-9999 probe matches the attribution form | `sed:s/echo "✗ FAIL: /echo "✗ /` on tests/skills/test-aai-tdd.sh | green |
@@ -531,10 +531,14 @@ above.
 | fu-docs-audit-suite-has-no-selector | fix (D7; the bare one-argument dispatch of PR #467 was already on main, and it could not run a fixture-dependent arm) | Spec-AC-08 |
 | fu-runtests-capture-is-unscored-noise | fix (D4) | Spec-AC-04, Spec-AC-05 |
 | fu-framework-discover-exit-swallowed | fix (D3) | Spec-AC-03 |
-| fu-lib-graph-narrowing-after-sharding | dropped by measurement (D10; the sharding half was delivered by SPEC-0206 and SPEC-0240) | Spec-AC-11 |
 | fu-assertions-pinned-to-one-world | fix (D9) | Spec-AC-10 |
 | fu-reuse-docs-closure-suites | closed as already resolved (D11; SPEC-0268, SPEC-0270, SPEC-0271) | Spec-AC-11 |
 | fu-tests-share-real-pwsh-cache | fix (D1, D2) | Spec-AC-01, Spec-AC-02 |
+
+DROPPED by measurement (the registry status is dropped, not done):
+
+- `fu-lib-graph-narrowing-after-sharding` (Spec-AC-11): D10; the sharding
+  half was delivered by SPEC-0206 and SPEC-0240.
 
 Open items on the same subjects that this scope touches but does not close,
 with the reason for each (registry consumer rule):
