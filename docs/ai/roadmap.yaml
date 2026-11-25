@@ -186,6 +186,8 @@ pairs:
     status: done
   - capability: mutation-tooling-p2-fixes
     status: done
+  - capability: test-infra-p2-fixes
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
