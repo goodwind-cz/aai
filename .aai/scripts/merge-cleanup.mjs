@@ -1378,10 +1378,10 @@ function emit(report, json, e) {
 function runApplyOrPlan(opts) {
   const stopAfter = seam('AAI_MERGE_CLEANUP_STOP_AFTER');
   if (stopAfter && !STEP_IDS.includes(stopAfter)) usage(`AAI_MERGE_CLEANUP_STOP_AFTER names an unknown step: ${stopAfter}`);
-  const origin = resolveOrigin(opts);
+  const origin = resolveOrigin(opts); if (opts.mode === 'apply' && escapesCheckout(origin, archiveRoot(origin, opts.pr))) { process.stdout.write(`REFUSE write_outside_checkout ${posix(path.relative(origin, archiveRoot(origin, opts.pr)))}\n`); finish(3, 'refused'); }  // before the gate's fetch: the journal, choices and archive live under it, nothing is written through a link out of the checkout
   RUN.pairs = opts.decide ? parseDecide(opts.decide).map((x) => ({ ...x, used: false })) : [];
   RUN.decisions = [...readJsonl(choicesFile()).filter((c) => c.option === 'keep' || c.option === 'keep_local'), ...RUN.pairs];
-  const gate = readAndGate(opts, origin); if (opts.mode === 'apply' && escapesCheckout(origin, archiveRoot(origin, opts.pr))) { process.stdout.write(`REFUSE write_outside_checkout ${posix(path.relative(origin, archiveRoot(origin, opts.pr)))}\n`); finish(3, 'refused'); }  // the journal, choices and archive live under it: nothing is written through a link out of the checkout
+  const gate = readAndGate(opts, origin);
   const ctx = { opts, origin, ...gate, drafts: classifyDrafts(origin, gate.base), status: {} };
   planChecks(ctx);
   const steps = [];

@@ -4254,9 +4254,14 @@ test_4045_sync_refuses_parent_link() {
   build_world parent_link_sync
   printf '{"v":1,"ts":"2026-10-09T00:00:09Z","actor":"fixture","event":"local-tail","ref":"seed","payload":{}}\n' >> "$ORIGIN/docs/ai/EVENTS.jsonl"
   link_docs_ai
+  local refs_before refs_after
+  refs_before="$(git -C "$ORIGIN" for-each-ref --format='%(refname) %(objectname)')"
   before="$(outside_sig "$OUT_AI")"
   apply_run
   after="$(outside_sig "$OUT_AI")"
+  refs_after="$(git -C "$ORIGIN" for-each-ref --format='%(refname) %(objectname)')"
+  # before any write includes the gate's fetch of the base (Codex review PR #586): no ref of the checkout moves
+  [[ "$refs_before" == "$refs_after" ]] || fail TEST-4045 "a ref moved although the run was refused before any write: $(diff <(printf '%s\n' "$refs_before") <(printf '%s\n' "$refs_after"))"
   [[ "$before" == "$after" ]] || fail TEST-4045 "the directory outside the checkout changed (journal included): $(diff <(printf '%s\n' "$before") <(printf '%s\n' "$after"))"
   [[ "$(find "$OUT_AI" -type f | wc -l | tr -d ' ')" == "$(printf '%s\n' "$before" | wc -l | tr -d ' ')" ]] || fail TEST-4045 'the outside tree gained a file'
   [[ "$ENG_RC" -eq 3 ]] || fail TEST-4045 "exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"

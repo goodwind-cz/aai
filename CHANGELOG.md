@@ -32,7 +32,7 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased] — Node-first cleanup: measured suite weights, release preflight isolation and guard fixes
 
-The skill-suite weights are measured from hosted runs and the selected-sharded leg is bounded again; four guards changed in ways a consumer can see.
+The skill-suite weights are measured from hosted runs (the selected-sharded leg keeps its 25-minute bound: every-suite selection models a 933 s shard); four guards changed in ways a consumer can see.
 
 - The release preflight now runs each CHANGELOG-reading test in a throwaway clone with no remote and a scrubbed environment (its own HOME and cache, no system git config, so no OS credential helper, and no git prompt), so a developer's remotes, tokens, stored git credentials and PowerShell cache no longer change a release verdict, and the clone is removed afterwards.
 - The release dry-run report records a crashed or version-less PowerShell as null with `interpreterErrors` naming the failure, instead of passing it off as a version.

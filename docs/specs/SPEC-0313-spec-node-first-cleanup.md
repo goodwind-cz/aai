@@ -4,7 +4,7 @@ type: spec
 number: 313
 status: done
 mutation_gate: v1
-frozen_sha256: 551c22f031d6aba7c2f9fc8078971c9c7448397e7652bccd6c0a1acee5be8623
+frozen_sha256: b788c1c7cb9d7896408c781f5dac7cb814f92ed9a056371a4cbea70af6d5a205
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -98,15 +98,16 @@ of `auditWeights` (TEST-3338).
 
 ### D-BOUND: the selected-sharded bound
 
-The `skills-selected-sharded` job returns to `timeout-minutes: 15`. Fit is
-shown in two ways:
+The `skills-selected-sharded` job keeps `timeout-minutes: 25`. The owner's
+brief returns it to 15 only if the shards fit, and the worst case does not:
+with the shipped weights, a selection of every suite plans `runners=2` with
+`w2` 933 s, over the 900 s of a 15-minute job before setup (Codex review of
+PR #586). The check is a model test with two parts:
 
-- A model check: the selected plan of PR #582's 45 selected suites
-  (fixture `tests/skills/fixtures/selected-plan-pr582.txt`, one name per
-  line) under the shipped weights has `w2` of at most 600 s, against 776 s
-  under the placeholder weights.
-- The hosted run: the pull request head's selected-sharded legs, when
-  that mode runs, finish inside the bound.
+- the selected plan of PR #582's 45 selected suites (fixture
+  `tests/skills/fixtures/selected-plan-pr582.txt`) has `w2` of at most 600 s;
+- the all-suites plan's `w2` plus 300 s for setup and runner slack fits
+  inside the job bound.
 
 ### D-PWSH-ID: interpreter identity
 
@@ -232,7 +233,7 @@ None.
 |---|---|---|---|---|---|
 | Spec-AC-01 | WHEN auditWeights reads tests/skills/suite-weights.tsv over every test-aai-*.sh name it SHALL pass; the source run lines SHALL be exactly the five D-WEIGHTS runs; every measured sample SHALL name only those runs; the fallback unsampled rows SHALL be exactly aai-state and aai-hermes-skills. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4037.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4037.txt | — | D-WEIGHTS |
 | Spec-AC-02 | The eight D-PINS tests SHALL hold no literal 196 weight assertion and SHALL each still require exactly one positive integer weight row for their suite; each of their suites SHALL exit 0 on the re-measured weights. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4038.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4038.txt | — | D-PINS, D-AMEND |
-| Spec-AC-03 | The skills-selected-sharded job SHALL have timeout-minutes 15; WHEN select-suites.mjs plans the D-BOUND fixture under the shipped weights the SELECTED_DECISION line SHALL report runners=2 and w2 of at most 600. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4039.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4039.txt | — | D-BOUND; hosted fit read at validation |
+| Spec-AC-03 | The skills-selected-sharded job bound SHALL cover the all-suites selected plan's w2 plus 300 s; WHEN select-suites.mjs plans the D-BOUND fixture under the shipped weights the SELECTED_DECISION line SHALL report runners=2 and w2 of at most 600. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4039.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4039.txt | — | D-BOUND; hosted fit read at validation |
 | Spec-AC-04 | WHEN the PowerShell probe of release-dry-run.mjs exits non-zero or prints no version-shaped first line the report SHALL record interpreters.powershell as null and interpreterErrors.powershell as the exit status, never the probe output. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4040.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4040.txt | — | D-PWSH-ID |
 | Spec-AC-05 | WHEN XDG_CACHE_HOME names a directory whose powershell entry is a regular file the TEST-4027 cases of tests/skills/lib/aai-release.test.mjs SHALL pass. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4041.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4041.txt | — | D-PWSH-CACHE |
 | Spec-AC-06 | WHEN the release preflight runs a CHANGELOG-reading test the test SHALL run in a clone that is not a linked worktree and has no remote, with HOME and XDG_CACHE_HOME under the preflight temp root and no GH_TOKEN, GITHUB_TOKEN or GIT_DIR from the operator environment; the temp root SHALL be gone afterwards. | done | docs/ai/tdd/node-first-cleanup/green/TEST-4042.log; docs/ai/tdd/spec-node-first-cleanup/mutation-TEST-4042.txt | — | D-PREFLIGHT |
@@ -271,7 +272,7 @@ directory, which `mkdirSync` would then create inside the checkout).
 |---|---|---|---|---|---|---|
 | TEST-4037 | Spec-AC-01 | inspection | tests/skills/test-aai-suite-select.sh | test_4037_weights_measured runs auditWeights over every suite name, requires the five D-WEIGHTS source runs, measured samples naming only them, and fallback rows exactly aai-state and aai-hermes-skills | `sed:s/\naai-sync-node\t[0-9]+\n/\naai-sync-node\t196\n/` on tests/skills/suite-weights.tsv | green |
 | TEST-4038 | Spec-AC-02 | inspection | tests/skills/test-aai-suite-select.sh | test_4038_no_placeholder_pins scans the eight D-PINS assertions and refuses any literal 196 weight assertion, and requires each to keep a one-row check | `sed:s/\$2 ~ \/\^\[1-9\]\[0-9\]\*\$\//$2==196/` on tests/skills/test-aai-hook-gate.sh | green |
-| TEST-4039 | Spec-AC-03 | integration | tests/skills/test-aai-suite-select.sh | test_4039_selected_sharded_bound requires timeout-minutes 15 on skills-selected-sharded and plans the D-BOUND fixture, requiring runners=2 and w2 of at most 600 | `sed:s/\naai-release\t[0-9]+\n/\naai-release\t2000\n/` on tests/skills/suite-weights.tsv | green |
+| TEST-4039 | Spec-AC-03 | integration | tests/skills/test-aai-suite-select.sh | test_4039_selected_sharded_bound requires the skills-selected-sharded bound to cover the all-suites w2 plus 300 s and plans the D-BOUND fixture, requiring runners=2 and w2 of at most 600 | `sed:s/\naai-release\t[0-9]+\n/\naai-release\t2000\n/` on tests/skills/suite-weights.tsv | green |
 | TEST-4040 | Spec-AC-04 | integration | tests/skills/test-aai-release-first.sh | test_4040 runs the node:test case TEST-4040 of tests/skills/lib/release-first.test.mjs: it runs release-dry-run with AAI_RELEASE_DRY_PWSH set to a stub that prints FileLoadException text and exits 134, and requires interpreters.powershell null and interpreterErrors.powershell exit 134 | `sed:s/r\.status!==0/false/` on .aai/scripts/release-dry-run.mjs | green |
 | TEST-4041 | Spec-AC-05 | integration | tests/skills/test-aai-release-cut.sh | test_4041_release_tests_own_pwsh_cache runs node --test --test-name-pattern TEST-4027 on aai-release.test.mjs with XDG_CACHE_HOME naming a directory whose powershell entry is a file, requiring exit 0 (SKIP with a named reason when pwsh is absent) | `sed:s/XDG_CACHE_HOME:/XDG_CACHE_HOME_OFF:/` on tests/skills/lib/aai-release.test.mjs | green |
 | TEST-4042 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh | test_4042_preflight_clone_scrubbed runs a fixture cut whose CHANGELOG-reading test fails when its checkout is a linked worktree, has a remote, sees any GH_, GITHUB_, GIT_ or AAI_ variable (the invoker sets GH_TOKEN, GITHUB_TOKEN and GIT_ and AAI_ sentinels; a GIT_DIR in the invoker would break the cut itself), or has HOME outside its temp root; requires the cut to pass the preflight and the temp root to be gone | `sed:s/'remote','remove','origin'/'remote','-v'/` on .aai/scripts/release-finish.mjs | green |

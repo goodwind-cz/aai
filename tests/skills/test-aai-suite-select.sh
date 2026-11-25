@@ -2478,20 +2478,32 @@ test_4038_no_placeholder_pins() {  # Spec-AC-02 / TEST-4038
 
 # node-first-cleanup D-BOUND: the selected-sharded job fits 15 minutes.
 test_4039_selected_sharded_bound() {  # Spec-AC-03 / TEST-4039
-  log_info "Test: skills-selected-sharded has timeout-minutes 15 and the PR #582 plan models runners=2 with w2 <= 600 (TEST-4039)..."
-  local t fixture="$PROJECT_ROOT/tests/skills/fixtures/selected-plan-pr582.txt" out line w2
+  log_info "Test: skills-selected-sharded's bound covers the worst modelled shard (every suite selected) with 300 s for setup and runner slack, and the PR #582 plan models runners=2 with w2 <= 600 (TEST-4039)..."
+  local t fixture="$PROJECT_ROOT/tests/skills/fixtures/selected-plan-pr582.txt" out line w2 all worst
   t="$(awk '/^  [a-z0-9-]+:$/ {job=$1} job=="skills-selected-sharded:" && $1=="timeout-minutes:" {print $2; exit}' "$WORKFLOW_FILE")"
-  [[ "$t" == 15 ]] || log_fail "TEST-4039: skills-selected-sharded timeout-minutes is '$t', expected 15"
+  [[ "$t" =~ ^[0-9]+$ ]] || log_fail "TEST-4039: skills-selected-sharded timeout-minutes is '$t', not a number"
   [[ -f "$fixture" ]] || log_fail "TEST-4039: missing fixture $fixture"
+  w2_of() {  # w2 of the selected plan for the name list in $1, under the shipped weights
+    local o l
+    o="$(node "$SELECTOR" --selected-plan-from "$1" --weights "$PROJECT_ROOT/tests/skills/suite-weights.tsv" 2>&1)" || { echo "refused: $o"; return 0; }
+    l="$(awk '$1=="SELECTED_DECISION" {print; exit}' <<<"$o")"
+    awk '{for(i=1;i<=NF;i++) if ($i ~ /^w2=/) {print substr($i,4); exit}}' <<<"$l"
+  }
   out="$(node "$SELECTOR" --selected-plan-from "$fixture" --weights "$PROJECT_ROOT/tests/skills/suite-weights.tsv" 2>&1)" \
     || log_fail "TEST-4039: select-suites refused the fixture plan: $out"
   line="$(awk '$1=="SELECTED_DECISION" {print; exit}' <<<"$out")"
   [[ -n "$line" ]] || log_fail "TEST-4039: no SELECTED_DECISION line: $out"
   [[ " $line " == *" runners=2 "* ]] || log_fail "TEST-4039: expected runners=2, got: $line"
-  w2="$(awk '{for(i=1;i<=NF;i++) if ($i ~ /^w2=/) {print substr($i,4); exit}}' <<<"$line")"
-  [[ "$w2" =~ ^[0-9]+$ ]] || log_fail "TEST-4039: no numeric w2 in: $line"
+  w2="$(w2_of "$fixture")"
+  [[ "$w2" =~ ^[0-9]+$ ]] || log_fail "TEST-4039: no numeric w2 for the fixture: $w2"
   [[ "$w2" -le 600 ]] || log_fail "TEST-4039: w2=$w2 exceeds 600 under the shipped weights"
-  log_pass "TEST-4039 (timeout-minutes 15; the PR #582 plan models runners=2 w2=$w2 <= 600)"
+  # The bound must hold for the widest selection the planner can shard (Codex review PR #586): every suite selected.
+  all="$TEST_DIR/t4039-all.txt"
+  find "$PROJECT_ROOT/tests/skills" -maxdepth 1 -name 'test-aai-*.sh' -exec basename {} .sh \; | sed 's/^test-//' | sort > "$all"
+  worst="$(w2_of "$all")"
+  [[ "$worst" =~ ^[0-9]+$ ]] || log_fail "TEST-4039: no numeric w2 for the all-suites plan: $worst"
+  [[ $((worst + 300)) -le $((t * 60)) ]] || log_fail "TEST-4039: timeout-minutes $t ($((t * 60)) s) is under the worst modelled shard w2=$worst plus 300 s"
+  log_pass "TEST-4039 (timeout-minutes $t covers the all-suites shard w2=$worst + 300 s; the PR #582 plan models runners=2 w2=$w2 <= 600)"
 }
 
 test_4048_cleanup_wiring() {  # Spec-AC-12 / TEST-4048
