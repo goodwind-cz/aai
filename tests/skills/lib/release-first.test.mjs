@@ -294,9 +294,11 @@ test('TEST-006 failure diagnostic budget fits the actual workflow deadline',()=>
   const workflow=fs.readFileSync(path.join(root,'.github/workflows/skill-suite.yml'),'utf8');
   const job=workflow.split('  release-dry-run:\n')[1].split(/\n  [a-z][\w-]*:\n/)[0];
   const deadline=Number(/timeout-minutes: (\d+)/.exec(job)[1])*60;
-  assert.equal(deadline,1200,'slow rolled failure plus ordinary diagnostic needs the amended job deadline');
+  // 46 CHANGELOG readers summed about 4,600 s on a hosted runner (PR #586, 4 jobs): 1080 s left the plan unfinishable, so the
+  // executor budget is 1800 s and the job deadline 2100 s (node-first-cleanup D-DRYRUN).
+  assert.equal(deadline,2100,'slow rolled failure plus ordinary diagnostic needs the amended job deadline');
   const budget=Number(/--budget-seconds (\d+)/.exec(job)?.[1]);
-  assert.equal(budget,1080);
+  assert.equal(budget,1800);
   assert.ok(budget>=2*540,'two complete540-second reader arms fit the executor allowance');
   assert.ok(deadline>=budget+120,'reserve setup/report/upload time outside executor budget');
   assert.match(job,/if: always\(\)/);

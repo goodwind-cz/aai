@@ -4,7 +4,7 @@ type: spec
 number: 313
 status: done
 mutation_gate: v1
-frozen_sha256: b788c1c7cb9d7896408c781f5dac7cb814f92ed9a056371a4cbea70af6d5a205
+frozen_sha256: a9ed52a994446aeef2282016f195d624a6512994e1c42f1f91a113cc8b31ef8a
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -108,6 +108,16 @@ PR #586). The check is a model test with two parts:
   `tests/skills/fixtures/selected-plan-pr582.txt`) has `w2` of at most 600 s;
 - the all-suites plan's `w2` plus 300 s for setup and runner slack fits
   inside the job bound.
+
+### D-DRYRUN: the release dry-run job budget
+
+The PR `release-dry-run` job runs every CHANGELOG reader twice-capable under
+one executor budget. With 46 readers (35 at PR #582) the hosted sum is about
+4,600 s over 4 jobs, and the 1080 s budget ran out on both attempts of
+PR #586's run. The job runs with `--budget-seconds 1800` and
+`timeout-minutes: 35` (deadline at least budget plus 300 s); TEST-006 of
+`tests/skills/lib/release-first.test.mjs` pins both. A budget derived from
+reader weights is `fu-dry-run-budget-from-weights`.
 
 ### D-PWSH-ID: interpreter identity
 
