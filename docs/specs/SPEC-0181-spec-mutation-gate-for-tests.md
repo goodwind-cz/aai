@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: 181
 status: done
-frozen_sha256: 6d46c5b264d482df500c802df8d5f7daea0260d6db3e8d2de920fa8544dcc752
+frozen_sha256: 4dfbedcfadff0122bdca1e0456e107de10ac3e27eb0b4a15cf18df3c8d168805
 ceremony_level: 2
 mutation_gate: v1
 mutation_uncomparable: 49
@@ -2318,3 +2318,38 @@ Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.
 
+
+## Amendment 2026-11-25 (mutation-tooling-p2-fixes)
+
+This section is additive. The original D2 and D12 text above stays visible and
+is withdrawn in place where it conflicts with the rules below. The change is
+made by `docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md` (D6, D8, D-AMEND).
+
+- **D2, the rotated-record name (withdrawn in part).** Frozen text: the runner
+  "RENAMES it to `mutation-<TEST-id>.<run_at_utc>.txt` before writing". New
+  rule: the rotated name uses `stampForFileName(run_at_utc)`, which maps every
+  character outside `[A-Za-z0-9._-]` to `-`, so `2026-11-25T10:49:06Z` is
+  stamped `2026-11-25T10-49-06Z` and the name is valid on Windows. The record's
+  own `run_at_utc` header value is unchanged. Old local records with
+  colon-stamped rotated names are not renamed (they are gitignored, 0 tracked).
+- **D12 and Spec-AC-06, an absent evidence tree (withdrawn in part).** Frozen
+  text: "the evidence directory is absent, the gate SHALL exit 0" with
+  `DEGRADED: evidence tree absent`. New rule: that holds only without
+  `--require-evidence`. With the flag, an absent evidence directory is
+  evaluated as an empty one, so every non-exempt row is
+  `OFFENDING <TEST-id>: missing record at ...` and the exit is 5. A close in the
+  authoring worktree (before merge) passes the flag; a post-merge close does not.
+- **Edited test expectations.** TEST-474, TEST-492 and TEST-500 expected the
+  colon-stamped rotated name and now expect `stampForFileName(run_at_utc)`.
+  TEST-474 was edited a second way: its syntax-breaking sed was switched to
+  `s/'hello'/undefinedFn()/`, because a mutation that breaks the target's
+  syntax is now refused at exit 2 (`no longer parses`) and writes no record.
+  TEST-501 (the same rotated-name expectation) was edited too, and the
+  assertions of TEST-509, TEST-517 and TEST-007 were rewritten from
+  `assert_payload_not_contains` to an equivalent `[[ ... != *needle* ]]` guard
+  with the same needle and message; all of these edits are in
+  `tests/skills/test-aai-mutation-gate.sh`.
+
+Disclosure: canon assigns a change of a frozen spec's contract to HITL. No
+prior sign-off was obtained for this amendment (`--signoff none`). The owner may
+reverse it.

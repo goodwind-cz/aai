@@ -144,7 +144,8 @@ function usageError(msg) {
   process.stderr.write(
     'usage: node .aai/scripts/mutation-run.mjs --spec <path> --test-id <TEST-nnn> ' +
       '--suite <path> --selector <name> --target <path> (--sed <expr> | --patch <file>)\n' +
-      '   or: node .aai/scripts/mutation-run.mjs --replay --spec <path>\n'
+      '   or: node .aai/scripts/mutation-run.mjs --replay --spec <path>\n' +
+      '   or: node .aai/scripts/mutation-run.mjs --check --target <path> (--sed <expr> | --patch <file>)\n'
   );
   exit(2);
 }
@@ -162,7 +163,7 @@ function requireValue(argv, i, flagName) {
 }
 
 function parseArgs(argv) {
-  const out = { replay: false, help: false };
+  const out = { replay: false, check: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
@@ -172,6 +173,9 @@ function parseArgs(argv) {
         break;
       case '--replay':
         out.replay = true;
+        break;
+      case '--check':
+        out.check = true;
         break;
       case '--spec':
         out.spec = requireValue(argv, i, '--spec');
@@ -217,7 +221,13 @@ function printHelp() {
       '    (--sed \'<s/pat/repl/[flags]>\' | --patch <unified-diff file>)\n' +
       '    --sed: pat is a JavaScript RegExp, NOT sed BRE/ERE — `(` groups, `\\(` is a\n' +
       '          literal paren; repl is literal except JS $-patterns; a no-op is refused.\n\n' +
-      '  node .aai/scripts/mutation-run.mjs --replay --spec <path>\n'
+      '  node .aai/scripts/mutation-run.mjs --replay --spec <path>\n\n' +
+      '  node .aai/scripts/mutation-run.mjs --check --target <path> (--sed <expr> | --patch <file>)\n' +
+      '    dry run of one Mutation cell: no clone, no suite, no write. First line is\n' +
+      '    `CHECK OK: <target> ...` (exit 0) or `CHECK FAIL <class>: ...` (exit 5), class one of\n' +
+      '    TARGET-REFUSED, UNPARSEABLE-EXPR, NO-CHANGE, AMBIGUOUS, PARSE-BREAK.\n\n' +
+      'environment:\n' +
+      '  AAI_MUTATION_GIT_TIMEOUT_MS  timeout of every git apply the tool spawns (default 120000).\n'
   );
   exit(0);
 }
@@ -366,13 +376,13 @@ function extractSelectors(suiteContent) {
 // lives in ONE place, lib/mutation-record.mjs's `parseSedExpr` (shared with
 // the gate's own `extractDeclaredMutations`), so an expression this applier
 // accepts and an expression the gate is willing to compare can never
-// independently drift apart. Behaviour here is otherwise UNCHANGED: only the
-// `g` flag is ever actually honoured (fu-mutation-sed-drops-multiline-flag,
-// deliberately not closed by this move — see the spec's Residual risks).
+// independently drift apart. Every flag the grammar accepts is honoured
+// (mutation-tooling-p2-fixes D2): a duplicated flag makes the RegExp
+// constructor throw, which the caller turns into exit 2.
 function applySedExpr(expr, content) {
   const parsed = parseSedExpr(expr);
   if (!parsed) throw new Error(`unsupported --sed expression, does not match the shared SED_EXPR_RE grammar (lib/mutation-record.mjs): ${expr}`);
-  const re = new RegExp(parsed.pattern, parsed.flags.includes('g') ? 'g' : '');
+  const re = new RegExp(parsed.pattern, parsed.flags);
   return content.replace(re, parsed.replacement);
 }
 
@@ -396,9 +406,35 @@ function applySedExpr(expr, content) {
 // Either naming a path other than targetRel is a refusal (throws; the
 // normal-run caller turns it into exit 2 naming the path with no record and
 // no clone left, the --replay caller into a named INCONCLUSIVE row).
+// Every `git apply` this tool spawns has stdin closed and a wall-clock bound:
+// an apply with no path argument reads its patch from stdin and, with an open
+// stdin, waits forever (a --replay once hung 6.5 h on exactly that). A timeout
+// is a named failure, never a hang. AAI_MUTATION_GIT_TIMEOUT_MS overrides.
+function gitApplyTimeoutMs() {
+  const n = Number(process.env.AAI_MUTATION_GIT_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? n : 120000;
+}
+
+function runGitApply(cloneDir, argv) {
+  const timeout = gitApplyTimeoutMs();
+  const r = spawnSync('git', ['-C', cloneDir, 'apply', ...argv],
+    { stdio: ['ignore', 'pipe', 'pipe'], timeout, killSignal: 'SIGKILL', maxBuffer: 256 * 1024 * 1024 });
+  if (r.error && r.error.code === 'ETIMEDOUT') {
+    throw new Error(`git apply timed out after ${timeout} ms (${argv.join(' ')}; AAI_MUTATION_GIT_TIMEOUT_MS overrides)`);
+  }
+  if (r.error) throw r.error;
+  if (r.status !== 0) {
+    const err = new Error(`git apply failed (exit ${r.status}): ${String(r.stderr || '').trim()}`);
+    err.status = r.status;
+    err.stderr = r.stderr;
+    err.stdout = r.stdout;
+    throw err;
+  }
+  return r.stdout;
+}
+
 function patchPathsPerGit(cloneDir, patchAbs) {
-  const out = execFileSync('git', ['-C', cloneDir, 'apply', '--numstat', '-z', patchAbs],
-    { stdio: ['ignore', 'pipe', 'pipe'] }).toString('utf8');
+  const out = runGitApply(cloneDir, ['--numstat', '-z', patchAbs]).toString('utf8');
   const paths = new Set();
   // `git apply --numstat -z` emits ONE record per item,
   // "<added>\t<deleted>\t<post-image path>\0" ("-\t-\t" for binary). It
@@ -419,26 +455,89 @@ function refuseForeignPaths(kind, offending, targetRel) {
   }
 }
 
-function applyMutation({ sed, patch }, cloneDir, targetRel) {
+// D1: a mutation target is a regular file inside the repository. Throws (the
+// return value is never used) when `rel` is absolute, normalizes to a path
+// that leaves `root`, has a symlink on any component under `root` (lstat,
+// never followed), or is not a regular file.
+function assertRegularTarget(root, rel) {
+  if (path.isAbsolute(rel)) throw new Error(`--target ${rel} is absolute, outside the repository-relative form`);
+  const norm = path.normalize(rel);
+  if (norm === '..' || norm.startsWith(`..${path.sep}`)) throw new Error(`--target ${rel} is outside the repository`);
+  const parts = norm.split(path.sep).filter((p) => p && p !== '.');
+  let cur = path.resolve(root);
+  for (let i = 0; i < parts.length; i++) {
+    cur = path.join(cur, parts[i]);
+    let st;
+    try {
+      st = fs.lstatSync(cur);
+    } catch (err) {
+      throw new Error(`--target ${rel} cannot be inspected (${err.message})`);
+    }
+    if (st.isSymbolicLink()) throw new Error(`--target ${rel} has a symlink on its path (${parts.slice(0, i + 1).join('/')})`);
+    if (i === parts.length - 1 && !st.isFile()) throw new Error(`--target ${rel} is not a regular file`);
+  }
+  if (parts.length === 0) throw new Error(`--target ${rel} is not a regular file`);
+}
+
+// D5: true when the file parses, false when it does not, null when there is
+// no checker for its extension (or the checker could not be spawned).
+// node --check for .mjs/.cjs/.js, bash -n for .sh; argv array, no shell.
+function parseCheck(file) {
+  const ext = path.extname(file);
+  let cmd, argv;
+  if (ext === '.mjs' || ext === '.cjs' || ext === '.js') { cmd = process.execPath; argv = ['--check', file]; }
+  else if (ext === '.sh') { cmd = 'bash'; argv = ['-n', file]; }
+  else return null;
+  const r = spawnSync(cmd, argv, { stdio: 'ignore' });
+  if (r.error) return null;
+  return r.status === 0;
+}
+
+// D9: a pattern without the g flag that matches more than once changes only
+// the FIRST match — the cell may not say what its author meant.
+function isAmbiguousSed(parsed, content) {
+  if (parsed.flags.includes('g')) return false;
+  return countSedMatches(parsed, content) > 1;
+}
+
+function countSedMatches(parsed, content) {
+  const all = new RegExp(parsed.pattern, parsed.flags.includes('g') ? parsed.flags : `${parsed.flags}g`);
+  return (content.match(all) || []).length;
+}
+
+// D4: `patchBytes` (read once by the caller) is applied from a copy under the
+// run's own temp directory, never from the --patch path itself, which the
+// record rotation may have moved away by the time anything re-reads it.
+function applyMutation({ sed, patch, patchBytes }, cloneDir, targetRel) {
+  assertRegularTarget(cloneDir, targetRel);
   const targetAbs = path.join(cloneDir, targetRel);
   const before = fs.readFileSync(targetAbs, 'utf8');
+  const parsedBefore = parseCheck(targetAbs);
   let after;
   if (sed) {
     after = applySedExpr(sed, before);
   } else {
     // --patch <file>: applied via `git apply` inside the clone (the clone is
     // its own git checkout), argv-only, no shell.
-    const patchAbs = path.isAbsolute(patch) ? patch : path.join(ROOT, patch);
+    const patchSrcAbs = path.isAbsolute(patch) ? patch : path.join(ROOT, patch);
+    const patchAbs = path.join(path.dirname(cloneDir), 'mutation-apply.patch');
+    fs.writeFileSync(patchAbs, patchBytes ?? fs.readFileSync(patchSrcAbs));
     refuseForeignPaths('per git apply --numstat',
       [...patchPathsPerGit(cloneDir, patchAbs)].filter((rel) => rel !== targetRel), targetRel);
     const treeBeforeApply = computeTreeFileHashes(cloneDir);
-    execFileSync('git', ['-C', cloneDir, 'apply', patchAbs], { stdio: ['ignore', 'pipe', 'pipe'] });
+    runGitApply(cloneDir, [patchAbs]);
     const applied = diffTreeFileHashes(treeBeforeApply, computeTreeFileHashes(cloneDir));
     refuseForeignPaths('changed on disk by the apply',
       [...applied.added, ...applied.removed, ...applied.changed].filter((rel) => rel !== targetRel), targetRel);
+    // The patch may have type-changed the target (a symlink planted over it):
+    // re-check before the read and the write below follow it out of the clone.
+    assertRegularTarget(cloneDir, targetRel);
     after = fs.readFileSync(targetAbs, 'utf8');
   }
   fs.writeFileSync(targetAbs, after);
+  if (parsedBefore === true && parseCheck(targetAbs) === false) {
+    throw new Error(`${targetRel} no longer parses after the mutation (the original does); refusing to record a crash as a RED`);
+  }
   return { before, after };
 }
 
@@ -577,6 +676,30 @@ function ensureCloneParentDirs(cloneDir, rel, sourceRoot) {
   }
 }
 
+// D7: reproduce a tracked working-tree deletion in the clone. lstat + unlink,
+// never following a link; skips when a clone ancestor of `rel` is a symlink
+// (a removal there would reach outside the clone); a leftover real directory
+// is removed recursively.
+function removeCloneTrackedDelete(cloneDir, rel) {
+  const parts = rel.replace(/\\/g, '/').split('/').filter((p) => p && p !== '.');
+  let cur = path.resolve(cloneDir);
+  for (let i = 0; i < parts.length; i++) {
+    cur = path.join(cur, parts[i]);
+    let st;
+    try {
+      st = fs.lstatSync(cur);
+    } catch {
+      return; // nothing left in the clone at or below this point
+    }
+    if (i < parts.length - 1) {
+      if (st.isSymbolicLink() || !st.isDirectory()) return;
+      continue;
+    }
+    if (st.isDirectory() && !st.isSymbolicLink()) fs.rmSync(cur, { recursive: true, force: true });
+    else fs.unlinkSync(cur);
+  }
+}
+
 function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
   const tracked = execFileSync('git', ['-C', sourceRoot, 'ls-files', '-z'], { encoding: 'utf8' });
   for (const rel of tracked.split('\0')) {
@@ -585,7 +708,15 @@ function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
     const dst = path.join(cloneDir, rel);
     try {
       if (sourceHasSymlinkAncestor(sourceRoot, rel)) continue;
-      const st = fs.lstatSync(src);
+      let st;
+      try {
+        st = fs.lstatSync(src);
+      } catch (statErr) {
+        // D7: a tracked path deleted in the working tree. git apply of the
+        // tracked diff may have failed, leaving HEAD's copy in the clone.
+        if (statErr.code === 'ENOENT') { removeCloneTrackedDelete(cloneDir, rel); continue; }
+        throw statErr;
+      }
       ensureCloneParentDirs(cloneDir, rel, sourceRoot);
       // Unlink dst first (lstat, never follow). copyFileSync onto a leftover
       // clone symlink would write through to the link target — including ROOT
@@ -659,9 +790,17 @@ function buildIsolatedClone() {
     // Reproduce tracked modifications.
     const diff = execFileSync('git', ['-C', ROOT, 'diff', 'HEAD'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
     if (diff.trim()) {
-      const res = spawnSync('git', ['-C', cloneDir, 'apply'], { input: diff, encoding: 'utf8' });
-      if (res.status !== 0) {
-        process.stderr.write(`mutation-run: git apply did not reproduce tracked modifications (overlay will): ${res.stderr || res.stdout}\n`);
+      // The diff goes to a file in the clone's temp base and is passed as a
+      // path: never the stdin form, which can wait forever on an open stdin.
+      const overlayPatch = path.join(tmpBase, 'overlay.patch');
+      fs.writeFileSync(overlayPatch, diff);
+      try {
+        runGitApply(cloneDir, [overlayPatch]);
+      } catch (err) {
+        if (/timed out/.test(err.message)) throw err;
+        process.stderr.write(`mutation-run: git apply did not reproduce tracked modifications (overlay will): ${err.stderr || err.message}\n`);
+      } finally {
+        fs.rmSync(overlayPatch, { force: true });
       }
     }
 
@@ -928,22 +1067,22 @@ function rotateExisting(dir, testId) {
 // another machine, or may simply belong to a different run by the time
 // --replay reads it back). Returns the repo-relative stored path, or null
 // when the mutation was a --sed expression (nothing to store).
-function storePatchCopy(dir, testId, patchSourceAbs) {
+function storePatchCopy(dir, testId, patchBytes) {
   const dest = path.join(dir, patchFileName(testId));
-  fs.copyFileSync(patchSourceAbs, dest);
+  fs.writeFileSync(dest, patchBytes);
   return path.relative(ROOT, dest);
 }
 
-// `patchSourceAbs`, when given (a --patch run), is copied beside the record
+// `patchBytes`, when given (a --patch run), is written beside the record
 // and `fields.mutation` is rewritten to point at the STORED copy (repo-
 // relative, under the evidence dir) rather than the caller's original
 // --patch path, which may not outlive this run (D14).
-function writeRecord(specId, testId, fields, tailText, patchSourceAbs) {
+function writeRecord(specId, testId, fields, tailText, patchBytes) {
   const dir = evidenceDir(specId);
   fs.mkdirSync(dir, { recursive: true });
   rotateExisting(dir, testId);
-  if (patchSourceAbs) {
-    const storedRel = storePatchCopy(dir, testId, patchSourceAbs);
+  if (patchBytes) {
+    const storedRel = storePatchCopy(dir, testId, patchBytes);
     fields = { ...fields, mutation: `patch:${storedRel}` };
   }
   const text = formatRecord(fields, tailText);
@@ -979,11 +1118,30 @@ function runOne(args) {
 
   const targetAbs = path.join(ROOT, args.target);
   if (!fs.existsSync(targetAbs)) usageError(`--target not found: ${args.target}`);
+  try {
+    assertRegularTarget(ROOT, args.target);
+  } catch (err) {
+    process.stderr.write(`mutation-run: refusing --target: ${err.message}\n`);
+    exit(2);
+  }
   // Remediation round 5 (D8 amendment): the SOURCE target's bytes at record
   // time, hashed BEFORE the mutation is applied (to the CLONE, never to this
   // source path) — this is what mutation-gate.mjs later compares against the
   // live target to detect a STALE record (BLOCKING-1, validation round 6).
   const targetSha256 = createHash('sha256').update(fs.readFileSync(targetAbs)).digest('hex');
+
+  // D4: the --patch bytes are read ONCE, here, before the clone and before
+  // anything rotates; the apply and the stored copy both use these bytes.
+  let patchBytes;
+  if (args.patch) {
+    const patchSrcAbs = path.isAbsolute(args.patch) ? args.patch : path.join(ROOT, args.patch);
+    try {
+      patchBytes = fs.readFileSync(patchSrcAbs);
+    } catch (err) {
+      process.stderr.write(`mutation-run: could not read --patch ${args.patch}: ${err.message}\n`);
+      exit(2);
+    }
+  }
 
   let clone;
   try {
@@ -999,7 +1157,7 @@ function runOne(args) {
   try {
     let before, after;
     try {
-      ({ before, after } = applyMutation(args, clone.cloneDir, args.target));
+      ({ before, after } = applyMutation({ ...args, patchBytes }, clone.cloneDir, args.target));
     } catch (err) {
       if (err instanceof ExitSignal) throw err;
       process.stderr.write(`mutation-run: could not apply mutation "${mutationDescription(args)}" to ${args.target}: ${err.message}\n`);
@@ -1084,8 +1242,7 @@ function runOne(args) {
       selector_honoured: selectorHonoured ? 'yes' : 'no (suite runs every test)',
       target_sha256: targetSha256,
     };
-    const patchSourceAbs = args.patch ? (path.isAbsolute(args.patch) ? args.patch : path.join(ROOT, args.patch)) : undefined;
-    const recordPath = writeRecord(specId, args.testId, fields, lastLines(output, TAIL_LINES), patchSourceAbs);
+    const recordPath = writeRecord(specId, args.testId, fields, lastLines(output, TAIL_LINES), patchBytes);
     process.stdout.write(`${verdict}: ${recordPath}\n`);
     process.stdout.write(`first_fail: ${firstFail}\n`);
 
@@ -1307,9 +1464,98 @@ function replay(args) {
   exit(0);
 }
 
+// --- check (D9): a dry run of one Mutation cell -----------------------------
+// Builds no clone, runs no suite and writes nothing under docs/ai/tdd; the
+// only scratch is a temp dir removed before returning.
+function checkOne(args) {
+  if (!args.target) usageError('--check requires --target <path>');
+  if (!args.sed && !args.patch) usageError('--check requires one of --sed or --patch');
+  if (args.sed && args.patch) usageError('--sed and --patch are mutually exclusive');
+  const fail = (cls, msg) => {
+    process.stdout.write(`CHECK FAIL ${cls}: ${msg}\n`);
+    exit(5);
+  };
+  try {
+    assertRegularTarget(ROOT, args.target);
+  } catch (err) {
+    fail('TARGET-REFUSED', err.message);
+  }
+  const targetAbs = path.join(ROOT, args.target);
+  const content = fs.readFileSync(targetAbs, 'utf8');
+  const originalParses = parseCheck(targetAbs);
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-check-'));
+  try {
+    let after;
+    let scratchTarget = path.join(scratch, 'work', args.target);
+    if (args.sed) {
+      const parsed = parseSedExpr(args.sed);
+      if (!parsed) fail('UNPARSEABLE-EXPR', `does not match the shared SED_EXPR_RE grammar (lib/mutation-record.mjs): ${args.sed}`);
+      try {
+        after = applySedExpr(args.sed, content);
+      } catch (err) {
+        fail('UNPARSEABLE-EXPR', `the pattern or flags are not a valid RegExp (${err.message})`);
+      }
+      if (after === content) fail('NO-CHANGE', `"sed:${args.sed}" leaves ${args.target} byte-identical`);
+      if (isAmbiguousSed(parsed, content)) {
+        fail('AMBIGUOUS', `the pattern matches ${countSedMatches(parsed, content)} times without the g flag; only the first would change`);
+      }
+    } else {
+      const patchSrcAbs = path.isAbsolute(args.patch) ? args.patch : path.join(ROOT, args.patch);
+      let bytes;
+      try {
+        bytes = fs.readFileSync(patchSrcAbs);
+      } catch (err) {
+        usageError(`cannot read --patch ${args.patch} (${err.message})`);
+      }
+      const patchAbs = path.join(scratch, 'check.patch');
+      fs.writeFileSync(patchAbs, bytes);
+      let patchPaths;
+      try {
+        patchPaths = patchPathsPerGit(ROOT, patchAbs);
+      } catch (err) {
+        fail('UNPARSEABLE-EXPR', `the patch is not a parseable git patch (${String(err.stderr || err.message).trim().split('\n').pop()})`);
+      }
+      try {
+        refuseForeignPaths('per git apply --numstat',
+          [...patchPaths].filter((rel) => rel !== args.target), args.target);
+      } catch (err) {
+        fail('TARGET-REFUSED', err.message);
+      }
+      try {
+        runGitApply(ROOT, ['--check', patchAbs]);
+      } catch (err) {
+        fail('UNPARSEABLE-EXPR', `the patch does not apply to the working tree (${String(err.stderr || err.message).trim().split('\n')[0]})`);
+      }
+      fs.mkdirSync(path.dirname(scratchTarget), { recursive: true });
+      fs.writeFileSync(scratchTarget, content);
+      runGitApply(path.join(scratch, 'work'), [patchAbs]);
+      try {
+        assertRegularTarget(path.join(scratch, 'work'), args.target);
+      } catch (err) {
+        fail('TARGET-REFUSED', `the patch changes the target's type (${err.message})`);
+      }
+      after = fs.readFileSync(scratchTarget, 'utf8');
+      if (after === content) fail('NO-CHANGE', `the patch leaves ${args.target} byte-identical`);
+    }
+    if (args.sed) {
+      fs.mkdirSync(path.dirname(scratchTarget), { recursive: true });
+      fs.writeFileSync(scratchTarget, after);
+    }
+    if (originalParses === true && parseCheck(scratchTarget) === false) {
+      fail('PARSE-BREAK', `${args.target} parses now and no longer parses after the mutation`);
+    }
+    const parseNote = originalParses === null ? 'no parse checker for this extension' : 'still parses';
+    process.stdout.write(`CHECK OK: ${args.target} (${args.sed ? 'sed' : 'patch'} mutation changes the file; ${parseNote})\n`);
+    exit(0);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) printHelp();
+  if (args.check) checkOne(args);
   if (args.replay) replay(args);
   else runOne(args);
 }

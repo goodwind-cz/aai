@@ -1186,6 +1186,6 @@ if [[ $# -eq 0 ]]; then
 else
   # Run specific test(s) by name
   for arg in "$@"; do
-    "test_${arg}" 2>&1 || exit 1
+    "test_${arg#test_}" 2>&1 || exit 1
   done
 fi

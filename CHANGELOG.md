@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — Mutation tooling: the ten P2 follow-ups
+
+The mutation tooling closes ten open follow-ups, each visible to a user of the tools. `mutation-run.mjs` refuses a `--target` that is a symlink or outside the repository, and `--sed` now honours its regular-expression flags. A mutation that breaks the target's syntax is refused at exit 2 instead of being recorded as a false RED. A `--patch` re-recorded from its own canonical copy no longer consumes its own source. Rotated record names use a Windows-valid stamp (`2026-11-25T10-49-06Z`); old local records with colon-stamped rotated names are not renamed. Tracked deletions are reproduced in the clone. `mutation-gate.mjs --require-evidence` makes an absent evidence tree a failure, and the pre-merge `close-work-item.mjs` close passes it. `spec-lint.mjs` reports `mutation-cell-undeclared` for an unusable Mutation cell, and `spec-freeze.mjs` refuses on it. `mutation-run.mjs --check` dry-runs one Mutation cell. Two suite dispatchers now accept the full `test_*` selector, with a corpus guard. Every `git apply` the tool spawns now has its stdin closed and a timeout (default 120 s, override with `AAI_MUTATION_GIT_TIMEOUT_MS`), so a run can no longer hang on an apply; a timeout is a named failure, and a timed-out overlay apply is fatal.
+
 ## [unreleased] — fix: a doc dropped from the docs index is reported last and coverage gaps are summarised
 
 When `generate-docs-index.mjs` drops a document for a schema violation (for example an unknown frontmatter `status`), it now prints that as the last block on stderr: a `DROPPED from docs/INDEX.md` header, one line per document with its reason, and a `Fix:` line naming the allowed status values, the Review-By forms and `docs/INDEX.violations.md`. The standing coverage-gap warning is one summary line by default; the new `--verbose` flag lists each document, and the full list stays under "Coverage gaps" in `docs/INDEX.md`. Exit codes, `--strict` and the bytes of `docs/INDEX.md` and `docs/INDEX.violations.md` are unchanged. Projects get it with `/aai-update`.

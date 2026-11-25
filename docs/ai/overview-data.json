@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-25T15:09:26.650Z",
+  "generatedAt": "2026-11-25T18:02:52.447Z",
   "project": "aai",
   "counts": {
-    "delivered": 384,
+    "delivered": 385,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 215258615
+    "tokens_total": 217483937
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -222,6 +222,19 @@
       "review": "docs/ai/reviews/review-node-first-cleanup-20261125T011421Z.md"
     },
     {
+      "ref": "mutation-tooling-p2-fixes",
+      "title": "Mutation tooling: close the ten open P2 follow-ups",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0269-mutation-tooling-p2-fixes.md",
+      "closed_on": "2026-11-25",
+      "agent_minutes": 398,
+      "token_total": 2225322,
+      "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "index-schema-warning-prominence",
       "title": "A doc dropped from the index is buried under standing coverage-gap output",
       "type": "issue",
@@ -232,7 +245,7 @@
       "token_total": 812599,
       "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-index-schema-warning-prominence-20261125T144136Z.md"
     },
     {
       "ref": "node-first-phase5-closeout",
@@ -5241,6 +5254,19 @@
           "review": "docs/ai/reviews/review-node-first-cleanup-20261125T011421Z.md"
         },
         {
+          "ref": "mutation-tooling-p2-fixes",
+          "title": "Mutation tooling: close the ten open P2 follow-ups",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0269-mutation-tooling-p2-fixes.md",
+          "closed_on": "2026-11-25",
+          "agent_minutes": 398,
+          "token_total": 2225322,
+          "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "index-schema-warning-prominence",
           "title": "A doc dropped from the index is buried under standing coverage-gap output",
           "type": "issue",
@@ -5251,7 +5277,7 @@
           "token_total": 812599,
           "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-index-schema-warning-prominence-20261125T144136Z.md"
         },
         {
           "ref": "node-first-phase5-closeout",

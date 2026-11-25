@@ -22,8 +22,14 @@
 // line carrying the count, never a silent per-row 0.
 //
 // USAGE
-//   node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded]
+//   node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded] [--require-evidence]
 //   node .aai/scripts/mutation-gate.mjs --help
+//
+// --require-evidence (mutation-tooling-p2-fixes D6): without it an absent
+// evidence directory DEGRADES (exit 0). With it the directory is evaluated
+// as an empty one, so every non-exempt row is OFFENDING (missing record,
+// exit 5); exempt rows stay EXEMPT. close-work-item.mjs passes it for a close
+// before merge.
 //
 // EXIT CONTRACT (D8, the same three-way split as mutation-run.mjs D6)
 //   0  every applicable row satisfied (degraded rows/specs named per D9)
@@ -83,7 +89,7 @@ const EXEMPT_STATUSES = new Set(['deferred', 'dropped', 'rejected']);
 
 function usageError(msg) {
   process.stderr.write(`mutation-gate: ${msg}\n`);
-  process.stderr.write('usage: node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded]\n');
+  process.stderr.write('usage: node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded] [--require-evidence]\n');
   exit(2);
 }
 
@@ -91,7 +97,8 @@ function printHelp() {
   process.stdout.write(
     'mutation-gate.mjs — confirm every Test Plan row of an applicable spec carries a RED mutation record\n\n' +
       'usage:\n' +
-      '  node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded]\n\n' +
+      '  node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded] [--require-evidence]\n\n' +
+      '  --require-evidence  an absent evidence directory is evaluated as an empty one (each non-exempt row is a missing record, exit 5)\n\n' +
       'exit: 0 satisfied (degraded named) | 5 offending row(s) | 3 gate could not run | 2 usage\n'
   );
   exit(0);
@@ -111,7 +118,7 @@ function requireValue(argv, i, flagName) {
 }
 
 function parseArgs(argv) {
-  const out = { spec: null, json: false, listDegraded: false, help: false };
+  const out = { spec: null, json: false, listDegraded: false, requireEvidence: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
@@ -128,6 +135,9 @@ function parseArgs(argv) {
         break;
       case '--list-degraded':
         out.listDegraded = true;
+        break;
+      case '--require-evidence':
+        out.requireEvidence = true;
         break;
       default:
         usageError(`unrecognized argument: ${a}`);
@@ -315,7 +325,7 @@ function main() {
   } catch {
     evidenceDirExists = false;
   }
-  if (!evidenceDirExists) {
+  if (!evidenceDirExists && !args.requireEvidence) {
     if (ratchetExceeded) {
       const payload = {
         spec_id: specId,
