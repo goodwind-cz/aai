@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: a doc dropped from the docs index is reported last and coverage gaps are summarised
+
+When `generate-docs-index.mjs` drops a document for a schema violation (for example an unknown frontmatter `status`), it now prints that as the last block on stderr: a `DROPPED from docs/INDEX.md` header, one line per document with its reason, and a `Fix:` line naming the allowed status values, the Review-By forms and `docs/INDEX.violations.md`. The standing coverage-gap warning is one summary line by default; the new `--verbose` flag lists each document, and the full list stays under "Coverage gaps" in `docs/INDEX.md`. Exit codes, `--strict` and the bytes of `docs/INDEX.md` and `docs/INDEX.violations.md` are unchanged. Projects get it with `/aai-update`.
+
 ## [unreleased] — Node-first cleanup: measured suite weights, release preflight isolation and guard fixes
 
 The skill-suite weights are measured from hosted runs (the selected-sharded leg keeps its 25-minute bound: every-suite selection models a 933 s shard); four guards changed in ways a consumer can see.
