@@ -292,6 +292,26 @@ test_3986_paths() {
   log_pass "TEST-3986: the slot paths equal git rev-parse --git-path for every hooksPath shape, from a subdirectory and in a linked worktree, the not-a-repository and git-missing lines, PWD message paths"
 }
 
+test_4057_doubled_key_winner() {
+  need_tool TEST-4057 git || return 0
+  run_node_tests TEST-4057
+  log_pass "TEST-4057: a valueless first ref_guard line and a valued second one make the warning name the second line as the winner"
+}
+
+test_4058_socket_long_tmpdir() {
+  need_tool TEST-4058 git || return 0
+  local long out rc=0
+  long="$TEST_DIR/t4058-a-deliberately-long-temporary-directory-name-for-the-socket-case-$$"
+  mkdir -p "$long"
+  [[ "${#long}" -gt 80 ]] || log_fail "TEST-4058: the long TMPDIR is only ${#long} bytes"
+  out="$(env -u AAI_ROLE TMPDIR="$long" node --test --test-reporter=tap --test-name-pattern 'TEST-3987 classifySlot gives every D-SLOT state' "$NODE_TEST" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4058: the TEST-3987 classify case exited $rc under a ${#long}-byte TMPDIR"; }
+  [[ "$out" =~ ok\ [0-9]+\ -\ TEST-3987\ classifySlot ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4058: the TEST-3987 classify case did not report ok"; }
+  [[ "$out" != *"socket case skipped"* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4058: the socket case was skipped under a ${#long}-byte TMPDIR"; }
+  rm -rf "$long"
+  log_pass "TEST-4058: the TEST-3987 socket case runs and passes under a TMPDIR longer than 80 bytes"
+}
+
 test_3987_attestation() {
   need_tool TEST-3987 git || return 0
   run_node_tests TEST-3987
@@ -913,6 +933,8 @@ main() {
   test_3985_templates
   test_3986_paths
   test_3987_attestation
+  test_4057_doubled_key_winner
+  test_4058_socket_long_tmpdir
   test_3988_writes
   test_3989_corpus_bash
   test_3990_corpus_powershell

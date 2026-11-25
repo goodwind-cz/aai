@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-24T09:44:10.116Z",
+  "generatedAt": "2026-11-24T23:05:52.330Z",
   "project": "aai",
   "counts": {
-    "delivered": 381,
+    "delivered": 382,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 211994147
+    "tokens_total": 212993580
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -220,6 +220,19 @@
       "spec": "docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md",
       "validation": null,
       "review": "docs/ai/reviews/review-node-first-phase5-closeout-20261124T093738Z.md"
+    },
+    {
+      "ref": "node-first-leftovers",
+      "title": "Node-first leftovers: the P3 fixes the migration left open",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0267-node-first-leftovers.md",
+      "closed_on": "2026-11-24",
+      "agent_minutes": 511,
+      "token_total": 999433,
+      "spec": "docs/specs/SPEC-0312-spec-node-first-leftovers.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-node-first-leftovers-20261124T2301Z.md"
     },
     {
       "ref": "pre-commit-installer-on-node",
@@ -5200,6 +5213,19 @@
           "spec": "docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md",
           "validation": null,
           "review": "docs/ai/reviews/review-node-first-phase5-closeout-20261124T093738Z.md"
+        },
+        {
+          "ref": "node-first-leftovers",
+          "title": "Node-first leftovers: the P3 fixes the migration left open",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0267-node-first-leftovers.md",
+          "closed_on": "2026-11-24",
+          "agent_minutes": 511,
+          "token_total": 999433,
+          "spec": "docs/specs/SPEC-0312-spec-node-first-leftovers.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-node-first-leftovers-20261124T2301Z.md"
         },
         {
           "ref": "pre-commit-installer-on-node",

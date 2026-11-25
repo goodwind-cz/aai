@@ -652,13 +652,14 @@ function uninstallMode(ctx, repo, mode) {
 // warnDoubledKey: a plain run never writes the policy; with more than one key line it names the repair.
 function warnDoubledKey(ctx, repo) {
   let keyLines = [];
+  let winnerLine = null;
   try {
-    keyLines = writeRefGuardPolicy(repo.cfgDir, 'armed', { dryRun: true }).keyLines;
+    ({ keyLines, winnerLine } = writeRefGuardPolicy(repo.cfgDir, 'armed', { dryRun: true }));
   } catch {
     return;
   }
   if (keyLines.length > 1) {
-    ctx.err(`WARNING: ${repo.cfgPath} carries ${keyLines.length} ref_guard: lines (lines ${keyLines.join(', ')}); the first one wins. Repair: ${installerCmd(repo.root)} --arm-ref-guard (or --decline-ref-guard).\n`);
+    ctx.err(`WARNING: ${repo.cfgPath} carries ${keyLines.length} ref_guard: lines (lines ${keyLines.join(', ')}); the first one with a value wins (line ${winnerLine}). Repair: ${installerCmd(repo.root)} --arm-ref-guard (or --decline-ref-guard).\n`);
   }
 }
 

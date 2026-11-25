@@ -48,7 +48,7 @@ while read -r _cg_lref _cg_local _cg_rref _cg_remote_sha; do
   # never the worktree copy" discipline the pre-commit body applies).
   _cg_mode="report-only"
   _cg_cfg="$(git show "$_cg_local:docs/ai/docs-audit.yaml" 2>/dev/null || true)"
-  if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$_cg_cfg"; then
+  if grep -Eq $'^(\xef\xbb\xbf)?close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$_cg_cfg"; then
     _cg_mode="enforce"
   fi
   _cg_is_default=0

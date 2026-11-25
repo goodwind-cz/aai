@@ -576,10 +576,13 @@ test_307_clone_seam() {
 # Re-pinned by precommit-residual-defects (D2): the hook reads its staged name
 # lists NUL-separated (-z) into a scratch directory -- an intentional, in-scope
 # change, measured by VALIDATION r1's run of this test (its "got" value).
+# Re-pinned by node-first-leftovers (D-BOM): the close_gate and body_lint dial greps accept an optional leading
+# byte order mark (one line each) -- an intentional, in-scope change, measured by this test's own "got" value.
 # Re-pinned by node-first-cleanup (D-RENAME): the staged-doc lists and the per-file hunk read pass --no-renames
 # -- an intentional, in-scope change, measured by this test's own "got" value.
 # Re-pinned again by node-first-cleanup (remediation r1): a two-line comment in the hook states what the check compares (comment-only); measured "got" value.
-PRECOMMIT_SHA256_BASELINE="d9dfc60dc760d168a2a4aa59b2f308e62886f580b925f4beea8ba37dcfd079ad"
+# Re-measured on the merged template (both rides' edits): measured "got" value.
+PRECOMMIT_SHA256_BASELINE="b8352cc13524ad588d5bbcfa97b5ae86d47828a9ceda151a6db58a60bf7f33e8"
 
 test_308_installer_contract() {
   local ok=1

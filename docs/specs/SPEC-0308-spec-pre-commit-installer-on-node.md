@@ -4,7 +4,7 @@ type: spec
 number: 308
 status: done
 mutation_gate: v1
-frozen_sha256: 7df0c195b65be2516e2c5903d63f952be5b48862746203a732bd4b00907f8323
+frozen_sha256: 7cbf603cdae8024921900eee63bbfb2bffd44abb6fd2e1a6bdbaa24b3223eb59
 ceremony_level: 3
 links:
   requirement: pre-commit-installer-on-node
@@ -566,7 +566,7 @@ discipline).
 | DR-17 | doubled key: arm writes then fails its read-back; decline exits 0 leaving both | same | arm and decline keep the first key line and remove the rest; a plain run warns and names the repair | an ambiguous file needs a command that repairs it | TEST-3983, TEST-3984, K27, P16 |
 | DR-18 | uninstalling the ref-guard says nothing about the armed declaration | same | two lines naming the re-install and the decline command | the next /aai-update re-installs it silently otherwise | TEST-3984, K13 |
 | DR-19 | index template without a final LF: LF added; guard template not checked | no LF added; not checked | LF added; the guard template checked for its markers and final LF | the twins wrote hooks one byte apart; a guard template without END would glue lines | TEST-3985 |
-| DR-20 | message paths from the logical `$PWD` | `Get-Location` | the PWD rule of D-CLI | the bash bytes on POSIX | TEST-3986, K09 |
+| DR-20 | message paths from the logical `$PWD` | `Get-Location` | the PWD rule of D-CLI, except that a `PWD` with a leading `//` collapses to `/` in module messages; the hook lands in the same place | the bash bytes on POSIX | TEST-3986, K09 |
 | DR-21 | marker followed by space, end of line, or a CR at the end of the line, via grep | on bytes; a CR followed by more bytes also counts | on bytes; a CR counts only before an LF or the end of the file | ownership is decided on the bytes | TEST-3987 |
 | DR-22 | `-x` checked also under Git Bash | skipped on Windows | skipped on win32 | Git for Windows runs hooks regardless of mode bits | TEST-3988 |
 | DR-23 | decline on a directory, a dangling symbolic link or a symbolic link to a directory at the reference-transaction slot: records `declined`, exit 0 | same | refused as a bad-type slot (exit 1, the bad-type lines, nothing written; the conservative refusal, a decline must not record over a slot nothing can run); a symlinked foreign hook is refused like a regular one, as in bash, and is not a drift | a decline must not leave a slot git cannot run a hook from unexplained; the follows-the-link refusal is parity | TEST-3984, K14d |
