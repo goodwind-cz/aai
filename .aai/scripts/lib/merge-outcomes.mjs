@@ -52,6 +52,7 @@ export const OUTCOME_TABLE = {
   overlap_staged: kept('sync-base'),
   untracked_not_file: kept('sync-base'),
   overlap_not_file: kept('sync-base'),
+  write_outside_checkout: kept('sync-base'),
   untracked_collision: decide(['take_incoming', 'keep_local'], 'take_incoming'),
   sync_failed: retry('decide'),
   ledger_merge_failed: retry('decide'),

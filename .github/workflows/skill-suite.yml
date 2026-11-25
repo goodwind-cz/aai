@@ -382,7 +382,7 @@ jobs:
     name: release dry-run (complete tracked changelog readers)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -397,7 +397,7 @@ jobs:
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
       - name: Rehearse production rollup with every discovered reader
-        run: node .aai/scripts/release-dry-run.mjs --jobs 4 --budget-seconds 1080 --report release-dry-run.json
+        run: node .aai/scripts/release-dry-run.mjs --jobs 4 --budget-seconds 1800 --report release-dry-run.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -294,9 +294,11 @@ test('TEST-006 failure diagnostic budget fits the actual workflow deadline',()=>
   const workflow=fs.readFileSync(path.join(root,'.github/workflows/skill-suite.yml'),'utf8');
   const job=workflow.split('  release-dry-run:\n')[1].split(/\n  [a-z][\w-]*:\n/)[0];
   const deadline=Number(/timeout-minutes: (\d+)/.exec(job)[1])*60;
-  assert.equal(deadline,1200,'slow rolled failure plus ordinary diagnostic needs the amended job deadline');
+  // 46 CHANGELOG readers summed about 4,600 s on a hosted runner (PR #586, 4 jobs): 1080 s left the plan unfinishable, so the
+  // executor budget is 1800 s and the job deadline 2100 s (node-first-cleanup D-DRYRUN).
+  assert.equal(deadline,2100,'slow rolled failure plus ordinary diagnostic needs the amended job deadline');
   const budget=Number(/--budget-seconds (\d+)/.exec(job)?.[1]);
-  assert.equal(budget,1080);
+  assert.equal(budget,1800);
   assert.ok(budget>=2*540,'two complete540-second reader arms fit the executor allowance');
   assert.ok(deadline>=budget+120,'reserve setup/report/upload time outside executor budget');
   assert.match(job,/if: always\(\)/);
@@ -593,4 +595,36 @@ test('TEST-011 profile inventory suite ownership product and release notes',()=>
   assert.match(product,/newest/);
   assert.match(product,/missing.*tool/i);
   assert.match(fs.readFileSync(path.join(root,changelog),'utf8'),/release.*dry-run/i);
+});
+test('TEST-4040 a crashing PowerShell probe is recorded as null with its exit status, never its output',t=> {
+  const dir=fixture(t, {
+    'tests/new.test.mjs':nodeReader(true).replace("includes('## [v2099.01.01] — Fixture')","match(/## \\[(?:unreleased|v2099.01.01)\\] — Fixture/ )")
+  });
+  const stub=path.join(dir,'..',path.basename(dir)+'-pwsh-stub.sh');
+  fs.writeFileSync(stub,'#!/bin/sh\necho "Unhandled exception. System.IO.FileLoadException: Could not load file or assembly"\nexit 134\n', {
+    mode:0o755
+  });
+  t.after(()=>fs.rmSync(stub, {
+    force:true
+  }));
+  const report=path.join(dir,'..',path.basename(dir)+'-report.json');
+  t.after(()=>fs.rmSync(report, {
+    force:true
+  }));
+  const r=dry(dir,['--report',report], {
+    AAI_RELEASE_DRY_PWSH:stub
+  });
+  assert.equal(r.status,0,r.text);
+  const j=JSON.parse(fs.readFileSync(report,'utf8'));
+  assert.equal(j.interpreters.powershell,null);
+  assert.equal(j.interpreterErrors.powershell,'exit 134');
+  assert.ok(!JSON.stringify(j).includes('FileLoadException'),'probe output is never recorded');
+  const missing=path.join(dir,'..',path.basename(dir)+'-no-such-pwsh');
+  const r2=dry(dir,['--report',report], {
+    AAI_RELEASE_DRY_PWSH:missing
+  });
+  assert.equal(r2.status,0,r2.text);
+  const j2=JSON.parse(fs.readFileSync(report,'utf8'));
+  assert.equal(j2.interpreters.powershell,null);
+  assert.equal(j2.interpreterErrors.powershell,'spawn ENOENT','a missing binary names the spawn error, not exit null');
 });

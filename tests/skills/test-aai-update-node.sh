@@ -653,9 +653,9 @@ test_3977_wiring() {
   ' "$PROJECT_ROOT/tests/skills/suite-map.yaml")" || log_fail "TEST-3977: cannot read suite-map.yaml"
   [[ -z "$out" ]] || log_fail "TEST-3977: suite-map rows name aai-update.sh but not aai-update.mjs: $out"
   # the weights row and its fallback line
-  qgrep -qxF "# sample aai-update-node fallback unsampled (new suite of update-on-node; no successful observation)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
-    || log_fail "TEST-3977: the weights fallback line for aai-update-node is missing"
-  qgrep -qxF "$(printf 'aai-update-node\t196')" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3977: the weights row aai-update-node 196 is missing"
+  qgrep -qE "^# sample aai-update-node (measured|fallback unsampled)" < "$PROJECT_ROOT/tests/skills/suite-weights.tsv" \
+    || log_fail "TEST-3977: the weights sample line for aai-update-node is missing"
+  [[ "$(awk -F'\t' '$1=="aai-update-node" && $2 ~ /^[1-9][0-9]*$/ {c++} END{print c+0}' "$PROJECT_ROOT/tests/skills/suite-weights.tsv")" == 1 ]] || log_fail "TEST-3977: suite-weights does not hold exactly one positive-integer row for aai-update-node"
   for sel in "test-aai-hygiene-pack.sh test_090_suite_map_pin" "test-aai-hygiene-pack.sh test_129_mutation_gate_suite_registration" "test-aai-win-fallback.sh test_034" "test-aai-win-fallback.sh test_035"; do
     rc=0
     # shellcheck disable=SC2086

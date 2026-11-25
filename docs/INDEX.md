@@ -70,7 +70,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (697)
+## Done (699)
 
 | ID | Type | Path |
 |---|---|---|
@@ -336,6 +336,7 @@ _None._
 | CHANGE-0265 | issues | docs/issues/CHANGE-0265-sync-on-node.md |
 | CHANGE-0266 | issues | docs/issues/CHANGE-0266-node-first-phase5-closeout.md |
 | CHANGE-0267 | issues | docs/issues/CHANGE-0267-node-first-leftovers.md |
+| CHANGE-0268 | issues | docs/issues/CHANGE-0268-node-first-cleanup.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -769,6 +770,7 @@ _None._
 | SPEC-0310 | specs | docs/specs/SPEC-0310-spec-sync-on-node.md |
 | SPEC-0311 | specs | docs/specs/SPEC-0311-spec-node-first-phase5-closeout.md |
 | SPEC-0312 | specs | docs/specs/SPEC-0312-spec-node-first-leftovers.md |
+| SPEC-0313 | specs | docs/specs/SPEC-0313-spec-node-first-cleanup.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -804,7 +806,7 @@ _None._
 
 _None._
 
-## Broken references (612)
+## Broken references (616)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1195,7 +1197,11 @@ _None._
 | tests/skills/test-aai-follow-ups.sh | docs/specs/SPEC-0042-spec-some-other-frozen-scope.md | NOT FOUND |
 | tests/skills/test-aai-follow-ups.sh | docs/specs/SPEC-9999-does-not-need-to-exist.md | NOT FOUND |
 | tests/skills/test-aai-git-hook-templates.sh | docs/a.md | NOT FOUND |
+| tests/skills/test-aai-git-hook-templates.sh | docs/specs/SPEC-7901-rename-gate.md | NOT FOUND |
+| tests/skills/test-aai-git-hook-templates.sh | docs/specs/SPEC-7902-after.md | NOT FOUND |
+| tests/skills/test-aai-git-hook-templates.sh | docs/specs/SPEC-7902-before.md | NOT FOUND |
 | tests/skills/test-aai-git-hook-templates.sh | docs/specs/SPEC-9999-big.md | NOT FOUND |
+| tests/skills/test-aai-git-hook-templates.sh | docs/specs/SPEC-DRAFT-rename-gate.md | NOT FOUND |
 | tests/skills/test-aai-git-ref-guard.sh | docs/rfc/RFC-DRAFT-t306.md | NOT FOUND |
 | tests/skills/test-aai-harness-shims.sh | docs/ai/reports/x.md | NOT FOUND |
 | tests/skills/test-aai-hitl-propagation.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
@@ -1457,4 +1463,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-24 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-25 — counts above use this date for overdue checks.

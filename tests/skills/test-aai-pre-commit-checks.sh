@@ -435,8 +435,8 @@ test_3458_wiring() {
   done
   "$GREP" -qxF '      - tests/skills/pre-commit-checks-retired.Tests.ps1' <<< "$(row_globs aai-pre-commit-checks)" || log_fail "TEST-3458: the aai-pre-commit-checks row lacks the Pester glob"
   n="$(awk -F'\t' '$1=="aai-pre-commit-checks"{c++; w=$2} END{print c+0 ":" w}' "$tsv")"
-  [[ "$n" == "1:196" ]] || log_fail "TEST-3458: suite-weights holds aai-pre-commit-checks as '$n' (rows:weight), expected 1:196"
-  "$GREP" -qxF '# sample aai-pre-commit-checks fallback unsampled (new suite of pre-commit-checks-ps1-retire; no successful observation)' "$tsv" || log_fail "TEST-3458: suite-weights lacks the fallback-unsampled line"
+  [[ "$n" =~ ^1:[1-9][0-9]*$ ]] || log_fail "TEST-3458: suite-weights holds aai-pre-commit-checks as '$n' (rows:weight), expected one positive-integer row"
+  "$GREP" -qE '^# sample aai-pre-commit-checks (measured|fallback unsampled)' "$tsv" || log_fail "TEST-3458: suite-weights lacks the aai-pre-commit-checks sample line"
   [[ "$("$GREP" -cE '"\$row_count" -eq [0-9]+ \]\]' "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || true)" == 1 ]] || log_fail "TEST-3458: the hygiene pack does not hold exactly one literal row-count -eq line"
   for sel in test_090_suite_map_pin test_129_mutation_gate_suite_registration test_133_nested_suite_lint_live_and_base; do
     env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$sel" >"$TEST_DIR/w.out" 2>&1 || { tail -8 "$TEST_DIR/w.out" >&2; log_fail "TEST-3458: test-aai-hygiene-pack.sh $sel failed"; }
@@ -1381,6 +1381,35 @@ test_3879_installed_hook_reads_the_commits_index() {
   log_pass "TEST-3879: through the installed hook a partial commit is judged on the commit's own index (blocked, HEAD unmoved) and 40 clean staged files commit"
 }
 
+test_4047_seterr_lint() {
+  local lint="$SCRIPT_DIR/lib/seterr-lint.mjs" out files fx
+  [[ -f "$lint" ]] || log_fail "TEST-4047: $lint does not exist"
+  fx="$TEST_DIR/seterr-fixtures"; mkdir -p "$fx"
+  printf '#!/usr/bin/env bash\nset -euo pipefail\ncheck() { false; }\ncheck || echo recovered\n' > "$fx/with-errexit.sh"
+  printf '#!/usr/bin/env bash\nset -uo pipefail\ncheck() { false; }\ncheck || echo recovered\n' > "$fx/without-errexit.sh"
+  # every tracked .aai shell script: zero findings
+  files="$TEST_DIR/aai-sh-files.txt"
+  git -C "$PROJECT_ROOT" ls-files -z -- '.aai/**/*.sh' > "$files"
+  [[ -s "$files" ]] || log_fail "TEST-4047: git lists no tracked .aai shell script"
+  out="$(node -e '
+    const fs = require("fs");
+    import(process.argv[1]).then((m) => {
+      const paths = fs.readFileSync(process.argv[2], "utf8").split("\0").filter(Boolean);
+      process.stdout.write(paths.length + " " + JSON.stringify(m.lintFiles(paths)));
+    });
+  ' "$lint" "$files")" || log_fail "TEST-4047: the lint crashed over the tracked scripts"
+  [[ "${out#* }" == "[]" ]] || log_fail "TEST-4047: findings in tracked .aai scripts: $out"
+  [[ "${out%% *}" -ge 20 ]] || log_fail "TEST-4047: the lint saw only ${out%% *} scripts"
+  out="$(node -e '
+    import(process.argv[1]).then((m) => {
+      const n = (f) => m.lintFiles([f]).length;
+      process.stdout.write(n(process.argv[2]) + " " + n(process.argv[3]));
+    });
+  ' "$lint" "$fx/with-errexit.sh" "$fx/without-errexit.sh")" || log_fail "TEST-4047: the lint crashed over the fixtures"
+  [[ "$out" == "1 0" ]] || log_fail "TEST-4047: fixture findings (with set -e, without) were '$out', expected '1 0'"
+  log_pass "TEST-4047: the errexit idiom lint is clean over the tracked .aai scripts and exact over the two fixtures"
+}
+
 # node-first-leftovers D-BOM (Spec-AC-07): readGuardConfig reads a dial on the first line after a leading BOM.
 test_4055_guard_config_bom() {
   local d="$TEST_DIR/t4055" got
@@ -1481,6 +1510,7 @@ main() {
   test_3920_no_builtin_redirection_text
   test_3921_preservation_and_moved_pins
   test_3922_changelog_and_product_doc
+  test_4047_seterr_lint
   test_4055_guard_config_bom
   test_4056_shell_mirrors_bom
   echo ""

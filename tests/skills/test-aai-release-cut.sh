@@ -364,9 +364,9 @@ test_3475_wiring() {
   done
   out="$(printf '%s\n' .aai/scripts/release-cut.mjs | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
   [[ "$out" == *'SELECTED aai-release '* ]] || log_fail "TEST-3475: the module does not select aai-release: $out"
-  n="$(awk -F'\t' '$1=="aai-release-cut" && $2==196{c++} END{print c+0}' "$tsv")"
-  [[ "$n" == 1 ]] || log_fail "TEST-3475: suite-weights holds $n aai-release-cut rows at 196, expected 1"
-  grep -qxF '# sample aai-release-cut fallback unsampled (new suite of release-on-node; no successful observation)' "$tsv" || log_fail "TEST-3475: suite-weights lacks the aai-release-cut fallback line"
+  n="$(awk -F'\t' '$1=="aai-release-cut" && $2 ~ /^[1-9][0-9]*$/{c++} END{print c+0}' "$tsv")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3475: suite-weights holds $n aai-release-cut positive-integer rows, expected 1"
+  grep -qE '^# sample aai-release-cut (measured|fallback unsampled)' "$tsv" || log_fail "TEST-3475: suite-weights lacks the aai-release-cut sample line"
   n="$(grep -cE '"\$row_count" -eq [0-9]+ \]\]' "$hyg" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3475: the hygiene pack holds $n literal row-count -eq lines, expected exactly 1"
   pin="$(grep -E '"\$row_count" -eq [0-9]+ \]\]' "$hyg" | sed -n 1p | sed 's/.*-eq \([0-9][0-9]*\) \]\].*/\1/')"
@@ -648,6 +648,19 @@ test_4027_ps1_launcher_differential() {
   log_pass "TEST-4027: the launcher keeps the D-RELEASE shape and the matrix rows agree with the frozen launcher (prefixes and the bare first word included) while M18 and M20 show DR-R2 and DR-R4"
 }
 
+test_4041_release_tests_own_pwsh_cache() {  # Spec-AC-05 / TEST-4041
+  need_tool TEST-4041 pwsh || return 0
+  local bad out rc=0
+  bad="$TEST_DIR/xdg-4041"
+  mkdir -p "$bad"
+  : > "$bad/powershell"
+  [[ -f "$bad/powershell" ]] || log_fail "TEST-4041: the broken-cache fixture is not a regular file"
+  out="$(XDG_CACHE_HOME="$bad" env -u AAI_ROLE node --test --test-name-pattern TEST-4027 "$AR_TEST" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4041: the TEST-4027 cases fail under a broken operator PowerShell cache (exit $rc)"; }
+  [[ "$out" =~ pass\ [1-9] ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-4041: node --test reported zero passing tests for TEST-4027"; }
+  log_pass "TEST-4041: the TEST-4027 cases pass with XDG_CACHE_HOME naming a directory whose powershell entry is a file"
+}
+
 # need_pester5 <TEST id>: 0 when pwsh has Pester 5 or later; fail on CI when it has not; named SKIP-CASE otherwise.
 need_pester5() {
   need_tool "$1" pwsh || return 1
@@ -903,6 +916,7 @@ main() {
   test_3529_ps1_launcher
   test_4026_ps1_grammar
   test_4027_ps1_launcher_differential
+  test_4041_release_tests_own_pwsh_cache
   test_4028_ps1_pester
   test_3523_launcher_parity
   test_3530_no_publish

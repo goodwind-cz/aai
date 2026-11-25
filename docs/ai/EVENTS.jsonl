@@ -4501,3 +4501,11 @@
 {"v":1,"ts":"2026-11-24T23:05:34Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-leftovers","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-24T23:05:34Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-leftovers","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-24T23:05:34Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-leftovers","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-24T19:01:07Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-cleanup","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-24T22:23:31Z","actor":"ales_holubec.net","event":"round_reset","ref":"node-first-cleanup","payload":{"block":"last_validation","from":"fail","forced":false}}
+{"v":1,"ts":"2026-11-24T23:28:59Z","actor":"ales_holubec.net","event":"full_sweep","ref":"node-first-cleanup","payload":{"head":"4995d888242d8c2da248b5aa26e552b5cd5d741d","rc":0,"run_id":"test-20261124-230302"}}
+{"v":1,"ts":"2026-11-25T01:16:09Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"node-first-cleanup","payload":{"status":"pass","hash":"3baa96ebbe1454d91e7ef431bb5923f9424812055a3741a0203c97af8f4d141b"}}
+{"v":1,"ts":"2026-11-25T01:18:04Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"node-first-cleanup","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-25T01:18:04Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-cleanup","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-25T01:18:04Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-cleanup","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-25T01:18:04Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-cleanup","payload":{"validation":"pass","code_review":"pass"}}

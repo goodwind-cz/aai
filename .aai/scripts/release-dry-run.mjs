@@ -18,6 +18,20 @@ export function cleanEnvironment(source=process.env) {
     ...env,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:os.devNull,GIT_TERMINAL_PROMPT:'0',AAI_GIT_WRITE:'1'
   };
 }
+function interpreterVersion(cmd,args) {
+  const r=spawnSync(cmd,args, {
+    encoding:'utf8'
+  });
+  if(r.status!==0)return {
+    version:null,error:r.error?`spawn ${r.error.code||r.error.message}`:r.signal?`signal ${r.signal}`:`exit ${r.status}`
+  };
+  const out=(r.stdout||'').trim();
+  return /^[0-9]+\.[0-9]+/.test(out.split('\n')[0])? {
+    version:out,error:null
+  }: {
+    version:null,error:'no version'
+  };
+}
 function command(exe,args,cwd,env=cleanEnvironment()) {
   const r=spawnSync(exe,args, {
     cwd,env,encoding:'utf8',timeout:120000,maxBuffer:32*1024*1024
@@ -427,6 +441,7 @@ export async function dryRun(opts) {
     if(termination)console.log(`release-dry-run: ${termination}; partial diagnostic evidence retained`);
     const sourceAfter=sourceProof(opts.root,reportPath);
     if(JSON.stringify(sourceBefore)!==JSON.stringify(sourceAfter))throw Error('source files/index/refs changed during rehearsal');
+    const pwshProbe=interpreterVersion(process.env.AAI_RELEASE_DRY_PWSH||'pwsh',['-NoProfile','-Command',"$PSVersionTable.PSVersion.ToString(); (Get-Module Pester -ListAvailable | Select-Object -First 1).Version.ToString()"]);
     const report= {
       ...checkpoint(!aborted),sourcePreserved:true,
       sourceHead:command('git',['rev-parse','HEAD'],opts.root).trim(),machine: {
@@ -434,9 +449,10 @@ export async function dryRun(opts) {
       },interpreters: {
         node:process.version,bash:spawnSync('bash',['--version'], {
           encoding:'utf8'
-        }).stdout?.split('\n')[0],powershell:spawnSync(process.env.AAI_RELEASE_DRY_PWSH||'pwsh',['-NoProfile','-Command',"$PSVersionTable.PSVersion.ToString(); (Get-Module Pester -ListAvailable | Select-Object -First 1).Version.ToString()"], {
-          encoding:'utf8'
-        }).stdout?.trim()
+        }).stdout?.split('\n')[0],powershell:pwshProbe.version
+      },interpreterErrors:pwshProbe.error? {
+        powershell:pwshProbe.error
+      }: {
       },hostedTiming:'unverified — local execution only'
     };
     if(opts.report)fs.writeFileSync(opts.report,JSON.stringify(report,null,2)+'\n');

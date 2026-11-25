@@ -188,11 +188,12 @@ OPEN_FU="fu-seterr-suspended-left-of-or"
 FILED_FU="fu-installer-not-in-l3-protected-paths fu-guard-dials-ignore-bom fu-update-ps1-colon-switch-args fu-hook-upgrade-resets-mode"
 
 test_3999_follow_ups() {
-  local work json out
+  local work out
   work="$(new_own_scratch followups)"
-  json="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status all --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-3999: follow-ups list failed"
-  # the JSON is large: it goes to the checker on stdin, never as one argument (Linux caps a single argv string at 128 KiB)
-  out="$(printf '%s' "$json" | node -e '
+  # the JSON is large (over 1 MB): it goes to a file the checker reads, never through a shell variable or one argument
+  # (Linux caps a single argv string at 128 KiB; a 1.2 MB command substitution crashed bash on a hosted runner, PR #586)
+  node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status all --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$work/fu.json" || log_fail "TEST-3999: follow-ups list failed"
+  out="$(node -e '
     const fs = require("fs");
     const root = process.argv[1];
     const closed = process.argv[2].split(" ");
@@ -224,7 +225,8 @@ test_3999_follow_ups() {
     }
     for (const id of open) {
       const it = by.get(id);
-      if (!it || it.closed) bad.push(id + " must stay open");
+      // left open by this ride; a later ride may close it (node-first-cleanup closed fu-seterr-suspended-left-of-or)
+      if (!it || (it.closed && (it.resolved_by === "pre-commit-installer-on-node" || !it.resolved_by))) bad.push(id + " must stay open");
     }
     for (const id of filed) {
       const it = by.get(id);
@@ -234,7 +236,7 @@ test_3999_follow_ups() {
       if (it.ref_id !== "pre-commit-installer-on-node") bad.push(id + " ref is " + it.ref_id);
     }
     process.stdout.write(bad.join("; "));
-  ' "$PROJECT_ROOT" "$CLOSED_FU" "$OPEN_FU" "$FILED_FU")" || log_fail "TEST-3999: the follow-up check failed to run"
+  ' "$PROJECT_ROOT" "$CLOSED_FU" "$OPEN_FU" "$FILED_FU" < "$work/fu.json")" || log_fail "TEST-3999: the follow-up check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-3999: $out"
   safe_rm_own "$work"
   log_pass "TEST-3999: the eighteen follow-ups are closed with resolved_by pre-commit-installer-on-node and a source naming a test file and a TEST id it holds, fu-seterr-suspended-left-of-or stays open, and the four suggested follow-ups are filed with ref pre-commit-installer-on-node and open unless a later ride resolved them"
@@ -243,7 +245,7 @@ test_3999_follow_ups() {
 # node-first-leftovers D-DOCS and D-AMEND (Spec-AC-11): the DR-20 clause, the CHANGELOG entry with its erratum, the amendment records.
 test_4059_leftover_docs() {
   local spec="$PROJECT_ROOT/docs/specs/SPEC-0308-spec-pre-commit-installer-on-node.md" log="$PROJECT_ROOT/CHANGELOG.md"
-  local heading body phrase json rc=0
+  local heading body phrase am rc=0
   grep -qF 'except that a `PWD` with a leading `//` collapses to `/` in module messages; the hook lands in the same place' "$spec" \
     || log_fail "TEST-4059: the DR-20 cell of SPEC-0308 lacks the leading-// clause"
   # The heading is [unreleased] on the branch and [vYYYY.MM.DD] once a release rolls it (the release dry-run reads the rolled tree).
@@ -258,13 +260,16 @@ test_4059_leftover_docs() {
   done
   node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --strict >/dev/null 2>&1 || rc=$?
   [[ "$rc" == 0 ]] || log_fail "TEST-4059: spec-amend list --strict exited $rc"
-  json="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4059: spec-amend list failed"
+  # the JSON is large (about 0.8 MB): a file, never a shell variable (see TEST-3999)
+  am="$(mktemp "${TMPDIR:-/tmp}/aai-t4059-amend.XXXXXX")"
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$am" || { rm -f "$am"; log_fail "TEST-4059: spec-amend list failed"; }
   for phrase in SPEC-0307 SPEC-0308 SPEC-0310 SPEC-0311; do
     [[ "$(node -e '
       const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
       process.stdout.write(String(d.items.filter((i) => i.ref_id === "node-first-leftovers" && i.amendment_class === "contract" && i.spec.includes(process.argv[1])).length > 0));
-    ' "$phrase" <<<"$json")" == true ]] || log_fail "TEST-4059: no contract amendment record of ref node-first-leftovers for $phrase"
+    ' "$phrase" < "$am")" == true ]] || { rm -f "$am"; log_fail "TEST-4059: no contract amendment record of ref node-first-leftovers for $phrase"; }
   done
+  rm -f "$am"
   log_pass "TEST-4059: SPEC-0308 carries the DR-20 clause, CHANGELOG.md the leftovers entry with the --hooks together with --print erratum, and the four amendment records exist with spec-amend list --strict at 0"
 }
 

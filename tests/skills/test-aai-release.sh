@@ -2335,6 +2335,32 @@ recutCase('TEST-108',()=>{
  const bad=fixture();bad.env.AAI_RELEASE_PREFLIGHT_SECONDS='abc';const a=bad.invoke();
  assert.equal(a.status,20,a.stdout+a.stderr);assert.equal(refusals(a),1,a.stderr);assert.match(a.stderr,/REFUSED: arguments/);assert.equal(bad.transport().calls.filter(c=>c[0]==='pr').length,0);assert.equal(bad.transport().prs.length,0);
 });
+recutCase('TEST-4042',()=>{
+ // GIT_DIR itself cannot be a sentinel here: set in the invoking env it breaks the cut's own worktree stage (measured), so a GIT_* sentinel stands for it.
+ // The fixture test file fails when its checkout is a linked worktree, has a remote, sees an operator credential or GIT_DIR, or has HOME outside the temp root.
+ const marker=path.join(tmp,'pf-root-'+process.pid+'.txt');fs.rmSync(marker,{force:true});
+ const src=String.raw`import test from 'node:test';import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';
+test('CHANGELOG preflight clone is scrubbed',()=>{
+ const g=(...a)=>execFileSync('git',a,{encoding:'utf8'}).trim(),rp=p=>fs.realpathSync(path.resolve(p));
+ assert.ok(/^## \[(?:unreleased|v[^\]]+)\] — feat: alpha/m.test(fs.readFileSync('CHANGELOG.md','utf8')));
+ assert.equal(rp(g('rev-parse','--git-dir')),rp(g('rev-parse','--git-common-dir')),'the checkout is a linked worktree');
+ assert.equal(g('remote'),'','the checkout has a remote');
+ const own={GIT_CONFIG_NOSYSTEM:'1',GIT_TERMINAL_PROMPT:'0'};
+ for(const k of Object.keys(process.env))assert.ok(own[k]===process.env[k]||!/^(GH_|GITHUB_|GIT_|AAI_)/.test(k),k+' leaked into the preflight');
+ let helper='';try{helper=g('config','--get-regexp','^credential\\.');}catch{}
+ assert.equal(helper,'','a git credential helper reaches the preflight: '+helper);
+ const base=rp(path.dirname(process.cwd()));
+ for(const k of ['HOME','XDG_CACHE_HOME'])assert.ok(process.env[k]&&rp(process.env[k]).startsWith(base+path.sep),k+' is outside the preflight temp root');
+ fs.writeFileSync(MARKER,base);
+});
+`.replace('MARKER',JSON.stringify(marker));
+ const f=fixture('',null,{files:{'tests/changelog.test.mjs':src}});
+ Object.assign(f.env,{GH_TOKEN:'sentinel-gh-token',GITHUB_TOKEN:'sentinel-github-token',GIT_PREFLIGHT_SENTINEL:'1',AAI_PREFLIGHT_SENTINEL:'1'});
+ const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ assert.ok(r.stdout.includes('- Release preflight: 1 of 1 file(s) passed on the rolled payload'),r.stdout);
+ assert.ok(fs.existsSync(marker),'the fixture test never ran in the preflight clone');
+ const base=fs.readFileSync(marker,'utf8');assert.ok(!fs.existsSync(base),'the preflight temp root is gone: '+base);fs.rmSync(marker,{force:true});
+});
 recutCase('TEST-111',()=>{
  for(const step of ['recut','worktree','payload','pushed']){
   const {f,first}=firstCut();moveBase(f,301);
@@ -2393,9 +2419,9 @@ const publishTransport=${publishTransport.toString()};
 test('CHANGELOG read while an operator merges the old PR',()=>{
  const t=fs.readFileSync('CHANGELOG.md','utf8');if(!/^## \[v1\] — /m.test(t))return;
  const d=fs.mkdtempSync(path.join(os.tmpdir(),'ext-merge.'));const g=(c,...x)=>{const r=cp.spawnSync('git',x,{cwd:c,encoding:'utf8'});if(r.status)throw new Error(r.stderr);return r.stdout.trim();};
- const clone=path.join(d,'runner');g(d,'clone','-q',process.env.FIXTURE_ORIGIN,clone);g(clone,'checkout','-q','main');g(clone,'config','user.name','CI');g(clone,'config','user.email','ci@test.invalid');
+ const clone=path.join(d,'runner');g(d,'clone','-q',ORIGIN_PATH,clone);g(clone,'checkout','-q','main');g(clone,'config','user.name','CI');g(clone,'config','user.email','ci@test.invalid');
  g(clone,'merge','--squash','origin/chore/release-v1');g(clone,'commit','-qm','chore(release): v1');const oid=g(clone,'rev-parse','HEAD');g(clone,'push','-q','origin','main');
- const s=JSON.parse(fs.readFileSync(process.env.TRANSPORT));s.prs[0].state='MERGED';s.prs[0].mergeCommit={oid};s.runner=clone;publishTransport(process.env.TRANSPORT,s,'scenario');
+ const s=JSON.parse(fs.readFileSync(TRANSPORT_PATH));s.prs[0].state='MERGED';s.prs[0].mergeCommit={oid};s.runner=clone;publishTransport(TRANSPORT_PATH,s,'scenario');
 });
 `;
 recutCase('TEST-119',()=>{
@@ -2408,7 +2434,8 @@ recutCase('TEST-119',()=>{
  }
  {
   const {f,first}=firstCut();
-  remoteFile(f,302,'tests/changelog.test.mjs',MERGER);
+  // The preflight env is allowlisted, so the fixture paths are written into the test source, not read from the environment.
+  remoteFile(f,302,'tests/changelog.test.mjs',MERGER.split('ORIGIN_PATH').join(JSON.stringify(f.env.FIXTURE_ORIGIN)).split('TRANSPORT_PATH').join(JSON.stringify(f.env.TRANSPORT)));
   const r=f.invoke();
   const t=f.transport();assert.equal(t.prs[0].state,'MERGED','the merger test ran during the preflight');
   assert.equal(r.status,0,r.stdout+r.stderr);
@@ -2500,6 +2527,9 @@ test_737_preflight_runs_before_every_push() {
 }
 test_738_preflight_bounded() {
   RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-108 test_700_one_command_finish
+}
+test_4042_preflight_clone_scrubbed() {  # Spec-AC-06 / TEST-4042
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-4042 test_700_one_command_finish
 }
 test_741_recut_resume_every_stage() {
   RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-111 test_700_one_command_finish
@@ -2854,6 +2884,7 @@ main() {
   test_747_merged_during_preflight
   test_748_pushed_pending_recut_moves
   test_749_preflight_timeout_kills_group
+  test_4042_preflight_clone_scrubbed
   test_750_recut_absent_remote_branch
   test_751_merged_old_head_after_recut_push
   test_739_same_version_texts

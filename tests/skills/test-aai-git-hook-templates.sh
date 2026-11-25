@@ -713,8 +713,73 @@ test_3447_arm_missing_template() {
   log_pass "TEST-3447: arming the ref guard without its template exits 1 with the D-MISSING line and writes no hook and no config"
 }
 
+# rename_hook_repo <name>: a scratch repository holding the docs tooling and a committed enforce config;
+# prints its path. The index template runs against it directly (no hook is installed anywhere).
+rename_hook_repo() {
+  local d="$TEST_DIR/rename-$1"
+  rm -rf "$d"
+  make_repo "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/specs" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
+  printf 'close_gate: enforce\nbody_lint: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  printf '%s' "$d"
+}
+
+# rename_doc_body <id> <status> <extra line>: a governed spec body long enough to stay a rename.
+rename_doc_body() {
+  printf -- '---\nid: %s\ntype: spec\nstatus: %s\nlinks:\n  pr: []\n---\n# Rename candidate %s\n\n' "$1" "$2" "$1"
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do printf 'Context line %s of the rename candidate, kept stable across the rename.\n' "$i"; done
+  [[ -z "$3" ]] || printf '%s\n' "$3"
+}
+
+# run_index_hook <repo> <diff.renames value>: the template body as the hook, in the scratch repo.
+run_index_hook() {
+  (cd "$1" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.renames GIT_CONFIG_VALUE_0="$2" bash "$TPL_INDEX" > hook.out 2>&1)
+}
+
+test_4043_renamed_doc_close_gated() {
+  local d mode ec
+  d="$(rename_hook_repo gate)"
+  rename_doc_body SPEC-7901 draft "" > "$d/docs/specs/SPEC-DRAFT-rename-gate.md"
+  git -C "$d" add -A && git -C "$d" commit -qm base || log_fail "TEST-4043: baseline commit failed"
+  git -C "$d" mv docs/specs/SPEC-DRAFT-rename-gate.md docs/specs/SPEC-7901-rename-gate.md
+  sed -i.bak 's/^status: draft/status: done/' "$d/docs/specs/SPEC-7901-rename-gate.md" && rm -f "$d/docs/specs/SPEC-7901-rename-gate.md.bak"
+  git -C "$d" add -A
+  /usr/bin/grep -q '^R' <(git -C "$d" diff --cached --name-status) || log_fail "TEST-4043: the fixture staged no rename"
+  for mode in true copies false; do
+    ec=0
+    run_index_hook "$d" "$mode" || ec=$?
+    [[ "$ec" != 0 ]] || { cat "$d/hook.out" >&2; log_fail "TEST-4043: diff.renames=$mode let a renamed doc flipped to done past close_gate: enforce"; }
+    /usr/bin/grep -qF "close-gate" "$d/hook.out" || { cat "$d/hook.out" >&2; log_fail "TEST-4043: diff.renames=$mode abort did not name the close gate"; }
+    git -C "$d" add -A
+  done
+  log_pass "TEST-4043: a doc renamed to a numbered name that adds status done is close-gated under every diff.renames setting"
+}
+
+test_4044_renamed_doc_body_linted() {
+  local d mode ec
+  d="$(rename_hook_repo lint)"
+  rename_doc_body SPEC-7902 draft "" > "$d/docs/specs/SPEC-7902-before.md"
+  git -C "$d" add -A && git -C "$d" commit -qm base || log_fail "TEST-4044: baseline commit failed"
+  git -C "$d" mv docs/specs/SPEC-7902-before.md docs/specs/SPEC-7902-after.md
+  printf '</content>\n' >> "$d/docs/specs/SPEC-7902-after.md"
+  git -C "$d" add -A
+  /usr/bin/grep -q '^R' <(git -C "$d" diff --cached --name-status) || log_fail "TEST-4044: the fixture staged no rename"
+  for mode in true copies false; do
+    ec=0
+    run_index_hook "$d" "$mode" || ec=$?
+    [[ "$ec" != 0 ]] || { cat "$d/hook.out" >&2; log_fail "TEST-4044: diff.renames=$mode let a renamed doc with stray tool markup past body_lint: enforce"; }
+    /usr/bin/grep -qF "body-lint" "$d/hook.out" || { cat "$d/hook.out" >&2; log_fail "TEST-4044: diff.renames=$mode abort did not name body-lint"; }
+    git -C "$d" add -A
+  done
+  log_pass "TEST-4044: a renamed governed doc with stray tool markup is body-linted under every diff.renames setting"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3432..3447)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3432..3447, 4043..4044)"
   check_deps
   setup_fixture
   test_3432_templates_single_copy
@@ -733,6 +798,8 @@ main() {
   test_3445_cdpath_relative_install
   test_3446_malformed_index_template
   test_3447_arm_missing_template
+  test_4043_renamed_doc_close_gated
+  test_4044_renamed_doc_body_linted
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
