@@ -70,6 +70,11 @@ function execCommand(pm, tool, rest = '') {
 // leak-safe runner pair.
 export const wrapTestCommand = (cmd) => `Windows: powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 ${cmd}\nPOSIX: bash .aai/scripts/aai-run-tests.sh ${cmd}`;
 
+const ESLINT_PIN_GUIDANCE = [
+  '## ESLint 8 pin',
+  '- Only a legacy `.eslintrc*` config was found and eslint is not installed in this project; ESLint 9 and later ignore eslintrc, so this command pins ESLint 8.',
+  '- To lint with the project\'s own eslint, add it as a devDependency (or migrate to `eslint.config.*`), then rerun .aai/scripts/aai-bootstrap.sh.',
+].join('\n');
 const VITEST_GUIDANCE = [
   '## Leak-safe Vitest configuration (bounds fork memory)',
   '- This project uses Vitest. A default `vitest run` sizes its fork pool to the CPU',
@@ -355,10 +360,19 @@ function buildCommand(pc) {
   return null;
 }
 
+// A local eslint: a dependency of the project, or a regular file at node_modules/.bin/eslint or eslint.cmd.
+function hasLocalEslint(pc) {
+  return pc.hasDep('eslint') || pc.file('node_modules/.bin/eslint') || pc.file('node_modules/.bin/eslint.cmd');
+}
+
+// A legacy .eslintrc with no eslint in the project: ESLint 9 and later ignore eslintrc, so the one-off form pins 8.
+const ESLINT8_PIN = 'npx eslint@8 .';
+
 function lintCommand(pc) {
   const found = taskRunner(pc, ['lint', 'check', 'lint-check']) ?? packageScript(pc, ['lint', 'check', 'typecheck']);
   if (found) return found;
-  if (['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs'].some(pc.file) || pc.glob('.eslintrc') || pc.hasDep('eslint')) return execCommand(pc.pm, 'eslint', '.');
+  if (['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs'].some(pc.file) || hasLocalEslint(pc)) return execCommand(pc.pm, 'eslint', '.');
+  if (pc.glob('.eslintrc')) return ESLINT8_PIN;
   if (pc.file('biome.json') || pc.file('biome.jsonc') || pc.hasDep('@biomejs/biome')) return execCommand(pc.pm, 'biome', 'check .');
   if (pc.file('ruff.toml') || containsText(pc, ['pyproject.toml', 'requirements.txt'], 'ruff')) return 'ruff check .';
   if (containsText(pc, ['pyproject.toml', 'requirements.txt', 'setup.cfg', 'tox.ini'], 'flake8')) return 'flake8';
@@ -473,7 +487,7 @@ export function planSkills(root, known = {}) {
   } else skipped.push('aai-test-e2e: no E2E command detected');
   if (cmds.build) add('aai-build', 'Build or type-check the project with the detected project command.', cmds.build);
   else skipped.push('aai-build: no build command detected');
-  if (cmds.lint) add('aai-lint', 'Run project lint or static checks with the detected project command.', cmds.lint);
+  if (cmds.lint) add('aai-lint', 'Run project lint or static checks with the detected project command.', cmds.lint, cmds.lint === ESLINT8_PIN ? `${ESLINT_PIN_GUIDANCE}\n` : '');
   else skipped.push('aai-lint: no lint command detected');
   if (cmds.monty) add('aai-python-monty', 'Use pydantic-monty as a safe scratchpad for small isolated Python logic before normal project validation.', cmds.monty, MONTY_EXTRA);
   else skipped.push('aai-python-monty: Python project not detected');
@@ -568,8 +582,23 @@ ${FILE_END}
 `);
 }
 
+// The technology contract is still the synced template seed (#588): the metadata header (the lines before the
+// first level-2 heading) says `- Status: template-seed`. aai-doctor.mjs carries the same rule and hint text.
+const TECH_SEED_STATUS = 'template-seed';
+const TECH_SEED_HINT = 'docs/TECHNOLOGY.md is still the template seed (Status: template-seed); run TECH_EXTRACT (.aai/TECH_EXTRACT.prompt.md) to fill the technology contract';
+
+function isTechSeed(text) {
+  if (text === null) return false;
+  for (const raw of text.split('\n')) {
+    if (raw.startsWith('## ')) return false;
+    const line = raw.replace(/\r$/, '').replace(/[ \t]+$/, '');
+    if (line.startsWith('- Status: ')) return line.slice('- Status: '.length) === TECH_SEED_STATUS;
+  }
+  return false;
+}
+
 // renderSummary(info): the stdout of a run, from the detected lists, the auth result, the plan and the write lists.
-export function renderSummary({ root, dryRun, force, det, auth, plan, written, unchanged, platformLines }) {
+export function renderSummary({ root, dryRun, force, det, auth, plan, written, unchanged, platformLines, techSeed }) {
   let t = `\nAAI bootstrap summary\nTarget: ${root}\n`;
   if (dryRun) t += 'Mode: dry-run\n';
   if (force) t += 'Force: true\n';
@@ -591,6 +620,7 @@ export function renderSummary({ root, dryRun, force, det, auth, plan, written, u
   t += listLines('No file changes', written);
   if (unchanged.length > 0) t += `\nUnchanged files:\n${listLines('None', unchanged)}`;
   if (plan.skipped.length > 0) t += `\nSkipped:\n${listLines('None', plan.skipped)}`;
+  if (techSeed) t += `\nTechnology contract:\n- ${TECH_SEED_HINT}\n`;
   return t;
 }
 
@@ -765,7 +795,8 @@ export function run(argv, io = {}) {
   written.push(...hooks.written);
   unchanged.push(...hooks.unchanged);
   const platformLines = recordGitPlatform(root, { dryRun: args.dryRun, spawn });
-  out(renderSummary({ root, dryRun: args.dryRun, force: args.force, det, auth, plan, written, unchanged, platformLines }));
+  const techSeed = isTechSeed(isFile(path.join(root, 'docs', 'TECHNOLOGY.md')) ? readLatin1(path.join(root, 'docs', 'TECHNOLOGY.md')) : null);
+  out(renderSummary({ root, dryRun: args.dryRun, force: args.force, det, auth, plan, written, unchanged, platformLines, techSeed }));
   return hooks.failed ? EXIT_HOOKS_REFUSED : 0;
 }
 

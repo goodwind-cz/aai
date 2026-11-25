@@ -759,7 +759,7 @@ const COMMAND_CASES = [
   ['lint script typecheck', P({ scripts: { typecheck: 'x' } }), 'lint', 'npm run typecheck'],
   ['lint script check', P({ scripts: { check: 'x' } }), 'lint', 'npm run check'],
   ['lint eslint flat config', { 'eslint.config.mjs': '' }, 'lint', 'npx eslint .'],
-  ['lint eslintrc', { '.eslintrc.json': '' }, 'lint', 'npx eslint .'],
+  ['lint eslintrc', { '.eslintrc.json': '' }, 'lint', 'npx eslint@8 .'],
   ['lint eslint dep', P({ devDependencies: { eslint: '9' } }), 'lint', 'npx eslint .'],
   ['lint biome config', { 'biome.jsonc': '' }, 'lint', 'npx biome check .'],
   ['lint biome dep', P({ devDependencies: { '@biomejs/biome': '1' } }), 'lint', 'npx biome check .'],
@@ -1402,7 +1402,27 @@ function maskSnapshot(snap, masked) {
 
 const maskStdout = (text, masked) => (masked ? text.replace(/\nGit platform:\n[\s\S]*?\n\n(?=Generated\/updated files:)/, '\n') : text);
 
-function runCorpus(cases, { masked }) {
+// driftPairs(k): the reviewed [from, to] rewrites of one corpus case (D-REF: a later intended change is covered by a row).
+const driftPairs = (k) => k.reviewedDrift?.pairs ?? [];
+
+// applyDrift(side, pairs, id, problems): rewrites the REFERENCE side only (stdout and the data of every snapshot file); a pair
+// that matches nothing is a problem, so a reviewed row cannot go stale silently.
+function applyDrift(side, pairs, id, problems) {
+  for (const [from, to] of pairs) {
+    let hits = 0;
+    for (const r of side.results) {
+      if (r.stdout.includes(from)) { hits += 1; r.stdout = r.stdout.split(from).join(to); }
+    }
+    for (const [p, e] of side.snap) {
+      if (e.kind !== 'file') continue;
+      const text = e.data.toString('utf8');
+      if (text.includes(from)) { hits += 1; side.snap.set(p, { ...e, data: Buffer.from(text.split(from).join(to), 'utf8') }); }
+    }
+    if (hits === 0) problems.push(`${id}: the reviewed drift pair matches nothing on the reference side: ${JSON.stringify(from)}`);
+  }
+}
+
+function runCorpus(cases, { masked, drift = driftPairs } = {}) {
   const base = scratch('corpus-');
   const tree = path.join(base, 'tree');
   materializeBootstrapReference(ROOT, tree);
@@ -1464,6 +1484,7 @@ function runCorpus(cases, { masked }) {
       assert.deepEqual(readdirSync(caseDir).sort(), two);
       continue;
     }
+    applyDrift(sides.sh, drift(k), k.id, problems);
     for (let i = 0; i < k.steps.length; i += 1) {
       const a = sides.sh.results[i];
       const b = sides.node.results[i];
@@ -1775,5 +1796,178 @@ describe('TEST-3956 parity harness bootstrap pieces', () => {
     assert.deepEqual(PARITY.twinsFor([plain, PARITY.TWINS.node], sync).map((t) => t.name), ['plain', 'node']);
     const hooksOnly = PARITY.SCENARIOS.find((x) => x.op === 'hooks');
     assert.deepEqual(PARITY.twinsFor([plain, PARITY.TWINS.node], hooksOnly).map((t) => t.name), ['plain', 'node']);
+  });
+});
+
+// --- onboarding-tech-contract-and-lint-gaps (docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md) ---
+
+const TECH_TEMPLATE_PATH = path.join(ROOT, '.aai', 'templates', 'TECHNOLOGY_TEMPLATE.md');
+const TECH_TEMPLATE = readFileSync(TECH_TEMPLATE_PATH, 'utf8');
+const TECH_HINT = 'docs/TECHNOLOGY.md is still the template seed (Status: template-seed); run TECH_EXTRACT (.aai/TECH_EXTRACT.prompt.md) to fill the technology contract';
+const TECH_BLOCK = `\nTechnology contract:\n- ${TECH_HINT}\n`;
+const TECH_REL = 'docs/TECHNOLOGY.md';
+
+// --- TEST-4125 ---------------------------------------------------------------------------------
+
+describe('TEST-4125 technology contract pointer', () => {
+  const summaryOf = async (root, argv) => {
+    const { run } = await modP();
+    const { c, io } = hooksIo(root);
+    assert.equal(run(argv, io), 0, c.err);
+    return c.out;
+  };
+  const generated = TECH_TEMPLATE.replace('Status: template-seed', 'Status: generated');
+
+  test('TEST-4125 the template seed ends the summary with the pointer block in normal and dry-run mode', async () => {
+    for (const argv of [[], ['--dry-run']]) {
+      const root = fx({ ...K01_PLAN_FILES, [TECH_REL]: TECH_TEMPLATE });
+      const before = sha256File(path.join(root, TECH_REL));
+      const out = await summaryOf(root, argv);
+      assert.ok(out.endsWith(`\n${TECH_BLOCK}`), `${argv.join(' ')}: ${out.slice(-300)}`);
+      assert.equal(out.split('Technology contract:').length, 2, 'the block appears once');
+      assert.equal(sha256File(path.join(root, TECH_REL)), before, 'the contract file is never written');
+    }
+  });
+
+  test('TEST-4125 in dry-run every earlier line equals the dry-run of the same target without the file', async () => {
+    const root = fx({ ...K01_PLAN_FILES, [TECH_REL]: TECH_TEMPLATE });
+    const withSeed = await summaryOf(root, ['--dry-run']);
+    unlinkSync(path.join(root, TECH_REL));
+    const without = await summaryOf(root, ['--dry-run']);
+    assert.ok(!without.includes('Technology contract:'));
+    assert.equal(withSeed, without + TECH_BLOCK);
+  });
+
+  test('TEST-4125 a CRLF template copy counts as the seed', async () => {
+    const root = fx({ ...K01_PLAN_FILES, [TECH_REL]: TECH_TEMPLATE.replace(/\r?\n/g, '\r\n') });
+    assert.ok((await summaryOf(root, ['--dry-run'])).endsWith(TECH_BLOCK));
+  });
+
+  test('TEST-4125 a generated header, a body mention, an empty file and an absent file print no block', async () => {
+    const files = {
+      generated, empty: '', absent: null,
+      bodyOnly: `${generated}\n## Notes\n- Status: template-seed\n`,
+      noStatus: '# Technology Contract\n\n- Owner: someone\n',
+    };
+    for (const [label, text] of Object.entries(files)) {
+      const root = fx(text === null ? K01_PLAN_FILES : { ...K01_PLAN_FILES, [TECH_REL]: text });
+      assert.ok(!(await summaryOf(root, ['--dry-run'])).includes('Technology contract:'), label);
+    }
+  });
+});
+
+// --- TEST-4127 / TEST-4128 -----------------------------------------------------------------------
+
+const ESLINT_PIN_CMD = 'npx eslint@8 .';
+const ESLINT_PIN_BLOCK = [
+  '## ESLint 8 pin',
+  '- Only a legacy `.eslintrc*` config was found and eslint is not installed in this project; ESLint 9 and later ignore eslintrc, so this command pins ESLint 8.',
+  '- To lint with the project\'s own eslint, add it as a devDependency (or migrate to `eslint.config.*`), then rerun .aai/scripts/aai-bootstrap.sh.',
+].join('\n') + '\n';
+const lintPlan = async (root) => {
+  const { planSkills, chooseCommands } = await modP();
+  return { cmd: chooseCommands(root).lint, skill: planSkills(root).skills.find((s) => s.name === 'aai-lint') };
+};
+
+describe('TEST-4127 legacy eslintrc without eslint pins ESLint 8', () => {
+  const LOCKS = [['npm', { 'package-lock.json': '' }], ['pnpm', { 'pnpm-lock.yaml': '' }], ['yarn', { 'yarn.lock': '' }], ['bun', { 'bun.lockb': '' }]];
+
+  test('TEST-4127 eslintrc only gives the pin under every lockfile and without package.json', async () => {
+    for (const [label, lock] of LOCKS) {
+      const { cmd, skill } = await lintPlan(fx({ ...P({ name: 'x', devDependencies: { prettier: '3' } }), ...lock, '.eslintrc.json': '{}' }));
+      assert.equal(cmd, ESLINT_PIN_CMD, label);
+      assert.equal(skill.command, ESLINT_PIN_CMD, label);
+      assert.equal(skill.extra, `${ESLINT_PIN_BLOCK}`, label);
+    }
+    const bare = await lintPlan(fx({ '.eslintrc.js': '' }));
+    assert.equal(bare.cmd, ESLINT_PIN_CMD, 'no package.json');
+    assert.equal(bare.skill.extra, ESLINT_PIN_BLOCK);
+    for (const name of ['.eslintrc', '.eslintrc.cjs', '.eslintrc.yml']) {
+      assert.equal((await lintPlan(fx({ [name]: '' }))).cmd, ESLINT_PIN_CMD, name);
+    }
+  });
+
+  test('TEST-4127 the written aai-lint skill carries the pin block, one blank line before Notes, and the fenced command', async () => {
+    const { renderSkill } = await modP();
+    const { skill } = await lintPlan(fx({ '.eslintrc.json': '{}' }));
+    const text = renderSkill(skill);
+    assert.ok(text.includes(`\`\`\`bash\n${ESLINT_PIN_CMD}\n\`\`\`\n\n${ESLINT_PIN_BLOCK}\n## Notes\n`), text);
+    assert.equal(text.split('## ESLint 8 pin').length, 2);
+  });
+
+  test('TEST-4127 negative controls: no eslintrc, other lint tools and a project eslint give no pin block', async () => {
+    for (const files of [{}, { 'biome.json': '' }, { 'ruff.toml': '' }, P({ devDependencies: { eslint: '9' } })]) {
+      const { cmd, skill } = await lintPlan(fx(files));
+      assert.notEqual(cmd, ESLINT_PIN_CMD, JSON.stringify(files));
+      assert.ok(!skill || skill.extra === '', JSON.stringify(files));
+    }
+  });
+});
+
+describe('TEST-4128 the project own eslint is preferred', () => {
+  test('TEST-4128 eslintrc plus eslint in any dependency block or a local bin gives the package manager form with no pin block', async () => {
+    const yarn = { 'yarn.lock': '' };
+    const cases = [
+      ['dependencies', { ...P({ dependencies: { eslint: '8' } }), ...yarn }],
+      ['devDependencies', { ...P({ devDependencies: { eslint: '8' } }), ...yarn }],
+      ['peerDependencies', { ...P({ peerDependencies: { eslint: '8' } }), ...yarn }],
+      ['optionalDependencies', { ...P({ optionalDependencies: { eslint: '8' } }), ...yarn }],
+      ['.bin/eslint', { ...P({ name: 'x' }), ...yarn, 'node_modules/.bin/eslint': '#!/bin/sh\n' }],
+      ['.bin/eslint.cmd', { ...P({ name: 'x' }), ...yarn, 'node_modules/.bin/eslint.cmd': '@echo off\n' }],
+    ];
+    for (const [label, files] of cases) {
+      const { cmd, skill } = await lintPlan(fx({ ...files, '.eslintrc.json': '{}' }));
+      assert.equal(cmd, 'yarn exec eslint .', label);
+      assert.equal(skill.extra, '', label);
+    }
+    assert.equal((await lintPlan(fx({ '.eslintrc.json': '{}', 'node_modules/.bin/eslint': '' }))).cmd, 'npx eslint .', 'no package.json');
+  });
+
+  test('TEST-4128 a bin directory or a similarly named bin is not a local eslint', async () => {
+    assert.equal((await lintPlan(fx({ '.eslintrc.json': '{}', 'node_modules/.bin/eslint/': '' }))).cmd, ESLINT_PIN_CMD);
+    assert.equal((await lintPlan(fx({ '.eslintrc.json': '{}', 'node_modules/.bin/eslint-plugin-x': '' }))).cmd, ESLINT_PIN_CMD);
+  });
+
+  test('TEST-4128 flat config keeps the 5f02b0e5 command with or without eslint, and beside an eslintrc', async () => {
+    for (const flat of ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs']) {
+      assert.equal((await lintPlan(fx({ [flat]: '' }))).cmd, 'npx eslint .', `${flat} alone`);
+      assert.equal((await lintPlan(fx({ [flat]: '', ...P({ devDependencies: { eslint: '9' } }), 'pnpm-lock.yaml': '' }))).cmd, 'pnpm exec eslint .', `${flat} with eslint`);
+      const beside = await lintPlan(fx({ [flat]: '', '.eslintrc.json': '{}' }));
+      assert.equal(beside.cmd, 'npx eslint .', `${flat} beside eslintrc`);
+      assert.equal(beside.skill.extra, '', `${flat} beside eslintrc`);
+    }
+  });
+
+  test('TEST-4128 a runner or package-script lint target still wins over every eslint rule', async () => {
+    assert.equal((await lintPlan(fx({ '.eslintrc.json': '{}', ...P({ scripts: { lint: 'x' } }) }))).cmd, 'npm run lint');
+    assert.equal((await lintPlan(fx({ '.eslintrc.json': '{}', Makefile: 'lint:\n\tx\n' }))).cmd, 'make lint');
+    assert.equal((await lintPlan(fx({ 'eslint.config.js': '', ...P({ devDependencies: { eslint: '9' }, scripts: { check: 'x' } }) }))).cmd, 'npm run check');
+  });
+});
+
+// --- TEST-4130 -----------------------------------------------------------------------------------
+
+describe('TEST-4130 K05 reviewed drift DR-12', { skip: CORPUS_SKIP }, () => {
+  const k05 = K_CASES.filter((k) => k.id === 'K05');
+
+  test('TEST-4130 K05 alone agrees with the frozen reference after the DR-12 rewrite', () => {
+    assert.equal(k05.length, 1);
+    assert.ok(driftPairs(k05[0]).length >= 2, 'K05 carries the DR-12 pairs');
+    assert.equal(k05[0].reviewedDrift.id, 'DR-12');
+    const { problems } = runCorpus(k05, { masked: false });
+    assert.deepEqual(problems, []);
+  });
+
+  test('TEST-4130 the same run without DR-12 reports problems and every problem mentions eslint', () => {
+    const { problems } = runCorpus(k05, { masked: false, drift: () => [] });
+    assert.ok(problems.length >= 1, 'the reference and the module disagree on K05 without the row');
+    for (const text of problems) assert.match(text, /eslint/i);
+  });
+
+  test('TEST-4130 a DR-12 pair that matches nothing is reported', () => {
+    const stale = ['text the reference never prints', 'x'];
+    const { problems } = runCorpus(k05, { masked: false, drift: (k) => [...driftPairs(k), stale] });
+    assert.equal(problems.length, 1, problems.join('\n'));
+    assert.match(problems[0], /matches nothing on the reference side/);
   });
 });
