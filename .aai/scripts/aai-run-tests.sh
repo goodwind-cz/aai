@@ -203,10 +203,12 @@ fi
 
 # --- CAPTURE POINT 1 — deterministic friction capture (CHANGE deterministic-
 # friction-capture) ----------------------------------------------------------
-# When the wrapped command fails, append ONE raw schema-v2 observation to the
+# When the wrapped command is killed by the watchdog (a stall; an ordinary
+# non-zero exit is the test's own verdict, not friction), append ONE raw schema-v2 observation to the
 # offline spool via the existing aai-friction.mjs `record` CLI, so the friction
 # loop gathers deterministic evidence no prose hook depends on. RAW only — no
-# ownership judgment here; confidence is `low` and triage stays review-mode.
+# ownership judgment here; the caller passes confidence and impact (a stall is
+# medium/low, signal 3) and triage stays review-mode.
 #
 # NEVER-MASK-THE-CALLER: this helper is best-effort and ALWAYS returns 0; every
 # failure (absent CLI/node, unwritable spool, rejected input) is swallowed so
@@ -222,7 +224,8 @@ fi
 #     write a spool. The spool dir is AAI_FRICTION_SPOOL_DIR when set, else this
 #     script's own repo-root docs/ai/friction.
 aai_capture_friction() {
-  # $1 = exit code (integer), $2 = failure_class (taxonomy enum)
+  # $1 = exit code (integer), $2 = failure_class (taxonomy enum),
+  # $3 = confidence, $4 = impact (schema v2 signal fields)
   [ "${AAI_FRICTION_CAPTURE:-1}" != "0" ] || return 0
   command -v node >/dev/null 2>&1 || return 0
   fc_scriptdir="$AAI_SELF_DIR"
@@ -239,7 +242,7 @@ aai_capture_friction() {
   # JSON-hostile characters (double-quote, backslash, control chars) and cap the
   # length, so a command with odd characters can never produce invalid JSON.
   fc_cmd=$(printf '%s' "$AAI_CMD_DESC" | tr -d '"\\' | tr -d '[:cntrl:]' | cut -c1-180)
-  fc_json=$(printf '{"schema_version":2,"skill_id":"aai-run-tests","skill_phase":"test-execution","failure_class":"%s","expected_behavior":"the wrapped command exits 0 under aai-run-tests","observed_behavior":"wrapped command exited %s: %s","confidence":"low"}' "$2" "$1" "$fc_cmd")
+  fc_json=$(printf '{"schema_version":2,"skill_id":"aai-run-tests","skill_phase":"test-execution","failure_class":"%s","expected_behavior":"the wrapped command exits 0 under aai-run-tests","observed_behavior":"wrapped command exited %s: %s","confidence":"%s","impact":"%s"}' "$2" "$1" "$fc_cmd" "$3" "$4")
   printf '%s' "$fc_json" | AAI_FRICTION_SPOOL_DIR="$fc_dir" node "$fc_cli" record --input - >/dev/null 2>&1 || true
   return 0
 }
@@ -1151,10 +1154,7 @@ fi
 
 if [ "$TIMED_OUT" -eq 1 ]; then
   echo "aai-run-tests: TIMED OUT after ${TIMEOUT}s with no progress -- raise the ceiling with AAI_TEST_TIMEOUT=<seconds>" >&2
-  aai_capture_friction 124 stalled_progress
+  aai_capture_friction 124 stalled_progress medium low
   exit 124
-fi
-if [ "$AAI_CMD_REAL_STATUS" -ne 0 ]; then
-  aai_capture_friction "$AAI_CMD_REAL_STATUS" deterministic_script_failure
 fi
 exit "$STATUS"

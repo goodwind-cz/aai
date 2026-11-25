@@ -10104,6 +10104,48 @@ test_4074_changelog_and_product_doc() {  # TEST-4074 / Spec-AC-05
   log_pass "CHANGELOG heading and product doc are in place (TEST-4074)"
 }
 
+# test-infra-p2-fixes D6 — a scanned document that vanishes between the scan
+# and its read degrades to a NOTE; the verdict is the one the run gives when
+# the file was never there.
+test_4136_vanished_doc_degrades() {  # TEST-4136 / Spec-AC-07
+  log_info "Test: a doc that vanishes mid-scan is skipped with a NOTE, same exit code, no ENOENT (TEST-4136)..."
+  igs_own_root
+  local d base_rc=0 van_rc=0 pre
+  d="$(setup_iso_repo v4136)"
+  mkdir -p "$d/docs/issues"
+  printf 'legacy_until_date: 2020-01-01\nstale_after_days: 90\nscan_exclude: []\nbacklog_globs: []\nclose_gate: report-only\ndoc_number_guard: report-only\nprotected_paths_l3: []\n' > "$d/docs/ai/docs-audit.yaml"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  printf -- '---\nid: issue-v4136-keep\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n# Keep\n' > "$d/docs/issues/ISSUE-DRAFT-keep.md"
+  (cd "$d" && git add -A && git commit -qm base) || log_fail "TEST-4136: fixture commit failed"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event) > "$d/base.out" 2> "$d/base.err" || base_rc=$?
+  # plant the draft that will vanish; a preload unlinks it on its first read
+  printf -- '---\nid: issue-v4136-gone\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n# Gone\n' > "$d/docs/issues/ISSUE-DRAFT-gone.md"
+  pre="$d/vanish-preload.mjs"
+  cat > "$pre" <<'JS'
+import { createRequire } from 'node:module';
+const fs = createRequire(import.meta.url)('node:fs');
+const real = fs.readFileSync;
+let armed = true;
+fs.readFileSync = function (p, ...rest) {
+  if (armed && typeof p === 'string' && p.endsWith('ISSUE-DRAFT-gone.md')) {
+    armed = false;
+    fs.unlinkSync(p);
+  }
+  return real.call(this, p, ...rest);
+};
+JS
+  (cd "$d" && node --import "$pre" .aai/scripts/docs-audit.mjs --check --no-event) > "$d/van.out" 2> "$d/van.err" || van_rc=$?
+  [[ -f "$d/docs/issues/ISSUE-DRAFT-gone.md" ]] && log_fail "TEST-4136: setup invalid - the preload did not remove the planted draft"
+  [[ "$van_rc" == "$base_rc" ]] || log_fail "TEST-4136: exit code must equal the run without the file (base $base_rc, vanished $van_rc): $(head -c 400 "$d/van.err")"
+  grep -qF "NOTE: vanished during the scan" "$d/van.out" || log_fail "TEST-4136: stdout must carry the NOTE line: $(head -c 400 "$d/van.out") / $(head -c 400 "$d/van.err")"
+  grep -qF "ISSUE-DRAFT-gone.md" "$d/van.out" || log_fail "TEST-4136: the NOTE must name the vanished file"
+  if grep -qF "ENOENT" "$d/van.out" "$d/van.err"; then log_fail "TEST-4136: no ENOENT error may be printed: $(head -c 400 "$d/van.err")"; fi
+  if grep -qF "vanished" "$d/base.out"; then log_fail "TEST-4136: the baseline run must carry no NOTE"; fi
+  rm -rf "$d"
+  igs_release_root
+  log_pass "A vanished doc is skipped with a NOTE; verdict unchanged (TEST-4136)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -10318,6 +10360,7 @@ main() {
   test_4072_bytes_and_strict_unchanged  # index-schema-warning-prominence
   test_4073_hook_shows_dropped_doc  # index-schema-warning-prominence
   test_4074_changelog_and_product_doc  # index-schema-warning-prominence
+  test_4136_vanished_doc_degrades  # test-infra-p2-fixes
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
