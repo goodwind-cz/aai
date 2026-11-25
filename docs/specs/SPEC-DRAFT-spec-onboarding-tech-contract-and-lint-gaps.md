@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e3de6fc05e856ff80a99aa87a43f230d057f0a91321f89da174c62bbb2aadb2d
+frozen_sha256: fe2d395bf480e4a97fb422922a67f43cb4d1165f2ff0e5b9c629b21bc5e36a09
 ceremony_level: 2
 links:
   requirement: onboarding-tech-contract-and-lint-gaps
@@ -358,12 +358,12 @@ npx); flat config beside eslintrc.
 |---------|---------|------|----------------------|-------------|----------|--------|
 | TEST-4123 | Spec-AC-01 | integration | tests/skills/test-aai-doctor.sh | test_4123_template_seed_warns: clean fixture plus docs/TECHNOLOGY.md copied from the real template; LF and CRLF variants each give CAT-05 WARN with the D1 hint, the other categories keep their clean status, exit 0, --strict exit 1, --json CAT-05 WARN; the hint path exists in the repo | `sed:s/const TECH_SEED_STATUS = 'template-seed';/const TECH_SEED_STATUS = 'template-sead';/` on .aai/scripts/aai-doctor.mjs | pending |
 | TEST-4124 | Spec-AC-02 | integration | tests/skills/test-aai-doctor.sh | test_4124_non_seed_unchanged: generated header (literal read from TECH_EXTRACT step 7), empty file and body-only mention each give CAT-05 PASS with the reason byte-equal to the unchanged clean fixture's; 18 categories on the clean fixture, 20 on the repo | `sed:s/function isTechSeed\(text\) \{/function isTechSeed(text) { if (text !== null) return true;/` on .aai/scripts/aai-doctor.mjs | pending |
-| TEST-4125 | Spec-AC-04 | integration | tests/skills/lib/aai-bootstrap.test.mjs | TEST-4125 describe, run by test_4125_bootstrap_tech_pointer in tests/skills/test-aai-bootstrap-node.sh: the template seed gives the trailing Technology contract block in normal and dry-run mode, the file sha256 is unchanged, in dry-run every earlier summary line equals the dry-run without the file; generated and absent give no block | `sed:s/const TECH_SEED_STATUS = 'template-seed';/const TECH_SEED_STATUS = 'template-sead';/` on .aai/scripts/aai-bootstrap.mjs | pending |
+| TEST-4125 | Spec-AC-04 | integration | tests/skills/test-aai-bootstrap-node.sh | TEST-4125 describe, run by test_4125_bootstrap_tech_pointer in tests/skills/test-aai-bootstrap-node.sh: the template seed gives the trailing Technology contract block in normal and dry-run mode, the file sha256 is unchanged, in dry-run every earlier summary line equals the dry-run without the file; generated and absent give no block | `sed:s/const TECH_SEED_STATUS = 'template-seed';/const TECH_SEED_STATUS = 'template-sead';/` on .aai/scripts/aai-bootstrap.mjs | pending |
 | TEST-4126 | Spec-AC-03 | integration | tests/skills/test-aai-doctor.sh | test_4126_doctor_bootstrap_agree: six fixtures (template LF, template CRLF, generated, body-only, empty, absent); the doctor flag and the bootstrap block agree on every fixture, and the flagged set is exactly the two template fixtures (a count other than 2 fails) | `sed:s/function isTechSeed\(text\) \{/function isTechSeed(text) { if (text !== null) return true;/` on .aai/scripts/aai-bootstrap.mjs | pending |
-| TEST-4127 | Spec-AC-05 | unit | tests/skills/lib/aai-bootstrap.test.mjs | TEST-4127 describe, run by test_4127_eslintrc_pin: eslintrc only under npm, pnpm, yarn and bun lockfiles and without package.json gives npx eslint@8 .; the aai-lint plan entry carries the exact D4 pin block | `sed:s/const ESLINT8_PIN = 'npx eslint@8 \.';/const ESLINT8_PIN = 'npx eslint .';/` on .aai/scripts/aai-bootstrap.mjs | pending |
-| TEST-4128 | Spec-AC-06, Spec-AC-07 | unit | tests/skills/lib/aai-bootstrap.test.mjs | TEST-4128 describe, run by test_4128_local_eslint_preferred: eslintrc plus eslint in each dependency block, plus .bin/eslint, plus .bin/eslint.cmd gives the pm exec form with no pin block; flat config with and without eslint and flat beside eslintrc give the 5f02b0e5 command; a lint script wins | `sed:s/function hasLocalEslint\(pc\) \{/function hasLocalEslint(pc) { return false;/` on .aai/scripts/aai-bootstrap.mjs | pending |
+| TEST-4127 | Spec-AC-05 | unit | tests/skills/test-aai-bootstrap-node.sh | TEST-4127 describe, run by test_4127_eslintrc_pin: eslintrc only under npm, pnpm, yarn and bun lockfiles and without package.json gives npx eslint@8 .; the aai-lint plan entry carries the exact D4 pin block | `sed:s/const ESLINT8_PIN = 'npx eslint@8 \.';/const ESLINT8_PIN = 'npx eslint .';/` on .aai/scripts/aai-bootstrap.mjs | pending |
+| TEST-4128 | Spec-AC-06, Spec-AC-07 | unit | tests/skills/test-aai-bootstrap-node.sh | TEST-4128 describe, run by test_4128_local_eslint_preferred: eslintrc plus eslint in each dependency block, plus .bin/eslint, plus .bin/eslint.cmd gives the pm exec form with no pin block; flat config with and without eslint and flat beside eslintrc give the 5f02b0e5 command; a lint script wins | `sed:s/function hasLocalEslint\(pc\) \{/function hasLocalEslint(pc) { return false;/` on .aai/scripts/aai-bootstrap.mjs | pending |
 | TEST-4129 | Spec-AC-11 | integration | tests/skills/test-aai-bootstrap-node.sh | test_4129_lint_skill_runs_as_written: bootstrap the eslintrc-only and flat-with-eslint fixtures, extract the fenced command from each written aai-lint SKILL.md, run it with sh -c and a logging stub npx first on PATH; the logs are exactly eslint@8 . and eslint . (empty log fails); the eslintrc skill written via aai-bootstrap.sh equals the module's byte for byte | `sed:s/const ESLINT8_PIN = 'npx eslint@8 \.';/const ESLINT8_PIN = 'npx eslint@8 src';/` on .aai/scripts/aai-bootstrap.mjs | pending |
-| TEST-4130 | Spec-AC-08 | integration | tests/skills/lib/aai-bootstrap.test.mjs | TEST-4130 describe, run by test_4130_k05_reviewed_drift: K05 alone through runCorpus gives zero problems with DR-12; without DR-12 at least one problem and every problem mentions eslint; an added unmatched pair is reported | `sed:s/function hasLocalEslint\(pc\) \{/function hasLocalEslint(pc) { return true;/` on .aai/scripts/aai-bootstrap.mjs | pending |
+| TEST-4130 | Spec-AC-08 | integration | tests/skills/test-aai-bootstrap-node.sh | TEST-4130 describe, run by test_4130_k05_reviewed_drift: K05 alone through runCorpus gives zero problems with DR-12; without DR-12 at least one problem and every problem mentions eslint; an added unmatched pair is reported | `sed:s/function hasLocalEslint\(pc\) \{/function hasLocalEslint(pc) { return true;/` on .aai/scripts/aai-bootstrap.mjs | pending |
 | TEST-4131 | Spec-AC-09 | inspection | tests/skills/test-aai-doctor.sh | test_4131_tech_extract_fresh_project_text: TECH_EXTRACT holds the repair command, the skip-with-note instruction, the never-by-hand sentence and the set-focus command, and none of the three removed bullet lines | `sed:s/--repair docs/--check docs/` on .aai/TECH_EXTRACT.prompt.md | pending |
 | TEST-4132 | Spec-AC-10 | integration | tests/skills/test-aai-doctor.sh | test_4132_tech_extract_commands_run: extract the backticked node .aai/scripts/ commands from TECH_EXTRACT (exactly two), run them under env -u AAI_ROLE in a temp project with a copied .aai/ and no STATE; both exit 0, STATE has the technology_extraction focus on docs/TECHNOLOGY.md, check-state exits 0 | `sed:s/--type technology_extraction/--type technology_extract/` on .aai/TECH_EXTRACT.prompt.md | pending |
 | TEST-4133 | Spec-AC-11 | inspection | tests/skills/test-aai-bootstrap-node.sh | test_4133_launchers_thin_and_docs: neither aai-bootstrap.sh nor aai-bootstrap.ps1 holds eslint; SKILL_BOOTSTRAP holds eslint@8 exactly once and a Report Results bullet naming Technology contract and TECH_EXTRACT | `sed:s/eslint@8/eslint@9/` on .aai/SKILL_BOOTSTRAP.prompt.md | pending |
@@ -442,3 +442,16 @@ doctor items listed there (`fu-doctor-declined-vocab-undeclared`,
 - The SPEC-0306 amendment relies on the owner's triage approval of the
   intake as sign-off. Canon assigns frozen-spec changes to the owner, who may
   reverse it.
+
+## Amendment (post-freeze, File path cells)
+
+- What: the File path cell of TEST-4125, TEST-4127, TEST-4128 and TEST-4130
+  changes from `tests/skills/lib/aai-bootstrap.test.mjs` to
+  `tests/skills/test-aai-bootstrap-node.sh`, the bash suite whose `test_*`
+  function runs each node:test describe.
+- Why: `mutation-run.mjs` replays only a suite that defines `test_*`
+  functions, and `mutation-gate.mjs` requires the record's suite to equal the
+  row's File path cell; the node:test file defines none. The test code, the
+  Spec-AC mapping, the mutation cells and the descriptions are unchanged.
+- Sign-off: `--signoff none` (autopilot default); the owner's merge direction
+  signs it.
