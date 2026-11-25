@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-24T23:05:52.330Z",
+  "generatedAt": "2026-11-25T01:18:15.626Z",
   "project": "aai",
   "counts": {
-    "delivered": 382,
+    "delivered": 383,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 212993580
+    "tokens_total": 214446016
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -208,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "node-first-cleanup",
+      "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0268-node-first-cleanup.md",
+      "closed_on": "2026-11-25",
+      "agent_minutes": 636,
+      "token_total": 1452436,
+      "spec": "docs/specs/SPEC-0313-spec-node-first-cleanup.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-node-first-cleanup-20261125T011421Z.md"
+    },
     {
       "ref": "node-first-phase5-closeout",
       "title": "Close RFC-0017 phase 5: every shipped script is a launcher or kept native on purpose",
@@ -5201,6 +5214,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "node-first-cleanup",
+          "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0268-node-first-cleanup.md",
+          "closed_on": "2026-11-25",
+          "agent_minutes": 636,
+          "token_total": 1452436,
+          "spec": "docs/specs/SPEC-0313-spec-node-first-cleanup.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-node-first-cleanup-20261125T011421Z.md"
+        },
         {
           "ref": "node-first-phase5-closeout",
           "title": "Close RFC-0017 phase 5: every shipped script is a launcher or kept native on purpose",

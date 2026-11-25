@@ -183,7 +183,7 @@ pairs:
   - capability: node-first-leftovers
     status: done
   - capability: node-first-cleanup
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

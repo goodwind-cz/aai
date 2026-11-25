@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 1403fba0..42561fe6 (chore/node-first-cleanup): a10e9f34, 303b8ab0, merge 603b6fa7 (origin/main 970c7a1f, #584), 42561fe6"
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-cleanup.md
+  spec: docs/specs/SPEC-0313-spec-node-first-cleanup.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -39,7 +39,7 @@ security_relevant: true
   run-ledger lines that the reviewer's suite runs appended to
   `docs/ai/tests/test-runs.jsonl`. They are append-only: the HEAD blob is still
   a byte-exact prefix. They were not restored (HAZ-LEDGER).
-- Spec: `docs/specs/SPEC-DRAFT-spec-node-first-cleanup.md`, ceremony level 3.
+- Spec: `docs/specs/SPEC-0313-spec-node-first-cleanup.md`, ceremony level 3.
   It was restamped twice in the delta, in a10e9f34 (D-PREFLIGHT env text) and
   303b8ab0 (D-WIRE and the TEST-4048 row). Each restamp has a matching
   `spec_amendment` record:

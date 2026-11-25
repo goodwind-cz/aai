@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff origin/main...HEAD (chore/node-first-cleanup, HEAD 1403fba0, base 492f8b26)"
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-cleanup.md
+  spec: docs/specs/SPEC-0313-spec-node-first-cleanup.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -48,7 +48,7 @@ security_relevant: true
   at 1403fba0. The worktree was clean apart from the run ledger line the
   canonical runner appends (`docs/ai/tests/test-runs.jsonl`). That line came
   from the reviewer's two suite runs. It was not restored (HAZ-LEDGER).
-- Spec: `docs/specs/SPEC-DRAFT-spec-node-first-cleanup.md`, frozen, ceremony
+- Spec: `docs/specs/SPEC-0313-spec-node-first-cleanup.md`, frozen, ceremony
   level 3. The amendments were read with `node .aai/scripts/spec-amend.mjs list --strict --status all`
   (rc 0).
 - Dispatch coaching check: the dispatch listed areas to watch and folded

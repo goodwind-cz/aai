@@ -1,10 +1,10 @@
 ---
 id: spec-node-first-cleanup
 type: spec
-number: null
-status: implementing
+number: 313
+status: done
 mutation_gate: v1
-frozen_sha256: 64a3e7eb5d78878385b82533e15909461132adf4c0dff0c1640c5829cc5b67b7
+frozen_sha256: 551c22f031d6aba7c2f9fc8078971c9c7448397e7652bccd6c0a1acee5be8623
 ceremony_level: 3
 links:
   requirement: node-first-cleanup
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-node-first-cleanup.md (owner brief
+- Requirement: docs/issues/CHANGE-0268-node-first-cleanup.md (owner brief
   2026-11-24).
 - Umbrella RFC: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md.
 - Prior scopes whose tests this scope edits (closed specs, their documents
@@ -68,7 +68,7 @@ SPEC-FROZEN: true
   .aai/templates/git-hooks/pre-commit-index.sh;
   tests/skills/test-aai-git-hook-templates.sh;
   .aai/scripts/merge-cleanup.mjs; tests/skills/test-aai-merge-cleanup.sh;
-  CHANGELOG.md; docs/issues/CHANGE-DRAFT-node-first-cleanup.md; this spec.
+  CHANGELOG.md; docs/issues/CHANGE-0268-node-first-cleanup.md; this spec.
 
 ## Decisions
 
