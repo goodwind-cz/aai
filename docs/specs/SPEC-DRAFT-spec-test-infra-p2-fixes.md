@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: c85532caffa2435515b89b0e85e71d81b87c257f6e7b0d2f8c16ad400f1f80fb
+frozen_sha256: cfcef13833ee7486c9228fa3c34cbb32cdbc8463157f2718a81ac786db50e34e
 ceremony_level: 2
 links:
   requirement: test-infra-p2-fixes
@@ -286,13 +286,17 @@ given files, with three ERE variables, each assigned on one line:
   after `$PROJECT_ROOT/` or `${PROJECT_ROOT}/`, or bare (not after a `/`).
 - `OW_UNRELEASED_RE` (shape `unreleased-only`): an escaped `\[unreleased\]`
   pattern on a line naming the real `CHANGELOG.md` (after `$PROJECT_ROOT/`,
-  or bare after whitespace) that lacks the dual form `unreleased|`.
+  or bare after whitespace) that lacks the dual form: `unreleased|`, or its
+  regex-escaped spellings `unreleased\]|` and `unreleased\\]|` (amended
+  after validation round 3, B-1: a correct escaped dual form merged from
+  main was misread as unreleased-only).
 
 Comment lines are skipped. A line is exempt when it, or the line above,
 carries `one-world-ok: <reason>`. Each hit prints
 `ONE-WORLD <shape> <file>:<line>`. `test_4139_one_world_scan_bites` (the
-fixture half) plants one file per shape plus four controls: the dual form, a
-fixture-path ledger, a fixture-repo `origin/main`, and a marked line.
+fixture half) plants one file per shape plus six controls: the dual form
+(plain and regex-escaped), a fixture-path ledger, a fixture-repo `origin/main`,
+a marked line and a comment line (amended after validation round 3, B-1).
 `test_4140_one_world_live_corpus_clean` is registered in
 `HYGIENE_CORPUS_CASES`, so it runs in the corpus half. It scans
 `tests/skills/*.sh`, `tests/*.sh`, `tests/skills/lib/*.sh` and
@@ -417,7 +421,7 @@ the CHANGELOG, TECHNOLOGY.md and the D-AMEND sections, as article 5 requires.
 | Spec-AC-07 | WHEN a scanned document disappears between the docs-audit scan and its read THEN docs-audit.mjs --check --no-event SHALL exit with the same code as the same run without that file, SHALL print NOTE vanished during the scan naming the file, and SHALL print no ENOENT error. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4136.log | — | D6, item 1 |
 | Spec-AC-08 | WHEN test-aai-docs-audit.sh is run with one argument THEN test_drift_verdicts and test_reviewby_literals SHALL each exit 0 with their pass text, the drift run SHALL not print the pass text of test_report_only_without_config or the full-suite banner, and an undefined function name SHALL exit 2 with unknown test function. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4137.log | — | D7, item 3 |
 | Spec-AC-09 | The fail-wrapper guard SHALL report zero offending suites over tests/skills and tests, SHALL name a planted wrapper without FAIL, and SHALL not name a conforming one; each of the four fixed wrappers called with TEST-9999 probe SHALL print a line matching the mutation-run attribution form. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4138.log | — | D8, item 2 |
-| Spec-AC-10 | one_world_scan SHALL print one ONE-WORLD line with the right shape for each planted moving-ref, last-index and unreleased-only file and none for the four controls; over the live test corpus it SHALL print zero lines. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4140.log | — | D9, item 7 |
+| Spec-AC-10 | one_world_scan SHALL print one ONE-WORLD line with the right shape for each planted moving-ref, last-index and unreleased-only file and none for the six controls; over the live test corpus it SHALL print zero lines. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4140.log | — | D9, item 7 |
 | Spec-AC-11 | CHANGELOG.md SHALL hold the D-WIRE heading in its unreleased or rolled form, docs/TECHNOLOGY.md SHALL name the XDG_CACHE_HOME override, CHANGE-0099, SPEC-0185 and SPEC-0231 SHALL each hold the D-AMEND heading, spec-amend.mjs list --strict SHALL exit 0, and follow-ups.mjs list --status open --json SHALL list none of the nine ids, each closed with resolved_by test-infra-p2-fixes. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4141.log | — | D-AMEND, D-WIRE, D10, D11 |
 
 ## Implementation plan

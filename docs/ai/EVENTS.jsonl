@@ -4651,3 +4651,6 @@
 {"v":1,"ts":"2026-11-26T13:09:34Z","actor":"ales_holubec.net","event":"full_sweep","ref":"test-infra-p2-fixes","payload":{"head":"5b0a4ed1e8eebd729dd466e298d7e5dc62f03339","rc":1,"run_id":"test-20261126-124016"}}
 {"v":1,"ts":"2026-11-26T13:09:51Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"test-infra-p2-fixes","payload":{"head":"5b0a4ed1e8eebd729dd466e298d7e5dc62f03339","clean":false,"flags":1}}
 {"v":1,"ts":"2026-11-26T13:12:22Z","actor":"ales_holubec.net","event":"round_extension","ref":"test-infra-p2-fixes","payload":{"authority":"standing-a","reason":"one-world scan dual-form false positive on merged main: hazard introduced by this ride's own scan"}}
+{"v":1,"ts":"2026-11-26T13:24:41Z","actor":"ales_holubec.net","event":"round_reset","ref":"test-infra-p2-fixes","payload":{"block":"last_validation","from":"fail","forced":true}}
+{"v":1,"ts":"2026-11-26T14:23:49Z","actor":"ales_holubec.net","event":"full_sweep","ref":"test-infra-p2-fixes","payload":{"head":"ff243a5b494df7ab46018b19635c3e08161499ce","rc":0,"run_id":"test-20261126-140124"}}
+{"v":1,"ts":"2026-11-26T14:23:50Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"test-infra-p2-fixes","payload":{"head":"ff243a5b494df7ab46018b19635c3e08161499ce","clean":true,"flags":0}}
