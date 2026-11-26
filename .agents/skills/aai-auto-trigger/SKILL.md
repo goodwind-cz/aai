@@ -1,6 +1,6 @@
 ---
 name: aai-auto-trigger
-description: DEPRECATED — the .claude/triggers.json mechanism this skill configured has no runtime consumer, so triggers wired there never fire (SPEC-0013 D8). Kept for muscle memory; invoking it explains the deprecation and the real alternative (wrapper-description trigger phrases).
+description: DEPRECATED — the .claude/triggers.json mechanism this skill configured has no runtime consumer, so triggers wired there never fire (SPEC-0013 D8). Kept for muscle memory; invoking it explains the deprecation and the real alternative (wrapper-description trigger phrases). Run by reading .aai/SKILL_AUTO_TRIGGER.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_AUTO_TRIGGER.prompt.md` from the current project root and follow its instructions exactly — it is a deprecation notice: explain it to the user and do NOT create or edit `.claude/triggers.json`. Invoke this as `/aai-auto-trigger`.

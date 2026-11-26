@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-26T11:18:15.106Z",
+  "generatedAt": "2026-11-26T12:07:47.920Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 276,
-    "delivered": 712,
+    "rides": 277,
+    "delivered": 714,
     "active_weeks": 22,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (712 closes vs 276 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 712,
-    "delivered_per_week_avg": 32.4,
+    "note": "\"delivered\" counts every work_item_closed event (714 closes vs 277 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 714,
+    "delivered_per_week_avg": 32.5,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -36,7 +36,7 @@
       "2026-W45": 28,
       "2026-W46": 26,
       "2026-W47": 32,
-      "2026-W48": 14
+      "2026-W48": 16
     },
     "delivered_groups": [
       {
@@ -683,7 +683,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 104,
+        "count": 106,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -788,7 +788,9 @@
           "onboarding-tech-contract-and-lint-gaps",
           "spec-onboarding-tech-contract-and-lint-gaps",
           "secrets-gate-false-positives",
-          "spec-secrets-gate-false-positives"
+          "spec-secrets-gate-false-positives",
+          "skill-description-canonical-prompt-pointer",
+          "spec-skill-description-canonical-prompt-pointer"
         ]
       }
     ],
@@ -3641,25 +3643,33 @@
         {
           "ref": "spec-secrets-gate-false-positives",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "skill-description-canonical-prompt-pointer",
+          "lead_time_seconds": 36469
+        },
+        {
+          "ref": "spec-skill-description-canonical-prompt-pointer",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 8439,
-      "mean_seconds": 73688.7,
-      "measured": 269,
-      "unmeasurable": 443
+      "median_seconds": 8475,
+      "mean_seconds": 73550.8,
+      "measured": 270,
+      "unmeasurable": 444
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 4740,
-      "mean": 11054.5,
-      "measured": 274
+      "median": 4777,
+      "mean": 11138.7,
+      "measured": 275
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 579121,
-        "tokens": 62918754
+        "duration_seconds": 601004,
+        "tokens": 63138412
       },
       {
         "role": "Implementation",
@@ -3668,23 +3678,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 313303,
-        "tokens": 28675605
+        "duration_seconds": 313889,
+        "tokens": 28950390
       },
       {
         "role": "Remediation",
-        "duration_seconds": 560988,
-        "tokens": 22223474
+        "duration_seconds": 562996,
+        "tokens": 22375197
       },
       {
         "role": "Validation",
-        "duration_seconds": 1067972,
-        "tokens": 82424696
+        "duration_seconds": 1076767,
+        "tokens": 83001451
       },
       {
         "role": "Planning",
-        "duration_seconds": 230834,
-        "tokens": 18166919
+        "duration_seconds": 231781,
+        "tokens": 18467076
       },
       {
         "role": "Other",
@@ -5072,6 +5082,11 @@
         "ref": "onboarding-tech-contract-and-lint-gaps",
         "busy_seconds": 19079,
         "remediation_runs": 3
+      },
+      {
+        "ref": "skill-description-canonical-prompt-pointer",
+        "busy_seconds": 34219,
+        "remediation_runs": 2
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -5081,15 +5096,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 631296,
-      "mean": 1469647.1,
-      "measured": 151
+      "median": 639330,
+      "mean": 1469998.6,
+      "measured": 152
     },
-    "tokens_total": 221916714,
+    "tokens_total": 223439792,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 62918754
+        "tokens": 63138412
       },
       {
         "role": "Implementation",
@@ -5097,19 +5112,19 @@
       },
       {
         "role": "Code Review",
-        "tokens": 28675605
+        "tokens": 28950390
       },
       {
         "role": "Remediation",
-        "tokens": 22223474
+        "tokens": 22375197
       },
       {
         "role": "Validation",
-        "tokens": 82424696
+        "tokens": 83001451
       },
       {
         "role": "Planning",
-        "tokens": 18166919
+        "tokens": 18467076
       },
       {
         "role": "Other",
@@ -5117,8 +5132,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 895,
-      "total_runs": 1994,
+      "runs_with_marker": 904,
+      "total_runs": 2003,
       "pct": 45,
       "by_week": [
         {
@@ -5249,9 +5264,9 @@
         },
         {
           "week": "2026-W48",
-          "runs_with_marker": 45,
-          "total_runs": 51,
-          "pct": 88
+          "runs_with_marker": 54,
+          "total_runs": 60,
+          "pct": 90
         }
       ]
     },
@@ -5259,12 +5274,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 306,
-          "runs_marked": 165,
+          "runs_total": 307,
+          "runs_marked": 166,
           "runs_sentinel": 10,
           "runs_unmarked": 131,
-          "tokens_total": 62918754,
-          "median_tokens_per_run": 208753,
+          "tokens_total": 63138412,
+          "median_tokens_per_run": 209091,
           "share_pct": 28
         },
         {
@@ -5279,42 +5294,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 393,
-          "runs_marked": 192,
+          "runs_total": 395,
+          "runs_marked": 194,
           "runs_sentinel": 25,
           "runs_unmarked": 176,
-          "tokens_total": 28675605,
+          "tokens_total": 28950390,
           "median_tokens_per_run": 132449,
           "share_pct": 13
         },
         {
           "role": "Remediation",
-          "runs_total": 368,
-          "runs_marked": 141,
+          "runs_total": 370,
+          "runs_marked": 143,
           "runs_sentinel": 48,
           "runs_unmarked": 179,
-          "tokens_total": 22223474,
-          "median_tokens_per_run": 147547,
+          "tokens_total": 22375197,
+          "median_tokens_per_run": 146737,
           "share_pct": 10
         },
         {
           "role": "Validation",
-          "runs_total": 569,
-          "runs_marked": 266,
+          "runs_total": 572,
+          "runs_marked": 269,
           "runs_sentinel": 47,
           "runs_unmarked": 256,
-          "tokens_total": 82424696,
-          "median_tokens_per_run": 151297,
+          "tokens_total": 83001451,
+          "median_tokens_per_run": 151860,
           "share_pct": 37
         },
         {
           "role": "Planning",
-          "runs_total": 218,
-          "runs_marked": 101,
+          "runs_total": 219,
+          "runs_marked": 102,
           "runs_sentinel": 15,
           "runs_unmarked": 102,
-          "tokens_total": 18166919,
-          "median_tokens_per_run": 160916,
+          "tokens_total": 18467076,
+          "median_tokens_per_run": 160949,
           "share_pct": 8
         },
         {
@@ -6174,8 +6189,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 11,
-              "median_tokens": 127809
+              "runs_marked": 12,
+              "median_tokens": 139459
             },
             {
               "role": "Implementation",
@@ -6184,23 +6199,23 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 10,
-              "median_tokens": 145552
+              "runs_marked": 12,
+              "median_tokens": 141020
             },
             {
               "role": "Remediation",
-              "runs_marked": 6,
-              "median_tokens": 90194
+              "runs_marked": 8,
+              "median_tokens": 87589
             },
             {
               "role": "Validation",
-              "runs_marked": 16,
-              "median_tokens": 177805
+              "runs_marked": 19,
+              "median_tokens": 176296
             },
             {
               "role": "Planning",
-              "runs_marked": 2,
-              "median_tokens": 282616
+              "runs_marked": 3,
+              "median_tokens": 300157
             },
             {
               "role": "Other",
@@ -6215,14 +6230,14 @@
   "quality": {
     "first_pass_clean": {
       "clean": 123,
-      "flagged": 250,
+      "flagged": 251,
       "rate_pct": 49
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 125,
       "1": 35,
-      "2": 32,
+      "2": 33,
       "3": 28,
       "4": 14,
       "5": 6,
@@ -6236,7 +6251,7 @@
     "avg_validation_fails": 0.5,
     "avg_review_fails": 0.3,
     "verdict_mix": {
-      "PASS": 219,
+      "PASS": 220,
       "null": 57
     },
     "review_events": 27,
@@ -6251,7 +6266,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 97,
+    "field_derived": 98,
     "marker_derived": 36,
     "mixed": 2,
     "no_basis": 141,
@@ -7635,6 +7650,11 @@
         "ref": "onboarding-tech-contract-and-lint-gaps",
         "verdict_source": "field",
         "cost_basis": "mixed"
+      },
+      {
+        "ref": "skill-description-canonical-prompt-pointer",
+        "verdict_source": "field",
+        "cost_basis": "total-blended"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -7810,16 +7830,16 @@
     },
     {
       "week": "2026-W48",
-      "delivered": 14,
-      "median_lead_time_seconds": 26412,
-      "busy_seconds": 128123,
-      "tokens": 7186303,
-      "first_pass_rate": 20
+      "delivered": 16,
+      "median_lead_time_seconds": 31441,
+      "busy_seconds": 162342,
+      "tokens": 8709381,
+      "first_pass_rate": 17
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 363,
+    "open_count": 361,
     "oldest_age_days": 74,
     "items": [
       {
@@ -8602,7 +8622,7 @@
         "id": "fu-lib-graph-narrowing-after-sharding",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P2",
-        "age_days": 53,
+        "age_days": 54,
         "what": "Narrow the shared-lib FULL_RUN rule by the lib reverse-import graph, and shard the selected-mode job too",
         "status": "open"
       },
@@ -8754,7 +8774,7 @@
         "id": "fu-closure-inline-none-then-labels",
         "ref": "nested-suite-reruns-duplicate-sweep-time",
         "severity": "P3",
-        "age_days": 47,
+        "age_days": 48,
         "what": "verify-closures: an inline 'none.' registry line followed by a NOT CLOSED list yields claims for the disclaimed ids",
         "status": "open"
       },
@@ -8786,7 +8806,7 @@
         "id": "fu-skill-tree-selects-deslop",
         "ref": "directed-merge-and-post-merge-cleanup",
         "severity": "P3",
-        "age_days": 46,
+        "age_days": 47,
         "what": "Map .claude/skills/** (and the other harness skill trees) to aai-deslop in tests/skills/suite-map.yaml, with a test-aai-suite-select arm",
         "status": "open"
       },
@@ -8794,7 +8814,7 @@
         "id": "fu-merge-foreign-journal-archive-path",
         "ref": "directed-merge-and-post-merge-cleanup",
         "severity": "P3",
-        "age_days": 46,
+        "age_days": 47,
         "what": "merge-cleanup mergeLedgerTails names the current PR's archive dir in ledger_merge_failed when resuming another PR's journal",
         "status": "open"
       },
@@ -9498,7 +9518,7 @@
         "id": "fu-worktree-decision-not-ref-bound",
         "ref": "ride-status-and-resume",
         "severity": "P2",
-        "age_days": 25,
+        "age_days": 26,
         "what": "worktree.user_decision carries no ref; set-worktree writes none and rule 8 never compares refs, so one ride's decision can skip the gate for the next (incl. L3)",
         "status": "open"
       },
@@ -9506,7 +9526,7 @@
         "id": "fu-probe-pr-head-matches-forks",
         "ref": "ride-status-and-resume",
         "severity": "P3",
-        "age_days": 25,
+        "age_days": 26,
         "what": "ride-status probe pr_open uses gh pr list --head <branch>, which also matches a fork PR with the same branch name",
         "status": "open"
       },
@@ -9514,7 +9534,7 @@
         "id": "fu-status-reused-null-legacy-strategy",
         "ref": "ride-status-and-resume",
         "severity": "P3",
-        "age_days": 25,
+        "age_days": 26,
         "what": "ride-status decisions line shows reused=false for a strategy with null ref_id while buildSnapshot still honours it",
         "status": "open"
       },
@@ -9522,7 +9542,7 @@
         "id": "fu-status-mutation-count-archived",
         "ref": "ride-status-and-resume",
         "severity": "P3",
-        "age_days": 25,
+        "age_days": 26,
         "what": "ride-status evidence mutation_records counts archived timestamped records too (17 for 15 rows)",
         "status": "open"
       },
@@ -9530,7 +9550,7 @@
         "id": "fu-ride-status-gh-stub-windows",
         "ref": "ride-status-and-resume",
         "severity": "P3",
-        "age_days": 25,
+        "age_days": 26,
         "what": "ride-status tests stub gh with a /bin/sh script that Windows cannot run",
         "status": "open"
       },
@@ -9538,7 +9558,7 @@
         "id": "fu-test-3160-loose-position-check",
         "ref": "ride-status-and-resume",
         "severity": "P3",
-        "age_days": 25,
+        "age_days": 26,
         "what": "TEST-3160 checks closed: done within RUN step 2 + 200 chars; proves presence, not placement",
         "status": "open"
       },
@@ -9546,7 +9566,7 @@
         "id": "fu-restamp-shape-ignores-intake-rename",
         "ref": "ride-status-and-resume",
         "severity": "P3",
-        "age_days": 25,
+        "age_days": 26,
         "what": "spec-amend restamp calls drift NOT allocator-shaped when the allocator also rewrote the spec's intake link (CHANGE-DRAFT -> CHANGE-0238)",
         "status": "open"
       },
@@ -9914,7 +9934,7 @@
         "id": "fu-role-output-import-closure",
         "ref": "factory-round-cap",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "check-role-output.mjs header still claims zero project-file trust boundary; its import closure now includes round-budget, select-suites, lib/cli-pipe-guard, lib/iso-time",
         "status": "open"
       },
@@ -9922,7 +9942,7 @@
         "id": "fu-round-budget-path-edges",
         "ref": "factory-round-cap",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "round-budget.mjs path edges: URL pathname fallback (Windows /C:/, %20), ceremonyOf first spec_path and CRLF frontmatter, quotePath non-ASCII, dispatch slash-alias refMatches vs strict resetGate",
         "status": "open"
       },
@@ -9986,7 +10006,7 @@
         "id": "fu-routing-owner-cost-binding",
         "ref": "routing-tables-have-an-owner-and-a-seam",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "Owner cost decision: bind claude-fable-5-2, gpt-6-astra or gpt-6-luna, or the gemini-4 lineup (GA status unverified); the refresh bound only vendor-named successors",
         "status": "open"
       },
@@ -9994,7 +10014,7 @@
         "id": "fu-routing-pins-structural",
         "ref": "routing-tables-have-an-owner-and-a-seam",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "Dispatch suite pins literal shipped model ids (TEST-020/026/057); derive them from the shipped table so monthly refreshes do not edit tests",
         "status": "open"
       },
@@ -10519,42 +10539,10 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-pr-ceremony-friction-fix-289cf3",
-        "ref": "secrets-gate-false-positives",
-        "severity": "P2",
-        "age_days": 1,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-pr-ceremony-friction-fixes: TEST-3833: .env, .env.local, config/credentials.json, docs/ai/validation/.env and docs/ai/tdd/.env.prod holding harmless now pass; each holding a real-looking value blocks with Potential secret detected; keys/secret.key still blocks by name",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-hook-gate-staged-content-625cdf",
-        "ref": "secrets-gate-false-positives",
-        "severity": "P2",
-        "age_days": 1,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-hook-gate-staged-content: TEST-3865: the four evidence-folder *.env files holding harmless now pass and holding a real-looking value block; TEST-3866: the non-ASCII name-check fixture becomes secrets/clé.key",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-precommit-blob-read-cost-c936f1",
-        "ref": "secrets-gate-false-positives",
-        "severity": "P2",
-        "age_days": 1,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-precommit-blob-read-cost: TEST-3876 compares stdout after removing the finding detail lines (line n, fingerprint hex and ... and k more) from the new script output only",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-secrets-gate-false-positives",
-        "ref": "secrets-gate-false-positives",
-        "severity": "P2",
-        "age_days": 1,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-secrets-gate-false-positives: Amendment A1: R5 (a real dotenv file judges every KEY=value by value shape), D-NUL (a NUL blob is scanned as a NUL-free copy), bracket-only catch-all globs rejected, Spec-AC-20 to 22, TEST-4105 to 4107, pins moved to 666 42 and 947/788",
-        "status": "open"
-      },
-      {
         "id": "fu-mutation-gate-fixtures-write-real-tdd",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "Older mutation-gate tests write into the real checkout's docs/ai/tdd/<fixture-id> via mg_gate_evidence_dir.",
         "status": "open"
       },
@@ -10562,7 +10550,7 @@
         "id": "fu-evidence-digest-absent-tree-green",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "evidence-digest.mjs counts an absent-tree degrade as a green gate (left without --require-evidence on purpose as an informational reader).",
         "status": "open"
       },
@@ -10570,7 +10558,7 @@
         "id": "fu-mutation-clone-leak-unattributed",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "A full-repo clone aai-mutation-* was found left in TMPDIR; cause unverified (maybe a killed run).",
         "status": "open"
       },
@@ -10578,7 +10566,7 @@
         "id": "fu-mutation-mg-fixture-dirs-leak",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "mg_new_fixture leaves aai-mg-fixture.* temp dirs when the suite runs outside the runner.",
         "status": "open"
       },
@@ -10586,7 +10574,7 @@
         "id": "fu-mutation-replay-parse-break-untested",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "No test covers --replay counting a parse-break row INCONCLUSIVE.",
         "status": "open"
       },
@@ -10594,7 +10582,7 @@
         "id": "fu-mutation-rotate-unknown-untested",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "rotateExisting's unknown-<ms> fallback for an unparseable record has no test.",
         "status": "open"
       },
@@ -10602,7 +10590,7 @@
         "id": "fu-mutation-exempt-set-duplicated",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "The exempt status set is duplicated in mutation-gate.mjs and spec-lint.mjs; export it from lib/mutation-record.mjs.",
         "status": "open"
       },
@@ -10724,6 +10712,22 @@
         "severity": "P3",
         "age_days": 0,
         "what": "TEST-3454 compares against the 3e6b52d5 baseline script, whose CHECK 1 runs echo | grep -q under pipefail",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-skill-description-canoni-b4901e",
+        "ref": "skill-description-canonical-prompt-pointer",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-skill-description-canonical-prompt-pointer: SKILLS.md five generator rows carry the pointer (M8 corrected); line cap 590->720; fifth prompt pin rh_now; mk_root fixture copies",
+        "status": "open"
+      },
+      {
+        "id": "fu-consumer-pointer-check-after-sync",
+        "ref": "skill-description-canonical-prompt-pointer",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "No consumer-side step runs sync-harness-skills --check (pointer arm) automatically after aai-sync",
         "status": "open"
       }
     ]
@@ -11550,6 +11554,40 @@
         "tokens_total": 1696513,
         "remediation_runs": 3,
         "remediation_tokens": 177947,
+        "remediation_share_pct": 10
+      },
+      {
+        "ref": "skill-description-canonical-prompt-pointer",
+        "date_utc": "2026-11-26",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 36321,
+        "agent_seconds": 34219,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 9,
+        "tokens_total": 1523078,
+        "remediation_runs": 2,
+        "remediation_tokens": 151723,
         "remediation_share_pct": 10
       },
       {

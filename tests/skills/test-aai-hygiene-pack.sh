@@ -4482,7 +4482,7 @@ test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper reg
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
-  sed 's/^description: .*/description: seeded wrapper regression fixture/' \
+  sed 's/^description: .*/description: seeded wrapper regression fixture. Run by reading .aai\/SKILL_WRAP_UP.prompt.md first./' \
     "$source_skill" > "$changed_skill"
   cp "$changed_skill" "$source_skill"
   (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write >/dev/null) \
@@ -4525,7 +4525,7 @@ test_119_generator_idempotence_preserves_seeded_state() {  # PR review / seeded-
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t119-changed-wrap-up.md"
-  sed 's/^description: .*/description: seeded idempotence regression fixture/' \
+  sed 's/^description: .*/description: seeded idempotence regression fixture. Run by reading .aai\/SKILL_WRAP_UP.prompt.md first./' \
     "$source_skill" > "$changed_skill"
   cp "$changed_skill" "$source_skill"
   (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write >/dev/null) \

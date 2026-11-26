@@ -28,6 +28,10 @@
 //   throwaway fixture tree instead of the live checkout.
 //   --manifest overrides the manifest path (default: <root>/.aai/system/HARNESS_SKILLS.yaml).
 //
+//   An optional `pointer:` manifest section (one row `<max>|<source>`) adds, to --check only,
+//   `DIVERGE pointer <skill>: <reason>` lines (one per wrapper, the first failing check) and
+//   `OK: <n> wrapper description(s) name their canonical source`; see checkPointers below.
+//
 // EXIT CONTRACT
 //   0  --check found no divergence, or --write completed
 //   1  --check found at least one divergence (one `DIVERGE ...` line each,
@@ -36,7 +40,8 @@
 //   modes: one `DIVERGE shim <path>: ...` line per differing path, and an
 //   `OK: 6 shim(s) match the registry` line — see lib/harness-shims.mjs)
 //   2  manifest/tree structural error: an undeclared required tree, an
-//      invalid model/readme value, a stale or reason-less exclusion, or a
+//      invalid model/readme value, a stale or reason-less exclusion, a malformed
+//      pointer section (both modes, before any write), or a
 //      usage error — always with a message on stderr naming the offender
 //
 // Node stdlib only, zero network, no LLM (docs/TECHNOLOGY.md).
@@ -53,6 +58,8 @@ const DEFAULT_REPO_ROOT = path.resolve(SELF_DIR, '..', '..');
 
 const SOURCE_TREE = '.claude/skills';
 const REQUIRED_MIRROR_TREES = ['.agents/skills', '.codex/skills', '.gemini/skills'];
+// The strictest documented per-description limit: agentskills.io/specification, "Must be 1-1024 characters".
+const AGENT_SKILLS_DESCRIPTION_MAX = 1024;
 
 // --- exit discipline -----------------------------------------------------
 // exit()/runMain() now come from ./lib/cli-pipe-guard.mjs (originally
@@ -77,6 +84,7 @@ function parseManifest(raw) {
   const exclusions = [];
   let catalog = null; // null = no `catalog:` section; see lib/skills-catalog.mjs
   let shims = null; // null = no `shims:` section (fixtures); see lib/harness-shims.mjs
+  let pointer = null; // null = no `pointer:` section: no description is checked
   let section = null;
   for (const line of lines) {
     if (/^\s*$/.test(line) || /^\s*#/.test(line)) continue;
@@ -84,12 +92,15 @@ function parseManifest(raw) {
     if (/^exclusions:\s*$/.test(line)) { section = 'exclusions'; continue; }
     if (/^catalog:\s*$/.test(line)) { section = 'catalog'; catalog = []; continue; }
     if (/^shims:\s*$/.test(line)) { section = 'shims'; shims = []; continue; }
+    if (/^pointer:\s*$/.test(line)) { section = 'pointer'; pointer = []; continue; }
     const m = line.match(/^ {2}- (.*)$/);
     if (!m || section === null) {
       throw new ManifestError(`unparsed manifest content: ${line}`);
     }
     const rest = m[1];
-    if (section === 'catalog') {
+    if (section === 'pointer') {
+      pointer.push(rest);
+    } else if (section === 'catalog') {
       catalog.push(rest);
     } else if (section === 'shims') {
       shims.push(rest);
@@ -112,7 +123,7 @@ function parseManifest(raw) {
       });
     }
   }
-  return { trees, exclusions, shims, catalog };
+  return { trees, exclusions, shims, catalog, pointer };
 }
 
 function validateManifest(manifest, sourceSkills) {
@@ -272,6 +283,118 @@ function extractDescription(frontLines) {
   return val;
 }
 
+// --- description pointer guard (SPEC spec-skill-description-canonical-prompt-pointer D1..D5) -------
+
+function loadPointerRule(rows) {
+  if (rows === null) return null;
+  if (rows.length !== 1) fail(2, `pointer section must hold exactly one row <max>|<source>, got ${rows.length}`);
+  const cut = rows[0].indexOf('|');
+  const maxText = (cut === -1 ? rows[0] : rows[0].slice(0, cut)).trim();
+  const source = cut === -1 ? '' : rows[0].slice(cut + 1).trim();
+  if (!/^\d+$/.test(maxText)) fail(2, `pointer max is not an integer: ${maxText}`);
+  const max = Number(maxText);
+  if (!(max >= 1 && max <= AGENT_SKILLS_DESCRIPTION_MAX)) {
+    fail(2, `pointer max must be an integer from 1 to ${AGENT_SKILLS_DESCRIPTION_MAX}: ${maxText}`);
+  }
+  if (!source) fail(2, 'pointer source is empty (name where the limit is documented)');
+  return { max, source };
+}
+
+function rawDescription(frontLines) {
+  const line = frontLines.find((l) => /^description:\s*/.test(l));
+  return line ? line.replace(/^description:\s*/, '') : '';
+}
+
+// The name test of aai-sync.mjs isRetiredSkillWrapper: aai-* minus the project-owned aai-project-*.
+const isAaiWrapperName = (n) => /^aai-[a-z0-9-]+$/.test(n) && !n.startsWith('aai-project-');
+
+// D3: a closed syntactic rule for the raw text after `description: `, not a YAML parser.
+function isYamlSafeScalar(raw) {
+  if (raw.length === 0) return false;
+  if (raw[0] === '"') return raw.length >= 2 && raw.endsWith('"') && !/["\\]/.test(raw.slice(1, -1));
+  if (raw[0] === "'") return raw.length >= 2 && raw.endsWith("'") && !raw.slice(1, -1).includes("'");
+  return raw === raw.trim() && !/^[-?:,[\]{}#&*!>'"%@|`]/.test(raw)
+    && !raw.includes(': ') && !raw.includes(' #') && !raw.endsWith(':');
+}
+
+// D1: the closing sentence, preceded by a space and at least one other character.
+function parsePointer(description) {
+  const m = /\S Run (?:by reading (\.aai\/[A-Za-z0-9_.-]+\.prompt\.md) first|via node (\.aai\/scripts\/[A-Za-z0-9_-]+\.mjs))\.$/.exec(description);
+  if (!m) return null;
+  return m[1] ? { kind: 'prompt', target: m[1] } : { kind: 'script', target: m[2] };
+}
+
+// D4: the first canonical prompt the body names, else the first `node .aai/scripts/<name>.mjs` command.
+function bodyTarget(body) {
+  const p = /\.aai\/[A-Za-z0-9_.-]+\.prompt\.md/.exec(body);
+  if (p) return { kind: 'prompt', target: p[0] };
+  const n = /`node (\.aai\/scripts\/[A-Za-z0-9_-]+\.mjs)/.exec(body);
+  return n ? { kind: 'script', target: n[1] } : null;
+}
+
+// D5: a core-profile consumer lacks exactly the files PROFILES.yaml lists under `extended:`.
+function profileAbsent(root, rel) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(root, '.aai/system/PROFILES.yaml'), 'utf8');
+  } catch {
+    return false;
+  }
+  let on = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^extended:\s*$/.test(line)) { on = true; continue; }
+    if (/^[a-z_]+:/.test(line)) on = false;
+    if (on && line === `  - ${rel}`) return true;
+  }
+  return false;
+}
+
+function isFile(p) {
+  try {
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function checkPointers(root, rule, models) {
+  const drift = [];
+  const skipped = [];
+  let count = 0;
+  // The first failing check for one wrapper (D4 order), or null.
+  const firstFailure = (root2, { frontLines, body, description: desc }) => {
+    const keys = frontLines.filter((l) => /^description:\s*/.test(l)).length;
+    if (keys > 1) return `description is declared ${keys} times, want exactly one`;
+    if (!isYamlSafeScalar(rawDescription(frontLines))) return 'description is not a YAML-safe one-line scalar';
+    const chars = [...desc].length;
+    if (chars > rule.max) {
+      return `description is ${chars} characters, over the ${rule.max} limit`;
+    }
+    const ptr = parsePointer(desc);
+    if (!ptr) return 'description lacks the canonical pointer';
+    if (!isFile(path.join(root2, ptr.target)) && !profileAbsent(root2, ptr.target)) return `names missing file ${ptr.target}`;
+    const want = bodyTarget(body);
+    if (!want) return 'the body names no canonical source';
+    if (want.kind !== ptr.kind || want.target !== ptr.target) return `names ${ptr.target}, the body runs ${want.target}`;
+    return null;
+  };
+  for (const skill of [...models.keys()].sort()) {
+    if (!isAaiWrapperName(skill)) {
+      skipped.push(`SKIPPED pointer ${skill}: not an AAI wrapper`);
+      continue;
+    }
+    const model = models.get(skill);
+    if (model.body.includes('AAI-DYNAMIC-SKILL:START')) {
+      skipped.push(`SKIPPED pointer ${skill}: project-generated (AAI-DYNAMIC-SKILL marker)`);
+      continue;
+    }
+    count++;
+    const reason = firstFailure(root, model);
+    if (reason) drift.push(`DIVERGE pointer ${skill}: ${reason}`);
+  }
+  return { drift, skipped, count };
+}
+
 function treeTitle(tree) {
   const seg = tree.split('/')[0].replace(/^\./, '');
   return seg.charAt(0).toUpperCase() + seg.slice(1);
@@ -391,6 +514,9 @@ function main(argv) {
     if (err instanceof ShimError) fail(2, err.message);
     throw err;
   }
+
+  // The pointer section is validated here too (exit 2 before any write); --write never checks descriptions.
+  const pointerRule = loadPointerRule(manifest.pointer);
 
   // Parse every authored source before computing or applying any target
   // mutation. A malformed late source must fail the whole write transaction
@@ -554,15 +680,19 @@ function main(argv) {
 
   if (opts.check) {
     const catDrift = catPlan ? catPlan.drift : [];
-    if (divergences.length > 0 || shimRes.drift.length > 0 || catDrift.length > 0) {
+    const ptrRes = pointerRule ? checkPointers(root, pointerRule, sourceModels) : { drift: [], skipped: [], count: 0 };
+    for (const d of ptrRes.skipped) process.stdout.write(`${d}\n`);
+    if (divergences.length > 0 || shimRes.drift.length > 0 || catDrift.length > 0 || ptrRes.drift.length > 0) {
       for (const d of divergences) process.stdout.write(`DIVERGE ${d}\n`);
       for (const d of shimRes.drift) process.stdout.write(`${d}\n`);
       for (const d of catDrift) process.stdout.write(`${d}\n`);
+      for (const d of ptrRes.drift) process.stdout.write(`${d}\n`);
       exit(1);
     }
     process.stdout.write(`OK: ${trees} match the declared transform\n`);
     process.stdout.write(`${shimPlan ? okLine(shimPlan.outputs.length) : NONE_LINE}\n`);
     if (catPlan) process.stdout.write(`${catPlan.ok}\n`);
+    if (pointerRule) process.stdout.write(`OK: ${ptrRes.count} wrapper description(s) name their canonical source\n`);
     exit(0);
   }
 

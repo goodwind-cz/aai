@@ -2819,6 +2819,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Skill descriptions name the prompt that runs them
+
+Agent harnesses (Claude Code, Codex, Gemini and others) show only a skill's one-line description until the skill is loaded. Every AAI skill wrapper now ends that line with a pointer to what actually runs it, for example `Run by reading .aai/SKILL_SHIP.prompt.md first.`. An agent that acts on the listed summary alone still learns where the real instructions are. A check in `sync-harness-skills.mjs --check` fails when a shipped wrapper loses its pointer, points at a missing file, or grows past the length harnesses accept. `/aai-ship` also no longer ends a turn silently: every turn ends with a pull request, a decision block, a printed stop, the question for the need, or while it waits for a dispatched role to return.
+
+[Product doc](product/harness-skill-discovery.md) · [Spec](specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md)
+
 ### First-run onboarding: technology contract pointer, working lint skill, fresh-project TECH_EXTRACT
 
 The first run on a freshly synced project now points you to the one step that is easy to miss: filling the technology contract. `/aai-doctor` reports a warning when `docs/TECHNOLOGY.md` is still the unfilled template seed, and `/aai-bootstrap` ends its summary with the same pointer, so the contract no longer stays empty without anyone noticing. Bootstrap also generates a lint skill that works for a project with only a legacy `.eslintrc*` config, and the TECH_EXTRACT prompt says what to do when `docs/ai/STATE.yaml` does not exist yet.

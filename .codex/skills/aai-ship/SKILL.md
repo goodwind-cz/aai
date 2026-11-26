@@ -1,6 +1,6 @@
 ---
 name: aai-ship
-description: Use when the user states a need and wants the factory to take it end-to-end autonomously — intake, planning, implementation, validation, review, product docs — opening the pull request on PASS with no question, pausing only at one checkpoint at the merge. Never merges.
+description: Use when the user states a need and wants the factory to take it end-to-end autonomously — intake, planning, implementation, validation, review, product docs — opening the pull request on PASS with no question, pausing only at one checkpoint at the merge. Never merges. Run by reading .aai/SKILL_SHIP.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_SHIP.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-ship <need>`.

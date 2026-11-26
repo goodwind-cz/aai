@@ -1,6 +1,6 @@
 ---
 name: aai-roadmap
-description: Use when the user wants to see, order or change the project's roadmap (the ordered list of capabilities to build next), set up or switch off the maintenance budget, or harvest roadmap candidates from drafts and friction. Every action is a menu with a recommended default; nothing is hand-edited. Trigger phrases - "roadmap", "what is next", "plan the order", "add to the roadmap".
+description: Use when the user wants to see, order or change the project's roadmap (the ordered list of capabilities to build next), set up or switch off the maintenance budget, or harvest roadmap candidates from drafts and friction. Every action is a menu with a recommended default; nothing is hand-edited. Trigger phrases - "roadmap", "what is next", "plan the order", "add to the roadmap". Run by reading .aai/SKILL_ROADMAP.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_ROADMAP.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-roadmap` (shows the roadmap and offers a menu) or `/aai-roadmap <action>` where action is one of show, add, reorder, harvest, done, drop, budget, off.

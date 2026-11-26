@@ -186,6 +186,8 @@ pairs:
     status: done
   - capability: mutation-tooling-p2-fixes
     status: done
+  - capability: skill-description-canonical-prompt-pointer
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

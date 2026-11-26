@@ -1,6 +1,6 @@
 ---
 name: aai-doctor
-description: Use when the AAI environment may be broken, after a fresh install, or to diagnose unexpected failures. Reports HEALTHY / DEGRADED / BROKEN with actionable diagnostics.
+description: Use when the AAI environment may be broken, after a fresh install, or to diagnose unexpected failures. Reports HEALTHY / DEGRADED / BROKEN with actionable diagnostics. Run by reading .aai/SKILL_DOCTOR.prompt.md first.
 ---
 
 <SUBAGENT-STOP>

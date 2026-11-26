@@ -48,6 +48,16 @@
 #   D1/D2, .aai/scripts/lib/skills-catalog.mjs): --check lists a wrapper without a
 #   row and a row without a wrapper; --write appends generated rows and removes
 #   orphans, never touching existing rows. A manifest without it checks nothing.
+# - `pointer:` (optional, exactly one row `<max>|<source>`) opts the wrapper
+#   descriptions into the pointer guard of .aai/scripts/sync-harness-skills.mjs
+#   --check (SPEC spec-skill-description-canonical-prompt-pointer D1..D5): each
+#   .claude/skills description must be a YAML-safe one-line scalar of at most <max>
+#   code points that ends with `Run by reading .aai/SKILL_<NAME>.prompt.md first.`
+#   or `Run via node .aai/scripts/<name>.mjs.`, naming the file the wrapper body
+#   runs; <max> is an integer from 1 to 1024 and <source> (non-empty) names where
+#   the limit is documented. A manifest without the section checks nothing. A
+#   section with zero or several rows, a bad <max> or an empty <source> exits 2
+#   in both modes, before any write.
 # - Line-based parseable (two-space dash items, `#` comments ignored) in the
 #   same discipline as .aai/system/PROFILES.yaml, so both the bash parity
 #   arms in tests/skills/test-aai-hygiene-pack.sh and the node generator can
@@ -90,3 +100,6 @@ shims:
 
 catalog:
   - SKILLS.md|## Quick Reference
+
+pointer:
+  - 1024|agentskills.io/specification: description must be 1-1024 characters

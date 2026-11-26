@@ -1,6 +1,6 @@
 ---
 name: aai-live
-description: Use when you want to watch, in a browser, what every AAI agent is doing right now and whether anything waits on you — a locally served page, zero tokens, refreshes itself.
+description: Use when you want to watch, in a browser, what every AAI agent is doing right now and whether anything waits on you — a locally served page, zero tokens, refreshes itself. Run by reading .aai/SKILL_LIVE.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_LIVE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-live`.

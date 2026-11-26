@@ -1,6 +1,6 @@
 ---
 name: aai-replay
-description: Use when starting work on a task to surface relevant past learnings, patterns, and decisions from previous sessions.
+description: Use when starting work on a task to surface relevant past learnings, patterns, and decisions from previous sessions. Run by reading .aai/SKILL_REPLAY.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_REPLAY.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-replay`.

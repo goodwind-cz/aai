@@ -1,6 +1,6 @@
 ---
 name: aai-docs-canon
-description: Use when layered project docs have no single "current state" view per feature — to consolidate intake/specs/RFCs into a canonical, function-categorized layer in docs/canonical/ while preserving and back-linking originals in docs/_archive/. Two phases — Phase 1 analyzes and proposes an AI domain map gated by human approval; Phase 2 auto-synthesizes canonical docs, archives originals, and reports drift on re-run.
+description: Use when layered project docs have no single "current state" view per feature — to consolidate intake/specs/RFCs into a canonical, function-categorized layer in docs/canonical/ while preserving and back-linking originals in docs/_archive/. Two phases — Phase 1 analyzes and proposes an AI domain map gated by human approval; Phase 2 auto-synthesizes canonical docs, archives originals, and reports drift on re-run. Run by reading .aai/SKILL_DOCS_CANON.prompt.md first.
 ---
 
 <SUBAGENT-STOP>

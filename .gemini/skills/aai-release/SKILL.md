@@ -1,6 +1,6 @@
 ---
 name: aai-release
-description: Use when a validated scope is ready to ship a release — rolls CHANGELOG.md [unreleased] into a versioned section, commits, tags, publishes a GitHub release, and pushes, behind an operator-gated confirm with a safe default dry-run.
+description: Use when a validated scope is ready to ship a release — rolls CHANGELOG.md [unreleased] into a versioned section, commits, tags, publishes a GitHub release, and pushes, behind an operator-gated confirm with a safe default dry-run. Run by reading .aai/SKILL_RELEASE.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_RELEASE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-release`.
