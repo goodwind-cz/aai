@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-26T10:47:32.296Z",
+  "generatedAt": "2026-11-26T11:15:35.359Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 276,
-    "delivered": 710,
+    "rides": 277,
+    "delivered": 712,
     "active_weeks": 22,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (710 closes vs 276 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 710,
-    "delivered_per_week_avg": 32.3,
+    "note": "\"delivered\" counts every work_item_closed event (712 closes vs 277 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 712,
+    "delivered_per_week_avg": 32.4,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -36,7 +36,7 @@
       "2026-W45": 28,
       "2026-W46": 26,
       "2026-W47": 32,
-      "2026-W48": 12
+      "2026-W48": 14
     },
     "delivered_groups": [
       {
@@ -683,7 +683,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 102,
+        "count": 104,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -785,6 +785,8 @@
           "spec-index-schema-warning-prominence",
           "mutation-tooling-p2-fixes",
           "spec-mutation-tooling-p2-fixes",
+          "onboarding-tech-contract-and-lint-gaps",
+          "spec-onboarding-tech-contract-and-lint-gaps",
           "skill-description-canonical-prompt-pointer",
           "spec-skill-description-canonical-prompt-pointer"
         ]
@@ -3625,6 +3627,14 @@
           "lead_time_seconds": null
         },
         {
+          "ref": "onboarding-tech-contract-and-lint-gaps",
+          "lead_time_seconds": 37201
+        },
+        {
+          "ref": "spec-onboarding-tech-contract-and-lint-gaps",
+          "lead_time_seconds": null
+        },
+        {
           "ref": "skill-description-canonical-prompt-pointer",
           "lead_time_seconds": 36469
         },
@@ -3633,23 +3643,23 @@
           "lead_time_seconds": null
         }
       ],
-      "median_seconds": 8439,
-      "mean_seconds": 73686,
-      "measured": 269,
-      "unmeasurable": 441
+      "median_seconds": 8475,
+      "mean_seconds": 73550.8,
+      "measured": 270,
+      "unmeasurable": 442
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 4740,
-      "mean": 11109.7,
-      "measured": 274
+      "median": 4777,
+      "mean": 11138.7,
+      "measured": 275
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 599168,
-        "tokens": 62877171
+        "duration_seconds": 601004,
+        "tokens": 63138412
       },
       {
         "role": "Implementation",
@@ -3658,23 +3668,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 312953,
-        "tokens": 28668618
+        "duration_seconds": 313889,
+        "tokens": 28950390
       },
       {
         "role": "Remediation",
-        "duration_seconds": 560911,
-        "tokens": 22197250
+        "duration_seconds": 562996,
+        "tokens": 22375197
       },
       {
         "role": "Validation",
-        "duration_seconds": 1063258,
-        "tokens": 82286321
+        "duration_seconds": 1076767,
+        "tokens": 83001451
       },
       {
         "role": "Planning",
-        "duration_seconds": 231068,
-        "tokens": 18206653
+        "duration_seconds": 231781,
+        "tokens": 18467076
       },
       {
         "role": "Other",
@@ -5059,6 +5069,11 @@
         "remediation_runs": 3
       },
       {
+        "ref": "onboarding-tech-contract-and-lint-gaps",
+        "busy_seconds": 19079,
+        "remediation_runs": 3
+      },
+      {
         "ref": "skill-description-canonical-prompt-pointer",
         "busy_seconds": 34219,
         "remediation_runs": 2
@@ -5071,15 +5086,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 631296,
-      "mean": 1468498.5,
-      "measured": 151
+      "median": 639330,
+      "mean": 1469998.6,
+      "measured": 152
     },
-    "tokens_total": 221743279,
+    "tokens_total": 223439792,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 62877171
+        "tokens": 63138412
       },
       {
         "role": "Implementation",
@@ -5087,19 +5102,19 @@
       },
       {
         "role": "Code Review",
-        "tokens": 28668618
+        "tokens": 28950390
       },
       {
         "role": "Remediation",
-        "tokens": 22197250
+        "tokens": 22375197
       },
       {
         "role": "Validation",
-        "tokens": 82286321
+        "tokens": 83001451
       },
       {
         "role": "Planning",
-        "tokens": 18206653
+        "tokens": 18467076
       },
       {
         "role": "Other",
@@ -5107,8 +5122,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 894,
-      "total_runs": 1992,
+      "runs_with_marker": 904,
+      "total_runs": 2003,
       "pct": 45,
       "by_week": [
         {
@@ -5239,8 +5254,8 @@
         },
         {
           "week": "2026-W48",
-          "runs_with_marker": 44,
-          "total_runs": 49,
+          "runs_with_marker": 54,
+          "total_runs": 60,
           "pct": 90
         }
       ]
@@ -5249,12 +5264,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 306,
-          "runs_marked": 165,
+          "runs_total": 307,
+          "runs_marked": 166,
           "runs_sentinel": 10,
           "runs_unmarked": 131,
-          "tokens_total": 62877171,
-          "median_tokens_per_run": 208753,
+          "tokens_total": 63138412,
+          "median_tokens_per_run": 209091,
           "share_pct": 28
         },
         {
@@ -5269,42 +5284,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 393,
-          "runs_marked": 192,
+          "runs_total": 395,
+          "runs_marked": 194,
           "runs_sentinel": 25,
           "runs_unmarked": 176,
-          "tokens_total": 28668618,
+          "tokens_total": 28950390,
           "median_tokens_per_run": 132449,
           "share_pct": 13
         },
         {
           "role": "Remediation",
-          "runs_total": 367,
-          "runs_marked": 141,
+          "runs_total": 370,
+          "runs_marked": 143,
           "runs_sentinel": 48,
-          "runs_unmarked": 178,
-          "tokens_total": 22197250,
-          "median_tokens_per_run": 147547,
+          "runs_unmarked": 179,
+          "tokens_total": 22375197,
+          "median_tokens_per_run": 146737,
           "share_pct": 10
         },
         {
           "role": "Validation",
-          "runs_total": 568,
-          "runs_marked": 265,
+          "runs_total": 572,
+          "runs_marked": 269,
           "runs_sentinel": 47,
           "runs_unmarked": 256,
-          "tokens_total": 82286321,
-          "median_tokens_per_run": 151302,
+          "tokens_total": 83001451,
+          "median_tokens_per_run": 151860,
           "share_pct": 37
         },
         {
           "role": "Planning",
-          "runs_total": 218,
-          "runs_marked": 101,
+          "runs_total": 219,
+          "runs_marked": 102,
           "runs_sentinel": 15,
           "runs_unmarked": 102,
-          "tokens_total": 18206653,
-          "median_tokens_per_run": 160916,
+          "tokens_total": 18467076,
+          "median_tokens_per_run": 160949,
           "share_pct": 8
         },
         {
@@ -6164,8 +6179,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 11,
-              "median_tokens": 127809
+              "runs_marked": 12,
+              "median_tokens": 139459
             },
             {
               "role": "Implementation",
@@ -6174,23 +6189,23 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 10,
+              "runs_marked": 12,
               "median_tokens": 141020
             },
             {
               "role": "Remediation",
-              "runs_marked": 6,
+              "runs_marked": 8,
               "median_tokens": 87589
             },
             {
               "role": "Validation",
-              "runs_marked": 15,
+              "runs_marked": 19,
               "median_tokens": 176296
             },
             {
               "role": "Planning",
-              "runs_marked": 2,
-              "median_tokens": 302483
+              "runs_marked": 3,
+              "median_tokens": 300157
             },
             {
               "role": "Other",
@@ -6205,7 +6220,7 @@
   "quality": {
     "first_pass_clean": {
       "clean": 123,
-      "flagged": 250,
+      "flagged": 251,
       "rate_pct": 49
     },
     "na_reliability": 26,
@@ -6213,7 +6228,7 @@
       "0": 125,
       "1": 35,
       "2": 33,
-      "3": 27,
+      "3": 28,
       "4": 14,
       "5": 6,
       "6": 3,
@@ -6226,7 +6241,7 @@
     "avg_validation_fails": 0.5,
     "avg_review_fails": 0.3,
     "verdict_mix": {
-      "PASS": 219,
+      "PASS": 220,
       "null": 57
     },
     "review_events": 27,
@@ -6241,7 +6256,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 97,
+    "field_derived": 98,
     "marker_derived": 36,
     "mixed": 2,
     "no_basis": 141,
@@ -7622,6 +7637,11 @@
         "cost_basis": "total-blended"
       },
       {
+        "ref": "onboarding-tech-contract-and-lint-gaps",
+        "verdict_source": "field",
+        "cost_basis": "mixed"
+      },
+      {
         "ref": "skill-description-canonical-prompt-pointer",
         "verdict_source": "field",
         "cost_basis": "total-blended"
@@ -7800,11 +7820,11 @@
     },
     {
       "week": "2026-W48",
-      "delivered": 12,
-      "median_lead_time_seconds": 26412,
-      "busy_seconds": 143263,
-      "tokens": 7012868,
-      "first_pass_rate": 20
+      "delivered": 14,
+      "median_lead_time_seconds": 31441,
+      "busy_seconds": 162342,
+      "tokens": 8709381,
+      "first_pass_rate": 17
     }
   ],
   "follow_ups": {
@@ -7824,7 +7844,7 @@
         "id": "fu-cost-blend-silent-default",
         "ref": "telemetry-fields-not-prose",
         "severity": "P3",
-        "age_days": 73,
+        "age_days": 74,
         "what": "blendedCostUsd() in .aai/scripts/lib/pricing.mjs silently falls back to a hardcoded 0.5 input_share when PRICING.yaml carries no cost_blend.input_share, with no NOTE — emit one NOTE naming the missing key, or fail closed to cost_basis: none instead of a silent default.",
         "status": "open"
       },
@@ -8392,7 +8412,7 @@
         "id": "fu-t760-guard-narrows-to-fu-refs",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "TEST-760's findDoc guard fixture uses a dead ref that happens to be fu-prefixed (fu-t760-dead); mutation M6 (narrow the guard to only String(pr.maintenance).startsWith('fu-') && !findDoc(...)) leaves the full suite GREEN, and mutation M8 (the file-intake human-text arm printing the dead ref anyway) also leaves it GREEN — the arm a human actually reads (non --json) is unpinned.",
         "status": "open"
       },
@@ -8400,7 +8420,7 @@
         "id": "fu-bind-wave2-reason-generic",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "bind names its own reason for 2 of the 3 roadmap axes (already-a-capability, already-bound-elsewhere) but not the third: binding a live wave_2 slug surfaces certify's generic roadmap-parser error (wave_2: \"<slug>\" appears twice in the roadmap) instead of a bind-specific refusal naming the wave_2 axis.",
         "status": "open"
       },
@@ -8408,7 +8428,7 @@
         "id": "fu-harvest-write-excl-one-sided",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "F4's exclusion is one-sided: roadmap-propose.mjs:246 (readWave2AndPairSlugs) adds only capability: lines to pairSlugs, so harvest can still offer a draft capability-typed intake whose id is already some pair's maintenance: half as a candidate, and write --pick on that row then fails certification with the roadmap parser's generic appears-twice error and no guidance.",
         "status": "open"
       },
@@ -8416,7 +8436,7 @@
         "id": "fu-resolvedoc-stale-type-field",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "Two stale artefacts of the reverted round-1 CAPABILITY_TYPES check survive in resolveDoc: roadmap-propose.mjs:690's comment still says resolveDoc carries type 'so cmdBind's CAPABILITY_TYPES check below can classify the resolved document' (no such check exists any more since D16), and the type field the function returns (:697) now has no reader.",
         "status": "open"
       },
@@ -8496,7 +8516,7 @@
         "id": "fu-roadmap-docstatus-two-parsers",
         "ref": "roadmap-serves-downstream-projects",
         "severity": "P3",
-        "age_days": 55,
+        "age_days": 56,
         "what": "roadmap-edit.mjs docStatus (parseFrontmatter) and ride-select.mjs findDoc/statusOf (own line scan) resolve a doc's status differently; a quoted status: \"done\" makes advance flip the pair while next still names it unfinished. Route both through one resolver in lib/roadmap-model.mjs with a seam test.",
         "status": "open"
       },
@@ -10621,6 +10641,14 @@
         "status": "open"
       },
       {
+        "id": "fu-tech-extract-focus-clobber",
+        "ref": "onboarding-tech-contract-and-lint-gaps",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "TECH_EXTRACT step 8 set-focus replaces an active ride focus unchecked; under AAI_ROLE=subagent check-state --repair is unguarded and the skip-and-say-so fallback differs from the subagent return contract",
+        "status": "open"
+      },
+      {
         "id": "fu-amend-skill-description-canoni-b4901e",
         "ref": "skill-description-canonical-prompt-pointer",
         "severity": "P2",
@@ -10634,14 +10662,6 @@
         "severity": "P3",
         "age_days": 0,
         "what": "No consumer-side step runs sync-harness-skills --check (pointer arm) automatically after aai-sync",
-        "status": "open"
-      },
-      {
-        "id": "fu-pointer-scope-aai-project",
-        "ref": "skill-description-canonical-prompt-pointer",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "Pointer check flags consumer aai-project-* skills (scope rule disagrees with aai-sync.mjs layer-owned rule); also print a SKIPPED line for non-aai skills (NB-5)",
         "status": "open"
       }
     ]
@@ -11435,6 +11455,40 @@
         "remediation_runs": 1,
         "remediation_tokens": 199094,
         "remediation_share_pct": 17
+      },
+      {
+        "ref": "onboarding-tech-contract-and-lint-gaps",
+        "date_utc": "2026-11-26",
+        "runs_total": 11,
+        "elapsed_wall_seconds": 36987,
+        "agent_seconds": 19079,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 10,
+        "tokens_total": 1696513,
+        "remediation_runs": 3,
+        "remediation_tokens": 177947,
+        "remediation_share_pct": 10
       },
       {
         "ref": "skill-description-canonical-prompt-pointer",

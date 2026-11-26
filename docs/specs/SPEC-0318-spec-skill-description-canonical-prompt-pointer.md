@@ -4,7 +4,7 @@ type: spec
 number: 318
 status: done
 mutation_gate: v1
-frozen_sha256: b3db6aaee15de3637982e4dd53e249031d403395c4bf1c4e9fa582b4c5ef9a44
+frozen_sha256: 1ad7a6bcc74655d45b791e07b2fe379cbd6bb8270db5ec0201fe34a1e729e4e3
 ceremony_level: 2
 links:
   requirement: skill-description-canonical-prompt-pointer
@@ -516,3 +516,11 @@ this record).
   descriptions. TEST-4135 (skipped skills) and TEST-4132 (duplicate key) gain
   cases; the script stays within the 720 line cap. The name test is repeated
   in the script, not imported, to keep `aai-sync.mjs` out of the generator.
+- A8 (integration of origin/main 9da38865, PR #595): A5 is withdrawn. That
+  merge rewrote `test_4019_wiring` to compare the prompt corpus at 077ee649
+  with a fixed historical commit instead of the live tree, so no prompt edit
+  can break it. Main's version is taken unchanged and the SKILL_SHIP skip of
+  A5 is gone. The prompt-corpus pins now credit both rides: TEST-012
+  `want_growth` 69585 (68174 + 575 + 836), the ledger lists the onboarding
+  entry before this ride's entry, and pr-preflight case 008 and suite-reuse
+  TEST-3278 add both credits.

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-26T10:47:27.796Z",
+  "generatedAt": "2026-11-26T11:15:30.487Z",
   "project": "aai",
   "counts": {
-    "delivered": 386,
+    "delivered": 387,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 219007015
+    "tokens_total": 220703528
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -219,7 +219,20 @@
       "token_total": 1523078,
       "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T081936Z.md"
+      "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T104316Z.md"
+    },
+    {
+      "ref": "onboarding-tech-contract-and-lint-gaps",
+      "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 318,
+      "token_total": 1696513,
+      "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
     },
     {
       "ref": "node-first-cleanup",
@@ -5264,7 +5277,20 @@
           "token_total": 1523078,
           "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T081936Z.md"
+          "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T104316Z.md"
+        },
+        {
+          "ref": "onboarding-tech-contract-and-lint-gaps",
+          "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 318,
+          "token_total": 1696513,
+          "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
         },
         {
           "ref": "node-first-cleanup",

@@ -206,6 +206,21 @@ function catDynamicSkills(root) {
 
 // --- CAT-05 Knowledge Files --------------------------------------------------
 
+// The technology contract is still the synced template seed (#588): the metadata header (the lines
+// before the first level-2 heading) says `- Status: template-seed`. aai-bootstrap.mjs carries the same rule.
+const TECH_SEED_STATUS = 'template-seed';
+const TECH_SEED_HINT = `docs/TECHNOLOGY.md is still the template seed (Status: ${TECH_SEED_STATUS}); run TECH_EXTRACT (.aai/TECH_EXTRACT.prompt.md) to fill the technology contract`;
+
+function isTechSeed(text) {
+  if (text === null) return false;
+  for (const raw of text.split('\n')) {
+    if (raw.startsWith('## ')) return false;
+    const line = raw.replace(/\r$/, '').replace(/[ \t]+$/, '');
+    if (line.startsWith('- Status: ')) return line.slice('- Status: '.length) === TECH_SEED_STATUS;
+  }
+  return false;
+}
+
 function catKnowledgeFiles(root) {
   const issues = [];
   const parts = [];
@@ -219,6 +234,7 @@ function catKnowledgeFiles(root) {
   for (const f of ['docs/knowledge/UI_MAP.md', 'docs/knowledge/LEARNED.md']) {
     if (!exists(root, f)) issues.push(`${f} missing (optional)`);
   }
+  if (isTechSeed(readText(root, 'docs/TECHNOLOGY.md'))) issues.push(TECH_SEED_HINT);
   if (issues.length > 0) {
     return cat('CAT-05', 'Knowledge Files', 'WARN', issues.join('; '));
   }

@@ -3098,6 +3098,176 @@ test_3676_cat21_documented() {
   log_pass "TEST-3676 aai-doctor.md documents CAT-21, the horizon override and the WARN-only posture"
 }
 
+# --- TEST-4123 / TEST-4124 (onboarding-tech-contract-and-lint-gaps) — the template seed -------
+# The seed text is the REAL template bytes (what aai-sync stepSeeds copies), never a hand-written
+# status line (seam S1). The generated literal is read from TECH_EXTRACT step 7 (seam S2).
+SEED_HINT='docs/TECHNOLOGY.md is still the template seed (Status: template-seed); run TECH_EXTRACT (.aai/TECH_EXTRACT.prompt.md) to fill the technology contract'
+TECH_TEMPLATE="$PROJECT_ROOT/.aai/templates/TECHNOLOGY_TEMPLATE.md"
+TECH_EXTRACT_PROMPT="$PROJECT_ROOT/.aai/TECH_EXTRACT.prompt.md"
+
+# onb_status_literal: the "Status: <word>" literal TECH_EXTRACT step 7 tells the agent to write.
+onb_status_literal() {
+  local line=""
+  while IFS= read -r line; do
+    if [[ "$line" == *"- Status: generated"* ]]; then printf '%s\n' "Status: generated"; return 0; fi
+  done < "$TECH_EXTRACT_PROMPT"
+  return 1
+}
+
+# onb_cat_line <fixture-copy-root> [doctor args...]: the CAT-05 line of the clean fixture's doctor.
+onb_cat05() {
+  local d="$1"; shift
+  node "$d/.aai/scripts/aai-doctor.mjs" "$@" 2>&1 | grep '^CAT-05' || true
+}
+
+# onb_commit_fixture <fixture>: the fixture must stay git-clean so CAT-08 keeps its clean status.
+onb_commit_fixture() {
+  git -C "$1" add -A >/dev/null 2>&1
+  AAI_GIT_WRITE=1 git -C "$1" commit -qm "fixture: technology seed" >/dev/null 2>&1
+  AAI_GIT_WRITE=1 git -C "$1" push -q origin main >/dev/null 2>&1
+}
+
+test_4123_template_seed_warns() {
+  local d out base_out rc variant crlf ok=1
+  d="$(build_clean_fixture t4123)"
+  base_out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"
+  for variant in lf crlf; do
+    cp "$TECH_TEMPLATE" "$d/docs/TECHNOLOGY.md"
+    if [[ "$variant" == crlf ]]; then
+      node -e 'const fs=require("fs");const p=process.argv[1];fs.writeFileSync(p,fs.readFileSync(p,"utf8").replace(/\r?\n/g,"\r\n"));' "$d/docs/TECHNOLOGY.md"
+    fi
+    onb_commit_fixture "$d"
+    out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
+    if [[ "$rc" -ne 0 ]]; then log_info "TEST-4123 $variant: default exit $rc"; ok=0; fi
+    dr_line_hit "$out" '^CAT-05 WARN' || { log_info "TEST-4123 $variant: CAT-05 is not WARN: $(onb_cat05 "$d")"; ok=0; }
+    [[ "$(onb_cat05 "$d")" == *"$SEED_HINT"* ]] || { log_info "TEST-4123 $variant: the CAT-05 reason lacks the hint"; ok=0; }
+    # every other category keeps its clean-fixture status
+    local want got
+    want="$(printf '%s\n' "$base_out" | grep -v '^CAT-05' | cut -c1-11 | grep '^CAT-' || true)"
+    got="$(printf '%s\n' "$out" | grep -v '^CAT-05' | cut -c1-11 | grep '^CAT-' || true)"
+    [[ -n "$want" && "$want" == "$got" ]] || { log_info "TEST-4123 $variant: another category changed status"; ok=0; }
+    node "$d/.aai/scripts/aai-doctor.mjs" --strict >/dev/null 2>&1; rc=$?
+    [[ "$rc" -eq 1 ]] || { log_info "TEST-4123 $variant: --strict exit $rc (want 1)"; ok=0; }
+    out="$(node "$d/.aai/scripts/aai-doctor.mjs" --json 2>&1)"
+    printf '%s' "$out" | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const cs=j.categories||j;const c=cs.find((x)=>x.id==="CAT-05");process.exit(c&&c.status==="WARN"&&String(c.reason||c.detail||"").includes("template seed")?0:1);' \
+      || { log_info "TEST-4123 $variant: --json CAT-05 is not WARN with the hint"; ok=0; }
+  done
+  [[ -f "$PROJECT_ROOT/.aai/TECH_EXTRACT.prompt.md" ]] || { log_info "TEST-4123: the path named in the hint does not exist"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-4123 template seed (LF and CRLF) gives CAT-05 WARN with the hint, other categories unchanged, strict exit 1" \
+    || log_fail "TEST-4123 template seed warns"
+}
+
+test_4124_non_seed_unchanged() {
+  local d base_line gen out line n ok=1 variant
+  gen="$(onb_status_literal)" || { log_fail "TEST-4124 TECH_EXTRACT step 7 holds no Status: generated literal"; return; }
+  d="$(build_clean_fixture t4124)"
+  base_line="$(onb_cat05 "$d")"
+  [[ "$base_line" == "CAT-05 PASS "* ]] || { log_fail "TEST-4124 clean fixture CAT-05 is not PASS: $base_line"; return; }
+  for variant in generated empty bodymention noheader; do
+    case "$variant" in
+      generated) sed "s/Status: template-seed/$gen/" "$TECH_TEMPLATE" > "$d/docs/TECHNOLOGY.md" ;;
+      empty) : > "$d/docs/TECHNOLOGY.md" ;;
+      bodymention) { sed "s/Status: template-seed/$gen/" "$TECH_TEMPLATE"; printf '\n## Notes\n- Status: template-seed\n'; } > "$d/docs/TECHNOLOGY.md" ;;
+      noheader) printf '# Technology\n\n## Stack\n- Status: template-seed\n' > "$d/docs/TECHNOLOGY.md" ;;
+    esac
+    onb_commit_fixture "$d"
+    line="$(onb_cat05 "$d")"
+    [[ "$line" == "$base_line" ]] || { log_info "TEST-4124 $variant: '$line' != '$base_line'"; ok=0; }
+  done
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" --json 2>&1)"
+  n="$(printf '%s' "$out" | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log((j.categories||j).length);')"
+  [[ "$n" == 18 ]] || { log_info "TEST-4124: clean fixture reports $n categories (want 18)"; ok=0; }
+  n="$(node "$DOCTOR" --root "$PROJECT_ROOT" --json 2>&1 | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log((j.categories||j).length);')"
+  [[ "$n" == 20 ]] || { log_info "TEST-4124: this repo reports $n categories (want 20)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-4124 generated, empty, body-mention and header-less files keep CAT-05 PASS byte-identical; 18 and 20 categories" \
+    || log_fail "TEST-4124 non-seed unchanged"
+}
+
+# TEST-4126 (Spec-AC-03): the REAL doctor and the REAL bootstrap --dry-run run over one fixture table; the
+# doctor flag (D1 hint in CAT-05) and the bootstrap pointer block must agree on every fixture, and the flagged
+# set is exactly the two template fixtures.
+test_4126_doctor_bootstrap_agree() {
+  local d gen variant flagged_doc flagged_bs line bs_out flagged_set="" ok=1 n=0
+  gen="$(onb_status_literal)" || { log_fail "TEST-4126 TECH_EXTRACT step 7 holds no Status: generated literal"; return; }
+  d="$(build_clean_fixture t4126)"
+  for variant in template_lf template_crlf generated body_only empty absent; do
+    case "$variant" in
+      template_lf) cp "$TECH_TEMPLATE" "$d/docs/TECHNOLOGY.md" ;;
+      template_crlf) cp "$TECH_TEMPLATE" "$d/docs/TECHNOLOGY.md"
+        node -e 'const fs=require("fs");const p=process.argv[1];fs.writeFileSync(p,fs.readFileSync(p,"utf8").replace(/\r?\n/g,"\r\n"));' "$d/docs/TECHNOLOGY.md" ;;
+      generated) sed "s/Status: template-seed/$gen/" "$TECH_TEMPLATE" > "$d/docs/TECHNOLOGY.md" ;;
+      body_only) { sed "s/Status: template-seed/$gen/" "$TECH_TEMPLATE"; printf '\n## Notes\n- Status: template-seed\n'; } > "$d/docs/TECHNOLOGY.md" ;;
+      empty) : > "$d/docs/TECHNOLOGY.md" ;;
+      absent) rm -f "$d/docs/TECHNOLOGY.md" ;;
+    esac
+    line="$(onb_cat05 "$d")"
+    flagged_doc=0
+    [[ "$line" == *"$SEED_HINT"* ]] && flagged_doc=1
+    bs_out="$(env -u AAI_ROLE timeout 120 node "$PROJECT_ROOT/.aai/scripts/aai-bootstrap.mjs" "$d" --dry-run 2>&1)" || { log_info "TEST-4126 $variant: bootstrap exited non-zero"; ok=0; }
+    [[ -n "$bs_out" ]] || { log_info "TEST-4126 $variant: bootstrap printed nothing"; ok=0; }
+    flagged_bs=0
+    if dr_line_hit "$bs_out" '^Technology contract:$' && [[ "$bs_out" == *"- $SEED_HINT"* ]]; then flagged_bs=1; fi
+    if [[ "$flagged_doc" -ne "$flagged_bs" ]]; then log_info "TEST-4126 $variant: doctor=$flagged_doc bootstrap=$flagged_bs"; ok=0; fi
+    if [[ "$flagged_doc" -eq 1 ]]; then flagged_set="$flagged_set $variant"; n=$((n + 1)); fi
+  done
+  [[ "$n" -eq 2 && "$flagged_set" == " template_lf template_crlf" ]] || { log_info "TEST-4126: flagged set is [$flagged_set] (want exactly the two template fixtures)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-4126 the doctor and bootstrap --dry-run agree on six fixtures; the flagged set is the two template copies" \
+    || log_fail "TEST-4126 doctor and bootstrap agreement"
+}
+
+# TEST-4131 (Spec-AC-09): TECH_EXTRACT gains a fresh-project path and loses its hand-edit STATE bullets.
+test_4131_tech_extract_fresh_project_text() {
+  local f="$TECH_EXTRACT_PROMPT" ok=1 text bullet
+  [[ -f "$f" ]] || { log_fail "TEST-4131 $f is missing"; return; }
+  text="$(cat "$f")"
+  [[ "$text" == *'node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml'* ]] || { log_info "TEST-4131: the repair command is missing"; ok=0; }
+  [[ "$text" == *'skip the STATE steps'* && "$text" == *'say so in the output'* ]] || { log_info "TEST-4131: the skip-with-note instruction is missing"; ok=0; }
+  [[ "$text" == *'Never write docs/ai/STATE.yaml by hand.'* ]] || { log_info "TEST-4131: the never-by-hand sentence is missing"; ok=0; }
+  [[ "$text" == *'node .aai/scripts/state.mjs set-focus --type technology_extraction --ref technology-extraction --path docs/TECHNOLOGY.md'* ]] || { log_info "TEST-4131: the set-focus command is missing"; ok=0; }
+  for bullet in '   - current_focus' '   - active_work_items status for technology extraction scope' '   - updated_at_utc'; do
+    if dr_line_hit "$text" "^$(printf '%s' "$bullet" | sed 's/[][\.*^$/]/\\&/g')\$"; then log_info "TEST-4131: the removed bullet is back: $bullet"; ok=0; fi
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-4131 TECH_EXTRACT holds the repair command, the skip-with-note rule, the never-by-hand sentence and set-focus, and none of the three removed bullets" \
+    || log_fail "TEST-4131 TECH_EXTRACT fresh-project text"
+}
+
+# TEST-4132 (Spec-AC-10): the two backticked node .aai/scripts/ commands of TECH_EXTRACT, run in order in a temp
+# project that holds a copy of .aai/ and no STATE, leave a valid STATE with the technology_extraction focus.
+test_4132_tech_extract_commands_run() {
+  local proj cmds cmd n=0 rc ok=1 state
+  proj="$TMP_ROOT/t4132"
+  mkdir -p "$proj/docs"
+  cp -R "$PROJECT_ROOT/.aai" "$proj/.aai"
+  [[ ! -e "$proj/docs/ai/STATE.yaml" ]] || { log_fail "TEST-4132 the temp project already has a STATE"; return; }
+  cmds="$(node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8");
+    for (const m of t.matchAll(/`(node \.aai\/scripts\/[^`]+)`/g)) console.log(m[1]);
+  ' "$TECH_EXTRACT_PROMPT")"
+  while IFS= read -r cmd; do
+    [[ -n "$cmd" ]] || continue
+    n=$((n + 1))
+    rc=0
+    (cd "$proj" && env -u AAI_ROLE bash -c "$cmd") >"$TMP_ROOT/t4132.cmd$n.out" 2>&1 || rc=$?
+    if [[ "$rc" -ne 0 ]]; then log_info "TEST-4132 command $n ($cmd) exited $rc: $(cat "$TMP_ROOT/t4132.cmd$n.out")"; ok=0; fi
+  done <<EOF2
+$cmds
+EOF2
+  [[ "$n" -eq 2 ]] || { log_info "TEST-4132: found $n backticked node .aai/scripts/ commands, expected exactly 2"; ok=0; }
+  state="$proj/docs/ai/STATE.yaml"
+  if [[ -f "$state" ]]; then
+    state="$(cat "$state")"
+    [[ "$state" == *'type: technology_extraction'* ]] || { log_info "TEST-4132: STATE has no technology_extraction focus"; ok=0; }
+    [[ "$state" == *'primary_path: docs/TECHNOLOGY.md'* ]] || { log_info "TEST-4132: STATE focus path is not docs/TECHNOLOGY.md"; ok=0; }
+    rc=0
+    (cd "$proj" && env -u AAI_ROLE node .aai/scripts/check-state.mjs docs/ai/STATE.yaml) >/dev/null 2>&1 || rc=$?
+    [[ "$rc" -eq 0 ]] || { log_info "TEST-4132: check-state exits $rc on the written STATE"; ok=0; }
+  else
+    log_info "TEST-4132: no docs/ai/STATE.yaml after the commands"; ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-4132 both TECH_EXTRACT commands run in a fresh temp project, exit 0, and leave a valid STATE with the technology_extraction focus" \
+    || log_fail "TEST-4132 TECH_EXTRACT commands run"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -3180,6 +3350,11 @@ main() {
   test_3701_cat22_project_price_freshness
   test_3673_profiles_and_core_sync_cat21
   test_3676_cat21_documented
+  test_4123_template_seed_warns
+  test_4124_non_seed_unchanged
+  test_4126_doctor_bootstrap_agree
+  test_4131_tech_extract_fresh_project_text
+  test_4132_tech_extract_commands_run
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
