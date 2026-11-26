@@ -1482,4 +1482,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-25 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-26 — counts above use this date for overdue checks.
