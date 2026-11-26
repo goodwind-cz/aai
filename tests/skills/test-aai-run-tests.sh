@@ -1277,7 +1277,163 @@ test_030() {
   log_pass "7 AGE-WAIT tags, each sleep at or above its documented minimum"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030"
+# --- TEST-4130 (Spec-AC-01 / D1, test-infra-p2-fixes) — the wrapper gives the
+# wrapped command a private XDG_CACHE_HOME, never the caller's -----------------
+# A fake HOME and a fake XDG_CACHE_HOME live under ONE mktemp root; the owner's
+# real ~/.cache/powershell is never read, listed or written. The wrapped sh
+# records the XDG_CACHE_HOME it sees and writes the pwsh startup-profile entry
+# under it (the fallback is $HOME/.cache, exactly as pwsh resolves it).
+test_4130_private_xdg_cache() {
+  log_info "TEST-4130: the wrapped command sees a private XDG_CACHE_HOME (not the caller's, not under HOME), removed afterwards, and no powershell entry reaches the fakes (Spec-AC-01)..."
+  local root fh fx tmpd mode seen rc entries
+  root="$(mktemp -d "${TMPDIR:-/tmp}/aai-t4130.XXXXXX")" || log_fail "TEST-4130: no scratch root could be made"
+  [[ -n "$root" && "$root" == /* && -d "$root" ]] || log_fail "TEST-4130: unsafe scratch root '$root'"
+  fh="$root/home"; fx="$root/xdg"; tmpd="$root/tmp"
+  mkdir -p "$fh" "$fx" "$tmpd" || log_fail "TEST-4130: fixture dirs could not be made"
+  # The probe: record what the command sees, then do what pwsh does with it.
+  local probe='printf "%s\n" "${XDG_CACHE_HOME-UNSET}" > "$AAI_T4130_OUT"
+printf "%s\n" "${PLAYWRIGHT_BROWSERS_PATH-UNSET}" > "$AAI_T4130_OUT.pw"
+c="${XDG_CACHE_HOME:-$HOME/.cache}/powershell"
+mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
+  # owned / ownedkeep: the nested wrapper must OWN a temp root, which is the
+  # branch every outermost invocation takes. Inside a suite the inherited
+  # AAI_TEST_OWNER makes tree mode off, so the owner is unset and a sandbox
+  # directory (the fake TMPDIR) is named: tree mode is then sandbox, the root
+  # is made under it, and the cache lives inside that root. AAI_RESIDUE_IN_TEST
+  # is set explicitly so the arm behaves the same inside and outside a suite.
+  for mode in set unset keep owned ownedkeep; do
+    rm -f "$root/seen" "$root/seen.pw"
+    rc=0
+    case "$mode" in
+      set)   env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      unset) env -u XDG_CACHE_HOME HOME="$fh" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      keep)  env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_TEST_TMPDIR=keep AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      owned) env -u AAI_TEST_OWNER AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$tmpd" HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      ownedkeep) env -u AAI_TEST_OWNER AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$tmpd" HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_TEST_TMPDIR=keep AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+    esac
+    [[ "$rc" -eq 0 ]] || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the wrapped probe must exit 0 (got $rc)"; }
+    seen="$(cat "$root/seen" 2>/dev/null || true)"
+    [[ -n "$seen" && "$seen" == /* ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command saw no absolute XDG_CACHE_HOME (got '$seen')"; }
+    [[ "$seen" != "$fx" && "$seen" != "$fx"/* ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command saw the caller's XDG_CACHE_HOME ($seen)"; }
+    [[ "$seen" != "$fh" && "$seen" != "$fh"/* ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command's XDG_CACHE_HOME lies under the fake HOME ($seen)"; }
+    case "$mode" in
+      owned | ownedkeep)
+        # Owned: the cache is exactly <sandbox>/aai-tr-*/xdg-cache, and the whole
+        # owned root is gone afterwards.
+        case "$seen" in
+          */aai-tr-*/xdg-cache) ;;
+          *) rm -rf "$root"; log_fail "TEST-4130 ($mode): the owned run's cache is not <root>/aai-tr-*/xdg-cache (got $seen)" ;;
+        esac
+        entries="$(find "$tmpd" -mindepth 1 -maxdepth 1 2>/dev/null || true)"
+        [[ -z "$entries" ]] \
+          || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the owned root or the cache survived the wrapper: $entries"; } ;;
+    esac
+    [[ ! -e "$seen" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the private cache $seen survived the wrapper"; }
+    entries="$(find "$fx" "$fh" -iname 'powershell*' 2>/dev/null || true)"
+    [[ -z "$entries" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): a powershell entry reached the fakes: $entries"; }
+  done
+
+  # Tool paths that follow XDG_CACHE_HOME (NB-1): on Linux Playwright resolves
+  # its browsers under $XDG_CACHE_HOME/ms-playwright, so the private cache
+  # would hide installed browsers. With PLAYWRIGHT_BROWSERS_PATH unset the
+  # wrapper exports the caller's own location (never created or changed); a
+  # caller value is kept; off Linux nothing is exported (macOS and Windows
+  # do not use XDG for it). AAI_UNAME is the wrapper's own uname override.
+  local want pw
+  for mode in pw_xdg pw_home pw_caller pw_darwin; do
+    rm -f "$root/seen" "$root/seen.pw"
+    rc=0
+    case "$mode" in
+      pw_xdg)    env -u PLAYWRIGHT_BROWSERS_PATH AAI_UNAME=Linux HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$fx/ms-playwright" ;;
+      pw_home)   env -u XDG_CACHE_HOME -u PLAYWRIGHT_BROWSERS_PATH AAI_UNAME=Linux HOME="$fh" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$fh/.cache/ms-playwright" ;;
+      pw_caller) env AAI_UNAME=Linux PLAYWRIGHT_BROWSERS_PATH="$root/own-browsers" HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$root/own-browsers" ;;
+      pw_darwin) env -u PLAYWRIGHT_BROWSERS_PATH AAI_UNAME=Darwin HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want=UNSET ;;
+    esac
+    [[ "$rc" -eq 0 ]] || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the wrapped probe must exit 0 (got $rc)"; }
+    pw="$(cat "$root/seen.pw" 2>/dev/null || true)"
+    [[ "$pw" == "$want" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): PLAYWRIGHT_BROWSERS_PATH was '$pw', expected '$want'"; }
+    [[ ! -e "$fx/ms-playwright" && ! -e "$fh/.cache/ms-playwright" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the wrapper created a ms-playwright directory in the caller's cache"; }
+  done
+
+  # Real pwsh arm: only where pwsh is installed. pwsh creates its own data
+  # dir under the fake HOME (.local/share/powershell); that is not the cache.
+  # The follow-up is about the cache (StartupProfileData under
+  # $XDG_CACHE_HOME/powershell or $HOME/.cache/powershell), so the assertion
+  # is scoped to exactly those two locations.
+  if command -v pwsh >/dev/null 2>&1; then
+    rc=0
+    env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" \
+      sh "$RUN_TESTS_SCRIPT" pwsh -NoLogo -Command 'exit 0' >/dev/null 2>&1 || rc=$?
+    [[ "$rc" -eq 0 ]] || { rm -rf "$root"; log_fail "TEST-4130 (pwsh): a real pwsh start through the wrapper must exit 0 (got $rc)"; }
+    entries="$(find "$fx" -iname 'powershell*' 2>/dev/null || true)$(find "$fh/.cache" -iname 'powershell*' 2>/dev/null || true)"
+    [[ -z "$entries" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 (pwsh): a real pwsh start left a powershell cache entry in the fakes: $entries"; }
+  else
+    log_info "NOTE: TEST-4130 skipped the real pwsh arm: pwsh is not on PATH"
+  fi
+  rm -rf "$root"
+  log_pass "TEST-4130: XDG_CACHE_HOME is private per wrapper run (set, unset and keep modes, plus the owned-root branch with and without TMPDIR=keep), gone afterwards, PLAYWRIGHT_BROWSERS_PATH points at the caller's own cache on Linux only and is never created, and no powershell cache entry (XDG_CACHE_HOME/powershell, HOME/.cache/powershell) reached the fake XDG or fake HOME"
+}
+
+# test-infra-p2-fixes D-AMEND / D-WIRE: the consumer-visible record of the change.
+test_4141_changelog_amendments_and_ledger() {
+  log_info "TEST-4141: the CHANGELOG heading, the TECHNOLOGY.md sentence, the three amendment headings and the closed ledger"
+  local cl="$PROJECT_ROOT/CHANGELOG.md" tech="$PROJECT_ROOT/docs/TECHNOLOGY.md" f rc out ids id open_json
+  [[ -f "$cl" && -f "$tech" ]] || log_fail "TEST-4141: CHANGELOG.md or docs/TECHNOLOGY.md missing"
+  /usr/bin/grep -qE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — Test infrastructure: the nine P2 follow-ups$' "$cl" \
+    || log_fail "TEST-4141: CHANGELOG.md lacks the D-WIRE heading"
+  /usr/bin/grep -qF 'always overrides `XDG_CACHE_HOME`' "$tech" \
+    || log_fail "TEST-4141: docs/TECHNOLOGY.md does not name the XDG_CACHE_HOME override"
+  for f in docs/issues/CHANGE-0099-deterministic-friction-capture.md docs/specs/SPEC-0185-spec-friction-channel-sweep.md docs/specs/SPEC-0231-spec-docs-index-broken-refs-scope.md; do
+    /usr/bin/grep -qxF '## Amendment 2026-11-25 (test-infra-p2-fixes)' "$PROJECT_ROOT/$f" \
+      || log_fail "TEST-4141: $f lacks the D-AMEND heading line"
+  done
+  rc=0
+  open_json="$(mktemp "${TMPDIR:-/tmp}/aai-t4141.XXXXXX")" || log_fail "TEST-4141: no scratch file"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/spec-amend.mjs list --strict) > "$open_json" 2>&1 || rc=$?
+  out="$(<"$open_json")"
+  rm -f "$open_json"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4141: spec-amend.mjs list --strict exited $rc: ${out:0:400}"
+  ids="fu-prompt-diet-fixture-real-root-race fu-suite-fail-text-blocks-attribution fu-docs-audit-suite-has-no-selector fu-runtests-capture-is-unscored-noise fu-framework-discover-exit-swallowed fu-lib-graph-narrowing-after-sharding fu-assertions-pinned-to-one-world fu-reuse-docs-closure-suites fu-tests-share-real-pwsh-cache"
+  open_json="$(mktemp "${TMPDIR:-/tmp}/aai-t4141.XXXXXX")" || log_fail "TEST-4141: no scratch file"
+  rc=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/follow-ups.mjs list --status all --json) > "$open_json" 2>/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { rm -f "$open_json"; log_fail "TEST-4141: follow-ups.mjs list exited $rc"; }
+  rc=0
+  out="$(T4141_IDS="$ids" node -e '
+const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const want = process.env.T4141_IDS.split(" ");
+const bad = [];
+for (const id of want) {
+  const it = j.items.find((x) => x.id === id);
+  if (!it) bad.push(id + ": absent from the ledger");
+  else if (it.status === "open") bad.push(id + ": still open");
+  else if (it.resolved_by !== "test-infra-p2-fixes") bad.push(id + ": resolved_by " + it.resolved_by);
+}
+if (bad.length) { console.log(bad.join("; ")); process.exit(1); }
+' "$open_json" 2>&1)" || rc=$?
+  rm -f "$open_json"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4141: ledger: $out"
+  log_pass "TEST-4141: the D-WIRE heading, the TECHNOLOGY.md override sentence, three D-AMEND headings, spec-amend list --strict and nine closed follow-ups"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 4130_private_xdg_cache 4141_changelog_amendments_and_ledger"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"

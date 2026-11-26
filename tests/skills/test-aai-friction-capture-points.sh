@@ -125,22 +125,19 @@ line_get() {
 # CAPTURE POINT 1 — aai-run-tests.sh wrapper
 # =============================================================================
 
-# --- TEST-001 (AC-001): failing command records one observation --------------
+# --- TEST-001 (AC-001, withdrawn by test-infra-p2-fixes D4): a failing command
+# is the test's own verdict, not friction -> zero observations -----------------
 test_001_wrapper_failure_records() {
-  log_info "Test: a failing wrapped command appends one deterministic_script_failure observation; exit code preserved (TEST-001)..."
+  log_info "Test: a failing wrapped command records NOTHING (an ordinary failure is not friction); exit code preserved (TEST-001)..."
   [ -f "$WRAPPER" ] || log_fail "TEST-001: wrapper not found: $WRAPPER"
   local sp="$TEST_DIR/sp001"; mkdir -p "$sp"
   local spool="$sp/observations.jsonl"
   local rc=0
   AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 7' >/dev/null 2>&1 || rc=$?
   [ "$rc" = "7" ] || log_fail "TEST-001: wrapper must pass through the real exit code 7 (got $rc)"
-  [ "$(spool_count "$spool")" = "1" ] \
-    || log_fail "TEST-001: a failing command must append exactly one observation (got $(spool_count "$spool"))"
-  [ "$(line_get "$spool" skill_id)" = "aai-run-tests" ] \
-    || log_fail "TEST-001: skill_id must be aai-run-tests (got $(line_get "$spool" skill_id))"
-  [ "$(line_get "$spool" failure_class)" = "deterministic_script_failure" ] \
-    || log_fail "TEST-001: a non-timeout failure must record failure_class deterministic_script_failure (got $(line_get "$spool" failure_class))"
-  log_pass "Failing command -> one deterministic_script_failure observation, exit 7 preserved (TEST-001)"
+  [ "$(spool_count "$spool")" = "0" ] \
+    || log_fail "TEST-001: a failing (non-timeout) command must record zero observations (got $(spool_count "$spool"))"
+  log_pass "Failing command -> zero observations, exit 7 preserved (TEST-001)"
 }
 
 # --- TEST-002 (AC-002): timeout records stalled_progress ---------------------
@@ -182,16 +179,16 @@ test_004_wrapper_isolation() {
   # created (a fixture repo lacking docs/ai/friction must never pollute a spool).
   local missing="$TEST_DIR/sp004-missing/friction"
   local rc=0
-  AAI_FRICTION_SPOOL_DIR="$missing" sh "$WRAPPER" sh -c 'exit 3' >/dev/null 2>&1 || rc=$?
-  [ "$rc" = "3" ] || log_fail "TEST-004a: exit code must be preserved (got $rc)"
+  AAI_TEST_TIMEOUT=2 AAI_FRICTION_SPOOL_DIR="$missing" sh "$WRAPPER" sh -c 'sleep 30' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "124" ] || log_fail "TEST-004a: exit code must be preserved (got $rc)"
   [ ! -e "$missing" ] \
     || log_fail "TEST-004a: capture must NOT create a spool when its dir does not pre-exist"
 
   # (b) off-switch: dir exists but AAI_FRICTION_CAPTURE=0 -> no capture.
   local sp="$TEST_DIR/sp004-off"; mkdir -p "$sp"
   rc=0
-  AAI_FRICTION_CAPTURE=0 AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 3' >/dev/null 2>&1 || rc=$?
-  [ "$rc" = "3" ] || log_fail "TEST-004b: exit code must be preserved with the off-switch (got $rc)"
+  AAI_TEST_TIMEOUT=2 AAI_FRICTION_CAPTURE=0 AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'sleep 30' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "124" ] || log_fail "TEST-004b: exit code must be preserved with the off-switch (got $rc)"
   [ "$(spool_count "$sp/observations.jsonl")" = "0" ] \
     || log_fail "TEST-004b: AAI_FRICTION_CAPTURE=0 must suppress capture (got $(spool_count "$sp/observations.jsonl"))"
   log_pass "Isolation: missing-dir gate + off-switch both suppress capture, exit preserved (TEST-004)"
@@ -218,8 +215,8 @@ test_655_wrapper_never_promotes() {
   local sp="$TEST_DIR/sp655"; mkdir -p "$sp"
   local spool="$sp/observations.jsonl"
   local rc=0
-  AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 5' >/dev/null 2>&1 || rc=$?
-  [ "$rc" = "5" ] || log_fail "TEST-655: wrapper must preserve exit code 5 (got $rc)"
+  AAI_TEST_TIMEOUT=2 AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'sleep 30' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "124" ] || log_fail "TEST-655: wrapper must preserve the watchdog exit code 124 (got $rc)"
   [ "$(spool_count "$spool")" = "1" ] || log_fail "TEST-655: expected exactly one observation"
   [ "$(line_get "$spool" summary)" = "__UNDEF__" ] \
     || log_fail "TEST-655: the automatic capture point must never persist a summary"
@@ -247,8 +244,8 @@ test_659_note_never_masks_the_caller() {
   local sp="$TEST_DIR/sp659"; mkdir -p "$sp"
   local spool="$sp/observations.jsonl"
   local rc=0
-  AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 6' >/dev/null 2>&1 || rc=$?
-  [ "$rc" = "6" ] || log_fail "TEST-659: wrapper must preserve exit code 6 (got $rc)"
+  AAI_TEST_TIMEOUT=2 AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'sleep 30' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "124" ] || log_fail "TEST-659: wrapper must preserve the watchdog exit code 124 (got $rc)"
   [ "$(spool_count "$spool")" = "1" ] || log_fail "TEST-659: expected exactly one observation from the wrapper"
 
   # (2) the capture CLI's own contract: a --promote call that DOES trigger a
@@ -291,12 +288,62 @@ test_005_wrapper_never_masks() {
   # appendFileSync throws EISDIR for every uid (chmod would not stop root).
   mkdir -p "$sp/observations.jsonl"
   local rc=0
-  AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 9' >/dev/null 2>&1 || rc=$?
-  [ "$rc" = "9" ] \
-    || log_fail "TEST-005: a failing capture must not change the wrapper's exit code (want 9, got $rc)"
+  AAI_TEST_TIMEOUT=2 AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'sleep 30' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "124" ] \
+    || log_fail "TEST-005: a failing capture must not change the wrapper's exit code (want 124, got $rc)"
   [ -d "$sp/observations.jsonl" ] \
     || log_fail "TEST-005: setup invalid — the EISDIR target must remain a directory"
-  log_pass "Capture failure swallowed; wrapper exit code 9 unchanged (TEST-005)"
+  log_pass "Capture failure swallowed; wrapper exit code 124 unchanged (TEST-005)"
+}
+
+# --- TEST-4133 (Spec-AC-04, D4): an ordinary failure records nothing ---------
+test_4133_ordinary_failure_records_nothing() {
+  log_info "Test: exit 7 and a missing command (127) each leave zero observations and keep their exit code (TEST-4133)..."
+  [ -f "$WRAPPER" ] || log_fail "TEST-4133: wrapper not found: $WRAPPER"
+  local sp="$TEST_DIR/sp4133"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+  local rc=0
+  AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 7' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "7" ] || log_fail "TEST-4133: exit 7 must pass through (got $rc)"
+  rc=0
+  AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" aai-no-such-command-4133 >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "127" ] || log_fail "TEST-4133: a missing command must exit 127 (got $rc)"
+  [ "$(spool_count "$spool")" = "0" ] \
+    || log_fail "TEST-4133: ordinary failures must leave the spool empty (got $(spool_count "$spool"))"
+  log_pass "Exit 7 and 127 -> zero observations, codes preserved (TEST-4133)"
+}
+
+# --- TEST-4134 (Spec-AC-05, D4): a stall record carries a scorable signal ----
+test_4134_stall_record_carries_signal() {
+  log_info "Test: two watchdog stalls -> two stalled_progress lines (medium/low); the real triage reads retain after one and review_candidate after two (TEST-4134)..."
+  [ -f "$WRAPPER" ] || log_fail "TEST-4134: wrapper not found: $WRAPPER"
+  local sp="$TEST_DIR/sp4134"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+  local triage="$PROJECT_ROOT/.aai/scripts/aai-feedback-triage.mjs"
+  [ -f "$triage" ] || log_fail "TEST-4134: triage CLI not found: $triage"
+  local rc=0 i
+  for i in 1 2; do
+    rc=0
+    AAI_TEST_TIMEOUT=2 AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'sleep 30' >/dev/null 2>&1 || rc=$?
+    [ "$rc" = "124" ] || log_fail "TEST-4134: stall $i must exit 124 (got $rc)"
+    [ "$(spool_count "$spool")" = "$i" ] \
+      || log_fail "TEST-4134: stall $i must leave exactly $i line(s) (got $(spool_count "$spool"))"
+    [ "$(line_get "$spool" failure_class)" = "stalled_progress" ] \
+      || log_fail "TEST-4134: failure_class must be stalled_progress (got $(line_get "$spool" failure_class))"
+    [ "$(line_get "$spool" confidence)" = "medium" ] \
+      || log_fail "TEST-4134: confidence must be medium (got $(line_get "$spool" confidence))"
+    [ "$(line_get "$spool" impact)" = "low" ] \
+      || log_fail "TEST-4134: impact must be low (got $(line_get "$spool" impact))"
+    local rep="$TEST_DIR/triage4134-$i.json" trc=0
+    node "$triage" --spool "$spool" --out "$rep" >/dev/null 2>&1 || trc=$?
+    [ "$trc" = "0" ] || log_fail "TEST-4134: triage must exit 0 (got $trc)"
+    local want="retain"; [ "$i" = "2" ] && want="review_candidate"
+    local got
+    got="$(node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(r.clusters.length===1?r.clusters[0].decision:"clusters="+r.clusters.length)' "$rep")"
+    [ "$got" = "$want" ] \
+      || log_fail "TEST-4134: triage after $i stall(s) must report $want (got $got)"
+  done
+  log_pass "Stall record medium/low; triage retain then review_candidate (TEST-4134)"
 }
 
 # =============================================================================
@@ -460,6 +507,8 @@ main() {
   test_005_wrapper_never_masks
   test_655_wrapper_never_promotes
   test_659_note_never_masks_the_caller
+  test_4133_ordinary_failure_records_nothing
+  test_4134_stall_record_carries_signal
 
   test_006_close_with_remediation_records
   test_007_close_without_remediation_no_record

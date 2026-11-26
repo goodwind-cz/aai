@@ -950,6 +950,7 @@ test_312_contract_and_diet() {
   # So the expectation is derived from the base branch's ledger instead.
   local base_pin live_pin base_ledger
   base_ledger="$TMP_ROOT/t312-base-ledger.sh"
+  # one-world-ok: a base-versus-live comparison (origin/main ledger against the checkout ledger), which holds whether or not a ride moved the ledger; an unreadable base fails closed below
   if (cd "$PROJECT_ROOT" && git show origin/main:tests/skills/lib/prompt-diet-ledger.sh) > "$base_ledger" 2>/dev/null \
      && [[ -s "$base_ledger" ]]; then
     # Derive the base credit with the ledger's OWN summation rather than a

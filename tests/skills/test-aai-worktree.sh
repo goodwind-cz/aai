@@ -48,7 +48,7 @@ trap cleanup EXIT
 
 # Logging
 log_pass() { echo "✓ $*"; }
-log_fail() { echo "✗ $*" >&2; return 1; }
+log_fail() { echo "✗ FAIL: $*" >&2; return 1; }
 log_skip() { echo "⊘ $*"; exit 42; }
 log_info() { echo "  $*"; }
 

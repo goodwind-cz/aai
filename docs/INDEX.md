@@ -74,7 +74,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (709)
+## Done (711)
 
 | ID | Type | Path |
 |---|---|---|
@@ -343,6 +343,7 @@ _None._
 | CHANGE-0268 | issues | docs/issues/CHANGE-0268-node-first-cleanup.md |
 | CHANGE-0269 | issues | docs/issues/CHANGE-0269-mutation-tooling-p2-fixes.md |
 | CHANGE-0270 | issues | docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md |
+| CHANGE-0271 | issues | docs/issues/CHANGE-0271-test-infra-p2-fixes.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -785,6 +786,7 @@ _None._
 | SPEC-0316 | specs | docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md |
 | SPEC-0317 | specs | docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md |
 | SPEC-0318 | specs | docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md |
+| SPEC-0319 | specs | docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

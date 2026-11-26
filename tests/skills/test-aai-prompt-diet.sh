@@ -34,12 +34,47 @@ source "$SCRIPT_DIR/lib/prompt-diet-ledger.sh"
 
 E2E_DRAFT="docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md"
 
+# The repo-relative paths one `docs-audit.mjs --check --strict --path <draft>`
+# run reads (test-infra-p2-fixes D5). TEST-004 copies them into a throwaway
+# root and writes its draft only there, so nothing under $PROJECT_ROOT is ever
+# created or removed (the old real-root draft raced a concurrent docs-audit
+# walk over the same tree).
+E2E_FIXTURE_FILES=(
+  .aai/scripts/docs-audit.mjs
+  .aai/scripts/lib
+  .aai/INTAKE_COMMON.md
+  docs/ai/docs-audit.yaml
+  .aai/system/DOCS_AI_CANON.list
+)
+E2E_FIXTURE_ROOTS=()
+
 FAILED=0
 
 cleanup() {
-  rm -f "$PROJECT_ROOT/$E2E_DRAFT"
+  local r
+  for r in ${E2E_FIXTURE_ROOTS[@]+"${E2E_FIXTURE_ROOTS[@]}"}; do
+    [[ -n "$r" && -d "$r" ]] && rm -rf "$r"
+  done
 }
 trap cleanup EXIT
+
+# Copy E2E_FIXTURE_FILES from the working tree into a fresh mktemp root and
+# leave its path in the global E2E_ROOT. Never call this inside a command
+# substitution: the registration with the EXIT cleanup above would happen in a
+# subshell and be lost, leaking the root.
+E2E_ROOT=""
+e2e_fixture_root() {
+  local root rel
+  root="$(mktemp -d "${TMPDIR:-/tmp}/aai-prompt-diet-e2e.XXXXXX")" || return 1
+  E2E_FIXTURE_ROOTS+=("$root")
+  for rel in "${E2E_FIXTURE_FILES[@]}"; do
+    if [[ -e "$PROJECT_ROOT/$rel" ]]; then
+      mkdir -p "$root/$(dirname "$rel")"
+      cp -R "$PROJECT_ROOT/$rel" "$root/$rel"
+    fi
+  done
+  E2E_ROOT="$root"
+}
 
 log_pass() { echo "PASS $*"; }
 log_fail() { echo "FAIL $*" >&2; FAILED=1; }
@@ -161,9 +196,18 @@ test_004_intake_dry_run() {
     log_fail "TEST-004 cannot dry-run: INTAKE_COMMON.md missing"
     return
   fi
+  local e2e_root
+  E2E_ROOT=""
+  e2e_fixture_root || true
+  e2e_root="$E2E_ROOT"
+  if [[ -z "$e2e_root" || ! -d "$e2e_root" ]]; then
+    log_fail "TEST-004 cannot create its fixture root"
+    return
+  fi
+  mkdir -p "$e2e_root/docs/issues"
   # Construct the artifact exactly per INTAKE_COMMON.md DURABLE DOC IDENTITY:
   # docs/<type>/<TYPE>-DRAFT-<slug>.md, frontmatter id/number/status.
-  cat > "$E2E_DRAFT" <<'EOF'
+  cat > "$e2e_root/$E2E_DRAFT" <<'EOF'
 ---
 id: prompt-diet-e2e-dry-run
 type: change
@@ -204,12 +248,56 @@ links:
 ## Notes
 - Ephemeral fixture; never committed.
 EOF
-  if node .aai/scripts/docs-audit.mjs --check --strict --no-event --path "$E2E_DRAFT" >/dev/null 2>&1; then
+  if (cd "$e2e_root" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path "$E2E_DRAFT") >/dev/null 2>&1; then
     log_pass "TEST-004 intake dry-run artifact passes strict audit"
   else
     log_fail "TEST-004 intake dry-run artifact fails strict audit"
   fi
-  rm -f "$E2E_DRAFT"
+}
+
+# TEST-4135 — the dry run never writes the project root (test-infra-p2-fixes D5).
+# A scratch "project" holds a copy of this suite, the libs it sources and the
+# files one docs-audit run of the draft reads, plus a sentinel at the old
+# real-root draft path. Running the COPIED suite's TEST-004 there must pass,
+# leave the sentinel byte-identical and change nothing else under the scratch.
+test_4135_dry_run_never_writes_project_root() {
+  local scratch rel rc=0 out before after fixtures=()
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/aai-prompt-diet-4135.XXXXXX")" || { log_fail "TEST-4135 cannot create a scratch project"; return; }
+  E2E_FIXTURE_ROOTS+=("$scratch")
+  mkdir -p "$scratch/tests/skills/lib"
+  cp "$SCRIPT_DIR/test-aai-prompt-diet.sh" "$scratch/tests/skills/"
+  cp "$SCRIPT_DIR"/lib/pipe-safe.sh "$SCRIPT_DIR"/lib/prompt-diet-ledger.sh "$scratch/tests/skills/lib/"
+  # The paths one docs-audit run of a draft reads (the same set as E2E_FIXTURE_FILES).
+  fixtures=(.aai/scripts/docs-audit.mjs .aai/scripts/lib .aai/INTAKE_COMMON.md docs/ai/docs-audit.yaml .aai/system/DOCS_AI_CANON.list)
+  for rel in "${fixtures[@]}"; do
+    mkdir -p "$scratch/$(dirname "$rel")"
+    cp -R "$PROJECT_ROOT/$rel" "$scratch/$rel"
+  done
+  mkdir -p "$scratch/$(dirname "$E2E_DRAFT")" "$scratch/tmp"
+  printf 'SENTINEL-4135 do not touch\n' > "$scratch/$E2E_DRAFT"
+  cp "$scratch/$E2E_DRAFT" "$scratch/sentinel.orig"
+  before="$(find "$scratch" ! -name sentinel.orig | LC_ALL=C sort | cksum)"
+  (cd "$scratch" && env -u AAI_ROLE TMPDIR="$scratch/tmp" bash tests/skills/test-aai-prompt-diet.sh test_004_intake_dry_run) > "$scratch.out" 2>&1 || rc=$?
+  out="$(<"$scratch.out")"
+  rm -f "$scratch.out"
+  [[ "$rc" == "0" ]] || { log_fail "TEST-4135 the copied suite's TEST-004 must exit 0 (got $rc): ${out:0:400}"; return; }
+  if ! cmp -s "$scratch/$E2E_DRAFT" "$scratch/sentinel.orig"; then
+    log_fail "TEST-4135 the sentinel at the real-root draft path was changed or removed"
+    return
+  fi
+  # The copied suite's own fixture root lived under the fake TMPDIR; its EXIT
+  # cleanup must have removed it (a root registered inside a command
+  # substitution never reaches that cleanup and leaks here).
+  if [[ -n "$(ls -A "$scratch/tmp")" ]]; then
+    log_fail "TEST-4135 the copied suite left a fixture root in its TMPDIR: $(ls -A "$scratch/tmp" | tr '\n' ' ')"
+    return
+  fi
+  after="$(find "$scratch" ! -name sentinel.orig | LC_ALL=C sort | cksum)"
+  if [[ "$after" != "$before" ]]; then
+    log_fail "TEST-4135 the scratch project tree listing changed during the dry run"
+    return
+  fi
+  log_pass "TEST-4135 the dry run left the scratch project root untouched and removed its fixture root from TMPDIR"
 }
 
 # TEST-005 — SKILL_PROFILE contains no fiction and is <= 8988 bytes
@@ -2953,6 +3041,7 @@ main() {
   test_2824_diet_entry_for_binding
   test_2936_skill_pr_3b_growth_ledgered
   test_3837_pr_ceremony_friction_growth_ledgered
+  test_4135_dry_run_never_writes_project_root
   test_4134_onboarding_ledger_entry
 
   echo ""

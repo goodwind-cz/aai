@@ -4,7 +4,7 @@ type: spec
 number: 231
 status: done
 mutation_gate: v1
-frozen_sha256: 01b36be8ffcbce7ba3ac8e06c6b7b71ed9c59690b5aa829ff9f6c5114316edd7
+frozen_sha256: eae35feb0692de4845ec6e8635086a1021c83b89b3c8172e6826a960fca25a6f
 ceremony_level: 2
 links:
   requirement: docs-index-broken-refs-scope
@@ -222,3 +222,28 @@ This document's recorded strategy is tdd, so the tdd row is the demand. The tabl
 none. `node .aai/scripts/follow-ups.mjs list --status open` on 2026-10-14 showed 180 open items. No open item's subject is this source-tree broken-ref walk.
 
 Neighbours this scope does not close: fu-frozen-mutation-cells-unusable stays open because these Mutation cells are anchored to required literals and were parsed in planning, and the missing freeze-time executor is a different change. fu-docsmodel-split-generated-pages stays open because this scope adds a matcher beside extractReferences and does not move SHARED_GENERATED_PAGES. fu-leanaccepted-doc-level-scope stays open because leanAccepted is untouched. fu-testplan-fallback-wrong-cell stays open because this Test Plan uses the canonical headers and does not change the positional fallback.
+
+## Amendment 2026-11-25 (test-infra-p2-fixes)
+
+Additive. The original text above stays as written.
+
+- Original (Implementation plan): "an early return so one argument runs only that
+  function".
+- New rule (test-infra-p2-fixes D7): one argument runs that function after its
+  setup steps and declared producers. The no-argument run order moves into the
+  array `DA_MAIN_STEPS`; `da_run_selected` calls `da_replay_setup`, which runs
+  every setup step (`check_deps`, `write_config`, a `setup_*` name) positioned
+  before the function, plus the producer arms `da_prereqs_of` names, then the
+  function. A function absent from `DA_MAIN_STEPS` is still called bare. An
+  undefined name exits 2 with `unknown test function`.
+- Unchanged: Spec-AC-08 and TEST-012 hold as written (one argument runs that
+  function and prints no full-suite banner). The `if [[ $# -gt 0 ]]; then` line
+  that TEST-012 anchors on is kept.
+- Edited test: `tests/skills/test-aai-docs-audit.sh` (the new TEST-4137 pins the
+  replay; `docs_audit_main_names` reads `DA_MAIN_STEPS` as well as a `main()`
+  body).
+
+Canon assigns this scope change to HITL. No prior sign-off was obtained; the
+owner may reverse it.
+
+Sign-off: none (tracked).

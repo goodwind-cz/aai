@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-26T12:07:43.234Z",
+  "generatedAt": "2026-11-26T15:36:49.910Z",
   "project": "aai",
   "counts": {
-    "delivered": 388,
+    "delivered": 389,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 220703528
+    "tokens_total": 223129056
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -220,6 +220,19 @@
       "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
       "validation": null,
       "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T113651Z.md"
+    },
+    {
+      "ref": "test-infra-p2-fixes",
+      "title": "Test infrastructure: close the nine open P2 follow-ups",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0271-test-infra-p2-fixes.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 1205,
+      "token_total": 2425528,
+      "spec": "docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-test-infra-p2-fixes-20261126T153327Z.md"
     },
     {
       "ref": "onboarding-tech-contract-and-lint-gaps",
@@ -5291,6 +5304,19 @@
           "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
           "validation": null,
           "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T113651Z.md"
+        },
+        {
+          "ref": "test-infra-p2-fixes",
+          "title": "Test infrastructure: close the nine open P2 follow-ups",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0271-test-infra-p2-fixes.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 1205,
+          "token_total": 2425528,
+          "spec": "docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-test-infra-p2-fixes-20261126T153327Z.md"
         },
         {
           "ref": "onboarding-tech-contract-and-lint-gaps",

@@ -2662,50 +2662,146 @@ test_403_states_isolation_rather_than_inherits() {
   [[ $ok -eq 1 ]] && log_pass "TEST-434 TEST-001, TEST-003 and TEST-005 each states AAI_TEST_ISOLATION=1 rather than inheriting the operator's own ambient setting — each was actually re-run under an exported AAI_TEST_ISOLATION=0 and each still passed"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-4131 (Spec-AC-02 / D2, test-infra-p2-fixes) — every suite the framework
+# runs gets its OWN private XDG_CACHE_HOME. CI runs the framework without the
+# wrapper, so this is the half that covers it: two suites in one wave never
+# share a cache (the concurrent corruption item 9 observed), and neither one
+# sees the caller's cache. A fake HOME and a fake XDG live under one mktemp
+# root; no real home file is read or written.
+# ---------------------------------------------------------------------------
+test_4131_every_suite_gets_a_private_xdg_cache() {
+  local mode root d out rc seen_a seen_b entries ok=1 body
+  body='printf "%s\n" "${XDG_CACHE_HOME-UNSET}" > "$AAI_T4131_OUT/$(basename "${BASH_SOURCE[0]}").seen"
+c="${XDG_CACHE_HOME:-$HOME/.cache}/powershell"
+mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"
+sleep 1
+exit 0'
+  for mode in on off; do
+    d="$(new_fixture)" || return
+    root="$d.t4131"
+    mkdir -p "$root/home" "$root/xdg" "$root/tmp" "$root/out" || { log_fail "TEST-4131 ($mode): scratch dirs could not be made"; return; }
+    register_workdir "$root"
+    build_framework_repo "$d"
+    write_fixture_suite "$d" "t4131a" "$body"
+    write_fixture_suite "$d" "t4131b" "$body"
+    commit_fixture_repo "$d" || { log_fail "TEST-4131 ($mode): fixture repo init failed"; return; }
+
+    rc=0
+    out="$(env HOME="$root/home" XDG_CACHE_HOME="$root/xdg" TMPDIR="$root/tmp" AAI_T4131_OUT="$root/out" \
+             AAI_TEST_ISOLATION="$([[ "$mode" == on ]] && echo 1 || echo 0)" AAI_TEST_PARALLEL=2 \
+             bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+    [[ "$rc" -eq 0 ]] || { log_info "TEST-4131 ($mode): framework exit=$rc (want 0): $out"; ok=0; }
+
+    seen_a="$(cat "$root/out/test-aai-t4131a.sh.seen" 2>/dev/null || true)"
+    seen_b="$(cat "$root/out/test-aai-t4131b.sh.seen" 2>/dev/null || true)"
+    if [[ -z "$seen_a" || -z "$seen_b" || "$seen_a" != /* || "$seen_b" != /* ]]; then
+      log_info "TEST-4131 ($mode): a suite did not record an absolute XDG_CACHE_HOME (a='$seen_a' b='$seen_b')"; ok=0
+    else
+      [[ "$seen_a" != "$seen_b" ]] || { log_info "TEST-4131 ($mode): two suites shared one cache ($seen_a)"; ok=0; }
+      local s
+      for s in "$seen_a" "$seen_b"; do
+        [[ "$s" != "$root/xdg" && "$s" != "$root/xdg"/* ]] || { log_info "TEST-4131 ($mode): a suite saw the caller's XDG_CACHE_HOME ($s)"; ok=0; }
+        [[ "$s" != "$root/home" && "$s" != "$root/home"/* ]] || { log_info "TEST-4131 ($mode): a suite's XDG_CACHE_HOME lies under the fake HOME ($s)"; ok=0; }
+        [[ ! -e "$s" ]] || { log_info "TEST-4131 ($mode): the private cache $s survived the run"; ok=0; }
+      done
+    fi
+    entries="$(find "$root/xdg" "$root/home" -iname 'powershell*' 2>/dev/null || true)"
+    [[ -z "$entries" ]] || { log_info "TEST-4131 ($mode): a powershell entry reached the fakes: $entries"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-4131 two parallel suites each saw their own XDG_CACHE_HOME (isolation on and off): distinct, neither the caller's nor under HOME, gone afterwards, and no powershell entry reached the fakes" \
+    || log_fail "TEST-4131 every suite the framework runs gets a private XDG_CACHE_HOME"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-4132 (Spec-AC-03 / D3, test-infra-p2-fixes) — a missing selected suite
+# fails the run. discover_tests used to run in a process substitution, so its
+# `exit 2` never reached main: one existing plus one missing --skill printed
+# "Test file not found", then "Found 1 test(s)" and exited 0 (a CI selected
+# plan with a typo'd suite name was green). The empty --skill control already
+# exits 2 through the argument parser and must keep doing so.
+# ---------------------------------------------------------------------------
+test_4132_missing_selected_suite_fails_the_run() {
+  local d out rc=0 ok=1 root
+  d="$(new_fixture)" || return
+  root="$d.t4132"
+  mkdir -p "$root/out" || { log_fail "TEST-4132: scratch dir could not be made"; return; }
+  register_workdir "$root"
+  build_framework_repo "$d"
+  write_fixture_suite "$d" "t4132" 'echo ran > "$AAI_T4132_OUT/ran"; exit 0'
+  commit_fixture_repo "$d" || { log_fail "TEST-4132: fixture repo init failed"; return; }
+
+  out="$(AAI_T4132_OUT="$root/out" AAI_TEST_ISOLATION=0 \
+           bash "$d/tests/skills/test-framework.sh" --skill aai-t4132 --skill aai-t4132-missing 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-4132: existing plus missing --skill exit=$rc (want 2): $out"; ok=0; }
+  [[ "$out" == *"Test file not found"* ]] || { log_info "TEST-4132: no 'Test file not found' line: $out"; ok=0; }
+  [[ "$out" != *"Found "*"test(s)"* ]] || { log_info "TEST-4132: a Found line was printed for a failed discovery: $out"; ok=0; }
+  [[ ! -e "$root/out/ran" ]] || { log_info "TEST-4132: a suite ran although discovery failed"; ok=0; }
+
+  rc=0
+  rm -f "$root/out/ran"
+  out="$(AAI_T4132_OUT="$root/out" AAI_TEST_ISOLATION=0 \
+           bash "$d/tests/skills/test-framework.sh" --skill "" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-4132: empty --skill exit=$rc (want 2): $out"; ok=0; }
+  [[ "$out" != *"Found "*"test(s)"* ]] || { log_info "TEST-4132: empty --skill still discovered tests: $out"; ok=0; }
+  [[ ! -e "$root/out/ran" ]] || { log_info "TEST-4132: a suite ran for an empty --skill"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-4132 an existing plus a missing --skill exits 2 with 'Test file not found', no Found line and no suite run; an empty --skill exits 2 the same way" \
+    || log_fail "TEST-4132 a missing selected suite fails the run"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
-  test_001_writes_do_not_reach_the_working_tree_by_accident
-  test_002_working_tree_not_head
-  test_003_gitignored_per_dev_files_are_seeded
-  test_004_the_checkout_is_removed_on_every_exit
-  test_005_wrapper_isolates_a_suite_run
-  test_006_added_wall_clock_per_suite
-  test_101_the_all_clear_run_states_its_isolation_status
-  test_102_the_global_probe_degrade_is_counted
-  test_103_the_no_checkout_degrade_is_counted
-  test_104_the_suite_missing_from_the_checkout_is_counted
-  test_105_the_ledger_carries_the_same_two_numbers
-  test_106_degraded_is_visible_but_never_fatal
-  test_107_the_wrapper_reports_its_own_isolation_status
-  test_108_the_fully_seeded_run_states_its_seeding_status
-  test_109_the_unreplayable_diff_is_reported
-  test_110_the_uncopyable_untracked_file_is_reported
-  test_111_the_uncopyable_seed_path_is_reported
-  test_112_partly_seeded_is_visible_but_never_fatal
-  test_113_the_wrapper_reports_its_own_seeding_status
-  test_201_common_dir_resolves_outside_the_shipping_repo
-  test_202_config_ref_and_hook_are_unreachable_after
-  test_203_the_mutation_proof_gate_catches_a_shared_git_surface
-  test_204_the_unmutated_control_reports_isolated
-  test_205_ref_surface_and_history_match_the_shipping_repo
-  test_206_accounting_invariant_holds_across_a_multi_suite_run
-  test_207_the_powershell_twin_carries_no_isolation_mechanism
-  test_208_no_worktree_registration_in_the_shipping_repo
-  test_209_unresolvable_checkout_git_removed_is_degraded
-  test_210_unresolvable_deregistered_linked_worktree_is_degraded
-  test_211_prefix_checkout_under_project_root_is_degraded
-  test_212_the_gate_runs_before_iso_create_writes_identity_config
-  test_213_origin_push_from_the_checkout_does_not_reach_the_source
-  test_301_adhoc_dirty_run_names_the_working_tree
-  test_302_adhoc_clean_run_is_silent
-  test_303_report_is_kind_correct_and_suite_output_byte_identical
-  test_304_adhoc_flag_unset_exit_code_untouched
-  test_305_adhoc_flag_set_escalates_only_ad_hoc_dirty_success
-  test_306_framework_shaped_invocation_pins_framework_kind
-  test_401_iso_bases_forget_keeps_other_entries
-  test_402_seeding_failure_never_reads_as_seeded
-  test_403_states_isolation_rather_than_inherits
+  if [[ $# -gt 0 ]]; then
+    # One argument runs only that function (the mutation gate's selector).
+    declare -F "$1" >/dev/null || { echo "FAIL: unknown test function: $1" >&2; exit 2; }
+    "$1"
+  else
+    test_001_writes_do_not_reach_the_working_tree_by_accident
+    test_002_working_tree_not_head
+    test_003_gitignored_per_dev_files_are_seeded
+    test_004_the_checkout_is_removed_on_every_exit
+    test_005_wrapper_isolates_a_suite_run
+    test_006_added_wall_clock_per_suite
+    test_101_the_all_clear_run_states_its_isolation_status
+    test_102_the_global_probe_degrade_is_counted
+    test_103_the_no_checkout_degrade_is_counted
+    test_104_the_suite_missing_from_the_checkout_is_counted
+    test_105_the_ledger_carries_the_same_two_numbers
+    test_106_degraded_is_visible_but_never_fatal
+    test_107_the_wrapper_reports_its_own_isolation_status
+    test_108_the_fully_seeded_run_states_its_seeding_status
+    test_109_the_unreplayable_diff_is_reported
+    test_110_the_uncopyable_untracked_file_is_reported
+    test_111_the_uncopyable_seed_path_is_reported
+    test_112_partly_seeded_is_visible_but_never_fatal
+    test_113_the_wrapper_reports_its_own_seeding_status
+    test_201_common_dir_resolves_outside_the_shipping_repo
+    test_202_config_ref_and_hook_are_unreachable_after
+    test_203_the_mutation_proof_gate_catches_a_shared_git_surface
+    test_204_the_unmutated_control_reports_isolated
+    test_205_ref_surface_and_history_match_the_shipping_repo
+    test_206_accounting_invariant_holds_across_a_multi_suite_run
+    test_207_the_powershell_twin_carries_no_isolation_mechanism
+    test_208_no_worktree_registration_in_the_shipping_repo
+    test_209_unresolvable_checkout_git_removed_is_degraded
+    test_210_unresolvable_deregistered_linked_worktree_is_degraded
+    test_211_prefix_checkout_under_project_root_is_degraded
+    test_212_the_gate_runs_before_iso_create_writes_identity_config
+    test_213_origin_push_from_the_checkout_does_not_reach_the_source
+    test_301_adhoc_dirty_run_names_the_working_tree
+    test_302_adhoc_clean_run_is_silent
+    test_303_report_is_kind_correct_and_suite_output_byte_identical
+    test_304_adhoc_flag_unset_exit_code_untouched
+    test_305_adhoc_flag_set_escalates_only_ad_hoc_dirty_success
+    test_306_framework_shaped_invocation_pins_framework_kind
+    test_401_iso_bases_forget_keeps_other_entries
+    test_402_seeding_failure_never_reads_as_seeded
+    test_403_states_isolation_rather_than_inherits
+    test_4131_every_suite_gets_a_private_xdg_cache
+    test_4132_missing_selected_suite_fails_the_run
+  fi
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where

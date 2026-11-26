@@ -1291,10 +1291,26 @@ suite_prepare() {
 # processes it is measuring.
 suite_execute() {
   local iso_base="$1" iso_root="$2" iso_target="$3" log_file="$4" use_tee="${5:-true}" rc=0
-  if [[ "$VERBOSE" == "true" && "$use_tee" == "true" ]]; then
-    ( [[ -z "$iso_base" ]] || cd "$iso_root"; AAI_SUITE_REUSE=0 bash "$iso_target" ) 2>&1 | tee "$log_file" || rc=$?
+  # Private XDG_CACHE_HOME per suite (test-infra-p2-fixes D2): pwsh keeps its
+  # startup profile data there, so two suites in one wave must never share a
+  # cache and none may reach the caller's. A disposable checkout carries it
+  # (iso_destroy removes it); otherwise a mktemp directory removed below;
+  # otherwise a path that cannot exist.
+  local sx_cache="" sx_cache_tmp=0
+  if [[ -n "$iso_base" ]] && mkdir -p "$iso_base/xdg-cache" 2>/dev/null; then
+    sx_cache="$iso_base/xdg-cache"
+  elif sx_cache="$(mktemp -d "${TMPDIR:-/tmp}/aai-xdg-cache.XXXXXX" 2>/dev/null)" && [[ -n "$sx_cache" ]]; then
+    sx_cache_tmp=1
   else
-    ( [[ -z "$iso_base" ]] || cd "$iso_root"; AAI_SUITE_REUSE=0 bash "$iso_target" ) &> "$log_file" || rc=$?
+    sx_cache="/nonexistent/aai-test-no-xdg-cache"
+  fi
+  if [[ "$VERBOSE" == "true" && "$use_tee" == "true" ]]; then
+    ( [[ -z "$iso_base" ]] || cd "$iso_root"; XDG_CACHE_HOME="$sx_cache" AAI_SUITE_REUSE=0 bash "$iso_target" ) 2>&1 | tee "$log_file" || rc=$?
+  else
+    ( [[ -z "$iso_base" ]] || cd "$iso_root"; XDG_CACHE_HOME="$sx_cache" AAI_SUITE_REUSE=0 bash "$iso_target" ) &> "$log_file" || rc=$?
+  fi
+  if [[ "$sx_cache_tmp" -eq 1 && "$sx_cache" == /*/aai-xdg-cache.* ]]; then
+    rm -rf "$sx_cache" 2>/dev/null || true
   fi
   return "$rc"
 }
@@ -2211,9 +2227,17 @@ main() {
   # Discover tests
   log "Discovering skill tests..."
   local test_files=()
+  # Captured in THIS shell, not a process substitution: the `exit 2` of a
+  # missing selected suite must reach the run, not die in a subshell.
+  local discovered discover_rc=0
+  discovered="$(discover_tests)" || discover_rc=$?
+  if [[ $discover_rc -ne 0 ]]; then
+    exit "$discover_rc"
+  fi
   while IFS= read -r test_file; do
+    [[ -n "$test_file" ]] || continue
     test_files+=("$test_file")
-  done < <(discover_tests)
+  done <<< "$discovered"
 
   if [[ ${#test_files[@]} -eq 0 ]]; then
     log_fail "No tests to run"

@@ -3713,6 +3713,90 @@ test_4122_changelog_and_amendment() {
   log_pass "TEST-4122 CHANGELOG heading and SPEC-0181 amendment heading present"
 }
 
+# test-infra-p2-fixes D8 - a suite's failure wrapper must print a literal FAIL
+# before it echoes the message, because mutation-run.mjs classifyVerdict only
+# counts a line matching FAIL.*\bTEST-id\b as a verdict for that test.
+# mg_fail_wrapper_scan <file>... -> one "<file>:<line>" per offending
+# log_fail()/fail() definition, then "DEFS <n>". The definition body runs to its
+# closing brace (at most 15 lines); the text before the first $* / $@ / $1 must
+# hold FAIL as a whole word (FAILED or FAIL_COUNT do not count). An empty file list is a hard failure.
+mg_fail_wrapper_scan() {
+  [[ "$#" -gt 0 ]] || { echo "mg_fail_wrapper_scan: empty file list" >&2; return 2; }
+  node --input-type=module -e '
+import fs from "node:fs";
+const defRe = /^\s*(?:log_fail|fail)\(\)\s*\{/;
+let defs = 0;
+for (const f of process.argv.slice(1)) {
+  const lines = fs.readFileSync(f, "utf8").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (!defRe.test(lines[i])) continue;
+    defs++;
+    let depth = 1, body = "";
+    let rest = lines[i].replace(defRe, "");
+    for (let k = i, n = 0; n < 15 && depth > 0 && k < lines.length; k++, n++) {
+      const text = k === i ? rest : lines[k];
+      for (const ch of text) {
+        if (ch === "{") depth++;
+        else if (ch === "}") { depth--; if (depth === 0) break; }
+        body += ch;
+      }
+      body += "\n";
+    }
+    const at = body.search(/\$(?:\*|@|1\b)|\$\{(?:\*|@|1)\}/);
+    const head = at < 0 ? body : body.slice(0, at);
+    if (!/\bFAIL\b/.test(head)) console.log(`${f}:${i + 1}`);
+  }
+}
+console.log(`DEFS ${defs}`);
+' -- "$@"
+}
+
+test_4138_fail_wrappers_print_fail() {
+  log_info "Test: every failure wrapper prints a literal FAIL (TEST-4138)..."
+  local fx out rc f line def
+  fx="$(mg_new_fixture)"
+  [[ -n "$fx" && -d "$fx" ]] || log_fail "TEST-4138: fixture dir missing"
+  # positive controls: a one-line wrapper and a multi-line one whose only FAIL follows the message
+  printf '%s\n' 'log_fail() { echo "x $*" >&2; return 1; }' > "$fx/bad-one.sh"
+  printf '%s\n' 'fail() {' '  echo "$*: FAIL" >&2' '  return 1' '}' > "$fx/bad-multi.sh"
+  # positive control: FAIL only inside a longer word (a "✗ FAILED" wrapper and a FAILED=1 identifier)
+  printf '%s\n' 'log_fail() { FAILED=1; echo "✗ FAILED $*" >&2; return 1; }' > "$fx/bad-word.sh"
+  # negative controls: FAIL before the message, one-line and multi-line
+  printf '%s\n' 'log_fail() { echo "FAIL: $*" >&2; exit 1; }' > "$fx/good-one.sh"
+  printf '%s\n' 'log_fail() {' '  echo -e "${RED}[FAIL]${NC} $*" >&2' '}' > "$fx/good-multi.sh"
+  out="$(mg_fail_wrapper_scan "$fx/bad-one.sh" "$fx/bad-multi.sh" "$fx/bad-word.sh" "$fx/good-one.sh" "$fx/good-multi.sh")" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4138: scanner exited $rc on the planted files: $out"
+  [[ "$out" == *"$fx/bad-one.sh:1"* ]] || log_fail "TEST-4138: the planted one-line wrapper without FAIL was not named: $out"
+  [[ "$out" == *"$fx/bad-multi.sh:1"* ]] || log_fail "TEST-4138: the planted multi-line wrapper (FAIL after the message) was not named: $out"
+  [[ "$out" == *"$fx/bad-word.sh:1"* ]] || log_fail "TEST-4138: the planted wrapper whose only FAIL is part of a longer word (FAILED) was not named: $out"
+  [[ "$out" != *"good-one.sh"* ]] || log_fail "TEST-4138: the conforming one-line wrapper was named: $out"
+  [[ "$out" != *"good-multi.sh"* ]] || log_fail "TEST-4138: the conforming multi-line wrapper was named: $out"
+  # empty file list is a hard failure
+  rc=0; mg_fail_wrapper_scan >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-4138: an empty file list must be a hard failure"
+  # live corpus
+  local files=()
+  for f in "$PROJECT_ROOT"/tests/skills/test-*.sh "$PROJECT_ROOT"/tests/test-*.sh; do
+    [[ -f "$f" ]] && files+=("$f")
+  done
+  [[ "${#files[@]}" -ge 100 ]] || log_fail "TEST-4138: corpus scan saw only ${#files[@]} suite files"
+  out="$(mg_fail_wrapper_scan "${files[@]}")" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4138: scanner exited $rc over the live corpus: $out"
+  [[ "$out" == *"DEFS "* ]] || log_fail "TEST-4138: scanner printed no DEFS line: $out"
+  local defs="${out##*DEFS }"
+  [[ "$defs" -ge 100 ]] || log_fail "TEST-4138: scanner found only $defs wrapper definitions in the corpus"
+  [[ "$out" == "DEFS $defs" ]] || log_fail "TEST-4138: wrapper(s) without a literal FAIL before the message: ${out%DEFS *}"
+  # seam: the four fixed wrappers, called with a TEST id, match the attribution form classifyVerdict builds
+  for f in test-aai-intake.sh test-aai-share.sh test-aai-tdd.sh test-aai-worktree.sh; do
+    def="$(/usr/bin/grep -m1 -E '^log_fail\(\) \{' "$SCRIPT_DIR/$f")"
+    [[ -n "$def" ]] || log_fail "TEST-4138: $f has no one-line log_fail definition to probe"
+    line="$( (eval "$def"; log_fail TEST-9999 probe) 2>&1 || true)"
+    node -e 'process.exit(new RegExp("^.*FAIL.*\\bTEST-9999\\b.*$", "m").test(process.argv[1]) ? 0 : 1)' "$line" \
+      || log_fail "TEST-4138: $f log_fail output does not match the attribution form: $line"
+  done
+  log_pass "TEST-4138 every log_fail/fail wrapper prints FAIL before the message; the four fixed ones attribute to a TEST id"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -3772,6 +3856,7 @@ main() {
   test_4113_full_selector_dispatches
   test_4121_check_dry_run
   test_4122_changelog_and_amendment
+  test_4138_fail_wrappers_print_fail
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

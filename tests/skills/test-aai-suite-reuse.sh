@@ -1138,7 +1138,8 @@ test_134_nested_suite_disclosures
 test_137_hot_spot_disclosures
 test_138_ci_node_pins
 test_815_suite_map_and_registration
-test_4025_kept_native_gate_and_bite"
+test_4025_kept_native_gate_and_bite
+test_4140_one_world_live_corpus_clean"
 
 # split_main_names <file>: the test_ names main() of a hygiene-style suite file calls, one per line.
 split_main_names() {
@@ -1173,7 +1174,7 @@ test_3331_hygiene_partition() {
   corpus="$(awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE")"
   [[ -n "$corpus" ]] || log_fail "TEST-3331: tests/skills/test-aai-hygiene-pack.sh declares no HYGIENE_CORPUS_CASES list"
   [[ "$corpus" == "$HYGIENE_CORPUS_EXPECTED" ]] \
-    || log_fail "TEST-3331: HYGIENE_CORPUS_CASES is not the 30 names of D2 plus TEST-4025 in order; got: $corpus"
+    || log_fail "TEST-3331: HYGIENE_CORPUS_CASES is not the 30 names of D2 plus TEST-4025 and TEST-4140 in order; got: $corpus"
   main_now="$(split_main_names "$HYGIENE_PACK_FILE")"
   printf '%s\n' "$corpus" > "$work/corpus.names"
   printf '%s\n' "$main_now" > "$work/main.names"
