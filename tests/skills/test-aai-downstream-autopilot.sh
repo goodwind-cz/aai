@@ -268,6 +268,50 @@ test_1216_suite_map_row_selects_this_suite() {
   log_pass "TEST-1216: suite-map row present once and selected for a SKILL_SHIP diff"
 }
 
+# Spec-AC-08 (SPEC spec-skill-description-canonical-prompt-pointer D6): an /aai-ship turn never ends silently.
+test_4137_ship_end_of_turn_invariant() {
+  log_info "Test: SKILL_SHIP holds the END-OF-TURN INVARIANT rule and parks default 2 as HITL-7 (TEST-4137)..."
+  local rules d2 w
+  rules="$(section "$SHIP" '^STRICT RULES' '^NO-SUCH-END$')"
+  d2="$(section "$SHIP" '^2\. Worktree gate' '^3\. Clarifications')"
+  [[ -n "$rules" ]] || log_fail "TEST-4137: SKILL_SHIP has no STRICT RULES section"
+  [[ -n "$d2" ]] || log_fail "TEST-4137: SKILL_SHIP has no autopilot default 2"
+  for w in 'END-OF-TURN INVARIANT' 'ride-status.mjs' 'set-human-input' '(a) the step 6 summary with the PR URL' 'the HITL block with' 'human_input.required true' 'printed verbatim' 'blocker: none' 'has not returned is not a stop'; do
+    has "$rules" "$w" || log_fail "TEST-4137: the STRICT RULES section lacks [$w]"
+  done
+  for w in 'HITL-7' 'set-human-input' 'HITL block'; do
+    has "$d2" "$w" || log_fail "TEST-4137: autopilot default 2 lacks [$w]"
+  done
+  log_pass "TEST-4137: SKILL_SHIP names the end-of-turn invariant and the HITL-7 park"
+}
+
+# Spec-AC-09: the command the invariant prescribes really blocks the ride (S4: prompt text -> state.mjs -> ride-status).
+test_4138_park_command_blocks_the_ride() {
+  log_info "Test: the park command extracted from SKILL_SHIP turns ride-status blocker none into human_input (TEST-4138)..."
+  local d cmd status
+  local -a words
+  d="$(mk_project t4138)"
+  mkdir -p "$d/.aai/templates"
+  cp "$PROJECT_ROOT"/.aai/scripts/{state,ride-status,pr-platform}.mjs "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$d/docs/ai/STATE.yaml"
+  in_project "$d" git init -q -b main
+  in_project "$d" node .aai/scripts/state.mjs set-focus --type intake_change --ref "$REF" --path docs/issues/CHANGE-0002-fx.md
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-4138: set-focus must exit 0, got $RC: $OUT"
+  in_project "$d" node .aai/scripts/ride-status.mjs --json
+  has "$OUT" '"blocker":{"kind":"none"' || log_fail "TEST-4138: the fixture ride must read blocker none first: $OUT"
+  cmd="$(grep -o -m 1 'node \.aai/scripts/state\.mjs set-human-input --required true --reason "<why>" --question "<what to decide>"' "$SHIP")"
+  [[ -n "$cmd" ]] || log_fail "TEST-4138: SKILL_SHIP carries no set-human-input park command"
+  cmd="${cmd//<why>/scratch-park}"; cmd="${cmd//<what to decide>/which-way}"; cmd="${cmd//\"/}"
+  read -r -a words <<< "$cmd"
+  in_project "$d" "${words[@]}"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-4138: the prescribed command must exit 0, got $RC: $OUT"
+  in_project "$d" node .aai/scripts/ride-status.mjs --json
+  status="$OUT"
+  has "$status" '"blocker":{"kind":"human_input","detail":"which-way"}' || log_fail "TEST-4138: ride-status must read human_input with the question, got: $status"
+  has "$status" '"kind":"none"' && log_fail "TEST-4138: negative control: no blocker may still read none: $status"
+  log_pass "TEST-4138: the park command blocks the ride and ride-status reads it back"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   test_1207_dispatch_gate_agrees_with_cli_gate
@@ -277,6 +321,8 @@ main() {
   test_1213_malformed_roadmap_still_refuses
   test_1214_followups_lists_one_amend_item
   test_1216_suite_map_row_selects_this_suite
+  test_4137_ship_end_of_turn_invariant
+  test_4138_park_command_blocks_the_ride
   echo ""
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

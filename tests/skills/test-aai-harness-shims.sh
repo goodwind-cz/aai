@@ -98,6 +98,78 @@ if (cmd === 'rows') {
   const blobs = new Set(shas.map((c) => execFileSync('git', ['-C', repo, 'rev-parse', `${c}:${rel}`], { encoding: 'utf8' }).trim()));
   const hashes = [...blobs].map((b) => nhash(execFileSync('git', ['-C', repo, 'cat-file', 'blob', b], { encoding: 'utf8' })));
   console.log([...new Set(hashes)].sort().join('\n'));
+} else if (cmd === 'replace' || cmd === 'set-body' || cmd === 'set-desc' || cmd === 'desc-len') {
+  // replace <file> <from> <to> | set-body <file> <text> | set-desc <file> <raw value> | desc-len <file> <code points>
+  const f = a[0]; const raw = fs.readFileSync(f, 'utf8');
+  const close = raw.indexOf('\n---\n', 4);
+  const front = raw.slice(0, close + 5); const body = raw.slice(close + 5);
+  const setDesc = (v) => front.split('\n').map((l) => (l.startsWith('description: ') ? `description: ${v}` : l)).join('\n');
+  let out;
+  if (cmd === 'replace') { if (!raw.includes(a[1])) { console.error(`replace: [${a[1]}] absent from ${f}`); process.exit(3); } out = raw.split(a[1]).join(a[2]); }
+  else if (cmd === 'set-body') out = front + a[1];
+  else if (cmd === 'set-desc') out = setDesc(a[1]) + body;
+  else {
+    const tail = ' Run by reading .aai/SKILL_SHIP.prompt.md first.'; const head = 'Use when padding a description é ';
+    const pad = Number(a[1]) - [...head].length - [...tail].length;
+    out = setDesc(head + 'x'.repeat(pad) + tail) + body;
+  }
+  fs.writeFileSync(f, out);
+} else if (cmd === 'tree-hash') {
+  const files = [];
+  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = `${d}/${e.name}`; if (e.isDirectory()) walk(p); else files.push(p); } };
+  for (const d of a) walk(d);
+  const h = crypto.createHash('sha256');
+  for (const f of files.sort()) h.update(f).update(fs.readFileSync(f));
+  process.stdout.write(h.digest('hex'));
+} else if (cmd === 'wrapper-audit') {
+  // wrapper-audit <root> <live|consumer|core>: independent reader of the D1 pointer (Spec-AC-01, Spec-AC-07)
+  const [root, mode] = a;
+  const mirrors = mode === 'live' ? [] : ['.agents/skills', '.codex/skills', '.gemini/skills'];
+  const ext = new Set();
+  if (mode === 'core') {
+    let on = false;
+    for (const l of fs.readFileSync(`${root}/.aai/system/PROFILES.yaml`, 'utf8').split(/\r?\n/)) {
+      if (/^extended:/.test(l)) { on = true; continue; }
+      if (/^[a-z]+:/.test(l)) on = false;
+      const m = on && l.match(/^ {2}- (.*)$/);
+      if (m) ext.add(m[1]);
+    }
+  }
+  const descLine = (f) => fs.readFileSync(f, 'utf8').split('\n').find((l) => l.startsWith('description: ')) || '';
+  const names = fs.readdirSync(`${root}/.claude/skills`, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  const bad = [];
+  for (const n of names) {
+    const src = `${root}/.claude/skills/${n}/SKILL.md`;
+    const line = descLine(src);
+    let d = line.slice('description: '.length);
+    if (/^(".*"|'.*')$/.test(d)) d = d.slice(1, -1);
+    const hits = d.split('Run by reading ').length - 1 + d.split('Run via node ').length - 1;
+    const m = d.match(/\S (?:Run by reading (\.aai\/SKILL_[A-Z0-9_]+\.prompt\.md) first\.|Run via node (\.aai\/scripts\/[a-z0-9-]+\.mjs)\.)$/);
+    if (hits !== 1 || !m) { bad.push(`${n}: want exactly one D1 suffix, found ${hits}`); continue; }
+    const target = m[1] || m[2];
+    const raw = fs.readFileSync(src, 'utf8'); const text = raw.slice(raw.indexOf('\n---\n', 4) + 5);
+    const pm = text.match(/\.aai\/SKILL_[A-Z0-9_]+\.prompt\.md/); const nm = text.match(/`node (\.aai\/scripts\/[a-z0-9-]+\.mjs)/);
+    const bt = pm ? pm[0] : (nm ? nm[1] : undefined);
+    if (bt !== target) bad.push(`${n}: description names ${target}, body names ${bt}`);
+    if (!fs.existsSync(`${root}/${target}`) && !(mode === 'core' && ext.has(target))) bad.push(`${n}: ${target} absent`);
+    if ([...d].length > 1024) bad.push(`${n}: ${[...d].length} code points`);
+    for (const t of mirrors) if (descLine(`${root}/${t}/${n}/SKILL.md`) !== line) bad.push(`${n}: ${t} description differs from the source`);
+  }
+  for (const b of bad) console.log(`BAD ${b}`);
+  console.log(`count=${names.length}`);
+  process.exit(bad.length ? 1 : 0);
+} else if (cmd === 'catalog-audit') {
+  const [root] = a; const bad = [];
+  const cat = JSON.parse(fs.readFileSync(`${root}/docs/skill-catalog-data.json`, 'utf8'));
+  const by = new Map(cat.skills.map((s) => [s.dir, s.description]));
+  const names = fs.readdirSync(`${root}/.claude/skills`, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  for (const n of names) {
+    let d = (fs.readFileSync(`${root}/.claude/skills/${n}/SKILL.md`, 'utf8').split('\n').find((l) => l.startsWith('description: ')) || '').slice('description: '.length);
+    if (/^(".*"|'.*')$/.test(d)) d = d.slice(1, -1);
+    if (by.get(n) !== d || !/\S (Run by reading \.aai\/SKILL_[A-Z0-9_]+\.prompt\.md first\.|Run via node \.aai\/scripts\/[a-z0-9-]+\.mjs\.)$/.test(by.get(n) || '')) bad.push(n);
+  }
+  console.log(`count=${names.length} bad=${bad.join(',')}`);
+  process.exit(bad.length ? 1 : 0);
 } else {
   console.error('unknown helper command'); process.exit(2);
 }
@@ -126,6 +198,11 @@ mk_root() {
     cp -R "$PROJECT_ROOT/$t/." "$dir/$t/"
   done
   cp "$PROJECT_ROOT/SKILLS.md" "$dir/SKILLS.md"  # the manifest's catalog: section needs the file
+  # the manifest's pointer: section checks what each description names (Spec-AC-01)
+  mkdir -p "$dir/.aai/scripts"
+  for f in "$PROJECT_ROOT"/.aai/SKILL_*.prompt.md; do cp "$f" "$dir/.aai/$(basename "$f")"; done
+  for f in generate-overview.mjs generate-factory-report.mjs; do cp "$PROJECT_ROOT/.aai/scripts/$f" "$dir/.aai/scripts/$f"; done
+  cp "$PROJECT_ROOT/.aai/system/PROFILES.yaml" "$dir/.aai/system/PROFILES.yaml"
   for f in "${SHIMS[@]}"; do
     if [[ -f "$PROJECT_ROOT/$f" ]]; then
       mkdir -p "$dir/$(dirname "$f")"
@@ -742,7 +819,7 @@ test_3014_profiles_caps_followups() {
   lines="$(wc -l < "$PROJECT_ROOT/.aai/scripts/lib/harness-shims.mjs" | tr -d ' ')"
   [[ "$lines" -le 260 ]] || log_fail "TEST-3014: lib/harness-shims.mjs has $lines lines, cap 260"
   lines="$(wc -l < "$GEN" | tr -d ' ')"
-  [[ "$lines" -le 590 ]] || log_fail "TEST-3014: sync-harness-skills.mjs has $lines lines, cap 590"
+  [[ "$lines" -le 720 ]] || log_fail "TEST-3014: sync-harness-skills.mjs has $lines lines, cap 720"
   f="$(followup_problems "$LEDGER")" || log_fail "TEST-3014: follow-up reader crashed"
   [[ -z "$f" ]] || log_fail "TEST-3014: $f"
   log_pass "TEST-3014 PROFILES rows, line caps and the two follow-ups hold"
@@ -970,7 +1047,7 @@ test_3134_catalog_wiring() {
   lines="$(wc -l < "$PROJECT_ROOT/$lib" | tr -d ' ')"
   [[ "$lines" -le 200 ]] || log_fail "TEST-3134: $lib has $lines lines, cap 200"
   lines="$(wc -l < "$GEN" | tr -d ' ')"
-  [[ "$lines" -le 590 ]] || log_fail "TEST-3134: sync-harness-skills.mjs has $lines lines, cap 590"
+  [[ "$lines" -le 720 ]] || log_fail "TEST-3134: sync-harness-skills.mjs has $lines lines, cap 720"
   log_pass "TEST-3134 selector rows, PROFILES core row and line caps hold"
 }
 
@@ -1077,6 +1154,183 @@ finish_pwsh_check() {
   fi
 }
 
+# --- skill description canonical-prompt pointer (TEST-4130..4136, 4139, 4140) ------------------------
+PTR_SHIP=" Run by reading .aai/SKILL_SHIP.prompt.md first."
+
+# ptr_case <id> <root> <expect-rc> <wrapper> <reason> — after --write, --check exits <rc> with exactly one pointer line.
+ptr_expect() {
+  local id="$1" root="$2" rc="$3" wrapper="$4" reason="$5" n
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "$id: --write must exit 0, got $GEN_RC: $GEN_OUT"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq "$rc" ]] || log_fail "$id: --check must exit $rc for $wrapper, got $GEN_RC: $GEN_OUT"
+  n="$(count_lines_starting "$GEN_OUT" "DIVERGE pointer ")"
+  [[ "$n" -eq 1 ]] || log_fail "$id: want exactly one DIVERGE pointer line for $wrapper, got $n: $GEN_OUT"
+  [[ "$GEN_OUT" == *"DIVERGE pointer $wrapper: $reason"* ]] || log_fail "$id: want [DIVERGE pointer $wrapper: $reason], got: $GEN_OUT"
+}
+
+test_4130_live_wrappers_carry_pointer() {
+  log_info "TEST-4130: the 42 live wrappers carry one D1 pointer to an existing file..."
+  local out
+  gen "$PROJECT_ROOT" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-4130: --check on the live tree must exit 0, got $GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" == *'OK: 42 wrapper description(s) name their canonical source'* ]] || log_fail "TEST-4130: the pointer OK line is missing: $GEN_OUT"
+  out="$(H wrapper-audit "$PROJECT_ROOT" live)" || log_fail "TEST-4130: an independent reader found a bad description: $out"
+  [[ "$out" == 'count=42' ]] || log_fail "TEST-4130: want count=42, got: $out"
+  log_pass "TEST-4130 every live wrapper description names its canonical source"
+}
+
+test_4131_pointer_refusals() {
+  log_info "TEST-4131: a missing, dangling, foreign or unbacked pointer is named by exactly one DIVERGE pointer line..."
+  local root="$TMP_ROOT/t4131" f
+  f=".claude/skills/aai-ship/SKILL.md"
+  mk_root "$root"; gen "$root" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-4131: the unmutated fixture must exit 0, got $GEN_RC: $GEN_OUT"
+  mk_root "$root"; H replace "$root/$f" "$PTR_SHIP" ""
+  ptr_expect TEST-4131 "$root" 1 aai-ship "description lacks the canonical pointer"
+  mk_root "$root"; H replace "$root/$f" "SKILL_SHIP.prompt.md first." "SKILL_NOPE.prompt.md first."
+  ptr_expect TEST-4131 "$root" 1 aai-ship "names missing file .aai/SKILL_NOPE.prompt.md"
+  mk_root "$root"; H replace "$root/$f" "SKILL_SHIP.prompt.md first." "SKILL_LOOP.prompt.md first."
+  ptr_expect TEST-4131 "$root" 1 aai-ship "names .aai/SKILL_LOOP.prompt.md, the body runs .aai/SKILL_SHIP.prompt.md"
+  mk_root "$root"; H set-body "$root/$f" $'\nRead the instructions somewhere else.\n'
+  ptr_expect TEST-4131 "$root" 1 aai-ship "the body names no canonical source"
+  log_pass "TEST-4131 the four pointer refusals each name one wrapper and one reason"
+}
+
+test_4132_yaml_safe_scalar() {
+  log_info "TEST-4132: a colon-space or inner quote in a description is refused, the quoted form passes..."
+  local root="$TMP_ROOT/t4132" f line n
+  f=".claude/skills/aai-ship/SKILL.md"
+  mk_root "$root"; H set-desc "$root/$f" "Use when X: do Y.$PTR_SHIP"
+  ptr_expect TEST-4132 "$root" 1 aai-ship "description is not a YAML-safe one-line scalar"
+  mk_root "$root"; H set-desc "$root/$f" "\"Use when \"quoted\" Y.$PTR_SHIP\""
+  ptr_expect TEST-4132 "$root" 1 aai-ship "description is not a YAML-safe one-line scalar"
+  mk_root "$root"; H set-desc "$root/$f" "Use when X #tag.$PTR_SHIP"
+  ptr_expect TEST-4132 "$root" 1 aai-ship "description is not a YAML-safe one-line scalar"
+  mk_root "$root"; H set-desc "$root/$f" "- Use when X.$PTR_SHIP"
+  ptr_expect TEST-4132 "$root" 1 aai-ship "description is not a YAML-safe one-line scalar"
+  mk_root "$root"; H set-desc "$root/$f" "\"Use when X: do Y.$PTR_SHIP\""
+  gen "$root" --write; gen "$root" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-4132: the double-quoted text must exit 0, got $GEN_RC: $GEN_OUT"
+  for n in aai-debug aai-deslop aai-loop; do
+    line="$(grep -m1 '^description: ' "$PROJECT_ROOT/.claude/skills/$n/SKILL.md")" || line=""
+    [[ "$line" == 'description: "'* ]] || log_fail "TEST-4132: $n must be double-quoted, got: $line"
+  done
+  line="$(grep -m1 '^description: ' "$PROJECT_ROOT/.claude/skills/aai-wrap-up/SKILL.md")" || line=""
+  [[ "$line" == "description: '"* ]] || log_fail "TEST-4132: aai-wrap-up must be single-quoted, got: $line"
+  log_pass "TEST-4132 descriptions must be YAML-safe one-line scalars"
+}
+
+test_4133_length_limit() {
+  log_info "TEST-4133: 1025 code points is refused, 1024 passes..."
+  local root="$TMP_ROOT/t4133" f=".claude/skills/aai-ship/SKILL.md"
+  mk_root "$root"; H desc-len "$root/$f" 1025
+  ptr_expect TEST-4133 "$root" 1 aai-ship "description is 1025 characters, over the 1024 limit"
+  mk_root "$root"; H desc-len "$root/$f" 1024
+  gen "$root" --write; gen "$root" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-4133: a 1024 code point description must exit 0, got $GEN_RC: $GEN_OUT"
+  log_pass "TEST-4133 the 1024 limit counts code points"
+}
+
+# ptr_bad_section <root> <label> <cause> <rows-printf-format> — a malformed pointer: section exits 2 in both modes and writes nothing.
+ptr_bad_section() {
+  local root="$1" label="$2" cause="$3" fmt="$4" before after mode
+  mk_cat_root "$root" 0
+  printf '\npointer:\n' >> "$root/.aai/system/HARNESS_SKILLS.yaml"
+  if [[ -n "$fmt" ]]; then printf "$fmt" >> "$root/.aai/system/HARNESS_SKILLS.yaml"; fi
+  printf 'tampered\n' >> "$root/.agents/skills/aai-alpha/SKILL.md"
+  before="$(H tree-hash "$root/.claude/skills" "$root/.agents/skills" "$root/.codex/skills" "$root/.gemini/skills")"
+  for mode in --check --write; do
+    gen "$root" "$mode"
+    [[ "$GEN_RC" -eq 2 ]] || log_fail "TEST-4134: [$label] $mode must exit 2, got $GEN_RC: $GEN_OUT"
+    [[ "$GEN_OUT" == *"$cause"* ]] || log_fail "TEST-4134: [$label] $mode must name [$cause], got: $GEN_OUT"
+    after="$(H tree-hash "$root/.claude/skills" "$root/.agents/skills" "$root/.codex/skills" "$root/.gemini/skills")"
+    [[ "$before" == "$after" ]] || log_fail "TEST-4134: [$label] $mode changed a tree"
+  done
+}
+
+test_4134_pointer_section_opt_in_and_refusals() {
+  log_info "TEST-4134: no pointer section checks nothing; six malformed sections exit 2 and write nothing..."
+  local root="$TMP_ROOT/t4134"
+  mk_cat_root "$root" 0
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-4134: a manifest without the section must exit 0, got $GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" != *pointer* && "$GEN_OUT" != *'canonical source'* ]] || log_fail "TEST-4134: no pointer line may print without the section: $GEN_OUT"
+  ptr_bad_section "$root" max-0 "from 1 to 1024" '  - 0|src\n'
+  ptr_bad_section "$root" max-1025 "from 1 to 1024" '  - 1025|src\n'
+  ptr_bad_section "$root" max-abc "not an integer" '  - abc|src\n'
+  ptr_bad_section "$root" empty-source "source is empty" '  - 5|\n'
+  ptr_bad_section "$root" two-rows "exactly one row" '  - 5|a\n  - 6|b\n'
+  ptr_bad_section "$root" zero-rows "exactly one row" ''
+  log_pass "TEST-4134 the pointer section is opt-in and its refusals leave the trees untouched"
+}
+
+test_4135_consumer_shaped_exceptions() {
+  log_info "TEST-4135: a profile-extended target is excused, an unlisted one is not, a dynamic wrapper is skipped..."
+  local root="$TMP_ROOT/t4135" row=".aai/scripts/generate-overview.mjs"
+  mk_root "$root"; rm -f "$root/$row"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" == *'OK: 42 wrapper description(s) name their canonical source'* ]] \
+    || log_fail "TEST-4135: an extended-listed absent target must pass, got rc=$GEN_RC: $GEN_OUT"
+  grep -vxF "  - $row" "$root/.aai/system/PROFILES.yaml" > "$root/profiles.new" || true
+  mv "$root/profiles.new" "$root/.aai/system/PROFILES.yaml"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 1 && "$GEN_OUT" == *"DIVERGE pointer aai-overview: names missing file $row"* ]] \
+    || log_fail "TEST-4135: an unlisted absent target must be named missing, got rc=$GEN_RC: $GEN_OUT"
+  mk_root "$root"
+  mkdir -p "$root/.claude/skills/aai-test-unit"
+  printf -- '---\nname: aai-test-unit\ndescription: Run unit tests (Jest)\n---\n\n<!-- AAI-DYNAMIC-SKILL:START -->\nRun `bash .aai/scripts/aai-run-tests.sh npm test`.\n<!-- AAI-DYNAMIC-SKILL:END -->\n' > "$root/.claude/skills/aai-test-unit/SKILL.md"
+  gen "$root" --write; gen "$root" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-4135: a dynamic wrapper must not fail --check, got $GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" == *'SKIPPED pointer aai-test-unit: project-generated (AAI-DYNAMIC-SKILL marker)'* ]] || log_fail "TEST-4135: the SKIPPED line is missing: $GEN_OUT"
+  [[ "$GEN_OUT" == *'OK: 42 wrapper description(s) name their canonical source'* ]] || log_fail "TEST-4135: the count must stay 42: $GEN_OUT"
+  H replace "$root/.claude/skills/aai-test-unit/SKILL.md" "AAI-DYNAMIC-SKILL:START" "NOT-A-MARKER"
+  gen "$root" --write; gen "$root" --check
+  [[ "$GEN_RC" -eq 1 && "$GEN_OUT" == *'DIVERGE pointer aai-test-unit: description lacks the canonical pointer'* ]] \
+    || log_fail "TEST-4135: without the marker the wrapper must be checked, got rc=$GEN_RC: $GEN_OUT"
+  log_pass "TEST-4135 the consumer-shaped exceptions are named, never silent"
+}
+
+# consumer_sync <dst> [flags...] — the real aai-sync into a fresh git consumer, HOME and cache inside the fixture.
+consumer_sync() {
+  local dst="$1"; shift
+  [[ -n "$dst" && "$dst" == /* ]] || log_fail "consumer_sync: destination is empty or relative: [$dst]"
+  rm -rf "$dst"; mkdir -p "$dst" "$dst.home/.cache"
+  git -C "$dst" init -q -b main
+  env -u AAI_ROLE HOME="$dst.home" XDG_CACHE_HOME="$dst.home/.cache" node "$PROJECT_ROOT/.aai/scripts/aai-sync.mjs" "$dst" "$@" > "$dst.sync.log" 2>&1 \
+    || log_fail "consumer_sync: aai-sync into $dst failed: $(tail -5 "$dst.sync.log")"
+}
+
+test_4136_consumer_view_after_sync() {
+  log_info "TEST-4136: default and core consumers carry the pointer descriptions in all four trees..."
+  local mode dst out
+  for mode in consumer core; do
+    dst="$TMP_ROOT/t4136-$mode"
+    if [[ "$mode" == core ]]; then consumer_sync "$dst" --profile core; else consumer_sync "$dst"; fi
+    out="$(H wrapper-audit "$dst" "$mode")" || log_fail "TEST-4136: $mode consumer: $out"
+    [[ "$out" == 'count=42' ]] || log_fail "TEST-4136: $mode consumer: want count=42, got: $out"
+    gen "$dst" --check
+    [[ "$GEN_RC" -eq 0 && "$GEN_OUT" == *'OK: 42 wrapper description(s) name their canonical source'* ]] \
+      || log_fail "TEST-4136: $mode consumer's own --check must exit 0 with the pointer OK line, got $GEN_RC: $GEN_OUT"
+  done
+  log_pass "TEST-4136 both consumers read the pointer in every tree and pass their own --check"
+}
+
+test_4139_docs_hub_catalog_carries_descriptions() {
+  log_info "TEST-4139: docs/skill-catalog-data.json carries every source description..."
+  local out
+  out="$(H catalog-audit "$PROJECT_ROOT")" || log_fail "TEST-4139: the committed catalog differs from the source descriptions: $out"
+  [[ "$out" == 'count=42 bad=' ]] || log_fail "TEST-4139: unexpected audit output: $out"
+  log_pass "TEST-4139 the committed catalog carries the pointer descriptions"
+}
+
+test_4140_changelog_heading() {
+  log_info "TEST-4140: CHANGELOG.md holds the pointer entry heading..."
+  grep -qE '^## (\[unreleased\]|\[v?[0-9]{4}\.[0-9]{2}\.[0-9]{2}\]) — Skill wrappers name their canonical source; /aai-ship never ends a turn silently$' "$PROJECT_ROOT/CHANGELOG.md" \
+    || log_fail "TEST-4140: CHANGELOG.md lacks the heading for the skill description pointer entry"
+  log_pass "TEST-4140 the CHANGELOG names the entry"
+}
+
 ALL_TESTS=(
   test_3001_shims_render_from_registry
   test_3002_copilot_lists_no_skills
@@ -1103,6 +1357,15 @@ ALL_TESTS=(
   test_3143_catalog_path_traversal_refused
   test_3135_sync_sh_keeps_crlf_overrides
   test_3136_sync_ps1_matches_sh_on_crlf
+  test_4130_live_wrappers_carry_pointer
+  test_4131_pointer_refusals
+  test_4132_yaml_safe_scalar
+  test_4133_length_limit
+  test_4134_pointer_section_opt_in_and_refusals
+  test_4135_consumer_shaped_exceptions
+  test_4136_consumer_view_after_sync
+  test_4139_docs_hub_catalog_carries_descriptions
+  test_4140_changelog_heading
 )
 
 main() {

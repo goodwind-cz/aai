@@ -1,6 +1,6 @@
 ---
 name: aai-profile
-description: Use when diagnosing token usage, execution time, or cache inefficiency across AAI workflows. Generates optimization suggestions and profiling reports.
+description: Use when diagnosing token usage, execution time, or cache inefficiency across AAI workflows. Generates optimization suggestions and profiling reports. Run by reading .aai/SKILL_PROFILE.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_PROFILE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-profile`.

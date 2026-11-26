@@ -1,6 +1,6 @@
 ---
 name: aai-worktree
-description: Use when creating or managing isolated git worktrees for parallel feature development or isolated experiments.
+description: Use when creating or managing isolated git worktrees for parallel feature development or isolated experiments. Run by reading .aai/SKILL_WORKTREE.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_WORKTREE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-worktree`.

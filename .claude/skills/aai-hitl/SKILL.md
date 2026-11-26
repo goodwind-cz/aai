@@ -1,6 +1,6 @@
 ---
 name: aai-hitl
-description: Use when the autonomous loop pauses with 'Human decision required'. Surfaces the blocked question from STATE.yaml, collects your answer, and unblocks the loop.
+description: Use when the autonomous loop pauses with 'Human decision required'. Surfaces the blocked question from STATE.yaml, collects your answer, and unblocks the loop. Run by reading .aai/SKILL_HITL.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_HITL.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-hitl`.

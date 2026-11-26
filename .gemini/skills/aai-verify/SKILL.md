@@ -1,6 +1,6 @@
 ---
 name: aai-verify
-description: Use before any completion claim (Implementation hand-off, TDD GREEN, Validation verdict) to apply the verification-before-completion gate — IDENTIFY, RUN, READ, VERIFY, then CLAIM.
+description: Use before any completion claim (Implementation hand-off, TDD GREEN, Validation verdict) to apply the verification-before-completion gate — IDENTIFY, RUN, READ, VERIFY, then CLAIM. Run by reading .aai/SKILL_VERIFY.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_VERIFY.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-verify`.

@@ -1,6 +1,6 @@
 ---
 name: aai-merge
-description: Use when the owner directs you to merge a named pull request, or when a pull request is already merged and its leftovers (draft copies, base checkout, focus, worktree, branch) need safe cleanup. Runs the open-PR gates and prints the one pinned merge command, or the archive-first idempotent cleanup of a merged PR. Merges only on the owner's explicit invocation for that one PR.
+description: Use when the owner directs you to merge a named pull request, or when a pull request is already merged and its leftovers (draft copies, base checkout, focus, worktree, branch) need safe cleanup. Runs the open-PR gates and prints the one pinned merge command, or the archive-first idempotent cleanup of a merged PR. Merges only on the owner's explicit invocation for that one PR. Run by reading .aai/SKILL_MERGE.prompt.md first.
 ---
 
 <SUBAGENT-STOP>

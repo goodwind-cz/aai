@@ -1,6 +1,6 @@
 ---
 name: aai-canonicalize
-description: RETIRED - the aai-canonicalize skill and both migration scripts are retired (RFC-0017 phase 5), are deleted in the next release and have no replacement; invoking it explains the retirement and runs nothing.
+description: RETIRED - the aai-canonicalize skill and both migration scripts are retired (RFC-0017 phase 5), are deleted in the next release and have no replacement; invoking it explains the retirement and runs nothing. Run by reading .aai/SKILL_CANONICALIZE.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_CANONICALIZE.prompt.md` from the current project root and follow its instructions exactly - it is a retirement notice: explain it to the user and run no script. Invoke this as `/aai-canonicalize`.

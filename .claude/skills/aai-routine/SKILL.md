@@ -1,6 +1,6 @@
 ---
 name: aai-routine
-description: On-demand instantiation of a vendored, agent-neutral standing routine (e.g. the morning scryer) for a named harness — never runs from bootstrap, sync, or any automatic path.
+description: On-demand instantiation of a vendored, agent-neutral standing routine (e.g. the morning scryer) for a named harness — never runs from bootstrap, sync, or any automatic path. Run by reading .aai/SKILL_ROUTINE.prompt.md first.
 ---
 
 <SUBAGENT-STOP>
