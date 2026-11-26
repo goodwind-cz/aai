@@ -4,7 +4,7 @@ type: spec
 number: 318
 status: done
 mutation_gate: v1
-frozen_sha256: 26067284f5bb5bf5f341f785ea7fcabb239c5446baf72599b464719152da120c
+frozen_sha256: b3db6aaee15de3637982e4dd53e249031d403395c4bf1c4e9fa582b4c5ef9a44
 ceremony_level: 2
 links:
   requirement: skill-description-canonical-prompt-pointer
@@ -504,3 +504,15 @@ this record).
   therefore N = 836 bytes, not 687: every pin that states 687 (ledger entry,
   TEST-012 want_growth and `rh_now`, pr-preflight case 008, TEST-3278) moves
   to 836, and A3 reads 836.
+- A7 (review round 3 remediation, external Codex findings NB-4, NB-5 and a
+  duplicate-key hole): the D1 pointer check in `sync-harness-skills.mjs` now
+  names every input it does not check, as `SKIPPED pointer <skill>: not an AAI
+  wrapper`, and uses the ownership test of `aai-sync.mjs` `isRetiredSkillWrapper`
+  (`aai-*` minus the project-owned `aai-project-*`), so `aai-project-*` skills
+  are skipped as well; neither is counted in the `OK: <n>` line. A wrapper whose
+  frontmatter declares `description:` more than once is refused as
+  `DIVERGE pointer <skill>: description is declared <n> times, want exactly
+  one`; `--write` still mirrors the file verbatim, as it never checks
+  descriptions. TEST-4135 (skipped skills) and TEST-4132 (duplicate key) gain
+  cases; the script stays within the 720 line cap. The name test is repeated
+  in the script, not imported, to keep `aai-sync.mjs` out of the generator.

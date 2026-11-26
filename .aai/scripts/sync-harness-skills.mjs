@@ -305,6 +305,9 @@ function rawDescription(frontLines) {
   return line ? line.replace(/^description:\s*/, '') : '';
 }
 
+// The name test of aai-sync.mjs isRetiredSkillWrapper: aai-* minus the project-owned aai-project-*.
+const isAaiWrapperName = (n) => /^aai-[a-z0-9-]+$/.test(n) && !n.startsWith('aai-project-');
+
 // D3: a closed syntactic rule for the raw text after `description: `, not a YAML parser.
 function isYamlSafeScalar(raw) {
   if (raw.length === 0) return false;
@@ -360,6 +363,8 @@ function checkPointers(root, rule, models) {
   let count = 0;
   // The first failing check for one wrapper (D4 order), or null.
   const firstFailure = (root2, { frontLines, body, description: desc }) => {
+    const keys = frontLines.filter((l) => /^description:\s*/.test(l)).length;
+    if (keys > 1) return `description is declared ${keys} times, want exactly one`;
     if (!isYamlSafeScalar(rawDescription(frontLines))) return 'description is not a YAML-safe one-line scalar';
     const chars = [...desc].length;
     if (chars > rule.max) {
@@ -374,7 +379,10 @@ function checkPointers(root, rule, models) {
     return null;
   };
   for (const skill of [...models.keys()].sort()) {
-    if (!skill.startsWith('aai-')) continue; // a consumer's own skill is not an AAI wrapper
+    if (!isAaiWrapperName(skill)) {
+      skipped.push(`SKIPPED pointer ${skill}: not an AAI wrapper`);
+      continue;
+    }
     const model = models.get(skill);
     if (model.body.includes('AAI-DYNAMIC-SKILL:START')) {
       skipped.push(`SKIPPED pointer ${skill}: project-generated (AAI-DYNAMIC-SKILL marker)`);

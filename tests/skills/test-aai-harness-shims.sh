@@ -1218,6 +1218,8 @@ test_4132_yaml_safe_scalar() {
   done
   line="$(grep -m1 '^description: ' "$PROJECT_ROOT/.claude/skills/aai-wrap-up/SKILL.md")" || line=""
   [[ "$line" == "description: '"* ]] || log_fail "TEST-4132: aai-wrap-up must be single-quoted, got: $line"
+  mk_root "$root"; H replace "$root/$f" $'\nname: aai-ship\n' $'\nname: aai-ship\ndescription: "A second key. Run by reading .aai/SKILL_SHIP.prompt.md first."\n'
+  ptr_expect TEST-4132 "$root" 1 aai-ship "description is declared 2 times, want exactly one"
   log_pass "TEST-4132 descriptions must be YAML-safe one-line scalars"
 }
 
@@ -1292,7 +1294,14 @@ test_4135_consumer_shaped_exceptions() {
   mkdir -p "$root/.claude/skills/deploy-notes"
   printf -- '---\nname: deploy-notes\ndescription: Notes on how we deploy the app to staging.\n---\n\nRead docs/deploy.md.\n' > "$root/.claude/skills/deploy-notes/SKILL.md"
   gen "$root" --write; gen "$root" --check
-  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" != *'pointer deploy-notes'* ]] || log_fail "TEST-4135: a user skill without a pointer must pass, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" != *'DIVERGE pointer deploy-notes'* ]] || log_fail "TEST-4135: a user skill without a pointer must pass, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" == *'SKIPPED pointer deploy-notes: not an AAI wrapper'* ]] || log_fail "TEST-4135: a non-aai skill must be named SKIPPED, got: $GEN_OUT"
+  mkdir -p "$root/.claude/skills/aai-project-deploy"
+  printf -- '---\nname: aai-project-deploy\ndescription: Project owned deploy helper.\n---\n\nRead docs/deploy.md.\n' > "$root/.claude/skills/aai-project-deploy/SKILL.md"
+  gen "$root" --write; gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" != *'DIVERGE pointer aai-project-deploy'* ]] || log_fail "TEST-4135: an aai-project-* skill must not be checked, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" == *'SKIPPED pointer aai-project-deploy: not an AAI wrapper'* ]] || log_fail "TEST-4135: an aai-project-* skill must be named SKIPPED, got: $GEN_OUT"
+  [[ "$GEN_OUT" == *'OK: 42 wrapper description(s) name their canonical source'* ]] || log_fail "TEST-4135: skipped skills must not be counted: $GEN_OUT"
   mkdir -p "$root/.claude/skills/aai-no-pointer"
   printf -- '---\nname: aai-no-pointer\ndescription: A wrapper with no canonical pointer.\n---\n\nRead docs/deploy.md.\n' > "$root/.claude/skills/aai-no-pointer/SKILL.md"
   gen "$root" --write; gen "$root" --check
