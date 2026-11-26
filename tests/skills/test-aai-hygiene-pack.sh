@@ -6361,7 +6361,7 @@ one_world_scan() {
       if (line ~ ENVIRON["OW_LAST_INDEX_RE"] \
           && (line ~ /(\$PROJECT_ROOT|\$\{PROJECT_ROOT\})\/docs\/ai\/(decisions|EVENTS|METRICS)\.jsonl/ \
               || line ~ /(^|[^\/A-Za-z0-9_.-])docs\/ai\/(decisions|EVENTS|METRICS)\.jsonl/)) hit("last-index")
-      if (line ~ ENVIRON["OW_UNRELEASED_RE"] && index(line, "unreleased|") == 0 \
+      if (line ~ ENVIRON["OW_UNRELEASED_RE"] && index(line, "unreleased|") == 0 && index(line, "unreleased\\]|") == 0 && index(line, "unreleased\\\\]|") == 0 \
           && (line ~ /(\$PROJECT_ROOT|\$\{PROJECT_ROOT\})\/CHANGELOG\.md/ || line ~ /(^|[[:space:]])CHANGELOG\.md/)) hit("unreleased-only")
     }
   ' "$@"
@@ -6380,8 +6380,9 @@ test_4139_one_world_scan_bites() {
   printf '%s\n' 'last="$(tail -n1 "${PROJECT_ROOT}/docs/ai/EVENTS.jsonl")"' > "$d/p-last-braced.sh"  # one-world-ok: planted scan input
   printf '%s\n' 'last="$(tail -n 1 docs/ai/METRICS.jsonl)"' > "$d/p-last-bare.sh"  # one-world-ok: planted scan input
   printf '%s\n' "grep -q '\\[unreleased\\]' \"\$PROJECT_ROOT/CHANGELOG.md\"" > "$d/p-unreleased.sh"  # one-world-ok: planted scan input
-  # controls: the dual form, a fixture-path ledger, a fixture-repo origin/main, a marked line, a comment line
+  # controls: the dual form (plain and regex-escaped), a fixture-path ledger, a fixture-repo origin/main, a marked line, a comment line
   printf '%s\n' "grep -qE '^## \\[(unreleased|v[0-9.]+)\\]' \"\$PROJECT_ROOT/CHANGELOG.md\"" > "$d/c-dual.sh"  # one-world-ok: planted scan input
+  printf '%s\n' "grep -qE '^## (\\[unreleased\\]|\\[v?[0-9]{4}\\]) x' \"\$PROJECT_ROOT/CHANGELOG.md\"" > "$d/c-dual-esc.sh"  # one-world-ok: planted scan input
   printf '%s\n' 'last="$(tail -1 "$fx/docs/ai/decisions.jsonl")"' > "$d/c-fixture-ledger.sh"  # one-world-ok: planted scan input
   printf '%s\n' 'git -C "$fixture_repo" show origin/main:docs/x.md > "$out"' > "$d/c-fixture-ref.sh"  # one-world-ok: planted scan input
   printf '%s\n' '# one-world-ok: holds in both worlds' 'git -C "$PROJECT_ROOT" show origin/main:docs/x.md > "$out"' > "$d/c-marked.sh"  # one-world-ok: planted scan input
@@ -6392,14 +6393,14 @@ test_4139_one_world_scan_bites() {
   [[ "$out" == *"ONE-WORLD last-index $d/p-last-braced.sh:1"* ]] || log_fail "TEST-4139: braced last-index plant not named: $out"
   [[ "$out" == *"ONE-WORLD last-index $d/p-last-bare.sh:1"* ]] || log_fail "TEST-4139: bare last-index plant not named: $out"
   [[ "$out" == *"ONE-WORLD unreleased-only $d/p-unreleased.sh:1"* ]] || log_fail "TEST-4139: unreleased-only plant not named: $out"
-  for f in c-dual c-fixture-ledger c-fixture-ref c-marked c-comment; do
+  for f in c-dual c-dual-esc c-fixture-ledger c-fixture-ref c-marked c-comment; do
     [[ "$out" != *"$d/$f.sh"* ]] || log_fail "TEST-4139: the control $f was named: $out"
   done
   [[ "$(printf '%s\n' "$out" | grep -c '^ONE-WORLD ' || true)" -eq 5 ]] || log_fail "TEST-4139: expected exactly five ONE-WORLD lines: $out"
   local rc=0; one_world_scan >/dev/null 2>&1 || rc=$?
   [[ "$rc" -ne 0 ]] || log_fail "TEST-4139: an empty file list must be a hard failure"
   rm -rf "$d"
-  log_pass "one_world_scan names the three planted shapes (and the bare and braced ledger forms) and none of the five controls (TEST-4139)"
+  log_pass "one_world_scan names the three planted shapes (and the bare and braced ledger forms) and none of the six controls (TEST-4139)"
 }
 
 test_4140_one_world_live_corpus_clean() {

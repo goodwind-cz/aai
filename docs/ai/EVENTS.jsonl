@@ -4648,3 +4648,6 @@
 {"v":1,"ts":"2026-11-26T00:34:31Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"code_review","head":"cc9f6b19fe095ecd03e776a5e73aa4daebbca1c3","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-26T00:34:31Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-infra-p2-fixes","payload":{"status":"pass","hash":"4ba06b454553433be3135a4a67e930d3fe4d1ca2a1262e47e16362927d7372e3"}}
 {"v":1,"ts":"2026-11-26T12:32:48Z","actor":"ales_holubec.net","event":"round_reset","ref":"test-infra-p2-fixes","payload":{"block":"code_review","from":"fail","forced":true}}
+{"v":1,"ts":"2026-11-26T13:09:34Z","actor":"ales_holubec.net","event":"full_sweep","ref":"test-infra-p2-fixes","payload":{"head":"5b0a4ed1e8eebd729dd466e298d7e5dc62f03339","rc":1,"run_id":"test-20261126-124016"}}
+{"v":1,"ts":"2026-11-26T13:09:51Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"test-infra-p2-fixes","payload":{"head":"5b0a4ed1e8eebd729dd466e298d7e5dc62f03339","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-26T13:12:22Z","actor":"ales_holubec.net","event":"round_extension","ref":"test-infra-p2-fixes","payload":{"authority":"standing-a","reason":"one-world scan dual-form false positive on merged main: hazard introduced by this ride's own scan"}}
