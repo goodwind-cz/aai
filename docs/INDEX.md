@@ -6,19 +6,18 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-skill-description-canonical-prompt-pointer | specs | implementing | 11 done | docs/specs/SPEC-DRAFT-spec-skill-description-canonical-prompt-pointer.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (49)
+## Product (50)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -41,6 +40,7 @@ _None._
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
+| harness-skill-discovery | harness-skill-discovery | 1 | docs/product/harness-skill-discovery.md |
 | hermes-agent-skill-discovery | hermes-agent-skill-discovery | 1 | docs/product/hermes-agent-skill-discovery.md |
 | implementation-mode-choice | implementation-mode-choice | 2 | docs/product/implementation-mode-choice.md |
 | intake-staleness-preflight-warning | intake-staleness-preflight-warning | 1 | docs/product/intake-staleness-preflight-warning.md |
@@ -72,7 +72,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (703)
+## Done (705)
 
 | ID | Type | Path |
 |---|---|---|
@@ -340,6 +340,7 @@ _None._
 | CHANGE-0267 | issues | docs/issues/CHANGE-0267-node-first-leftovers.md |
 | CHANGE-0268 | issues | docs/issues/CHANGE-0268-node-first-cleanup.md |
 | CHANGE-0269 | issues | docs/issues/CHANGE-0269-mutation-tooling-p2-fixes.md |
+| CHANGE-0270 | issues | docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -777,16 +778,16 @@ _None._
 | SPEC-0313 | specs | docs/specs/SPEC-0313-spec-node-first-cleanup.md |
 | SPEC-0314 | specs | docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md |
 | SPEC-0315 | specs | docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md |
+| SPEC-0318 | specs | docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (13)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
-| skill-description-canonical-prompt-pointer (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-skill-description-canonical-prompt-pointer.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

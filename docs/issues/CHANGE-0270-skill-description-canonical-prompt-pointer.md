@@ -1,8 +1,8 @@
 ---
 id: skill-description-canonical-prompt-pointer
 type: change
-number: null
-status: draft
+number: 270
+status: done
 capability: harness-skill-discovery
 user_visible: true
 links:

@@ -2817,6 +2817,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Skill descriptions name the prompt that runs them
+
+Agent harnesses (Claude Code, Codex, Gemini and others) show only a skill's one-line description until the skill is loaded. Every AAI skill wrapper now ends that line with a pointer to what actually runs it, for example `Run by reading .aai/SKILL_SHIP.prompt.md first.`. An agent that acts on the listed summary alone still learns where the real instructions are. A check in `sync-harness-skills.mjs --check` fails when a shipped wrapper loses its pointer, points at a missing file, or grows past the length harnesses accept. `/aai-ship` also no longer ends a turn silently: every turn ends with a pull request, a decision block, a printed stop, the question for the need, or while it waits for a dispatched role to return.
+
+[Product doc](product/harness-skill-discovery.md) · [Spec](specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md)
+
 ### Docs index regeneration
 
 The docs index generator rebuilds `docs/INDEX.md` from the frontmatter of the project documents, on every docs commit through the installed pre-commit hook and on demand. A document whose frontmatter breaks the schema (for example an unknown `status`) cannot be indexed, so the generator leaves it out and keeps going. That used to be easy to miss: the one line about the dropped document sat in the middle of a long list of standing warnings. The generator now prints the dropped documents as a block at the very end of its output, headed `DROPPED from docs/INDEX.md`, with one line per document and one line telling you how to fix it. Documents that sit in no index section (coverage gaps) are summarised in a single line; the full list stays in the index under "Coverage gaps".

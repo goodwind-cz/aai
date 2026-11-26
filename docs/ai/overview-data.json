@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-25T18:02:52.447Z",
+  "generatedAt": "2026-11-26T10:47:27.796Z",
   "project": "aai",
   "counts": {
-    "delivered": 385,
+    "delivered": 386,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 217483937
+    "tokens_total": 219007015
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -209,6 +209,19 @@
   ],
   "delivered": [
     {
+      "ref": "skill-description-canonical-prompt-pointer",
+      "title": "Change: every shipped skill wrapper names its canonical prompt in its one-line description, and an /aai-ship run never stops silently before the PR",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 570,
+      "token_total": 1523078,
+      "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T081936Z.md"
+    },
+    {
       "ref": "node-first-cleanup",
       "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
       "type": "change",
@@ -232,7 +245,7 @@
       "token_total": 2225322,
       "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-mutation-tooling-p2-fixes-20261125T173057Z.md"
     },
     {
       "ref": "index-schema-warning-prominence",
@@ -5241,6 +5254,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "skill-description-canonical-prompt-pointer",
+          "title": "Change: every shipped skill wrapper names its canonical prompt in its one-line description, and an /aai-ship run never stops silently before the PR",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 570,
+          "token_total": 1523078,
+          "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T081936Z.md"
+        },
+        {
           "ref": "node-first-cleanup",
           "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
           "type": "change",
@@ -5264,7 +5290,7 @@
           "token_total": 2225322,
           "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-mutation-tooling-p2-fixes-20261125T173057Z.md"
         },
         {
           "ref": "index-schema-warning-prominence",

@@ -1,10 +1,10 @@
 ---
 id: spec-skill-description-canonical-prompt-pointer
 type: spec
-number: null
-status: implementing
+number: 318
+status: done
 mutation_gate: v1
-frozen_sha256: 0ab665c0cbc59837a58d5073d941ef6605f7548cc406cda57d878c93303f46d4
+frozen_sha256: 26067284f5bb5bf5f341f785ea7fcabb239c5446baf72599b464719152da120c
 ceremony_level: 2
 links:
   requirement: skill-description-canonical-prompt-pointer
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-skill-description-canonical-prompt-pointer.md
+- Requirement: docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md
   (GitHub issues #594 `contract_violation` harness-skills/skill_discovery and
   #593 `stalled_progress` aai-ship/run_sequencing; owner approved one ride
   for both, 2026-11-26).

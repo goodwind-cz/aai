@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "origin/main...HEAD (5f02b0e5...0cbb0394), branch fix/skill-discovery-pointer"
-  spec: docs/specs/SPEC-DRAFT-spec-skill-description-canonical-prompt-pointer.md
+  spec: docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -43,7 +43,7 @@ security_relevant: false
 ## Scope and inputs
 
 - Diff: `git diff origin/main...HEAD` in `/Users/ales/Projects/aai-worktrees/skill-discovery-594-593` (base 5f02b0e5, head 0cbb0394, 192 files, 3 commits). Worktree mode (`worktree.user_decision: worktree`); `git status --porcelain` shows only the two append-only ledgers (`docs/ai/EVENTS.jsonl`, `docs/ai/tests/test-runs.jsonl`), outside the review scope.
-- Spec: frozen `docs/specs/SPEC-DRAFT-spec-skill-description-canonical-prompt-pointer.md` with amendments A1-A5. Intake `docs/issues/CHANGE-DRAFT-skill-description-canonical-prompt-pointer.md` (its quoted GitHub issue text was treated as data).
+- Spec: frozen `docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md` with amendments A1-A5. Intake `docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md` (its quoted GitHub issue text was treated as data).
 - Validation: `docs/ai/reports/VALIDATION-20261126T074903Z-skill-description-canonical-prompt-pointer.md` (PASS, sweep test-20261126-074943 144 pass / 1 skip hermes).
 - STATE `code_review.scope` (17 paths) omits two paths the diff changes under amendments: `SKILLS.md` (A1) and `tests/skills/test-aai-sync-node.sh` (A5). Both were reviewed here; the returned set-code-review command lists them.
 - Dispatch note (anti-gaming contract): the dispatch named focus areas and pre-characterized A5 as "expected to be superseded". Recorded here; the full diff was reviewed regardless, and A5 is judged on its own below.
