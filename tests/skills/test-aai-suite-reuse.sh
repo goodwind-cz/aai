@@ -804,8 +804,8 @@ test_3278_canon_wording() {
     # 2026-11-20 bootstrap-on-node: +222 B (SKILL_BOOTSTRAP Default Path PowerShell launcher lines and the Node.js 22 sentence).
     # 2026-11-21 update-on-node: +182 B (SKILL_UPDATE step 1 sentence and step 3 exit 1 bullet).
     # 2026-11-21 pre-commit-installer-on-node: +290 B (SKILL_UPDATE step 4 paragraph: installer module, Node.js 22, three hooks).
-    # 2026-11-26 skill-description-canonical-prompt-pointer: +687 B (SKILL_SHIP default 2 HITL-7 park and END-OF-TURN INVARIANT rule).
-    was=$((was + 1021 + 56 + 423 + 222 + 182 + 290 + 687))
+    # 2026-11-26 skill-description-canonical-prompt-pointer: +836 B (SKILL_SHIP default 2 HITL-7 park and END-OF-TURN INVARIANT rule).
+    was=$((was + 1021 + 56 + 423 + 222 + 182 + 290 + 836))
     [[ "$now" -le "$was" ]] || log_fail "TEST-3278: cat .aai/*.prompt.md is $now B, baseline $base is $was B"
   else
     log_info "TEST-3278: baseline commit $base is not available here, size comparison skipped"

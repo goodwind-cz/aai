@@ -1288,6 +1288,16 @@ test_4135_consumer_shaped_exceptions() {
   gen "$root" --write; gen "$root" --check
   [[ "$GEN_RC" -eq 1 && "$GEN_OUT" == *'DIVERGE pointer aai-test-unit: description lacks the canonical pointer'* ]] \
     || log_fail "TEST-4135: without the marker the wrapper must be checked, got rc=$GEN_RC: $GEN_OUT"
+  mk_root "$root"
+  mkdir -p "$root/.claude/skills/deploy-notes"
+  printf -- '---\nname: deploy-notes\ndescription: Notes on how we deploy the app to staging.\n---\n\nRead docs/deploy.md.\n' > "$root/.claude/skills/deploy-notes/SKILL.md"
+  gen "$root" --write; gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" != *'pointer deploy-notes'* ]] || log_fail "TEST-4135: a user skill without a pointer must pass, got rc=$GEN_RC: $GEN_OUT"
+  mkdir -p "$root/.claude/skills/aai-no-pointer"
+  printf -- '---\nname: aai-no-pointer\ndescription: A wrapper with no canonical pointer.\n---\n\nRead docs/deploy.md.\n' > "$root/.claude/skills/aai-no-pointer/SKILL.md"
+  gen "$root" --write; gen "$root" --check
+  [[ "$GEN_RC" -eq 1 && "$GEN_OUT" == *'DIVERGE pointer aai-no-pointer: description lacks the canonical pointer'* ]] \
+    || log_fail "TEST-4135: an aai- wrapper without a pointer must still fail, got rc=$GEN_RC: $GEN_OUT"
   log_pass "TEST-4135 the consumer-shaped exceptions are named, never silent"
 }
 

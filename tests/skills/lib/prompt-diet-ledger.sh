@@ -277,7 +277,7 @@ JUSTIFIED_ADDITIONS+=( "423 pr-ceremony-friction-fixes Spec-AC-06 (TEST-3836, D4
 JUSTIFIED_ADDITIONS+=( "222 bootstrap-on-node Spec-AC-20 (TEST-3959, D-DOCS): .aai/SKILL_BOOTSTRAP.prompt.md Default Path gains the two PowerShell launcher lines and one sentence naming Node.js 22 or later (+222 B, 5724 -> 5946, measured with /usr/bin/wc -c against 34fad51b). Credited 1:1." )
 JUSTIFIED_ADDITIONS+=( "182 update-on-node Spec-AC-19 (TEST-3978, D-DOCS): .aai/SKILL_UPDATE.prompt.md step 1 gains the sentence naming both launchers, aai-update.mjs and Node.js 22 or later, and step 3 gains the exit 1 bullet (+182 B, 3418 -> 3600, measured with /usr/bin/wc -c against 30c983ef). Credited 1:1." )
 JUSTIFIED_ADDITIONS+=( "290 pre-commit-installer-on-node Spec-AC-19 (TEST-3998, D-DOCS): .aai/SKILL_UPDATE.prompt.md step 4 paragraph names the installer module and Node.js 22 or later, all THREE hooks (AAI:INDEX-AUTOGEN, AAI:REF-GUARD, AAI:CLOSE-GATE), the honoured ref_guard: declined record and the check-every-slot-before-writing refusal, and the first report bullet lists the three hooks (+290 B, SKILL_UPDATE.prompt.md 3600 -> 3890, measured with /usr/bin/wc -c against bf0148d6). Credited 1:1." )
-JUSTIFIED_ADDITIONS+=( "687 skill-description-canonical-prompt-pointer SKILL_SHIP default 2 HITL-7 park and END-OF-TURN INVARIANT (measured deficit 687 B, 2026-11-26)" )
+JUSTIFIED_ADDITIONS+=( "836 skill-description-canonical-prompt-pointer SKILL_SHIP default 2 HITL-7 park and END-OF-TURN INVARIANT (measured deficit 836 B, incl. the END-OF-TURN legal endings, 2026-11-26)" )
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
   JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))

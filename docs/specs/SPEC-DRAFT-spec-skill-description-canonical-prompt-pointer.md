@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 80650b2626d60c19693a81474970fe129d320aa990b434553505af1340919aa9
+frozen_sha256: 0ab665c0cbc59837a58d5073d941ef6605f7548cc406cda57d878c93303f46d4
 ceremony_level: 2
 links:
   requirement: skill-description-canonical-prompt-pointer
@@ -494,3 +494,13 @@ this record).
   (D6) breaks that. The byte comparison now skips
   `.aai/SKILL_SHIP.prompt.md`; the file-set equality check still requires it
   to exist, and the TEST-4019 pass text says so.
+- A6 (review round 1 remediation, NB-1 and NB-2): the D1 pointer check in
+  `sync-harness-skills.mjs` now covers only `aai-` prefixed wrappers, so a
+  consumer's own non-AAI skill no longer fails `--check` (TEST-4135 gains a
+  user-skill case beside an `aai-` wrapper that still fails). The SKILL_SHIP
+  END-OF-TURN INVARIANT gains two legal endings, (d) the INPUT question for the
+  need and (e) waiting for an in-flight dispatch to return, never
+  re-dispatching it; TEST-4137 pins that text. The SKILL_SHIP growth is
+  therefore N = 836 bytes, not 687: every pin that states 687 (ledger entry,
+  TEST-012 want_growth and `rh_now`, pr-preflight case 008, TEST-3278) moves
+  to 836, and A3 reads 836.

@@ -374,6 +374,7 @@ function checkPointers(root, rule, models) {
     return null;
   };
   for (const skill of [...models.keys()].sort()) {
+    if (!skill.startsWith('aai-')) continue; // a consumer's own skill is not an AAI wrapper
     const model = models.get(skill);
     if (model.body.includes('AAI-DYNAMIC-SKILL:START')) {
       skipped.push(`SKIPPED pointer ${skill}: project-generated (AAI-DYNAMIC-SKILL marker)`);

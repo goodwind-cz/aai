@@ -129,10 +129,11 @@ RUN
 STRICT RULES
 - Execute canonical prompts exactly; this file only sequences them.
 - END-OF-TURN INVARIANT: a turn of the ride ends only on (a) the step 6 summary with the PR URL, (b) the HITL block with
-  human_input.required true in STATE, or (c) a STOP above with its refusal printed verbatim. Before ending any other way
+  human_input.required true in STATE, (c) a STOP above with its refusal printed verbatim, (d) the INPUT question for the need, or (e) waiting for an in-flight
+  dispatch to return (its `next decision` is that dispatch: never re-dispatch it). Before ending any other way
   run `node .aai/scripts/ride-status.mjs`; on `blocker: none` continue at its `next decision`, or park with
   `node .aai/scripts/state.mjs set-human-input --required true --reason "<why>" --question "<what to decide>"`
-  and print the HITL block. A dispatched subagent that has not returned is not a stop.
+  and print the HITL block. A dispatched subagent that has not returned is not a park.
 - Every autopilot decision is written to STATE with its rationale.
 - HITL questions above the unattended quality boundary (scope, cost,
   irreversibility, guard, unknown), L3/required worktree gates, and review

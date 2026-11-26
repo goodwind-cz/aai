@@ -276,7 +276,7 @@ test_4137_ship_end_of_turn_invariant() {
   d2="$(section "$SHIP" '^2\. Worktree gate' '^3\. Clarifications')"
   [[ -n "$rules" ]] || log_fail "TEST-4137: SKILL_SHIP has no STRICT RULES section"
   [[ -n "$d2" ]] || log_fail "TEST-4137: SKILL_SHIP has no autopilot default 2"
-  for w in 'END-OF-TURN INVARIANT' 'ride-status.mjs' 'set-human-input' '(a) the step 6 summary with the PR URL' 'the HITL block with' 'human_input.required true' 'printed verbatim' 'blocker: none' 'has not returned is not a stop'; do
+  for w in 'END-OF-TURN INVARIANT' 'ride-status.mjs' 'set-human-input' '(a) the step 6 summary with the PR URL' 'the HITL block with' 'human_input.required true' 'printed verbatim' 'blocker: none' '(d) the INPUT question for the need' '(e) waiting for an in-flight' 'never re-dispatch it' 'has not returned is not a park'; do
     has "$rules" "$w" || log_fail "TEST-4137: the STRICT RULES section lacks [$w]"
   done
   for w in 'HITL-7' 'set-human-input' 'HITL block'; do
