@@ -1,6 +1,6 @@
 ---
 name: aai-wrap-up
-description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare next session context. Trigger phrases: "wrap up", "end session", "done for today", "hotovo", "konec", "bye".
+description: 'Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare next session context. Trigger phrases: "wrap up", "end session", "done for today", "hotovo", "konec", "bye". Run by reading .aai/SKILL_WRAP_UP.prompt.md first.'
 ---
 
 <SUBAGENT-STOP>

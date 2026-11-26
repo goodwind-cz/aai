@@ -1,6 +1,6 @@
 ---
 name: aai-test-skills
-description: Use when verifying all AAI skills work correctly after upstream changes, a fresh install, or to diagnose skill failures.
+description: Use when verifying all AAI skills work correctly after upstream changes, a fresh install, or to diagnose skill failures. Run by reading .aai/SKILL_TEST_SKILLS.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_TEST_SKILLS.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-test-skills`.

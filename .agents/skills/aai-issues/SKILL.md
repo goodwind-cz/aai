@@ -1,6 +1,6 @@
 ---
 name: aai-issues
-description: Use when you want open platform issues fetched, triaged and turned into approved intakes
+description: Use when you want open platform issues fetched, triaged and turned into approved intakes. Run by reading .aai/SKILL_ISSUES.prompt.md first.
 ---
 
 <SUBAGENT-STOP>

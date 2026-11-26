@@ -34,7 +34,7 @@ The generator scans repository evidence for:
 - package managers and manifests (`package.json`, lockfiles, `pyproject.toml`, `Cargo.toml`, `go.mod`, `pom.xml`, Gradle files)
 - task runners (`Makefile`, `justfile`)
 - test frameworks (`playwright.config.*`, `cypress.config.*`, `jest.config.*`, `vitest.config.*`, `pytest.ini`, language defaults)
-- build/lint toolchain (`vite.config.*`, `webpack.config.*`, `tsconfig.json`, `Dockerfile`, ESLint/Biome/Ruff configs)
+- build/lint toolchain (`vite.config.*`, `webpack.config.*`, `tsconfig.json`, `Dockerfile`, ESLint/Biome/Ruff configs); a legacy `.eslintrc*` with no eslint installed in the project gets `npx eslint@8 .`, because ESLint 9 and later ignore eslintrc
 - Python scratchpad support (`pyproject.toml`, `requirements.txt`, `poetry.lock`, `uv.lock`, `setup.cfg`, `setup.py`) for optional pydantic-monty guidance
 - deploy paths (`wrangler.toml`, `vercel.json`, `netlify.toml`, deploy/publish/release scripts)
 - CI/CD hints (`.github/workflows/`)
@@ -106,4 +106,5 @@ Final output must include:
 - generated/updated file list
 - skipped skill list with reasons
 - git platform and auth lines (RECORDED/UNCHANGED/MISMATCH, AUTH)
+- the `Technology contract:` line when the summary prints one (docs/TECHNOLOGY.md is still the template seed; run TECH_EXTRACT)
 - ready-to-use commands, for example `/aai-test-e2e`, `/aai-test-unit`, `/aai-build`, `/aai-lint`, `/aai-python-monty`

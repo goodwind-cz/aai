@@ -4,7 +4,7 @@ type: spec
 number: 306
 status: done
 mutation_gate: v1
-frozen_sha256: 17fef3e71ed4a9e7ec39985807a873e8e341e8d15528a1713bd58736d87df192
+frozen_sha256: 987e52fa6c64d7501201eb2b69e0053104902b57c7d98fef83c8237584eb129b
 ceremony_level: 2
 links:
   requirement: bootstrap-on-node
@@ -1030,3 +1030,44 @@ sync and update twins (not bootstrap; this ride adds one accepted row only)
 and `fu-parity-node22-step-wire` (the Node 22 step will also run the new
 node:test file; its time is reported in the validation report, the item
 stays with the harness ride).
+
+## Amendment (onboarding-tech-contract-and-lint-gaps)
+
+Additive, post-freeze (2026-11-25). Every frozen decision above stays visible and
+unedited. This section changes one behaviour of the module against the frozen
+reference, discloses it as the reviewed row D-REF asks for, and names the one
+test row it changes.
+
+What stays visible: the D-COMMANDS lint chain above still reads
+``lint (runner lint, check, lint-check; scripts lint, check, typecheck; `eslint .`; ...)``.
+That is the reference behaviour and it is unchanged for a flat config, for a
+project whose own eslint is a dependency, and for a runner or
+package-script target. A local `node_modules/.bin/eslint` counts as a local eslint
+only beside a legacy `.eslintrc*` (then `<pm exec> eslint .`, as in the
+reference); a bin with no eslint config selects nothing and does not outrank
+Biome or Ruff, again as in the reference. The one case that changes (GitHub #589, rule D4 of
+docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md): a legacy
+`.eslintrc*` in the root and no local eslint (no `eslint` in any of the four
+dependency blocks, no regular file at `node_modules/.bin/eslint` or
+`node_modules/.bin/eslint.cmd`) and no flat config. ESLint 9 and later ignore
+eslintrc, so the one-off `npx eslint .` of the reference lints nothing useful;
+the module writes the pinned `npx eslint@8 .` for every package manager, and
+the `aai-lint` skill carries an `## ESLint 8 pin` note block.
+
+Test row changed: TEST-3944 case `lint eslintrc` now expects `npx eslint@8 .`
+instead of `npx eslint .`.
+
+| Id | Reference | Module | Why | Test |
+|---|---|---|---|---|
+| DR-12 | a legacy `.eslintrc*` with no eslint in the project gets `<pm exec> eslint .` (`yarn exec eslint .` in K05) | `npx eslint@8 .` for every package manager, and the `aai-lint` skill carries the `## ESLint 8 pin` block | ESLint 9 and later ignore eslintrc, so the unpinned command lints nothing for a legacy config (GitHub #589) | TEST-4130 |
+
+K05 (yarn.lock, `.eslintrc.json`, no eslint dependency) is the one corpus case
+this row covers: the reviewed drift is applied to the reference side only, in
+tests/skills/lib/aai-bootstrap-fixtures.mjs, and a pair that matches nothing is
+reported as a problem.
+
+Authority: canon assigns a change to a frozen spec to the owner. The owner
+approved the intake that asks for this change (GitHub #589) through the triage in
+`/aai-issues` on 2026-11-25
+(docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md, Notes), and
+that approval is the sign-off cited in the amendment record. The owner may reverse it.

@@ -1,6 +1,6 @@
 ---
 name: aai-flush
-description: Use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from STATE.yaml to METRICS.jsonl.
+description: Use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from STATE.yaml to METRICS.jsonl. Run by reading .aai/SKILL_FLUSH.prompt.md first.
 ---
 
 <SUBAGENT-STOP>

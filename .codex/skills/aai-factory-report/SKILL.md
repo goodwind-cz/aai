@@ -1,6 +1,6 @@
 ---
 name: aai-factory-report
-description: Use when the user wants a continuous factory-efficiency overview — what the AAI factory delivers, how fast, at what token cost, and at what quality, trended over time — rendered as a self-contained HTML page from the METRICS and EVENTS ledgers.
+description: Use when the user wants a continuous factory-efficiency overview — what the AAI factory delivers, how fast, at what token cost, and at what quality, trended over time — rendered as a self-contained HTML page from the METRICS and EVENTS ledgers. Run via node .aai/scripts/generate-factory-report.mjs.
 ---
 
 Run `node .aai/scripts/generate-factory-report.mjs` from the project root, then tell the user where the outputs landed (`docs/ai/factory-report.html`, `docs/ai/factory-report-data.json`) and offer to open or publish the page (e.g. via `/aai-share`).

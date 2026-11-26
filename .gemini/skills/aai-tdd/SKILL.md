@@ -1,6 +1,6 @@
 ---
 name: aai-tdd
-description: Use when implementing any feature or fix that should follow test-driven development. Enforces RED-GREEN-REFACTOR cycle with evidence at each phase.
+description: Use when implementing any feature or fix that should follow test-driven development. Enforces RED-GREEN-REFACTOR cycle with evidence at each phase. Run by reading .aai/SKILL_TDD.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_TDD.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-tdd`.

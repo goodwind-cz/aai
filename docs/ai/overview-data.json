@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-25T18:02:52.447Z",
+  "generatedAt": "2026-11-26T12:07:43.234Z",
   "project": "aai",
   "counts": {
-    "delivered": 385,
+    "delivered": 388,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 217483937
+    "tokens_total": 220703528
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -209,6 +209,32 @@
   ],
   "delivered": [
     {
+      "ref": "skill-description-canonical-prompt-pointer",
+      "title": "Change: every shipped skill wrapper names its canonical prompt in its one-line description, and an /aai-ship run never stops silently before the PR",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 570,
+      "token_total": 1523078,
+      "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T113651Z.md"
+    },
+    {
+      "ref": "onboarding-tech-contract-and-lint-gaps",
+      "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 318,
+      "token_total": 1696513,
+      "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+    },
+    {
       "ref": "node-first-cleanup",
       "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
       "type": "change",
@@ -232,7 +258,7 @@
       "token_total": 2225322,
       "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-mutation-tooling-p2-fixes-20261125T173057Z.md"
     },
     {
       "ref": "index-schema-warning-prominence",
@@ -246,6 +272,19 @@
       "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
       "validation": null,
       "review": "docs/ai/reviews/review-index-schema-warning-prominence-20261125T144136Z.md"
+    },
+    {
+      "ref": "secrets-gate-false-positives",
+      "title": "Pre-commit secrets gate false-positives force --no-verify (GitHub #585, #576)",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0126-secrets-gate-false-positives.md",
+      "closed_on": "2026-11-25",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-secrets-gate-false-positives-20261125T192733Z.md"
     },
     {
       "ref": "node-first-phase5-closeout",
@@ -5241,6 +5280,32 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "skill-description-canonical-prompt-pointer",
+          "title": "Change: every shipped skill wrapper names its canonical prompt in its one-line description, and an /aai-ship run never stops silently before the PR",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 570,
+          "token_total": 1523078,
+          "spec": "docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T113651Z.md"
+        },
+        {
+          "ref": "onboarding-tech-contract-and-lint-gaps",
+          "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 318,
+          "token_total": 1696513,
+          "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+        },
+        {
           "ref": "node-first-cleanup",
           "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
           "type": "change",
@@ -5264,7 +5329,7 @@
           "token_total": 2225322,
           "spec": "docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-mutation-tooling-p2-fixes-20261125T173057Z.md"
         },
         {
           "ref": "index-schema-warning-prominence",
@@ -5278,6 +5343,19 @@
           "spec": "docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md",
           "validation": null,
           "review": "docs/ai/reviews/review-index-schema-warning-prominence-20261125T144136Z.md"
+        },
+        {
+          "ref": "secrets-gate-false-positives",
+          "title": "Pre-commit secrets gate false-positives force --no-verify (GitHub #585, #576)",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0126-secrets-gate-false-positives.md",
+          "closed_on": "2026-11-25",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-secrets-gate-false-positives-20261125T192733Z.md"
         },
         {
           "ref": "node-first-phase5-closeout",

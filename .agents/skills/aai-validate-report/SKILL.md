@@ -1,6 +1,6 @@
 ---
 name: aai-validate-report
-description: Use when validation output needs to be presented as a chat-friendly report with screenshot evidence saved to docs/ai/reports.
+description: Use when validation output needs to be presented as a chat-friendly report with screenshot evidence saved to docs/ai/reports. Run by reading .aai/SKILL_VALIDATE_REPORT.prompt.md first.
 model: haiku
 ---
 

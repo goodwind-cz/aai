@@ -1,6 +1,6 @@
 ---
 name: aai-bootstrap
-description: Use when setting up a new AAI project or when project-specific test/build/validation commands are missing or outdated. Detects project architecture and generates optimized shortcuts.
+description: Use when setting up a new AAI project or when project-specific test/build/validation commands are missing or outdated. Detects project architecture and generates optimized shortcuts. Run by reading .aai/SKILL_BOOTSTRAP.prompt.md first.
 ---
 
 <SUBAGENT-STOP>

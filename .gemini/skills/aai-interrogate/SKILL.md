@@ -1,6 +1,6 @@
 ---
 name: aai-interrogate
-description: Use optionally at spec freeze (or when a plan feels underdetermined) to walk open decisions one question at a time — every question ships a recommended answer, codebase-resolvable ones are inferred silently, and each decision is appended to docs/ai/decisions.jsonl. Advisory only — never blocks.
+description: Use optionally at spec freeze (or when a plan feels underdetermined) to walk open decisions one question at a time — every question ships a recommended answer, codebase-resolvable ones are inferred silently, and each decision is appended to docs/ai/decisions.jsonl. Advisory only — never blocks. Run by reading .aai/SKILL_INTERROGATE.prompt.md first.
 ---
 
 Read the file `.aai/SKILL_INTERROGATE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-interrogate`.

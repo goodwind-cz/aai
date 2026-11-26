@@ -1129,7 +1129,9 @@ test_012_growth_sum_matches_ledger() {
   # Then 67480 -> 67702: bootstrap-on-node (+222 B: SKILL_BOOTSTRAP Default Path gains the two PowerShell launcher lines and the Node.js 22 sentence; measured against 34fad51b; credited 1:1).
   # Then 67702 -> 67884: update-on-node (+182 B: SKILL_UPDATE step 1 launcher/Node.js 22 sentence and step 3 exit 1 bullet; measured against 30c983ef; credited 1:1).
   # Then 67884 -> 68174: pre-commit-installer-on-node (+290 B: SKILL_UPDATE step 4 paragraph names the installer module, Node.js 22, the three hooks and the check-every-slot refusal; measured against bf0148d6; credited 1:1).
-  local want_growth=68174
+  # Then 68174 -> 68749: onboarding-tech-contract-and-lint-gaps (+575 B: TECH_EXTRACT steps 1 and 8 fresh-project path +318 B, SKILL_BOOTSTRAP ESLint 8 pin sentence and Technology contract report bullet +257 B; measured against 5f02b0e5; credited 1:1).
+  # Then 68749 -> 69585: skill-description-canonical-prompt-pointer (+836 B: SKILL_SHIP default 2 HITL-7 park and the END-OF-TURN INVARIANT rule; measured against 5f02b0e5; credited 1:1).
+  local want_growth=69585
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1172,6 +1174,7 @@ test_012_growth_sum_matches_ledger() {
     # ride-status-and-resume adds 550 B to SKILL_SHIP under its own ledger entry; excluded so this entry stays its own.
     rh_now=$(( rh_now - 550 - 19 ))   # model-effort-routing adds 19 B to SKILL_SHIP step 2 under its own entry
     rh_now=$(( rh_now - 268 ))   # archive-ledger-check adds 268 B to SKILL_WORKTREE Cleanup under its own entry
+    rh_now=$(( rh_now - 836 ))   # skill-description-canonical-prompt-pointer adds 836 B to SKILL_SHIP default 2 and STRICT RULES under its own entry
     if [[ -z "$rh_entry" ]]; then
       log_info "TEST-012 (ride-state-handoff TEST-013): no ride-state-handoff-to-worktree ledger entry (prompts grew $(( rh_now - rh_then )) B)"
       ok=0
@@ -2938,6 +2941,45 @@ test_3837_pr_ceremony_friction_growth_ledgered() {
   log_pass "TEST-3837: SKILL_PR + VALIDATION growth $growth B credited 1:1 by one pr-ceremony-friction-fixes entry"
 }
 
+test_4134_onboarding_ledger_entry() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-4134 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  # The prompt corpus at base commit 5f02b0e5 (stored, not read from git: shallow clones lack the commit).
+  local base_bytes=376171 now growth _e entry='' n=0 ref lead before_failed later=0
+  now=$(cat "$PROJECT_ROOT"/.aai/*.prompt.md | wc -c | tr -d ' ')
+  growth=$(( now - base_bytes ))
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "onboarding-tech-contract-and-lint-gaps" ]]; then entry="$_e"; n=$((n + 1)); later=0; continue; fi
+    # Entries appended after this one credit later rides' growth (the TEST-2824 pattern).
+    if [[ "$n" -ge 1 ]]; then later=$(( later + ${_e%% *} )); fi
+  done
+  growth=$(( growth - later ))
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-4134: $n ledger entries have the ref field onboarding-tech-contract-and-lint-gaps (want exactly 1)"
+    return
+  fi
+  lead="${entry%% *}"
+  if [[ ! "$lead" =~ ^[1-9][0-9]*$ || "$lead" != "$growth" ]]; then
+    log_fail "TEST-4134: the corpus grew $growth B over $base_bytes but the entry credits '$lead' B"
+    return
+  fi
+  # TEST-010 and TEST-012 of this suite hold on the same tree (their failures are folded into this verdict).
+  before_failed="$FAILED"
+  FAILED=0
+  test_010_audit_and_reduction
+  test_012_growth_sum_matches_ledger
+  if [[ "$FAILED" -ne 0 ]]; then
+    FAILED=1
+    log_fail "TEST-4134: TEST-010 or TEST-012 failed on this tree"
+    return
+  fi
+  FAILED="$before_failed"
+  log_pass "TEST-4134: corpus growth $growth B credited 1:1 by one onboarding-tech-contract-and-lint-gaps entry; TEST-010 and TEST-012 pass"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -3000,6 +3042,7 @@ main() {
   test_2936_skill_pr_3b_growth_ledgered
   test_3837_pr_ceremony_friction_growth_ledgered
   test_4135_dry_run_never_writes_project_root
+  test_4134_onboarding_ledger_entry
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
