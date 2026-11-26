@@ -4657,3 +4657,4 @@
 {"v":1,"ts":"2026-11-26T14:28:45Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"validation","head":"d80b73a80c0fa6128104991968b892a1195a4ec6","seen":"run_at:2026-11-26T14:28:44Z"}}
 {"v":1,"ts":"2026-11-26T14:28:45Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-infra-p2-fixes","payload":{"status":"pass","hash":"d9622c20ba25e0648ef9b69c94e4fd5f8d464e404cbe672e1811169aea8642b8"}}
 {"v":1,"ts":"2026-11-26T14:28:49Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"code_review","head":"d80b73a80c0fa6128104991968b892a1195a4ec6","seen":"reports:1"}}
+{"v":1,"ts":"2026-11-26T14:37:29Z","actor":"ales_holubec.net","event":"round_extension","ref":"test-infra-p2-fixes","payload":{"authority":"owner","reason":"round 4 authorised under owner directive Udělej vše ty; scope B-2 and NB-7 only"}}

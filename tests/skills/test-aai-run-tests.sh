@@ -1354,9 +1354,9 @@ mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
     rm -f "$root/seen" "$root/seen.pw"
     rc=0
     case "$mode" in
-      pw_xdg)    env AAI_UNAME=Linux HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+      pw_xdg)    env -u PLAYWRIGHT_BROWSERS_PATH AAI_UNAME=Linux HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
                    sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$fx/ms-playwright" ;;
-      pw_home)   env -u XDG_CACHE_HOME AAI_UNAME=Linux HOME="$fh" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+      pw_home)   env -u XDG_CACHE_HOME -u PLAYWRIGHT_BROWSERS_PATH AAI_UNAME=Linux HOME="$fh" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
                    sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$fh/.cache/ms-playwright" ;;
       pw_caller) env AAI_UNAME=Linux PLAYWRIGHT_BROWSERS_PATH="$root/own-browsers" HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
                    sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$root/own-browsers" ;;
