@@ -4566,3 +4566,4 @@
 {"v":1,"ts":"2026-11-26T00:31:47Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"test-infra-p2-fixes","payload":{"head":"cc9f6b19fe095ecd03e776a5e73aa4daebbca1c3","clean":false,"flags":1}}
 {"v":1,"ts":"2026-11-26T00:34:31Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"code_review","head":"cc9f6b19fe095ecd03e776a5e73aa4daebbca1c3","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-26T00:34:31Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-infra-p2-fixes","payload":{"status":"pass","hash":"4ba06b454553433be3135a4a67e930d3fe4d1ca2a1262e47e16362927d7372e3"}}
+{"v":1,"ts":"2026-11-26T12:32:48Z","actor":"ales_holubec.net","event":"round_reset","ref":"test-infra-p2-fixes","payload":{"block":"code_review","from":"fail","forced":true}}
