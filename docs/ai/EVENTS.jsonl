@@ -4707,3 +4707,8 @@
 {"v":1,"ts":"2026-11-26T17:24:44Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-azure-rejects-doc-number-reservation-push","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-26T17:29:58Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":807,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-26T17:51:04Z","actor":"ales_holubec.net","event":"round_extension","ref":"azure-rejects-doc-number-reservation-push","payload":{"authority":"standing-a","reason":"CI release dry-run: TEST-4151 (added by this change) pins the CHANGELOG heading to [unreleased], so the production rollup rehearsal reddens it"}}
+{"v":1,"ts":"2026-11-26T19:47:25Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-dry-run-reader-timeout","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-26T20:06:47Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"release-dry-run-reader-timeout","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-26T20:06:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-dry-run-reader-timeout","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-26T20:06:47Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-dry-run-reader-timeout","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-26T20:06:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-dry-run-reader-timeout","payload":{"validation":"pass","code_review":"pass"}}

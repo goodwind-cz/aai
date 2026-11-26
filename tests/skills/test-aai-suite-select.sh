@@ -2436,7 +2436,7 @@ JS
 
 # node-first-cleanup D-WEIGHTS: the weights are measured from the five named runs.
 test_4037_weights_measured() {  # Spec-AC-01 / TEST-4037
-  log_info "Test: the weights are audited over every suite, name exactly the five D-WEIGHTS runs, and fall back only for aai-state and aai-hermes-skills (TEST-4037)..."
+  log_info "Test: the weights are audited over every suite, name exactly the five D-WEIGHTS runs (aai-release-cut: its five re-measure runs), and fall back only for aai-state and aai-hermes-skills (TEST-4037)..."
   node --input-type=module - "$PROJECT_ROOT" <<'JS' || log_fail "TEST-4037: the measured-weights contract does not hold (see the assertion above)"
 import fs from 'node:fs'; import assert from 'node:assert/strict';
 const root = process.argv[2];
@@ -2445,8 +2445,10 @@ const text = fs.readFileSync(root + '/tests/skills/suite-weights.tsv', 'utf8');
 const names = fs.readdirSync(root + '/tests/skills', { withFileTypes: true }).filter((e) => e.isFile() && /^test-aai-.*\.sh$/.test(e.name)).map((e) => e.name.slice(5, -3));
 assert.equal(auditWeights(text, names).suites, names.length, 'TEST-4037: auditWeights suite count');
 const want = ['45459216102', '45093987222', '45025432502', '45013455954', '44915915697'];
+// release-dry-run-reader-timeout: aai-release-cut alone is re-measured from five later main-push runs.
+const remeasure = { 'aai-release-cut': ['45875856570', '45867692451', '45820326840', '45816645699', '45808578900'] };
 const got = [...text.matchAll(/^# source run ([0-9]+) head SHA [0-9a-f]{40} /gm)].map((m) => m[1]);
-assert.deepEqual([...got].sort(), [...want].sort(), 'TEST-4037: the source run lines are not exactly the five D-WEIGHTS runs: ' + got.join(','));
+assert.deepEqual([...got].sort(), [...want, ...Object.values(remeasure).flat()].sort(), 'TEST-4037: the source run lines are not exactly the five D-WEIGHTS runs plus the named re-measure runs: ' + got.join(','));
 const fallback = [];
 for (const line of text.split('\n')) {
   const m = line.match(/^# sample (aai-\S+) (fallback|measured)\b/);
@@ -2454,11 +2456,13 @@ for (const line of text.split('\n')) {
   if (m[2] === 'fallback') { fallback.push(m[1]); continue; }
   const r = line.match(/ runs=([0-9,]+) /);
   assert(r, 'TEST-4037: measured sample without runs: ' + m[1]);
-  for (const id of r[1].split(',')) assert(want.includes(id), 'TEST-4037: sample ' + m[1] + ' names a run outside D-WEIGHTS: ' + id);
+  const allowed = remeasure[m[1]] || want;
+  if (remeasure[m[1]]) assert.deepEqual(r[1].split(',').sort(), [...remeasure[m[1]]].sort(), 'TEST-4037: sample ' + m[1] + ' must name exactly its five re-measure runs: ' + r[1]);
+  for (const id of r[1].split(',')) assert(allowed.includes(id), 'TEST-4037: sample ' + m[1] + ' names a run outside ' + (remeasure[m[1]] ? 'its re-measure set' : 'D-WEIGHTS') + ': ' + id);
 }
 assert.deepEqual(fallback.sort(), ['aai-hermes-skills', 'aai-state'], 'TEST-4037: fallback unsampled rows are ' + fallback.join(','));
 JS
-  log_pass "TEST-4037 (auditWeights passes over every suite; five D-WEIGHTS source runs; fallback rows are aai-state and aai-hermes-skills)"
+  log_pass "TEST-4037 (auditWeights passes over every suite; five D-WEIGHTS source runs plus the aai-release-cut re-measure set; fallback rows are aai-state and aai-hermes-skills)"
 }
 
 # node-first-cleanup D-PINS: no placeholder weight is pinned by a test.

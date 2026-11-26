@@ -7,11 +7,16 @@ import {createHash} from 'node:crypto';
 import {spawn,spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {rollup} from './lib/release-rollup.mjs';
-// Measured complete release reader: 464.412s alone on the supported baseline.
-// Successful PR runs retain a ten-minute target. Failure diagnostics have a
-// twenty-minute job ceiling, with an eighteen-minute total executor budget.
-export const DEFAULT_READER_TIMEOUT_SECONDS=540;
-export const DEFAULT_BUDGET_SECONDS=1080;
+// The slowest reader, tests/skills/test-aai-release-cut.sh, passed in 346-517 s
+// on the rolled arm of 19 hosted PR runs (2026-11-24..26) and in up to 601 s on
+// main-push legs, so the per-reader bound is 900 s. The executor budget is 1800 s,
+// the value the workflow passes: one reader's two complete arms (2 x 900) fit it,
+// inside the 35-minute job deadline. With the rolled arm's own wall time (about
+// 1100-1250 s on CI) the slack is small: a reader that hangs on both payloads
+// ends budget-exhausted (diagnostic incomplete) rather than classified; the job
+// still fails either way.
+export const DEFAULT_READER_TIMEOUT_SECONDS=900;
+export const DEFAULT_BUDGET_SECONDS=1800;
 export function cleanEnvironment(source=process.env) {
   const env=Object.fromEntries(Object.entries(source).filter(([k])=>!/^GIT_|^GH_|^GITHUB_|TOKEN|PASSWORD|SECRET|CREDENTIAL|ASKPASS|^NODE_TEST_CONTEXT$|^NODE_OPTIONS$/i.test(k)));
   return {

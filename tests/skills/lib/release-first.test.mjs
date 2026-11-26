@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {DEFAULT_READER_TIMEOUT_SECONDS} from '../../../.aai/scripts/release-dry-run.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
 const cli=path.join(root,'.aai/scripts/release-dry-run.mjs');
 const changelog='CHANGE'+'LOG.md';
@@ -299,7 +300,8 @@ test('TEST-006 failure diagnostic budget fits the actual workflow deadline',()=>
   assert.equal(deadline,2100,'slow rolled failure plus ordinary diagnostic needs the amended job deadline');
   const budget=Number(/--budget-seconds (\d+)/.exec(job)?.[1]);
   assert.equal(budget,1800);
-  assert.ok(budget>=2*540,'two complete540-second reader arms fit the executor allowance');
+  // release-dry-run-reader-timeout: the bound is read from the module, so a raised default that no longer fits fails here.
+  assert.ok(budget>=2*DEFAULT_READER_TIMEOUT_SECONDS,`two complete ${DEFAULT_READER_TIMEOUT_SECONDS}-second reader arms fit the executor allowance`);
   assert.ok(deadline>=budget+120,'reserve setup/report/upload time outside executor budget');
   assert.match(job,/if: always\(\)/);
 });
@@ -367,7 +369,7 @@ test('TEST-007 both corpus arms report each reader duration and concurrency boun
   assert.equal(r.status,0,r.text);
   const j=JSON.parse(fs.readFileSync(path.join(dir,'result.json')));
   assert.equal(j.jobs,2);
-  assert.equal(j.budgetSeconds,1080);
+  assert.equal(j.budgetSeconds,1800);
   assert.ok(j.peakActive<=2&&j.peakActive>0);
   assert.match(j.hostedTiming,/unverified/i);
   for(const arm of ['ordinary','rolled']) {
@@ -385,7 +387,7 @@ test('TEST-007 both corpus arms report each reader duration and concurrency boun
   const result=dry(dir,['--jobs','1','--report',report]);
   assert.equal(result.status,0,result.text);
   const data=JSON.parse(fs.readFileSync(report));
-  assert.equal(data.readerTimeoutSeconds,540,'production default must cover the measured464s release reader');
+  assert.equal(data.readerTimeoutSeconds,900,'production default must cover the release reader measured at up to 601 s on CI');
   assert.equal(data.schedule.policy,'suite-weight-desc');
   assert.deepEqual(data.results.map(r=>r.file),['tests/bravo.test.mjs','tests/alpha.test.mjs']);
   assert.deepEqual([...data.results.map(r=>r.file)].sort(),[...data.inventory.readers].sort());
