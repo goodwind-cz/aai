@@ -4558,3 +4558,5 @@
 {"v":1,"ts":"2026-11-25T18:02:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"mutation-tooling-p2-fixes","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-25T18:02:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-mutation-tooling-p2-fixes","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-25T18:02:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-mutation-tooling-p2-fixes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-26T00:54:04Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-skill-description-canonical-prompt-pointer","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-26T07:00:35Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"skill-description-canonical-prompt-pointer","payload":{"role":"validation","head":"251d9814e0dea5bec61b556c3959c7c37f1e8802","seen":"run_at:null"}}
