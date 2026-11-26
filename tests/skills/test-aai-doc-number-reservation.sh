@@ -1417,6 +1417,43 @@ test_311_azure_docs() {
   log_pass "TEST-4151 USER_GUIDE, TECHNOLOGY, CHANGELOG and product doc describe the Azure transport"
 }
 
+# TEST-4152 (Spec-AC-05, Amendment A3): a release the server refuses is named.
+test_312_azure_release_failure_named() {
+  local CUR_TEST=TEST-4152
+  log_info "TEST-4152: Azure stub refusing deletes -> a refused release is named on both paths..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t312)"
+  local bare="$TEST_DIR/origin-t312.git"
+  cat > "$bare/hooks/pre-receive" <<'HOOK'
+#!/bin/sh
+zero=0000000000000000000000000000000000000000
+while read old new ref; do
+  if [ "$new" = "$zero" ]; then echo "STUB: deleting $ref is refused" >&2; exit 1; fi
+  case "$ref" in refs/aai/docnums/FAMB-0009) echo "STUB: FAMB-0009 is refused" >&2; exit 1 ;; esac
+done
+exit 0
+HOOK
+  chmod +x "$bare/hooks/pre-receive"
+  push_raw_ref "$bare" "refs/aai/docnums/FAMB-0006" "racer-owns-famb-6"
+  cat > "$d/probe.mjs" <<'EOF'
+import { reserveAtomic } from './.aai/scripts/allocate-doc-number.mjs';
+const fam = [{ prefix: 'FAMA', width: 4 }, { prefix: 'FAMB', width: 4 }];
+console.log(JSON.stringify(reserveAtomic(process.cwd(), 'origin', fam, Number(process.argv[2]), 50)));
+EOF
+  # Arm 1, collision path: FAMB-0006 taken, FAMA-0006 claimed and not deletable.
+  (cd "$d" && node probe.mjs 6 > arm1.out 2> arm1.err) || log_fail "arm 1 probe crashed: $(cat "$d/arm1.err")"
+  assert_contains "$d/arm1.out" '"ok":true'
+  assert_contains "$d/arm1.out" '"number":7'
+  assert_contains "$d/arm1.err" "could not release refs/aai/docnums/FAMA-0006"
+  assert_contains "$d/arm1.err" "STUB: deleting refs/aai/docnums/FAMA-0006 is refused"
+  # Arm 2, non-collision path: FAMB-0009 refused, FAMA-0009 claimed and not deletable.
+  (cd "$d" && node probe.mjs 9 > arm2.out 2> arm2.err) || log_fail "arm 2 probe crashed: $(cat "$d/arm2.err")"
+  assert_contains "$d/arm2.out" '"ok":false'
+  assert_contains "$d/arm2.out" "could not release refs/aai/docnums/FAMA-0009"
+  rm -rf "${d:?}"
+  log_pass "TEST-4152 a refused release is named on the collision and the non-collision path"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Number Reservation Test Suite (CHANGE-0035 / SPEC-0047)"
@@ -1470,6 +1507,7 @@ main() {
   test_309_azure_guard_cross_branch_collision
   test_310_default_transport_unchanged
   test_311_azure_docs
+  test_312_azure_release_failure_named
 
   echo ""
   echo "All doc-number-reservation tests passed."

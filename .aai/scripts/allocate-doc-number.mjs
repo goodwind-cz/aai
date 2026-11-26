@@ -585,6 +585,9 @@ function pushReservationSequential(root, remote, refNames) {
     }
     const collision = /stale info/i.test(r.out);
     const released = releaseClaims(root, remote, sha, claimed);
+    // A collision is retried silently by the caller, so a refused release is
+    // named here or nowhere; the orphan ref only makes that number skipped.
+    if (collision && released.length) console.error(`WARNING: ${released.join('\n')}`);
     return { ok: false, collision, error: [describePushFailure(r.out), ...released].join('\n') };
   }
   return { ok: true };

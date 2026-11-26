@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 7a7871d2168e6cd0572c7f9fd0772c02346ab7bd0d713fb2c780dc565b5519b0
+frozen_sha256: 4c227617bfc8caa7b885b3734fc4a08fafb4db677f3894ab12736990b7959d69
 ceremony_level: 3
 links:
   requirement: azure-rejects-doc-number-reservation-push
@@ -227,7 +227,7 @@ None.
 | Spec-AC-02 | WHEN the platform resolves to azure the allocator SHALL reserve every member of a coupled family without atomic push, and WHEN one member is already taken it SHALL leave no ref of this attempt at that number and retry the family at the next number. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_302_azure_coupled_family_confirmed.log | — | TEST-4142, TEST-4143 |
 | Spec-AC-03 | WHEN two clones on azure reserve the same starting number concurrently the allocator SHALL grant that number to exactly one of them. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_304_azure_race_one_winner.log | — | TEST-4144 |
 | Spec-AC-04 | WHEN a doc stamped number_reserved false exists on azure the allocator SHALL complete it with --reserve (marker removed, ref created, guard exit 0) and SHALL exit 4 keeping the marker when the ref is taken. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_305_azure_reserve_completes_provisional.log | — | TEST-4145 |
-| Spec-AC-05 | WHEN the azure reservation push is refused for a non-collision reason the allocator SHALL make exactly one push, stamp the provisional marker and print the remote's reason lines verbatim with the git-lfs advisory removed and URL credentials masked. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_306_azure_rejection_reason_verbatim.log | — | TEST-4146, TEST-4147 |
+| Spec-AC-05 | WHEN the azure reservation push is refused for a non-collision reason the allocator SHALL make exactly one push, stamp the provisional marker and print the remote's reason lines verbatim with the git-lfs advisory removed and URL credentials masked. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_306_azure_rejection_reason_verbatim.log | — | TEST-4146, TEST-4147, TEST-4152 |
 | Spec-AC-06 | The azure transport SHALL be selected only when resolvePlatform answers azure (recorded platform or Azure origin URL) and SHALL NOT be selected for github, unknown or none. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_308_transport_selected_by_detection.log | — | TEST-4148 |
 | Spec-AC-07 | WHEN the platform resolves to azure the merge guard SHALL still exit 4 on a cross-branch number collision. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_309_azure_guard_cross_branch_collision.log | — | TEST-4149 |
 | Spec-AC-08 | The existing reservation suite tests SHALL pass unchanged and the default transport SHALL keep calling the unedited pushReservation. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-suite-reservation.log | — | TEST-4150 |
@@ -291,6 +291,7 @@ None.
 | TEST-4149 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_309_azure_guard_cross_branch_collision stages a doc whose number exists on the base ref under another slug on the Azure stub and requires --guard exit 4 naming the cross-branch collision | `sed:s/if \(baseId != null && baseId !== doc\.id\) \{/if (false) {/` on .aai/scripts/allocate-doc-number.mjs | green |
 | TEST-4150 | Spec-AC-08 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_310_default_transport_unchanged runs a coupled pair against the non-atomic stub with no platform record and a local origin (default transport) and requires the provisional marker and no ref at that number, then relies on the whole suite run for TEST 001 to 018 and 101 to 109 | `sed:s/=== 'azure-sequential'\) return pushReservationSequential/!== 'none') return pushReservationSequential/` on .aai/scripts/allocate-doc-number.mjs | green |
 | TEST-4151 | Spec-AC-09 | inspection | tests/skills/test-aai-doc-number-reservation.sh | test_311_azure_docs greps the USER_GUIDE and TECHNOLOGY paragraphs, the CHANGELOG heading and the product doc for the transport, the detection rule and the --reserve completion | `sed:s/Azure Repos/Azure Repo/g` on docs/USER_GUIDE.md | green |
+| TEST-4152 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_312_azure_release_failure_named adds a pre-receive hook refusing deletes; with FAMB-0006 taken the pair lands on 7 and stderr names could not release FAMA-0006, and with FAMB-0009 refused the error names could not release FAMA-0009 | `sed:s/if \(collision && released\.length\)/if (false)/` on .aai/scripts/allocate-doc-number.mjs | green |
 
 ## Verification
 
@@ -360,4 +361,17 @@ none
   verification command or mutation changed.
 - B1 (test-file cd-in-substitution ratchet) was a test-hygiene defect fixed in
   the suite; no contract text changed for it.
+
+## Amendment A3 (Code Review NB-1 remediation, additive with disclosure)
+
+- Code review (docs/ai/reviews/review-20261126T164417Z-azure-rejects-doc-number-reservation-push.md)
+  NB-1: on the collision path a release the server refused was dropped by the
+  callers, so the "a refused release is named, never silent" claim in Root
+  cause did not hold. `pushReservationSequential` now prints the
+  `could not release <ref>` lines as a WARNING when the failing push was a
+  collision (the caller retries silently); the non-collision path already
+  carried them in the provisional-allocation warning.
+- New Test Plan row TEST-4152 under Spec-AC-05 (additive; RED stored, then
+  GREEN; mutation recorded). It closes fu-azure-docnum-release-fail-test.
+- No existing Spec-AC wording, verification command or other row changed.
 
