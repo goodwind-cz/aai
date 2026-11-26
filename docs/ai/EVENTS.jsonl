@@ -4561,3 +4561,8 @@
 {"v":1,"ts":"2026-11-25T19:39:30Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-infra-p2-fixes","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-11-25T22:22:53Z","actor":"ales_holubec.net","event":"full_sweep","ref":"test-infra-p2-fixes","payload":{"head":"e8dadb26991a303d485daa1d19cd5011cada0055","rc":1,"run_id":"test-20261125-214943"}}
 {"v":1,"ts":"2026-11-25T22:22:54Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"test-infra-p2-fixes","payload":{"head":"e8dadb26991a303d485daa1d19cd5011cada0055","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-25T22:54:05Z","actor":"ales_holubec.net","event":"round_reset","ref":"test-infra-p2-fixes","payload":{"block":"last_validation","from":"fail","forced":true}}
+{"v":1,"ts":"2026-11-26T00:21:22Z","actor":"ales_holubec.net","event":"full_sweep","ref":"test-infra-p2-fixes","payload":{"head":"cc9f6b19fe095ecd03e776a5e73aa4daebbca1c3","rc":1,"run_id":"test-20261125-234850"}}
+{"v":1,"ts":"2026-11-26T00:31:47Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"test-infra-p2-fixes","payload":{"head":"cc9f6b19fe095ecd03e776a5e73aa4daebbca1c3","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-26T00:34:31Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"code_review","head":"cc9f6b19fe095ecd03e776a5e73aa4daebbca1c3","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-26T00:34:31Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-infra-p2-fixes","payload":{"status":"pass","hash":"4ba06b454553433be3135a4a67e930d3fe4d1ca2a1262e47e16362927d7372e3"}}

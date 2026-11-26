@@ -931,6 +931,21 @@ if [ -z "$AAI_XDG_CACHE_DIR" ]; then
   if [ -n "$AAI_XDG_CACHE_DIR" ]; then AAI_XDG_CACHE_OWN=1; fi
 fi
 [ -n "$AAI_XDG_CACHE_DIR" ] || AAI_XDG_CACHE_DIR='/nonexistent/aai-test-no-xdg-cache'
+# Tool paths that follow XDG_CACHE_HOME: on Linux Playwright keeps its browsers
+# under $XDG_CACHE_HOME/ms-playwright, so the private cache would hide the
+# ones the caller installed. When PLAYWRIGHT_BROWSERS_PATH is unset it is
+# pointed at the caller's own location (read-only pass-through: the wrapper
+# never creates or changes that directory); a caller value is kept. Off Linux
+# Playwright does not use XDG_CACHE_HOME, so nothing is exported there.
+if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ "$UNAME_S" = Linux ]; then
+  if [ -n "${XDG_CACHE_HOME:-}" ]; then
+    PLAYWRIGHT_BROWSERS_PATH="$XDG_CACHE_HOME/ms-playwright"
+    export PLAYWRIGHT_BROWSERS_PATH
+  elif [ -n "${HOME:-}" ]; then
+    PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright"
+    export PLAYWRIGHT_BROWSERS_PATH
+  fi
+fi
 XDG_CACHE_HOME="$AAI_XDG_CACHE_DIR"
 export XDG_CACHE_HOME
 
@@ -1050,13 +1065,6 @@ WATCHDOG_PID=$!
 # Wait for the command; capture its REAL exit status.
 wait "$CMD_PID"
 STATUS=$?
-# AAI_CMD_REAL_STATUS is the wrapped command's own exit status, fixed here
-# before anything below (namely the AAI_SHIPPING_WRITE_FATAL escalation to 12
-# further down) can overwrite $STATUS. Friction capture at the tail of this
-# script must judge the wrapped command by this value, not by the wrapper's
-# own final exit code - a dirty-but-successful ad-hoc command escalated to 12
-# did not fail, and must never be recorded as a deterministic_script_failure.
-AAI_CMD_REAL_STATUS=$STATUS
 
 # Stop the watchdog (it may already have exited).
 kill "$WATCHDOG_PID" 2>/dev/null

@@ -3719,7 +3719,7 @@ test_4122_changelog_and_amendment() {
 # mg_fail_wrapper_scan <file>... -> one "<file>:<line>" per offending
 # log_fail()/fail() definition, then "DEFS <n>". The definition body runs to its
 # closing brace (at most 15 lines); the text before the first $* / $@ / $1 must
-# hold FAIL. An empty file list is a hard failure.
+# hold FAIL as a whole word (FAILED or FAIL_COUNT do not count). An empty file list is a hard failure.
 mg_fail_wrapper_scan() {
   [[ "$#" -gt 0 ]] || { echo "mg_fail_wrapper_scan: empty file list" >&2; return 2; }
   node --input-type=module -e '
@@ -3744,7 +3744,7 @@ for (const f of process.argv.slice(1)) {
     }
     const at = body.search(/\$(?:\*|@|1\b)|\$\{(?:\*|@|1)\}/);
     const head = at < 0 ? body : body.slice(0, at);
-    if (!head.includes("FAIL")) console.log(`${f}:${i + 1}`);
+    if (!/\bFAIL\b/.test(head)) console.log(`${f}:${i + 1}`);
   }
 }
 console.log(`DEFS ${defs}`);
@@ -3759,13 +3759,16 @@ test_4138_fail_wrappers_print_fail() {
   # positive controls: a one-line wrapper and a multi-line one whose only FAIL follows the message
   printf '%s\n' 'log_fail() { echo "x $*" >&2; return 1; }' > "$fx/bad-one.sh"
   printf '%s\n' 'fail() {' '  echo "$*: FAIL" >&2' '  return 1' '}' > "$fx/bad-multi.sh"
+  # positive control: FAIL only inside a longer word (a "✗ FAILED" wrapper and a FAILED=1 identifier)
+  printf '%s\n' 'log_fail() { FAILED=1; echo "✗ FAILED $*" >&2; return 1; }' > "$fx/bad-word.sh"
   # negative controls: FAIL before the message, one-line and multi-line
   printf '%s\n' 'log_fail() { echo "FAIL: $*" >&2; exit 1; }' > "$fx/good-one.sh"
   printf '%s\n' 'log_fail() {' '  echo -e "${RED}[FAIL]${NC} $*" >&2' '}' > "$fx/good-multi.sh"
-  out="$(mg_fail_wrapper_scan "$fx/bad-one.sh" "$fx/bad-multi.sh" "$fx/good-one.sh" "$fx/good-multi.sh")" && rc=0 || rc=$?
+  out="$(mg_fail_wrapper_scan "$fx/bad-one.sh" "$fx/bad-multi.sh" "$fx/bad-word.sh" "$fx/good-one.sh" "$fx/good-multi.sh")" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-4138: scanner exited $rc on the planted files: $out"
   [[ "$out" == *"$fx/bad-one.sh:1"* ]] || log_fail "TEST-4138: the planted one-line wrapper without FAIL was not named: $out"
   [[ "$out" == *"$fx/bad-multi.sh:1"* ]] || log_fail "TEST-4138: the planted multi-line wrapper (FAIL after the message) was not named: $out"
+  [[ "$out" == *"$fx/bad-word.sh:1"* ]] || log_fail "TEST-4138: the planted wrapper whose only FAIL is part of a longer word (FAILED) was not named: $out"
   [[ "$out" != *"good-one.sh"* ]] || log_fail "TEST-4138: the conforming one-line wrapper was named: $out"
   [[ "$out" != *"good-multi.sh"* ]] || log_fail "TEST-4138: the conforming multi-line wrapper was named: $out"
   # empty file list is a hard failure

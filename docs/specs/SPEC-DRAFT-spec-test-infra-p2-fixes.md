@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 73d0cc2629d860333296b64dbe4842d2f7dd86f8b1e51167965d0283ff8372d5
+frozen_sha256: c85532caffa2435515b89b0e85e71d81b87c257f6e7b0d2f8c16ad400f1f80fb
 ceremony_level: 2
 links:
   requirement: test-infra-p2-fixes
@@ -115,6 +115,20 @@ before the signal traps:
   `XDG_CACHE_HOME="$AAI_XDG_CACHE_DIR"`, followed by `export XDG_CACHE_HOME`.
   That text occurs once in the file.
 
+- Amended after code review round 1 (NB-1): on Linux, Playwright resolves
+  its browsers under `$XDG_CACHE_HOME/ms-playwright` (assumption: the
+  playwright-core source is not installed in this checkout, so this is
+  stated from its registry's default cache directory, not verified here), so
+  the private cache would hide installed browsers. Just before the override,
+  when `PLAYWRIGHT_BROWSERS_PATH` is unset and `UNAME_S` is `Linux`, the
+  wrapper exports it as `"$XDG_CACHE_HOME/ms-playwright"` (caller's value) or
+  `"$HOME/.cache/ms-playwright"` when XDG_CACHE_HOME is unset. It is a
+  pass-through only: the directory is never created or changed, a caller-set
+  `PLAYWRIGHT_BROWSERS_PATH` is kept, and off Linux nothing is exported
+  (macOS and Windows do not use XDG for it). TEST-4130 also runs the
+  owned-root branch (the nested wrapper unsets `AAI_TEST_OWNER` and names a
+  sandbox directory) and asserts the PLAYWRIGHT_BROWSERS_PATH cases.
+
 `aai-run-tests.ps1` is not changed. On Windows it delegates to this script
 under Git Bash or WSL, and native Windows pwsh keeps its cache under
 `LOCALAPPDATA`, not `XDG_CACHE_HOME`. `mutation-run.mjs` `runSuite` spawns
@@ -148,9 +162,10 @@ current shell instead of a process substitution:
 ```
 
 and then reads `"$discovered"` line by line, skipping empty lines.
-`discover_tests` keeps its message and exit 2. An empty `--skill ""` names
-`test-.sh`, which does not exist, so it fails the same way (empty filter is
-a hard failure). SPEC-0240 already validates the selected CI plan before
+`discover_tests` keeps its message and exit 2. An empty `--skill ""` is refused
+earlier, by the argument parser, with the same exit 2 (empty filter is a
+hard failure); it never reaches `discover_tests`. (Amended after code review
+round 1, NB-3: the first text said `discover_tests` refuses it.) SPEC-0240 already validates the selected CI plan before
 execution; D3 closes the standalone path.
 
 ### D4: the wrapper records friction only for a watchdog stall (item 4)
@@ -182,8 +197,13 @@ draft reads (at least `.aai/scripts/docs-audit.mjs`, `.aai/scripts/lib/`,
 `.aai/system/DOCS_AI_CANON.list`; the implementer measures the exact set),
 and `e2e_fixture_root() {`. That function copies those paths from the
 working tree into a `mktemp -d` root, registered with the suite's EXIT
-cleanup. TEST-004 assigns
-`e2e_root="$(e2e_fixture_root)"` (that text occurs once) and writes the
+cleanup. TEST-004 calls
+`e2e_fixture_root` as a plain command, which registers the root in the
+current shell and leaves its path in the global `E2E_ROOT`, then copies it to
+the local `e2e_root` (a command substitution
+runs in a subshell and loses the EXIT registration, validation B1; the
+first draft of this section assigned the substitution's output, and that
+form no longer exists in the suite, amended after code review round 1, NB-3), and writes the
 draft and runs docs-audit only with cwd inside `$e2e_root`. Nothing under
 `$PROJECT_ROOT` is written or removed, and the old real-root `rm -f`
 cleanup goes.
@@ -464,7 +484,7 @@ holds ids up to TEST-4112.
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
-| TEST-4130 | Spec-AC-01 | integration | tests/skills/test-aai-run-tests.sh | test_4130_private_xdg_cache: fake HOME and fake XDG under one mktemp root; the wrapped sh records its XDG_CACHE_HOME to a file and writes powershell/StartupProfileData-NonInteractive under it; asserts the Spec-AC-01 properties with XDG set and unset; a real pwsh arm runs only when pwsh is on PATH, else prints a NOTE | `sed:s/XDG_CACHE_HOME="\$AAI_XDG_CACHE_DIR"/XDG_CACHE_HOME="${XDG_CACHE_HOME:-}"/` on .aai/scripts/aai-run-tests.sh | green |
+| TEST-4130 | Spec-AC-01 | integration | tests/skills/test-aai-run-tests.sh | test_4130_private_xdg_cache: fake HOME and fake XDG under one mktemp root; the wrapped sh records its XDG_CACHE_HOME to a file and writes powershell/StartupProfileData-NonInteractive under it; asserts the Spec-AC-01 properties with XDG set, unset and under TMPDIR=keep, in both the non-owned and the owned-root branch, plus the Linux-only PLAYWRIGHT_BROWSERS_PATH pass-through (set, unset-XDG, caller value kept, off Linux nothing); a real pwsh arm runs only when pwsh is on PATH, else prints a NOTE | `sed:s/XDG_CACHE_HOME="\$AAI_XDG_CACHE_DIR"/if [ "$AAI_TREE_OWN" -ne 1 ]; then XDG_CACHE_HOME="$AAI_XDG_CACHE_DIR"; fi/` on .aai/scripts/aai-run-tests.sh (the owned branch hands the caller's value on; amended after code review round 1, B-1) | green |
 | TEST-4131 | Spec-AC-02 | integration | tests/skills/test-aai-suite-isolation.sh | test_4131_every_suite_gets_a_private_xdg_cache: build_framework_repo fixture with two suites that record XDG_CACHE_HOME and write a powershell entry; run with AAI_TEST_PARALLEL=2, fake HOME and fake XDG, isolation on and off; asserts the Spec-AC-02 properties | `sed:s/XDG_CACHE_HOME="\$sx_cache" //g` on tests/skills/test-framework.sh | green |
 | TEST-4132 | Spec-AC-03 | integration | tests/skills/test-aai-suite-isolation.sh | test_4132_missing_selected_suite_fails_the_run: fixture framework with one suite; --skill for it plus a missing name exits 2 with Test file not found and no Found line; an empty --skill exits 2 | `sed:s/    exit "\$discover_rc"/    :/` on tests/skills/test-framework.sh | green |
 | TEST-4133 | Spec-AC-04 | integration | tests/skills/test-aai-friction-capture-points.sh | test_4133_ordinary_failure_records_nothing: capture on, fixture spool; sh -c exit 7 and a missing command (127) each leave zero observations and keep their exit code | `sed:s/^exit "\$STATUS"$/aai_capture_friction "$AAI_CMD_REAL_STATUS" deterministic_script_failure low low; exit "$STATUS"/m` on .aai/scripts/aai-run-tests.sh | green |

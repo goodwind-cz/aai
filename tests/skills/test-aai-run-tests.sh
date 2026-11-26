@@ -1292,10 +1292,17 @@ test_4130_private_xdg_cache() {
   mkdir -p "$fh" "$fx" "$tmpd" || log_fail "TEST-4130: fixture dirs could not be made"
   # The probe: record what the command sees, then do what pwsh does with it.
   local probe='printf "%s\n" "${XDG_CACHE_HOME-UNSET}" > "$AAI_T4130_OUT"
+printf "%s\n" "${PLAYWRIGHT_BROWSERS_PATH-UNSET}" > "$AAI_T4130_OUT.pw"
 c="${XDG_CACHE_HOME:-$HOME/.cache}/powershell"
 mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
-  for mode in set unset keep; do
-    rm -f "$root/seen"
+  # owned / ownedkeep: the nested wrapper must OWN a temp root, which is the
+  # branch every outermost invocation takes. Inside a suite the inherited
+  # AAI_TEST_OWNER makes tree mode off, so the owner is unset and a sandbox
+  # directory (the fake TMPDIR) is named: tree mode is then sandbox, the root
+  # is made under it, and the cache lives inside that root. AAI_RESIDUE_IN_TEST
+  # is set explicitly so the arm behaves the same inside and outside a suite.
+  for mode in set unset keep owned ownedkeep; do
+    rm -f "$root/seen" "$root/seen.pw"
     rc=0
     case "$mode" in
       set)   env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
@@ -1303,6 +1310,10 @@ mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
       unset) env -u XDG_CACHE_HOME HOME="$fh" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
                sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
       keep)  env HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_TEST_TMPDIR=keep AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      owned) env -u AAI_TEST_OWNER AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$tmpd" HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+               sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
+      ownedkeep) env -u AAI_TEST_OWNER AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$tmpd" HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_TEST_TMPDIR=keep AAI_T4130_OUT="$root/seen" \
                sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$? ;;
     esac
     [[ "$rc" -eq 0 ]] || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the wrapped probe must exit 0 (got $rc)"; }
@@ -1313,11 +1324,51 @@ mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
       || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command saw the caller's XDG_CACHE_HOME ($seen)"; }
     [[ "$seen" != "$fh" && "$seen" != "$fh"/* ]] \
       || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the command's XDG_CACHE_HOME lies under the fake HOME ($seen)"; }
+    case "$mode" in
+      owned | ownedkeep)
+        # Owned: the cache is exactly <sandbox>/aai-tr-*/xdg-cache, and the whole
+        # owned root is gone afterwards.
+        case "$seen" in
+          */aai-tr-*/xdg-cache) ;;
+          *) rm -rf "$root"; log_fail "TEST-4130 ($mode): the owned run's cache is not <root>/aai-tr-*/xdg-cache (got $seen)" ;;
+        esac
+        entries="$(find "$tmpd" -mindepth 1 -maxdepth 1 2>/dev/null || true)"
+        [[ -z "$entries" ]] \
+          || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the owned root or the cache survived the wrapper: $entries"; } ;;
+    esac
     [[ ! -e "$seen" ]] \
       || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the private cache $seen survived the wrapper"; }
     entries="$(find "$fx" "$fh" -iname 'powershell*' 2>/dev/null || true)"
     [[ -z "$entries" ]] \
       || { rm -rf "$root"; log_fail "TEST-4130 ($mode): a powershell entry reached the fakes: $entries"; }
+  done
+
+  # Tool paths that follow XDG_CACHE_HOME (NB-1): on Linux Playwright resolves
+  # its browsers under $XDG_CACHE_HOME/ms-playwright, so the private cache
+  # would hide installed browsers. With PLAYWRIGHT_BROWSERS_PATH unset the
+  # wrapper exports the caller's own location (never created or changed); a
+  # caller value is kept; off Linux nothing is exported (macOS and Windows
+  # do not use XDG for it). AAI_UNAME is the wrapper's own uname override.
+  local want pw
+  for mode in pw_xdg pw_home pw_caller pw_darwin; do
+    rm -f "$root/seen" "$root/seen.pw"
+    rc=0
+    case "$mode" in
+      pw_xdg)    env AAI_UNAME=Linux HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$fx/ms-playwright" ;;
+      pw_home)   env -u XDG_CACHE_HOME AAI_UNAME=Linux HOME="$fh" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$fh/.cache/ms-playwright" ;;
+      pw_caller) env AAI_UNAME=Linux PLAYWRIGHT_BROWSERS_PATH="$root/own-browsers" HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want="$root/own-browsers" ;;
+      pw_darwin) env -u PLAYWRIGHT_BROWSERS_PATH AAI_UNAME=Darwin HOME="$fh" XDG_CACHE_HOME="$fx" TMPDIR="$tmpd" AAI_T4130_OUT="$root/seen" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c "$probe" >/dev/null 2>&1 || rc=$?; want=UNSET ;;
+    esac
+    [[ "$rc" -eq 0 ]] || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the wrapped probe must exit 0 (got $rc)"; }
+    pw="$(cat "$root/seen.pw" 2>/dev/null || true)"
+    [[ "$pw" == "$want" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): PLAYWRIGHT_BROWSERS_PATH was '$pw', expected '$want'"; }
+    [[ ! -e "$fx/ms-playwright" && ! -e "$fh/.cache/ms-playwright" ]] \
+      || { rm -rf "$root"; log_fail "TEST-4130 ($mode): the wrapper created a ms-playwright directory in the caller's cache"; }
   done
 
   # Real pwsh arm: only where pwsh is installed. pwsh creates its own data
@@ -1337,7 +1388,7 @@ mkdir -p "$c" && : > "$c/StartupProfileData-NonInteractive"'
     log_info "NOTE: TEST-4130 skipped the real pwsh arm: pwsh is not on PATH"
   fi
   rm -rf "$root"
-  log_pass "TEST-4130: XDG_CACHE_HOME is private per wrapper run (set, unset and keep modes), gone afterwards, and no powershell cache entry (XDG_CACHE_HOME/powershell, HOME/.cache/powershell) reached the fake XDG or fake HOME"
+  log_pass "TEST-4130: XDG_CACHE_HOME is private per wrapper run (set, unset and keep modes, plus the owned-root branch with and without TMPDIR=keep), gone afterwards, PLAYWRIGHT_BROWSERS_PATH points at the caller's own cache on Linux only and is never created, and no powershell cache entry (XDG_CACHE_HOME/powershell, HOME/.cache/powershell) reached the fake XDG or fake HOME"
 }
 
 # test-infra-p2-fixes D-AMEND / D-WIRE: the consumer-visible record of the change.
