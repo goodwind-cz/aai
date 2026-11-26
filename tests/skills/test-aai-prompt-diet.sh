@@ -2857,13 +2857,16 @@ test_4134_onboarding_ledger_entry() {
     return
   fi
   # The prompt corpus at base commit 5f02b0e5 (stored, not read from git: shallow clones lack the commit).
-  local base_bytes=376171 now growth _e entry='' n=0 ref lead before_failed
+  local base_bytes=376171 now growth _e entry='' n=0 ref lead before_failed later=0
   now=$(cat "$PROJECT_ROOT"/.aai/*.prompt.md | wc -c | tr -d ' ')
   growth=$(( now - base_bytes ))
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     ref="${_e#* }"; ref="${ref%% *}"
-    if [[ "$ref" == "onboarding-tech-contract-and-lint-gaps" ]]; then entry="$_e"; n=$((n + 1)); fi
+    if [[ "$ref" == "onboarding-tech-contract-and-lint-gaps" ]]; then entry="$_e"; n=$((n + 1)); later=0; continue; fi
+    # Entries appended after this one credit later rides' growth (the TEST-2824 pattern).
+    if [[ "$n" -ge 1 ]]; then later=$(( later + ${_e%% *} )); fi
   done
+  growth=$(( growth - later ))
   if [[ "$n" -ne 1 ]]; then
     log_fail "TEST-4134: $n ledger entries have the ref field onboarding-tech-contract-and-lint-gaps (want exactly 1)"
     return
