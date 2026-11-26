@@ -3,8 +3,8 @@ id: onboarding-tech-contract-and-lint-gaps
 type: issue
 capability: project-onboarding
 user_visible: true
-number: null
-status: draft
+number: 127
+status: done
 links:
   pr: []
   commits: []

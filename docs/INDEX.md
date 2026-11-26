@@ -6,19 +6,18 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-onboarding-tech-contract-and-lint-gaps | specs | implementing | 13 planned | docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (49)
+## Product (50)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -56,6 +55,7 @@ _None._
 | precise-suite-evidence-reuse | precise-suite-evidence-reuse | 4 | docs/product/precise-suite-evidence-reuse.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
+| project-onboarding | project-onboarding | 1 | docs/product/project-onboarding.md |
 | provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |
 | release-command-finish | release-command-finish | 8 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
@@ -72,7 +72,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (703)
+## Done (705)
 
 | ID | Type | Path |
 |---|---|---|
@@ -446,6 +446,7 @@ _None._
 | ISSUE-0123 | issues | docs/issues/ISSUE-0123-precommit-sentinel-trap.md |
 | ISSUE-0124 | issues | docs/issues/ISSUE-0124-precommit-residual-defects.md |
 | ISSUE-0125 | issues | docs/issues/ISSUE-0125-index-schema-warning-prominence.md |
+| ISSUE-0127 | issues | docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -777,10 +778,11 @@ _None._
 | SPEC-0313 | specs | docs/specs/SPEC-0313-spec-node-first-cleanup.md |
 | SPEC-0314 | specs | docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md |
 | SPEC-0315 | specs | docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md |
+| SPEC-0317 | specs | docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (13)
 
 | ID | Type | Path |
 |---|---|---|
@@ -796,7 +798,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| onboarding-tech-contract-and-lint-gaps (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-onboarding-tech-contract-and-lint-gaps.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)

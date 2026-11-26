@@ -666,7 +666,7 @@ test_3959_docs() {
   log_pass "TEST-3959: the CHANGELOG entry, the PowerShell lines of SKILL_BOOTSTRAP, DYNAMIC_SKILLS, the list header and the RFC-0017 sentence hold, and the prompt-diet ledger and RFC inventory suites pass"
 }
 
-# --- onboarding-tech-contract-and-lint-gaps (docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md) ---
+# --- onboarding-tech-contract-and-lint-gaps (docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md) ---
 
 test_4125_bootstrap_tech_pointer() {
   run_node_tests TEST-4125

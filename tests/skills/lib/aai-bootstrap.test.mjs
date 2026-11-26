@@ -1799,7 +1799,7 @@ describe('TEST-3956 parity harness bootstrap pieces', () => {
   });
 });
 
-// --- onboarding-tech-contract-and-lint-gaps (docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md) ---
+// --- onboarding-tech-contract-and-lint-gaps (docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md) ---
 
 const TECH_TEMPLATE_PATH = path.join(ROOT, '.aai', 'templates', 'TECHNOLOGY_TEMPLATE.md');
 const TECH_TEMPLATE = readFileSync(TECH_TEMPLATE_PATH, 'utf8');

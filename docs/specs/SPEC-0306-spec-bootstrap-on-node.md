@@ -4,7 +4,7 @@ type: spec
 number: 306
 status: done
 mutation_gate: v1
-frozen_sha256: eb67055a7db7344410bfeb1b86249bd377ca1d3108f6aac49ba91f69c7a238f6
+frozen_sha256: 987e52fa6c64d7501201eb2b69e0053104902b57c7d98fef83c8237584eb129b
 ceremony_level: 2
 links:
   requirement: bootstrap-on-node
@@ -1046,7 +1046,7 @@ package-script target. A local `node_modules/.bin/eslint` counts as a local esli
 only beside a legacy `.eslintrc*` (then `<pm exec> eslint .`, as in the
 reference); a bin with no eslint config selects nothing and does not outrank
 Biome or Ruff, again as in the reference. The one case that changes (GitHub #589, rule D4 of
-docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md): a legacy
+docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md): a legacy
 `.eslintrc*` in the root and no local eslint (no `eslint` in any of the four
 dependency blocks, no regular file at `node_modules/.bin/eslint` or
 `node_modules/.bin/eslint.cmd`) and no flat config. ESLint 9 and later ignore
@@ -1069,5 +1069,5 @@ reported as a problem.
 Authority: canon assigns a change to a frozen spec to the owner. The owner
 approved the intake that asks for this change (GitHub #589) through the triage in
 `/aai-issues` on 2026-11-25
-(docs/issues/ISSUE-DRAFT-onboarding-tech-contract-and-lint-gaps.md, Notes), and
+(docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md, Notes), and
 that approval is the sign-off cited in the amendment record. The owner may reverse it.

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 5f02b0e5..30928e24 (fix/onboarding-issues; STATE code_review.scope path list, 18 paths + append-only ledgers)"
-  spec: docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md
+  spec: docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -48,7 +48,7 @@ security_relevant: false
   `/Users/ales/Projects/aai-worktrees/onboarding-issues-588-590` (worktree decision;
   STATE `code_review.scope` lists the 18 paths reviewed). The only uncommitted change
   in the tree is an `docs/ai/EVENTS.jsonl` append, outside the reviewed range.
-- Spec: `docs/specs/SPEC-DRAFT-spec-onboarding-tech-contract-and-lint-gaps.md`
+- Spec: `docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md`
   (frozen, two post-freeze amendments). Intake read as data only.
 - Earlier evidence read: validation reports r1–r3 (latest
   `VALIDATION-20261125T225143Z-...`).
