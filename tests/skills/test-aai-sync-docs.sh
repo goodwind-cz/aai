@@ -180,11 +180,12 @@ REOPENED_FU="fu-parity-win-source-path"
 FILED_FU="fu-bootstrap-seed-use-shared-lib fu-runner-git-env-scrub fu-sync-aai-prefix-ignore"
 
 test_4021_follow_ups() {
-  local work json out
+  local work out rcs
   work="$(new_own_scratch followups)"
-  json="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status all --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl")" || log_fail "TEST-4021: follow-ups list failed"
-  # the JSON is large: it goes to the checker on stdin, never as one argument (Linux caps a single argv string at 128 KiB)
-  out="$(printf '%s' "$json" | node -e '
+  # the JSON is large (over 1 MB) and grows with the ledger: it streams from the lister straight into the checker on stdin, never through
+  # a shell variable (holding it in bash and printf-piping it aborted on the Ubuntu runner with glibc "free(): invalid next size") and
+  # never as one argument (Linux caps a single argv string at 128 KiB); PIPESTATUS names which side failed
+  out="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status all --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" | node -e '
     const fs = require("fs");
     const root = process.argv[1];
     const closed = process.argv[2].split(" ");
@@ -241,7 +242,11 @@ test_4021_follow_ups() {
       if (fil.severity !== "P3") bad.push(id + " was filed at " + fil.severity);
     }
     process.stdout.write(bad.join("; "));
-  ' "$PROJECT_ROOT" "$CLOSED_FU" "$FILED_FU" "$REOPENED_FU")" || log_fail "TEST-4021: the follow-up check failed to run"
+  ' "$PROJECT_ROOT" "$CLOSED_FU" "$FILED_FU" "$REOPENED_FU"
+    printf '\nRC %s %s' "${PIPESTATUS[0]}" "${PIPESTATUS[1]}")" || log_fail "TEST-4021: the follow-up check failed to run"
+  rcs="${out##*$'\n'RC }"
+  out="${out%$'\n'RC *}"
+  [[ "$rcs" == "0 0" ]] || log_fail "TEST-4021: the follow-up pipeline exited $rcs (follow-ups list, checker)"
   [[ -z "$out" ]] || log_fail "TEST-4021: $out"
   safe_rm_own "$work"
   log_pass "TEST-4021: the fourteen follow-ups are closed with resolved_by sync-on-node and a source naming a test file and a TEST id it holds, fu-parity-win-source-path is open or closed by the phase 5 closeout with its hosted run id, and the three suggested follow-ups were filed by this ride at P3 with ref sync-on-node (a later close by another ride is allowed)"

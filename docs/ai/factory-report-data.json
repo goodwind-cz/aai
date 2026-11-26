@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-26T06:36:59.682Z",
+  "generatedAt": "2026-11-26T11:18:15.106Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 276,
-    "delivered": 710,
+    "delivered": 712,
     "active_weeks": 22,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (710 closes vs 276 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 710,
-    "delivered_per_week_avg": 32.3,
+    "note": "\"delivered\" counts every work_item_closed event (712 closes vs 276 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 712,
+    "delivered_per_week_avg": 32.4,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -36,7 +36,7 @@
       "2026-W45": 28,
       "2026-W46": 26,
       "2026-W47": 32,
-      "2026-W48": 12
+      "2026-W48": 14
     },
     "delivered_groups": [
       {
@@ -683,7 +683,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 102,
+        "count": 104,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -786,7 +786,9 @@
           "mutation-tooling-p2-fixes",
           "spec-mutation-tooling-p2-fixes",
           "onboarding-tech-contract-and-lint-gaps",
-          "spec-onboarding-tech-contract-and-lint-gaps"
+          "spec-onboarding-tech-contract-and-lint-gaps",
+          "secrets-gate-false-positives",
+          "spec-secrets-gate-false-positives"
         ]
       }
     ],
@@ -3631,12 +3633,20 @@
         {
           "ref": "spec-onboarding-tech-contract-and-lint-gaps",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "secrets-gate-false-positives",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-secrets-gate-false-positives",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 8439,
       "mean_seconds": 73688.7,
       "measured": 269,
-      "unmeasurable": 441
+      "unmeasurable": 443
     }
   },
   "speed": {
@@ -7800,7 +7810,7 @@
     },
     {
       "week": "2026-W48",
-      "delivered": 12,
+      "delivered": 14,
       "median_lead_time_seconds": 26412,
       "busy_seconds": 128123,
       "tokens": 7186303,
@@ -7809,7 +7819,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 355,
+    "open_count": 363,
     "oldest_age_days": 74,
     "items": [
       {
@@ -7824,7 +7834,7 @@
         "id": "fu-cost-blend-silent-default",
         "ref": "telemetry-fields-not-prose",
         "severity": "P3",
-        "age_days": 73,
+        "age_days": 74,
         "what": "blendedCostUsd() in .aai/scripts/lib/pricing.mjs silently falls back to a hardcoded 0.5 input_share when PRICING.yaml carries no cost_blend.input_share, with no NOTE — emit one NOTE naming the missing key, or fail closed to cost_basis: none instead of a silent default.",
         "status": "open"
       },
@@ -7928,7 +7938,7 @@
         "id": "fu-follow-ups-test021-fifo-eintr",
         "ref": "CHANGE-0185",
         "severity": "P3",
-        "age_days": 72,
+        "age_days": 73,
         "what": "test-aai-follow-ups.sh TEST-021 (FIFO arm) fails under 4-way parallel load with 'Interrupted system call' / 'Bad file descriptor' and passes standalone",
         "status": "open"
       },
@@ -8056,7 +8066,7 @@
         "id": "fu-sweep-check-not-a-required-check",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 68,
+        "age_days": 69,
         "what": "the report-only sweep-check job in .github/workflows/docs-numbering.yml (Spec-AC-34) is not a required GitHub check",
         "status": "open"
       },
@@ -8176,7 +8186,7 @@
         "id": "fu-duplicate-message-collides-mutation",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 62,
+        "age_days": 63,
         "what": "new code that echoes an EXISTING refusal or disclosure sentence verbatim gives a recorded mutation a second, unmutated copy, so the sed hits whichever comes first in file order and the row silently stops proving its property",
         "status": "open"
       },
@@ -8240,7 +8250,7 @@
         "id": "fu-friction-loop-has-no-scheduler",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 61,
+        "age_days": 62,
         "what": "nothing in the factory runs aai-feedback-status.mjs or the triage engine except /aai-wrap-up",
         "status": "open"
       },
@@ -8248,7 +8258,7 @@
         "id": "fu-runtests-capture-is-unscored-noise",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 61,
+        "age_days": 62,
         "what": "the wrapper's automatic capture supplies confidence: low and no impact on every non-zero exit, including every deliberate TDD RED run",
         "status": "open"
       },
@@ -8256,7 +8266,7 @@
         "id": "fu-runtests-ps1-captures-no-friction",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "aai-run-tests.ps1 has no capture point at all, so a Windows-only failure never reaches the friction channel",
         "status": "open"
       },
@@ -8264,7 +8274,7 @@
         "id": "fu-672-identity-is-squeeze-bound",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "TEST-672's byte-identical comparison runs over tr -s ' ' output and truncates the create side at the literal string \" - failure_class:\"",
         "status": "open"
       },
@@ -8272,7 +8282,7 @@
         "id": "fu-672-no-second-read-assertion",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "spec row and Amendment 2 both claim TEST-672 pins the comment body coming from the blockquote rather than a second independent read of rep.summary; it does not",
         "status": "open"
       },
@@ -8280,7 +8290,7 @@
         "id": "fu-673-elapsed-threshold-headroom",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "TEST-673 asserts elapsed -le 5 seconds against a close ceremony that runs git, docs-audit and four regen passes",
         "status": "open"
       },
@@ -8288,7 +8298,7 @@
         "id": "fu-amendment-rule-not-rule-applied",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "an amendment corrects and does not rewrite is contradicted by the same diff, which rewrote three Registry section headings from prose subheadings to the NOT CLOSED vocabulary",
         "status": "open"
       },
@@ -8296,7 +8306,7 @@
         "id": "fu-backlog-timeout-can-be-weakened",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "AAI_FRICTION_BACKLOG_TIMEOUT_MS accepts a finite value like 999999999 which silently disables the outer bound for practical purposes",
         "status": "open"
       },
@@ -8304,7 +8314,7 @@
         "id": "fu-diet-ledger-plan-qualifier-wrong",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "the prompt-diet ledger entry for this ride reads +1022 B, inside the spec's declared ~900 B plan",
         "status": "open"
       },
@@ -8312,7 +8322,7 @@
         "id": "fu-note-not-what-hung-gh-produces",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "Amendment 2 and the close comment associate a hung backlog step's degrade-to-NOTE with a hung gh call specifically",
         "status": "open"
       },
@@ -8320,7 +8330,7 @@
         "id": "fu-two-prompt-files-still-stale",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 61,
+        "age_days": 62,
         "what": "the frozen plan named three corpus files whose text describes behaviour this scope changes; only one was corrected, and Amendment 2 speaks of that file and the dropped plan item in the singular",
         "status": "open"
       },
@@ -8328,7 +8338,7 @@
         "id": "fu-merge-needs-paired-flag",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 61,
+        "age_days": 62,
         "what": "carried from round 1, still true: the close must pass --paired hand-authored-friction-is-second-class or six of the seven docs-audit reds survive the merge",
         "status": "open"
       },
@@ -8336,7 +8346,7 @@
         "id": "fu-comment-fail-no-retry-exit0",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 61,
+        "age_days": 62,
         "what": ".aai/scripts/aai-feedback-upsert.mjs:739-752 analysis comment is an effect with no record and no retry",
         "status": "open"
       },
@@ -8344,7 +8354,7 @@
         "id": "fu-mutating-flag-dead-assertion",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": ".aai/scripts/aai-feedback-upsert.mjs:173/180 'mutating' is destructured and documented as the confirmed path's safety assertion, but is never read",
         "status": "open"
       },
@@ -8352,7 +8362,7 @@
         "id": "fu-test655-promote-spelling-pin",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "tests/skills/test-aai-friction-capture-points.sh:208-215 TEST-655's headline property is pinned by literal spelling, not structure",
         "status": "open"
       },
@@ -8360,7 +8370,7 @@
         "id": "fu-ledger-merge-byte-prefix-edge",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": ".aai/scripts/ledger-merge.mjs:119-140 the refusal is a BYTE-prefix test, not a line boundary",
         "status": "open"
       },
@@ -8368,7 +8378,7 @@
         "id": "fu-learned-header-format-stale",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "docs/knowledge/LEARNED.md:36 the header's Format comment still documents lowercase '(source: ...)' with no 76-char wrap",
         "status": "open"
       },
@@ -8392,7 +8402,7 @@
         "id": "fu-t760-guard-narrows-to-fu-refs",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "TEST-760's findDoc guard fixture uses a dead ref that happens to be fu-prefixed (fu-t760-dead); mutation M6 (narrow the guard to only String(pr.maintenance).startsWith('fu-') && !findDoc(...)) leaves the full suite GREEN, and mutation M8 (the file-intake human-text arm printing the dead ref anyway) also leaves it GREEN — the arm a human actually reads (non --json) is unpinned.",
         "status": "open"
       },
@@ -8400,7 +8410,7 @@
         "id": "fu-bind-wave2-reason-generic",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "bind names its own reason for 2 of the 3 roadmap axes (already-a-capability, already-bound-elsewhere) but not the third: binding a live wave_2 slug surfaces certify's generic roadmap-parser error (wave_2: \"<slug>\" appears twice in the roadmap) instead of a bind-specific refusal naming the wave_2 axis.",
         "status": "open"
       },
@@ -8408,7 +8418,7 @@
         "id": "fu-harvest-write-excl-one-sided",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "F4's exclusion is one-sided: roadmap-propose.mjs:246 (readWave2AndPairSlugs) adds only capability: lines to pairSlugs, so harvest can still offer a draft capability-typed intake whose id is already some pair's maintenance: half as a candidate, and write --pick on that row then fails certification with the roadmap parser's generic appears-twice error and no guidance.",
         "status": "open"
       },
@@ -8416,7 +8426,7 @@
         "id": "fu-resolvedoc-stale-type-field",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 59,
+        "age_days": 60,
         "what": "Two stale artefacts of the reverted round-1 CAPABILITY_TYPES check survive in resolveDoc: roadmap-propose.mjs:690's comment still says resolveDoc carries type 'so cmdBind's CAPABILITY_TYPES check below can classify the resolved document' (no such check exists any more since D16), and the type field the function returns (:697) now has no reader.",
         "status": "open"
       },
@@ -8448,7 +8458,7 @@
         "id": "fu-sweep-denial-did-not-stop-merge",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P2",
-        "age_days": 58,
+        "age_days": 59,
         "what": "on 2026-09-28 lane-gate.mjs --sweep-check DENIED PR #400 (the recorded sweep named an older commit than the one merging) and the merge went through seconds later anyway, because the check is not required in branch protection and the operator ran both commands in one block without conditioning the merge on the gate's exit status",
         "status": "open"
       },
@@ -8496,7 +8506,7 @@
         "id": "fu-roadmap-docstatus-two-parsers",
         "ref": "roadmap-serves-downstream-projects",
         "severity": "P3",
-        "age_days": 55,
+        "age_days": 56,
         "what": "roadmap-edit.mjs docStatus (parseFrontmatter) and ride-select.mjs findDoc/statusOf (own line scan) resolve a doc's status differently; a quoted status: \"done\" makes advance flip the pair while next still names it unfinished. Route both through one resolver in lib/roadmap-model.mjs with a seam test.",
         "status": "open"
       },
@@ -8536,7 +8546,7 @@
         "id": "fu-classify-trial-fold-race",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P3",
-        "age_days": 54,
+        "age_days": 55,
         "what": "cmdClassify's trial-fold preflight is a read-before-write snapshot, so two classify calls racing on the same (ts, ref) overlay key can each pass their own preflight and then land in an order the real fold tie-breaks differently",
         "status": "open"
       },
@@ -8688,7 +8698,7 @@
         "id": "fu-review-log-attribution",
         "ref": "pr-generic-url-validity",
         "severity": "P3",
-        "age_days": 48,
+        "age_days": 49,
         "what": "Generated overview attributes a PR434 compatibility test log as the layer-profiles code review",
         "status": "open"
       },
@@ -8720,7 +8730,7 @@
         "id": "fu-msys-direct-run-misses-exec-grandkids",
         "ref": "ci-windows-leg-waits-and-ps1-path-filter",
         "severity": "P3",
-        "age_days": 47,
+        "age_days": 48,
         "what": "Running aai-run-tests.sh directly from Git Bash (no PowerShell dispatcher) has no Job Object, so exec'd grandchildren can survive a timeout",
         "status": "open"
       },
@@ -8728,7 +8738,7 @@
         "id": "fu-msys-reap-fallback-foreign-pid",
         "ref": "ci-windows-leg-waits-and-ps1-path-filter",
         "severity": "P3",
-        "age_days": 47,
+        "age_days": 48,
         "what": "aai-run-tests.sh always-reap path force-kills taskkill //PID <msys-pid> //T //F when winpid is gone, which can hit an unrelated Windows process",
         "status": "open"
       },
@@ -8736,7 +8746,7 @@
         "id": "fu-ps1-derive-misses-backslash-joinpath",
         "ref": "ci-windows-leg-waits-and-ps1-path-filter",
         "severity": "P3",
-        "age_days": 47,
+        "age_days": 48,
         "what": "ps1 path-filter derivation misses lib\\x backslash paths, Join-Path 'lib' 'x' and lib helpers sourcing other lib files",
         "status": "open"
       },
@@ -8936,7 +8946,7 @@
         "id": "fu-docs-index-violations-self-ref",
         "ref": "docs-index-broken-refs-scope",
         "severity": "P3",
-        "age_days": 41,
+        "age_days": 42,
         "what": "A clean tree lists docs/INDEX.violations.md as a broken ref because the generator names that optional companion",
         "status": "open"
       },
@@ -8944,7 +8954,7 @@
         "id": "fu-source-ref-walk-vanished-skip",
         "ref": "docs-index-broken-refs-scope",
         "severity": "P2",
-        "age_days": 41,
+        "age_days": 42,
         "what": "Source-ref walk readFileSync throws ENOENT when a tracked tests or .aai/scripts file is deleted but not staged",
         "status": "open"
       },
@@ -9040,7 +9050,7 @@
         "id": "fu-release-notes-heading-multiset",
         "ref": "release-command-finish",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "heading-identity accept counts a rolled heading once per PR, so one surviving byte-identical heading satisfies two PRs with identical headings (also the notes.includes(title) accept)",
         "status": "open"
       },
@@ -9200,7 +9210,7 @@
         "id": "fu-closure-none-label-before-list",
         "ref": "docs-audit-suite-speed",
         "severity": "P3",
-        "age_days": 33,
+        "age_days": 34,
         "what": "verify-closures reads 'Registry items closed by this scope: none.' followed by a blank line and a bullet list as closure claims over the list",
         "status": "open"
       },
@@ -9208,7 +9218,7 @@
         "id": "fu-docs-audit-bypass-node-shim",
         "ref": "docs-audit-suite-speed",
         "severity": "P3",
-        "age_days": 33,
+        "age_days": 34,
         "what": "TEST-2206 is a static scan; deliberate indirection (\"$NODE\", command -v node, absolute node path, built script path, other launchers) bypasses it and no runtime check sees a real-corpus launch outside the helper",
         "status": "open"
       },
@@ -9248,7 +9258,7 @@
         "id": "fu-expert-fetch-import-pin-comment",
         "ref": "node-first-third-slice",
         "severity": "P3",
-        "age_days": 32,
+        "age_days": 33,
         "what": "TEST-2612 import pin misses a dynamic import split by a comment, import /* c */ ('x')",
         "status": "open"
       },
@@ -9256,7 +9266,7 @@
         "id": "fu-expert-fetch-unreadable-cache-trace",
         "ref": "node-first-third-slice",
         "severity": "P3",
-        "age_days": 32,
+        "age_days": 33,
         "what": "expert-fetch --body on a cache file that exists but is unreadable (mode 000) prints a Node EACCES stack trace instead of a clean error",
         "status": "open"
       },
@@ -9656,7 +9666,7 @@
         "id": "fu-reuse-overlaps-mutation",
         "ref": "reuse-for-docs-reading-suites",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "no Test Plan mutation reddens the arm/collect overlaps() guard in .aai/scripts/suite-reuse.mjs (TEST-3269 mutation targets checkout-trace.mjs only)",
         "status": "open"
       },
@@ -9664,7 +9674,7 @@
         "id": "fu-reuse-arm-dir-nonexist-case",
         "ref": "reuse-for-docs-reading-suites",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "overlap guard falls back to path.resolve for a nonexistent root, losing the on-disk case fix; resolve the longest existing parent",
         "status": "open"
       },
@@ -9736,7 +9746,7 @@
         "id": "fu-delete-retired-shell-loop-runner",
         "ref": "retire-shell-loop-runner",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "Delete the retired shell loop runner launchers .aai/scripts/autonomous-loop.sh and .aai/scripts/autonomous-loop.ps1 in the release after the one that ships the retirement, with their two .aai/system/PROFILES.yaml core lines, tests/skills/test-aai-retired-loop-runner.sh with tests/skills/retired-loop-runner.Tests.ps1 (and its suite-map and suite-weights rows) and the USER_GUIDE section Shell loop runners (retired)",
         "status": "open"
       },
@@ -9776,7 +9786,7 @@
         "id": "fu-factory-report-waiver-history",
         "ref": "spec-factory-report-waiver-history",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "Factory report caption claims a waived ride ran NO validation, including rides with an immutable executed FAIL and an explicit aggregate exception; close writer also defaults close telemetry to pass.",
         "status": "open"
       },
@@ -9784,7 +9794,7 @@
         "id": "fu-overview-unflushed-time",
         "ref": "spec-overview-unflushed-time",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "Generated overview reports agent_minutes=0 for a closed ride with measured role runs when metrics-flush refuses scoped validation exception; actual observations remain in local STATE.",
         "status": "open"
       },
@@ -10120,7 +10130,7 @@
         "id": "fu-test-3796-tmpdir-leak-on-failure",
         "ref": "allocator-research-hotfix-types",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "TEST-3796 (test-aai-doc-numbering.sh) creates its symlink dir under TMPDIR outside TEST_DIR, so a failing run leaves it behind",
         "status": "open"
       },
@@ -10176,7 +10186,7 @@
         "id": "fu-tree-lsof-unbounded",
         "ref": "test-residue-files-and-processes",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "aai-run-tests.sh runs the residue lsof calls after the watchdog has stopped and with no time limit; a hung network mount could hold the wrapper",
         "status": "open"
       },
@@ -10184,7 +10194,7 @@
         "id": "fu-tree-mount-check-gaps",
         "ref": "test-residue-files-and-processes",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "the mount-table check before a temp root is removed passes when mount is absent or fails, does not match a mount exactly at the root, and misses Linux space-escaped paths; the find -xdev walk is then the only mount guard",
         "status": "open"
       },
@@ -10192,7 +10202,7 @@
         "id": "fu-tree-mount-walk-unbounded",
         "ref": "test-residue-files-and-processes",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "the mount check before a temp root is removed runs a plain find over the root, which walks a filesystem mounted inside it with no time bound after the watchdog has stopped",
         "status": "open"
       },
@@ -10272,7 +10282,7 @@
         "id": "fu-update-local-own-signal-test",
         "ref": "update-on-node",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "No test covers the own-signal check after a local-checkout git command in aai-update.mjs resolveSource",
         "status": "open"
       },
@@ -10280,7 +10290,7 @@
         "id": "fu-update-shell-scan-bare-launcher",
         "ref": "update-on-node",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "TEST-3960 shell scan does not flag a bare launcher call without --repo/--dry-run outside run_update, nor a case assertion whose log_fail was replaced",
         "status": "open"
       },
@@ -10509,6 +10519,38 @@
         "status": "open"
       },
       {
+        "id": "fu-amend-pr-ceremony-friction-fix-289cf3",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-pr-ceremony-friction-fixes: TEST-3833: .env, .env.local, config/credentials.json, docs/ai/validation/.env and docs/ai/tdd/.env.prod holding harmless now pass; each holding a real-looking value blocks with Potential secret detected; keys/secret.key still blocks by name",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-hook-gate-staged-content-625cdf",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-hook-gate-staged-content: TEST-3865: the four evidence-folder *.env files holding harmless now pass and holding a real-looking value block; TEST-3866: the non-ASCII name-check fixture becomes secrets/clé.key",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-precommit-blob-read-cost-c936f1",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-precommit-blob-read-cost: TEST-3876 compares stdout after removing the finding detail lines (line n, fingerprint hex and ... and k more) from the new script output only",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-secrets-gate-false-positives",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-secrets-gate-false-positives: Amendment A1: R5 (a real dotenv file judges every KEY=value by value shape), D-NUL (a NUL blob is scanned as a NUL-free copy), bracket-only catch-all globs rejected, Spec-AC-20 to 22, TEST-4105 to 4107, pins moved to 666 42 and 947/788",
+        "status": "open"
+      },
+      {
         "id": "fu-mutation-gate-fixtures-write-real-tdd",
         "ref": "mutation-tooling-p2-fixes",
         "severity": "P3",
@@ -10621,19 +10663,43 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-onboarding-tech-contract-d587c5",
-        "ref": "onboarding-tech-contract-and-lint-gaps",
-        "severity": "P2",
+        "id": "fu-sg-allowlist-near-catch-all",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-onboarding-tech-contract-and-lint-gaps: Test Plan File path cells of TEST-4125, TEST-4127, TEST-4128 and TEST-4130 point to tests/skills/test-aai-bootstrap-node.sh instead of tests/skills/lib/aai-bootstrap.test.mjs",
+        "what": "allowlist catch-all probe paths miss one-letter near-catch-all globs (*v*, *n*, *c*)",
         "status": "open"
       },
       {
-        "id": "fu-amend-bootstrap-on-node-20261125t2122",
-        "ref": "onboarding-tech-contract-and-lint-gaps",
-        "severity": "P2",
+        "id": "fu-sg-r6-linear-scan",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-bootstrap-on-node: onboarding amendment text corrected: reference is unchanged for a local bin only beside an eslintrc; a bin without eslint config selects nothing",
+        "what": "R6 re-copies the rest of the line per pair: quadratic on one-line name-hit data files",
+        "status": "open"
+      },
+      {
+        "id": "fu-sg-r6-config-ext-and-xml",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "name-hit .hcl/.config/.yml.j2/.csv/key:value .properties and XML element values take the code branch",
+        "status": "open"
+      },
+      {
+        "id": "fu-sg-pk-armored-header-lines",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "private-key lookahead needs a pure base64 next line: PGP Version: header or body ending in \\ or \", passes",
+        "status": "open"
+      },
+      {
+        "id": "fu-sg-r1-keyword-coverage",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "R1 (ordinary files) keeps the old keyword set; token/pwd/secret/access_key keys there are not judged, and Spec-AC-26 wording reads broader",
         "status": "open"
       },
       {
@@ -10645,11 +10711,19 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-bootstrap-on-node-20261126t0635",
-        "ref": "onboarding-tech-contract-and-lint-gaps",
+        "id": "fu-sweep-parallel-t006-runid-collision",
+        "ref": "secrets-gate-false-positives",
         "severity": "P2",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-bootstrap-on-node: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
+        "what": "aai-sweep-parallel TEST-006 (run ledger survives concurrent framework runs) fails on hosted shards",
+        "status": "open"
+      },
+      {
+        "id": "fu-pcc-3454-baseline-sigpipe-flake",
+        "ref": "secrets-gate-false-positives",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-3454 compares against the 3e6b52d5 baseline script, whose CHECK 1 runs echo | grep -q under pipefail",
         "status": "open"
       }
     ]
