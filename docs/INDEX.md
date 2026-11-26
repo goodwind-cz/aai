@@ -75,7 +75,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (713)
+## Done (715)
 
 | ID | Type | Path |
 |---|---|---|
@@ -345,6 +345,7 @@ _None._
 | CHANGE-0269 | issues | docs/issues/CHANGE-0269-mutation-tooling-p2-fixes.md |
 | CHANGE-0270 | issues | docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md |
 | CHANGE-0271 | issues | docs/issues/CHANGE-0271-test-infra-p2-fixes.md |
+| CHANGE-0272 | issues | docs/issues/CHANGE-0272-release-dry-run-reader-timeout.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -790,6 +791,7 @@ _None._
 | SPEC-0318 | specs | docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md |
 | SPEC-0319 | specs | docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md |
 | SPEC-0320 | specs | docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md |
+| SPEC-0321 | specs | docs/specs/SPEC-0321-spec-release-dry-run-reader-timeout.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -815,11 +817,12 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (1)
+## Deferred items (per-AC, across all specs) (2)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0255 | Spec-AC-09 | 2026-11-30 | Post-merge live acceptance; verified by the orchestrator before close, not by pre-merge Validation. |
+| SPEC-0321 | Spec-AC-05 | validation:2026-11-27 | TEST-5001 |
 
 ## Blocked items (per-AC, across all specs) (0)
 

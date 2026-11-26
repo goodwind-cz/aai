@@ -882,8 +882,8 @@ test_4019_wiring() {
     "aai-sync-docs	docs/analysis/node-first-remaining-plan.md" "aai-sync-docs	docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"; do
     printf '%s\n' "$rows" | qgrep -qxF "$sel" || log_fail "TEST-4019: the suite-map row is missing: ${sel/	/ -> }"
   done
-  # The release rehearsal enlists every tracked suite whose text names the change log as a reader and runs it under a 540 second timeout and one
-  # 18 minute budget. This suite takes minutes and reads no change log (aai-sync-docs does), so a stray mention here would enlist a suite that
+  # The release rehearsal enlists every tracked suite whose text names the change log as a reader and runs it under a 900 second timeout and one
+  # 30 minute budget. This suite takes minutes and reads no change log (aai-sync-docs does), so a stray mention here would enlist a suite that
   # cannot finish in the rehearsal and starve the readers behind it: the readers it lists must hold aai-sync-docs and not this suite.
   out="$(node "$PROJECT_ROOT/.aai/scripts/release-dry-run.mjs" --list --root "$PROJECT_ROOT" 2>&1)" || { printf '%s\n' "$out" >&2; log_fail "TEST-4019: release-dry-run --list failed"; }
   qgrep -qxF "READER tests/skills/test-aai-sync-docs.sh" <<< "$out" || log_fail "TEST-4019: the release rehearsal does not list test-aai-sync-docs.sh as a reader"

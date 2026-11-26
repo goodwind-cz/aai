@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — ci: the release dry-run gives each reader 900 seconds
+
+`release-dry-run.mjs` now defaults to a 900-second per-reader timeout and an 1800-second executor budget, up from 540 and 1080 seconds. On hosted CI the slowest reader, `tests/skills/test-aai-release-cut.sh`, grew: it passed in 346 to 517 seconds and timed out at 540 seconds in 4 of 19 recent pull-request runs (one more ran out of budget), each time failing the job. A hung reader is still killed at the bound and reported as a timeout; one that hangs on both the rolled and the ordinary payload can now end as budget-exhausted instead of classified, and the job still fails. The `aai-release-cut` scheduling weight is re-measured from five recent main-push runs, from 116 to 408, so the dry-run starts that reader in its first wave. Pass `--timeout-seconds` or `--budget-seconds` to keep the old bounds.
+
 ## [unreleased] — fix: doc-number reservation works on Azure Repos
 
 Azure Repos does not advertise atomic push, so every reservation push the doc-number allocator sent there stopped in the git client with `fatal: the receiving end does not support --atomic push`: each numbered doc was stamped `number_reserved: false`, `--reserve` kept failing and the merge guard blocked the pull request. The git-lfs line `Locking support detected on remote` shown above that error is an advisory, not the cause. When the platform resolves to Azure (`platform: azure` in `docs/ai/pr-config.yaml`, or an Azure DevOps origin URL), `allocate-doc-number.mjs` now reserves with one create-only push per ref and no `--atomic`; a coupled family that collides part-way releases the refs it already claimed and retries at the next number. A refused Azure push quotes the remote's own reason with the git-lfs advisory left out and URL credentials masked. Docs already stamped `number_reserved: false` complete with `allocate-doc-number.mjs --reserve --path <doc>`. GitHub and every other platform keep the existing transport.

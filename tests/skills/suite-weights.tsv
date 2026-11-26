@@ -11,6 +11,13 @@
 # source run 45025432502 head SHA 46712c917800d16ea9749d8c958ef6edf4d8494e https://github.com/goodwind-cz/aai/actions/runs/45025432502
 # source run 45013455954 head SHA 077ee6495014ca5b759533769c5d63b1b1c4c582 https://github.com/goodwind-cz/aai/actions/runs/45013455954
 # source run 44915915697 head SHA bf0148d615b1a9056e47a7f9bb537e34b38fe36d https://github.com/goodwind-cz/aai/actions/runs/44915915697
+# Re-measured 2026-11-26 for aai-release-cut only (release-dry-run-reader-timeout): the suite grew at #582 and #586, so its
+# weight is the median of the five latest successful main-push runs below; every other row keeps the five runs above.
+# source run 45875856570 head SHA 3a81b0197e01de219a19077286b1a2ddd9c95d75 https://github.com/goodwind-cz/aai/actions/runs/45875856570
+# source run 45867692451 head SHA 89a432b1bc95040197ecc4286871cc4231e00be8 https://github.com/goodwind-cz/aai/actions/runs/45867692451
+# source run 45820326840 head SHA 13ede646cff4fe322c583acdc4f0661dc42ff78b https://github.com/goodwind-cz/aai/actions/runs/45820326840
+# source run 45816645699 head SHA 1c4703d034ce0dca3f5a09701d9cefed3aac1bd3 https://github.com/goodwind-cz/aai/actions/runs/45816645699
+# source run 45808578900 head SHA 9da38865cf89f904cf737ae6b164e33fc7427852 https://github.com/goodwind-cz/aai/actions/runs/45808578900
 # sample aai-advisory-skills measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=5,4,5,4,4
 aai-advisory-skills	4
 # sample aai-antigravity-project-skills measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=0,0,0,0,0
@@ -271,8 +278,8 @@ aai-cloudflare-share	29
 aai-git-hook-templates	59
 # sample aai-pre-commit-checks measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=74,64,60,77,59
 aai-pre-commit-checks	64
-# sample aai-release-cut measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=279,116,107,142,99
-aai-release-cut	116
+# sample aai-release-cut measured count=5 runs=45875856570,45867692451,45820326840,45816645699,45808578900 seconds=371,601,363,597,408
+aai-release-cut	408
 # sample aai-hook-gate measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=117,106,90,94,86
 aai-hook-gate	94
 # sample aai-install-parity measured count=5 runs=45459216102,45093987222,45025432502,45013455954,44915915697 seconds=198,160,148,149,190

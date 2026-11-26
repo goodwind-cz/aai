@@ -190,6 +190,8 @@ pairs:
     status: done
   - capability: test-infra-p2-fixes
     status: done
+  - capability: release-dry-run-reader-timeout
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

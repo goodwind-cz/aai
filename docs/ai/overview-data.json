@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-26T17:28:30.545Z",
+  "generatedAt": "2026-11-26T20:06:56.912Z",
   "project": "aai",
   "counts": {
-    "delivered": 390,
+    "delivered": 391,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 223860671
@@ -233,6 +233,19 @@
       "spec": "docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md",
       "validation": null,
       "review": "docs/ai/reviews/review-test-infra-p2-fixes-20261126T153327Z.md"
+    },
+    {
+      "ref": "release-dry-run-reader-timeout",
+      "title": "Release dry-run: a per-reader timeout with measured headroom",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0272-release-dry-run-reader-timeout.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 30,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0321-spec-release-dry-run-reader-timeout.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "onboarding-tech-contract-and-lint-gaps",
@@ -5330,6 +5343,19 @@
           "spec": "docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md",
           "validation": null,
           "review": "docs/ai/reviews/review-test-infra-p2-fixes-20261126T153327Z.md"
+        },
+        {
+          "ref": "release-dry-run-reader-timeout",
+          "title": "Release dry-run: a per-reader timeout with measured headroom",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0272-release-dry-run-reader-timeout.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 30,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0321-spec-release-dry-run-reader-timeout.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "onboarding-tech-contract-and-lint-gaps",
