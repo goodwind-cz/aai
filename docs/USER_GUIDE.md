@@ -2843,7 +2843,7 @@ read its gate warning) to see which section is missing.
 
 Projects hosted on Azure Repos can number their documents again. The allocator reserves each display number in `origin` before it renames a draft, and until now it always did that with an atomic push, which Azure Repos does not support: every doc stayed provisional and the merge guard blocked the pull request. When the project's platform is Azure, the allocator now reserves with plain create-only pushes, one per reserved ref, so two clones still cannot take the same number. A refusal for any other reason now shows the remote's own message instead of the git-lfs advisory that used to appear first.
 
-[Product doc](product/azure-rejects-doc-number-reservation-push.md) · [Spec](specs/SPEC-DRAFT-spec-azure-rejects-doc-number-reservation-push.md)
+[Product doc](product/azure-rejects-doc-number-reservation-push.md) · [Spec](specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md)
 
 ### Skill descriptions name the prompt that runs them
 

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-26T12:07:43.234Z",
+  "generatedAt": "2026-11-26T17:25:33.309Z",
   "project": "aai",
   "counts": {
-    "delivered": 388,
+    "delivered": 389,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 220703528
+    "tokens_total": 221435143
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -233,6 +233,19 @@
       "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
       "validation": null,
       "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+    },
+    {
+      "ref": "azure-rejects-doc-number-reservation-push",
+      "title": "Issue — Doc numbering is unusable on Azure Repos: the reservation push is rejected",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 147,
+      "token_total": 731615,
+      "spec": "docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "node-first-cleanup",
@@ -5304,6 +5317,19 @@
           "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
           "validation": null,
           "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+        },
+        {
+          "ref": "azure-rejects-doc-number-reservation-push",
+          "title": "Issue — Doc numbering is unusable on Azure Repos: the reservation push is rejected",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 147,
+          "token_total": 731615,
+          "spec": "docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "node-first-cleanup",

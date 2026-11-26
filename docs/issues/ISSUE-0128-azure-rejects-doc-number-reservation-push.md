@@ -1,8 +1,8 @@
 ---
 id: azure-rejects-doc-number-reservation-push
 type: issue
-number: null
-status: draft
+number: 128
+status: done
 user_visible: true
 links:
   pr: []

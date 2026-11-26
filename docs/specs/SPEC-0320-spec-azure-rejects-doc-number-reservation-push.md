@@ -1,10 +1,10 @@
 ---
 id: spec-azure-rejects-doc-number-reservation-push
 type: spec
-number: null
-status: implementing
+number: 320
+status: done
 mutation_gate: v1
-frozen_sha256: 4c227617bfc8caa7b885b3734fc4a08fafb4db677f3894ab12736990b7959d69
+frozen_sha256: b11f0c5125c3897dbe44ea48450066094392d234c3385eceff6e41e8d4f7bfa2
 ceremony_level: 3
 links:
   requirement: azure-rejects-doc-number-reservation-push
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-azure-rejects-doc-number-reservation-push.md
+- Requirement: docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md
 - Prior scopes: CHANGE-0035 / SPEC-0047 (origin reservation protocol, D2 to D5,
   D7), CHANGE-0085 / SPEC-0103 (`pr-platform.mjs` classification), the
   git-platform-detected-at-bootstrap ride (`lib/platform-adapter.mjs`

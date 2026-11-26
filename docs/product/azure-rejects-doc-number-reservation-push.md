@@ -5,7 +5,7 @@ capability: azure-rejects-doc-number-reservation-push
 status: current
 delivered_by:
   - azure-rejects-doc-number-reservation-push
-spec: docs/specs/SPEC-DRAFT-spec-azure-rejects-doc-number-reservation-push.md
+spec: docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md
 updated: 2026-11-26
 ---
 
@@ -75,5 +75,5 @@ and the provisional marker keeps its meaning.
 
 ## Links
 
-- Request: docs/issues/ISSUE-DRAFT-azure-rejects-doc-number-reservation-push.md
-- Spec: docs/specs/SPEC-DRAFT-spec-azure-rejects-doc-number-reservation-push.md
+- Request: docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md
+- Spec: docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md
