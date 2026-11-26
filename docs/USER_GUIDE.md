@@ -2817,6 +2817,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### First-run onboarding: technology contract pointer, working lint skill, fresh-project TECH_EXTRACT
+
+The first run on a freshly synced project now points you to the one step that is easy to miss: filling the technology contract. `/aai-doctor` reports a warning when `docs/TECHNOLOGY.md` is still the unfilled template seed, and `/aai-bootstrap` ends its summary with the same pointer, so the contract no longer stays empty without anyone noticing. Bootstrap also generates a lint skill that works for a project with only a legacy `.eslintrc*` config, and the TECH_EXTRACT prompt says what to do when `docs/ai/STATE.yaml` does not exist yet.
+
+[Product doc](product/project-onboarding.md) · [Spec](specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md)
+
 ### Docs index regeneration
 
 The docs index generator rebuilds `docs/INDEX.md` from the frontmatter of the project documents, on every docs commit through the installed pre-commit hook and on demand. A document whose frontmatter breaks the schema (for example an unknown `status`) cannot be indexed, so the generator leaves it out and keeps going. That used to be easy to miss: the one line about the dropped document sat in the middle of a long list of standing warnings. The generator now prints the dropped documents as a block at the very end of its output, headed `DROPPED from docs/INDEX.md`, with one line per document and one line telling you how to fix it. Documents that sit in no index section (coverage gaps) are summarised in a single line; the full list stays in the index under "Coverage gaps".

@@ -3,7 +3,7 @@ id: spec-sync-on-node
 type: spec
 number: 310
 status: done
-frozen_sha256: 2d519dbeb7127b9e85b1a8375d51a252aebb12c63fa92d067297e7a3c09263ed
+frozen_sha256: 36ce5e2c82d604da1ca7b340f8dfa85cd62a263bb3bc84743572110d911d3735
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -1421,6 +1421,8 @@ phase 5 stays `in progress`: six files still carry logic (`claude-hook-gate.sh`
 63, `aai-release.ps1` 25, `lib/test-residue.sh` 526, `lib/repo-tripwire.sh` 158,
 `lib/append-lock.sh` 50, `lib/git-bash-path.sh` 45), two P2 follow-ups of the
 plan's refs are open and the hosted checks are not yet read.
+
+Post-merge amendment (measurement, additive with disclosure): Spec-AC-19 and TEST-4019 say the prompt corpus bytes equal `077ee649`. Read against the working tree, that pin fails on every later edit of a `.aai/*.prompt.md` file or `.aai/AGENTS.md`, which is not what it guards: the claim is that this ride left the corpus unchanged. TEST-4019 now measures that on history, comparing the corpus at `077ee649` with the corpus at the merge commit `0ff18d63` (file set and bytes, via `git show`), and fails with the existing not-in-this-clone message when either commit is absent (fail closed, as before). The rows above keep their wording; read "equal `077ee649`" as that historical equality.
 
 ### D-SLICES. Runs and the fallback
 
