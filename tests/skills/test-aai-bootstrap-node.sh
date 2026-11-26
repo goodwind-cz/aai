@@ -666,8 +666,130 @@ test_3959_docs() {
   log_pass "TEST-3959: the CHANGELOG entry, the PowerShell lines of SKILL_BOOTSTRAP, DYNAMIC_SKILLS, the list header and the RFC-0017 sentence hold, and the prompt-diet ledger and RFC inventory suites pass"
 }
 
+# --- onboarding-tech-contract-and-lint-gaps (docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md) ---
+
+test_4125_bootstrap_tech_pointer() {
+  run_node_tests TEST-4125
+  log_pass "TEST-4125: the template seed gives the trailing Technology contract block in normal and dry-run mode, the file is untouched, generated and absent give none"
+}
+
+test_4127_eslintrc_pin() {
+  run_node_tests TEST-4127
+  log_pass "TEST-4127: a legacy eslintrc without eslint gives npx eslint@8 . under every lockfile and with no package.json, plus the pin block in the aai-lint skill"
+}
+
+test_4128_local_eslint_preferred() {
+  run_node_tests TEST-4128
+  log_pass "TEST-4128: a project eslint (four dependency blocks, .bin, .bin cmd) gives the package manager form with no pin block, flat config unchanged, a lint target still wins"
+}
+
+test_4130_k05_reviewed_drift() {
+  need_tool TEST-4130 bash || return 0
+  need_tool TEST-4130 git || return 0
+  run_node_tests TEST-4130
+  log_pass "TEST-4130: K05 alone agrees with the reference through the DR-12 rewrite, disagrees without it with eslint-only problems, and a pair that matches nothing is reported"
+}
+
+# fenced_command <SKILL.md>: the text between the ```bash fence and its closing fence (the one command the skill runs).
+fenced_command() {
+  awk '/^```/ { if (inb) exit; if ($0 ~ /^```bash/) inb = 1; next } inb { print }' "$1"
+}
+
+# stub_npx_dir <work>: a bin directory whose npx only appends its arguments to <work>/npx.log.
+stub_npx_dir() {
+  local bin="$1/stub-bin"
+  mkdir -p "$bin"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "$NPX_LOG"' 'exit 0' > "$bin/npx"
+  chmod +x "$bin/npx"
+  printf '%s\n' "$bin"
+}
+
+# run_lint_skill <work> <fixture> <expected-log>: runs the written aai-lint fenced command in the fixture with the
+# stub npx first on PATH; the stub log must be exactly the expected line (an empty log is a failure).
+run_lint_skill() {
+  local work="$1" fixture="$2" want="$3" cmd bin log got rc=0
+  cmd="$(fenced_command "$fixture/.claude/skills/aai-lint/SKILL.md")"
+  [[ -n "$cmd" ]] || log_fail "TEST-4129: no fenced command in $fixture/.claude/skills/aai-lint/SKILL.md"
+  bin="$(stub_npx_dir "$work")"
+  log="$work/npx.log"
+  : > "$log"
+  (cd "$fixture" && env NPX_LOG="$log" PATH="$bin:$PATH" sh -c "$cmd") || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-4129: the fenced command '$cmd' exited $rc"
+  got="$(cat "$log")"
+  [[ -n "$got" ]] || log_fail "TEST-4129: the stub npx log is empty after '$cmd' (the command never reached npx)"
+  [[ "$got" == "$want" ]] || log_fail "TEST-4129: npx got '$got', expected '$want' (command '$cmd')"
+}
+
+test_4129_lint_skill_runs_as_written() {
+  local work legacy modern viash
+  work="$(new_own_scratch lintskill)"
+  legacy="$work/legacy"
+  modern="$work/modern"
+  viash="$work/via-sh"
+  mkdir -p "$legacy" "$modern" "$viash"
+  printf '%s\n' '{}' > "$legacy/.eslintrc.json"
+  printf '%s\n' '{}' > "$viash/.eslintrc.json"
+  printf '%s\n' 'export default [];' > "$modern/eslint.config.js"
+  printf '%s\n' '{ "name": "modern", "devDependencies": { "eslint": "9.0.0" } }' > "$modern/package.json"
+  env -u AAI_ROLE node "$MJS" "$legacy" >/dev/null
+  env -u AAI_ROLE node "$MJS" "$modern" >/dev/null
+  env -u AAI_ROLE sh "$SH_LAUNCHER" "$viash" >/dev/null
+  run_lint_skill "$work" "$legacy" 'eslint@8 .'
+  run_lint_skill "$work" "$modern" 'eslint .'
+  cmp -s "$legacy/.claude/skills/aai-lint/SKILL.md" "$viash/.claude/skills/aai-lint/SKILL.md" \
+    || log_fail "TEST-4129: the eslintrc aai-lint skill written through the sh launcher differs from the module's"
+  [[ "$(cat "$legacy/.claude/skills/aai-lint/SKILL.md")" == *"## ESLint 8 pin"* ]] || log_fail "TEST-4129: the legacy skill carries no pin block"
+  [[ "$(cat "$modern/.claude/skills/aai-lint/SKILL.md")" != *"## ESLint 8 pin"* ]] || log_fail "TEST-4129: the flat-config skill carries a pin block"
+  safe_rm_own "$work"
+  log_pass "TEST-4129: the written aai-lint command runs through a stub npx as eslint@8 . (legacy eslintrc) and eslint . (flat config with eslint); the sh launcher writes the same skill bytes"
+}
+
+test_4133_launchers_thin_and_docs() {
+  local launcher report n
+  for launcher in "$SH_LAUNCHER" "$PS1_LAUNCHER"; do
+    if qgrep -qi 'eslint' < "$launcher"; then log_fail "TEST-4133: $launcher holds lint logic (the text eslint)"; fi
+  done
+  n="$(awk '{ c += gsub(/eslint@8/, "&") } END { print c + 0 }' "$PROJECT_ROOT/.aai/SKILL_BOOTSTRAP.prompt.md")"
+  [[ "$n" == 1 ]] || log_fail "TEST-4133: SKILL_BOOTSTRAP holds eslint@8 $n times, expected exactly 1"
+  report="$(awk '/^## / { f = ($0 == "## Report Results") } f' "$PROJECT_ROOT/.aai/SKILL_BOOTSTRAP.prompt.md")"
+  [[ -n "$report" ]] || log_fail "TEST-4133: SKILL_BOOTSTRAP has no Report Results section"
+  n="$(printf '%s\n' "$report" | awk '/^- / && /Technology contract/ && /TECH_EXTRACT/ { c += 1 } END { print c + 0 }')"
+  [[ "$n" == 1 ]] || log_fail "TEST-4133: $n Report Results bullets name Technology contract and TECH_EXTRACT, expected 1"
+  log_pass "TEST-4133: the launchers hold no lint logic; SKILL_BOOTSTRAP holds eslint@8 once and a Report Results bullet for the Technology contract line"
+}
+
+test_4135_changelog_and_amendment() {
+  local out rc=0
+  out="$(node -e '
+    const fs = require("fs");
+    const root = process.argv[1];
+    const read = (p) => fs.readFileSync(root + "/" + p, "utf8");
+    const bad = [];
+    // A release cut rolls "## [unreleased] — " into "## [vYYYY.MM.DD] — ", so the pin accepts both.
+    const head = /^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — fix: onboarding points to TECH_EXTRACT and generates a working lint skill$/;
+    const cl = read("CHANGELOG.md").split("\n");
+    const at = cl.map((l, i) => (head.test(l) ? i : -1)).filter((i) => i >= 0);
+    if (at.length !== 1) bad.push("the CHANGELOG heading appears " + at.length + " times");
+    else {
+      let end = cl.length;
+      for (let i = at[0] + 1; i < cl.length; i += 1) if (cl[i].startsWith("## ")) { end = i; break; }
+      const body = cl.slice(at[0] + 1, end).join("\n");
+      for (const w of ["CAT-05", "eslint@8", "TECH_EXTRACT"]) if (!body.includes(w)) bad.push("the CHANGELOG body lacks " + w);
+    }
+    const spec = read("docs/specs/SPEC-0306-spec-bootstrap-on-node.md").split("\n");
+    const n = spec.filter((l) => l === "## Amendment (onboarding-tech-contract-and-lint-gaps)").length;
+    if (n !== 1) bad.push("SPEC-0306 holds the amendment heading " + n + " times");
+    if (!spec.some((l) => l.startsWith("| DR-12 |") && l.includes("eslint@8"))) bad.push("SPEC-0306 holds no DR-12 row naming eslint@8");
+    process.stdout.write(bad.join("; "));
+  ' "$PROJECT_ROOT")"
+  [[ -z "$out" ]] || log_fail "TEST-4135: $out"
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --strict >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-4135: spec-amend list --strict exited $rc"
+  log_pass "TEST-4135: the CHANGELOG heading holds in unreleased or rolled form, SPEC-0306 holds the amendment heading and the DR-12 row, and spec-amend list --strict exits 0"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3959)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3940..3959, onboarding TEST-4125..4135)"
   check_deps
   setup_fixture
   test_3940_scratch_safety
@@ -690,6 +812,13 @@ main() {
   test_3957_scratch_install
   test_3958_wiring
   test_3959_docs
+  test_4125_bootstrap_tech_pointer
+  test_4127_eslintrc_pin
+  test_4128_local_eslint_preferred
+  test_4130_k05_reviewed_drift
+  test_4129_lint_skill_runs_as_written
+  test_4133_launchers_thin_and_docs
+  test_4135_changelog_and_amendment
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

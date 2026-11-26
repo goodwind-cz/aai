@@ -43,6 +43,23 @@ const TWO = [{ args: [] }, { args: [] }];
 // Generated files of a fresh run, edited between two steps by K26 and K27.
 const GENERATED = ['.claude/skills/aai-test-unit/SKILL.md', '.claude/skills/AAI_DYNAMIC_SKILLS.md', '.codex/skills.local/README.md', '.gemini/skills.local/README.md'];
 
+// DR-12 (reviewed drift of K05, onboarding-tech-contract-and-lint-gaps, GitHub #589): a legacy .eslintrc with no eslint in the
+// project. The frozen reference prints `<pm exec> eslint .`; the module prints `npx eslint@8 .` (ESLint 9 and later ignore
+// eslintrc) and gives the aai-lint skill the ESLint 8 pin block. The pairs rewrite the REFERENCE side only, in order.
+const DR12_BLOCK = [
+  '## ESLint 8 pin',
+  '- Only a legacy `.eslintrc*` config was found and eslint is not installed in this project; ESLint 9 and later ignore eslintrc, so this command pins ESLint 8.',
+  "- To lint with the project's own eslint, add it as a devDependency (or migrate to `eslint.config.*`), then rerun .aai/scripts/aai-bootstrap.sh.",
+].join('\n');
+const FENCE = '`'.repeat(3);
+export const DR12 = {
+  id: 'DR-12',
+  pairs: [
+    ['yarn exec eslint .', 'npx eslint@8 .'],
+    [`npx eslint@8 .\n${FENCE}\n\n\n## Notes\n`, `npx eslint@8 .\n${FENCE}\n\n${DR12_BLOCK}\n\n## Notes\n`],
+  ],
+};
+
 // Corpus cases of slice a and b (K01 to K27, K19b and K38).
 export const K_CASES_AB = [
   c('K01', K01_FILES),
@@ -52,7 +69,7 @@ export const K_CASES_AB = [
   c('K05', {
     'package.json': pkg({ name: 'k05', workspaces: ['packages/*'], devDependencies: { jest: '^29' } }), 'yarn.lock': '', 'webpack.config.js': 'module.exports = {};\n',
     '.eslintrc.json': '{}\n', 'netlify.toml': '[build]\n', 'tests/': '',
-  }),
+  }, { reviewedDrift: DR12 }),
   c('K06', {
     'package.json': pkg({ name: 'k06', scripts: { 'test:unit': 'vitest run', deploy: 'wrangler deploy' }, devDependencies: { vitest: '^1', typescript: '^5' } }),
     'pnpm-lock.yaml': '', 'tsconfig.json': '{}\n', 'biome.json': '{}\n', 'vercel.json': '{}\n',

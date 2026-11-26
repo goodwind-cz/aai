@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (50)
+## Product (51)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -56,6 +56,7 @@ _None._
 | precise-suite-evidence-reuse | precise-suite-evidence-reuse | 4 | docs/product/precise-suite-evidence-reuse.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
+| project-onboarding | project-onboarding | 1 | docs/product/project-onboarding.md |
 | provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |
 | release-command-finish | release-command-finish | 8 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
@@ -72,7 +73,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (705)
+## Done (707)
 
 | ID | Type | Path |
 |---|---|---|
@@ -447,6 +448,7 @@ _None._
 | ISSUE-0124 | issues | docs/issues/ISSUE-0124-precommit-residual-defects.md |
 | ISSUE-0125 | issues | docs/issues/ISSUE-0125-index-schema-warning-prominence.md |
 | ISSUE-0126 | issues | docs/issues/ISSUE-0126-secrets-gate-false-positives.md |
+| ISSUE-0127 | issues | docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -779,6 +781,7 @@ _None._
 | SPEC-0314 | specs | docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md |
 | SPEC-0315 | specs | docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md |
 | SPEC-0316 | specs | docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md |
+| SPEC-0317 | specs | docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-25T20:37:33.234Z",
+  "generatedAt": "2026-11-26T11:18:09.826Z",
   "project": "aai",
   "counts": {
-    "delivered": 386,
+    "delivered": 387,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 217483937
+    "tokens_total": 219180450
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -208,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "onboarding-tech-contract-and-lint-gaps",
+      "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 318,
+      "token_total": 1696513,
+      "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+    },
     {
       "ref": "node-first-cleanup",
       "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
@@ -5253,6 +5266,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "onboarding-tech-contract-and-lint-gaps",
+          "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 318,
+          "token_total": 1696513,
+          "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+        },
         {
           "ref": "node-first-cleanup",
           "title": "Node-first cleanup: measured suite weights and the open P2 follow-ups",
