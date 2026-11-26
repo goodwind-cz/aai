@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4f43852bf6195f2fa8831adf7ced3349f4166b4754982d79612afcbb2dfb2a78
+frozen_sha256: 204f26df129b12fd072e466426c8896011cab166dee83c8bdc082e7c627e86e5
 ceremony_level: 3
 links:
   requirement: azure-rejects-doc-number-reservation-push
@@ -219,15 +219,15 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN the platform resolves to azure and origin does not advertise atomic push the allocator SHALL reserve a singleton number with exit 0, create the reservation ref and stamp no provisional marker. | planned | — | — | TEST-4141 |
-| Spec-AC-02 | WHEN the platform resolves to azure the allocator SHALL reserve every member of a coupled family without atomic push, and WHEN one member is already taken it SHALL leave no ref of this attempt at that number and retry the family at the next number. | planned | — | — | TEST-4142, TEST-4143 |
-| Spec-AC-03 | WHEN two clones on azure reserve the same starting number concurrently the allocator SHALL grant that number to exactly one of them. | planned | — | — | TEST-4144 |
-| Spec-AC-04 | WHEN a doc stamped number_reserved false exists on azure the allocator SHALL complete it with --reserve (marker removed, ref created, guard exit 0) and SHALL exit 4 keeping the marker when the ref is taken. | planned | — | — | TEST-4145 |
-| Spec-AC-05 | WHEN the azure reservation push is refused for a non-collision reason the allocator SHALL make exactly one push, stamp the provisional marker and print the remote's reason lines verbatim with the git-lfs advisory removed and URL credentials masked. | planned | — | — | TEST-4146, TEST-4147 |
-| Spec-AC-06 | The azure transport SHALL be selected only when resolvePlatform answers azure (recorded platform or Azure origin URL) and SHALL NOT be selected for github, unknown or none. | planned | — | — | TEST-4148 |
-| Spec-AC-07 | WHEN the platform resolves to azure the merge guard SHALL still exit 4 on a cross-branch number collision. | planned | — | — | TEST-4149 |
-| Spec-AC-08 | The existing reservation suite tests SHALL pass unchanged and the default transport SHALL keep calling the unedited pushReservation. | planned | — | — | TEST-4150 |
-| Spec-AC-09 | docs/USER_GUIDE.md, docs/TECHNOLOGY.md, CHANGELOG.md and the product doc SHALL describe the Azure transport, its detection and the --reserve completion. | planned | — | — | TEST-4151 |
+| Spec-AC-01 | WHEN the platform resolves to azure and origin does not advertise atomic push the allocator SHALL reserve a singleton number with exit 0, create the reservation ref and stamp no provisional marker. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_301_azure_singleton_confirmed.log | — | TEST-4141 |
+| Spec-AC-02 | WHEN the platform resolves to azure the allocator SHALL reserve every member of a coupled family without atomic push, and WHEN one member is already taken it SHALL leave no ref of this attempt at that number and retry the family at the next number. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_302_azure_coupled_family_confirmed.log | — | TEST-4142, TEST-4143 |
+| Spec-AC-03 | WHEN two clones on azure reserve the same starting number concurrently the allocator SHALL grant that number to exactly one of them. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_304_azure_race_one_winner.log | — | TEST-4144 |
+| Spec-AC-04 | WHEN a doc stamped number_reserved false exists on azure the allocator SHALL complete it with --reserve (marker removed, ref created, guard exit 0) and SHALL exit 4 keeping the marker when the ref is taken. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_305_azure_reserve_completes_provisional.log | — | TEST-4145 |
+| Spec-AC-05 | WHEN the azure reservation push is refused for a non-collision reason the allocator SHALL make exactly one push, stamp the provisional marker and print the remote's reason lines verbatim with the git-lfs advisory removed and URL credentials masked. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_306_azure_rejection_reason_verbatim.log | — | TEST-4146, TEST-4147 |
+| Spec-AC-06 | The azure transport SHALL be selected only when resolvePlatform answers azure (recorded platform or Azure origin URL) and SHALL NOT be selected for github, unknown or none. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_308_transport_selected_by_detection.log | — | TEST-4148 |
+| Spec-AC-07 | WHEN the platform resolves to azure the merge guard SHALL still exit 4 on a cross-branch number collision. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_309_azure_guard_cross_branch_collision.log | — | TEST-4149 |
+| Spec-AC-08 | The existing reservation suite tests SHALL pass unchanged and the default transport SHALL keep calling the unedited pushReservation. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-suite-reservation.log | — | TEST-4150 |
+| Spec-AC-09 | docs/USER_GUIDE.md, docs/TECHNOLOGY.md, CHANGELOG.md and the product doc SHALL describe the Azure transport, its detection and the --reserve completion. | done | docs/ai/tdd/azure-rejects-doc-number-reservation-push/green-test_311_azure_docs.log | — | TEST-4151 |
 
 ## Implementation plan
 
@@ -275,17 +275,17 @@ None.
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
-| TEST-4141 | Spec-AC-01 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_301_azure_singleton_confirmed allocates a draft on the Azure-shaped stub and requires exit 0, the renamed file, the ref in the bare origin, no number_reserved line and no WARNING | `sed:s/platform === 'azure'/platform === 'azure-off'/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4142 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_302_azure_coupled_family_confirmed allocates a coupled FAMA+FAMB draft on the stub and requires both refs at 6 and no marker | `sed:s/const AZURE_PUSH_FLAGS = \[\];/const AZURE_PUSH_FLAGS = ['--atomic'];/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4143 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_303_azure_coupled_partial_released pre-creates FAMB-0006 and calls reserveAtomic for the pair at 6; requires number 7, FAMA-0006 absent, both 7 refs present | `sed:s/for \(const ref of claimed\.slice\(\)\.reverse\(\)\)/for (const ref of [])/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4144 | Spec-AC-03 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_304_azure_race_one_winner starts two clones of one stub origin in parallel, each reserving CHANGE from 5, and requires the two numbers to differ with exactly one equal to 5, repeated for a coupled pair | `sed:s/const lease = createOnlyLease\(ref\);/const lease = '--force';/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4145 | Spec-AC-04 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_305_azure_reserve_completes_provisional runs --guard (exit 4), --reserve (exit 0, marker gone, ref created), --guard (exit 0), then --reserve on a taken number (exit 4, marker kept) | `sed:s/const res = reservationPush\(root, 'origin', refNames\);/const res = pushReservation(root, 'origin', refNames);/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4146 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_306_azure_rejection_reason_verbatim adds a pre-receive hook refusing refs/aai/* with a fixed message; requires exit 0, the marker, the hook's message and the remote rejected line in the WARNING, no Locking support line, the omission note and one hook invocation | `sed:s/const LFS_ADVISORY = /const LFS_ADVISORY = \/(?!)\/; const LFS_UNUSED = /` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4147 | Spec-AC-05 | unit | tests/skills/test-aai-doc-number-reservation.sh | test_307_push_failure_masks_credentials calls describePushFailure on output naming https://user:secret@dev.azure.com and requires the secret absent and the host present | `sed:s/\.replace\(URL_USERINFO, '\$1'\)/.replace(URL_USERINFO, '$&')/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4148 | Spec-AC-06 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_308_transport_selected_by_detection: an Azure origin URL with a local pushurl and no record reserves a coupled pair; platform github, an unknown local origin and no origin give default; platform github on the non-atomic stub leaves the coupled pair provisional | `sed:s/platform === 'azure'/platform !== 'none'/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4149 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_309_azure_guard_cross_branch_collision stages a doc whose number exists on the base ref under another slug on the Azure stub and requires --guard exit 4 naming the cross-branch collision | `sed:s/if \(baseId != null && baseId !== doc\.id\) \{/if (false) {/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4150 | Spec-AC-08 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_310_default_transport_unchanged runs a coupled pair against the non-atomic stub with no platform record and a local origin (default transport) and requires the provisional marker and no ref at that number, then relies on the whole suite run for TEST 001 to 018 and 101 to 109 | `sed:s/=== 'azure-sequential'\) return pushReservationSequential/!== 'none') return pushReservationSequential/` on .aai/scripts/allocate-doc-number.mjs | pending |
-| TEST-4151 | Spec-AC-09 | inspection | tests/skills/test-aai-doc-number-reservation.sh | test_311_azure_docs greps the USER_GUIDE and TECHNOLOGY paragraphs, the CHANGELOG heading and the product doc for the transport, the detection rule and the --reserve completion | `sed:s/Azure Repos/Azure Repo/g` on docs/USER_GUIDE.md | pending |
+| TEST-4141 | Spec-AC-01 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_301_azure_singleton_confirmed allocates a draft on the Azure-shaped stub and requires exit 0, the renamed file, the ref in the bare origin, no number_reserved line and no WARNING | `sed:s/platform === 'azure'/platform === 'azure-off'/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4142 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_302_azure_coupled_family_confirmed allocates a coupled FAMA+FAMB draft on the stub and requires both refs at 6 and no marker | `sed:s/const AZURE_PUSH_FLAGS = \[\];/const AZURE_PUSH_FLAGS = ['--atomic'];/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4143 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_303_azure_coupled_partial_released pre-creates FAMB-0006 and calls reserveAtomic for the pair at 6; requires number 7, FAMA-0006 absent, both 7 refs present | `sed:s/for \(const ref of claimed\.slice\(\)\.reverse\(\)\)/for (const ref of [])/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4144 | Spec-AC-03 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_304_azure_race_one_winner starts two clones of one stub origin in parallel, each reserving CHANGE from 5, and requires the two numbers to differ with exactly one equal to 5, repeated for a coupled pair | `sed:s/const lease = createOnlyLease\(ref\);/const lease = '--force';/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4145 | Spec-AC-04 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_305_azure_reserve_completes_provisional runs --guard (exit 4), --reserve (exit 0, marker gone, ref created), --guard (exit 0), then --reserve on a taken number (exit 4, marker kept) | `sed:s/const res = reservationPush\(root, 'origin', refNames\);/const res = pushReservation(root, 'origin', refNames);/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4146 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_306_azure_rejection_reason_verbatim adds a pre-receive hook refusing refs/aai/* with a fixed message; requires exit 0, the marker, the hook's message and the remote rejected line in the WARNING, no Locking support line, the omission note and one hook invocation | `sed:s/const LFS_ADVISORY = /const LFS_ADVISORY = \/(?!)\/; const LFS_UNUSED = /` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4147 | Spec-AC-05 | unit | tests/skills/test-aai-doc-number-reservation.sh | test_307_push_failure_masks_credentials calls describePushFailure on output naming https://user:secret@dev.azure.com and requires the secret absent and the host present | `sed:s/\.replace\(URL_USERINFO, '\$1'\)/.replace(URL_USERINFO, (m) => m)/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4148 | Spec-AC-06 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_308_transport_selected_by_detection runs four arms. An Azure origin URL with a local pushurl and no record reserves a coupled pair; platform github, an unknown local origin and no origin give default; platform github on the non-atomic stub leaves the coupled pair provisional | `sed:s/platform === 'azure'/platform !== 'none'/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4149 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_309_azure_guard_cross_branch_collision stages a doc whose number exists on the base ref under another slug on the Azure stub and requires --guard exit 4 naming the cross-branch collision | `sed:s/if \(baseId != null && baseId !== doc\.id\) \{/if (false) {/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4150 | Spec-AC-08 | integration | tests/skills/test-aai-doc-number-reservation.sh | test_310_default_transport_unchanged runs a coupled pair against the non-atomic stub with no platform record and a local origin (default transport) and requires the provisional marker and no ref at that number, then relies on the whole suite run for TEST 001 to 018 and 101 to 109 | `sed:s/=== 'azure-sequential'\) return pushReservationSequential/!== 'none') return pushReservationSequential/` on .aai/scripts/allocate-doc-number.mjs | green |
+| TEST-4151 | Spec-AC-09 | inspection | tests/skills/test-aai-doc-number-reservation.sh | test_311_azure_docs greps the USER_GUIDE and TECHNOLOGY paragraphs, the CHANGELOG heading and the product doc for the transport, the detection rule and the --reserve completion | `sed:s/Azure Repos/Azure Repo/g` on docs/USER_GUIDE.md | green |
 
 ## Verification
 
@@ -328,3 +328,15 @@ none
 - `fu-numbering-rewrites-dated-reports`, `fu-restamp-slug-links-unverified`,
   `fu-restamp-shape-ignores-intake-rename`: allocator rename behaviour, not
   the reservation transport.
+
+## Amendment A1 (Implementation, measurement only, additive with disclosure)
+
+- TEST-4147 Mutation cell: the frozen replacement `'$&'` is itself a
+  JavaScript replacement pattern, so mutation-run.mjs expanded it to the
+  matched text and the mutated allocator no longer parsed (exit 2, no record).
+  The replacement is now `(m) => m`, which makes the same change in behaviour
+  (the userinfo is kept, so the credential leaks) without a `$` token.
+- TEST-4148 Description: the selector was followed by a colon, which
+  mutation-run.mjs read as part of the selector name. Wording only.
+- No Spec-AC, verification command or observable changed.
+

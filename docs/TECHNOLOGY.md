@@ -59,6 +59,11 @@
     line-edit engine with no YAML library; hand-edits are forbidden
   - Append-only JSONL ledgers: `docs/ai/METRICS.jsonl`, `docs/ai/EVENTS.jsonl`,
     `docs/ai/LOOP_TICKS.jsonl`, `docs/ai/decisions.jsonl`
+  - Doc-number reservation on Azure Repos: Azure Repos does not advertise atomic push,
+    so when `lib/platform-adapter.mjs` `resolvePlatform` answers `azure`
+    (`platform: azure` in `docs/ai/pr-config.yaml`, else an Azure origin
+    URL) the allocator pushes each reservation ref separately without
+    `--atomic` and releases a coupled family's partial claim on collision.
   - `refs/aai/docnums/<TYPE>-<NNNN>` — doc-number RESERVATION refs in
     `origin` (CHANGE-0035 / SPEC-0047). One create-only ref per reserved
     display number (`git push --atomic --force-with-lease=<ref>: origin

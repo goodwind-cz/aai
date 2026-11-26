@@ -30,6 +30,18 @@
 // counter; allocating for one member reserves ALL members' refs in one
 // atomic push.
 //
+// spec-azure-rejects-doc-number-reservation-push — AZURE REPOS TRANSPORT.
+// Azure Repos does not advertise the `atomic` push capability, so the git
+// client refuses every `--atomic` push there before a ref is sent ("fatal:
+// the receiving end does not support --atomic push"); the git-lfs pre-push
+// advisory "Locking support detected on remote" printed just before it is
+// not the cause. When the shared platform resolution (lib/platform-adapter.mjs
+// resolvePlatform: the docs/ai/pr-config.yaml `platform:` record, else the
+// origin URL classified by pr-platform.mjs) answers azure, a reservation is
+// one create-only push per ref, no `--atomic`, in sorted ref order; a coupled
+// family that collides part-way releases the refs it already claimed. Every
+// other platform keeps pushReservation() unchanged.
+//
 // CHANGE-0143 / spec-close-regenerate-order — REGENERATION ORDER CONTRACT.
 // The rename is the event that invalidates every PROJECTION of the renamed
 // file, so the rename and the regeneration are ONE operation. On the success
@@ -69,6 +81,17 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from './lib/docs-model.mjs';
 import { readCoupledFamilies, coupledGroupFor } from './lib/guard-config.mjs';
+
+// The platform adapter is optional at load time: a layer that vendors the
+// allocator without it (a partial fixture) keeps the default transport, and
+// says so on the first reservation push (reservationTransportFor).
+let platformAdapter = null;
+let platformAdapterError = null;
+try {
+  platformAdapter = await import('./lib/platform-adapter.mjs');
+} catch (e) {
+  platformAdapterError = e?.message ?? String(e);
+}
 
 // --- doc-type map ------------------------------------------------------------
 // Intake-facing type -> (directory, id prefix). The directory is not 1:1 with a
@@ -480,6 +503,98 @@ function pushReservation(root, remote, refNames) {
   }
 }
 
+// --- Azure Repos transport (spec-azure-rejects-doc-number-reservation-push) ---
+
+const AZURE_PUSH_FLAGS = [];
+const LFS_ADVISORY = /^\s*(?:Locking support detected on remote\b.*|\$ git config lfs\..*\.locksverify true)\s*$/;
+const URL_USERINFO = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^\s/'"]*@/g;
+const LFS_OMITTED_NOTE = '(git-lfs locking advisory omitted: it is not the rejection reason)';
+
+// 'azure-sequential' only when `remote` is origin and the shared platform
+// resolution answers azure; 'default' for everything else. Memoized per root.
+const transportCache = new Map();
+export function reservationTransportFor(root, remote) {
+  if (remote !== 'origin') return 'default';
+  const key = path.resolve(root);
+  if (transportCache.has(key)) return transportCache.get(key);
+  let transport = 'default';
+  if (platformAdapter) {
+    const { platform } = platformAdapter.resolvePlatform({ repoRoot: key });
+    if (platform === 'azure') transport = 'azure-sequential';
+  } else {
+    console.error(`NOTE: platform detection unavailable (${platformAdapterError}) — using the default reservation transport`);
+  }
+  transportCache.set(key, transport);
+  return transport;
+}
+
+// The push output as the operator should read it: every line verbatim except
+// the git-lfs locking advisory (named, not shown), with URL userinfo masked.
+export function describePushFailure(output) {
+  const kept = [];
+  let omitted = false;
+  for (const line of String(output ?? '').split(/\r?\n/)) {
+    if (LFS_ADVISORY.test(line)) {
+      omitted = true;
+      continue;
+    }
+    kept.push(line.replace(URL_USERINFO, '$1'));
+  }
+  const text = kept.join('\n').trim();
+  if (!omitted) return text;
+  return text ? `${text}\n${LFS_OMITTED_NOTE}` : LFS_OMITTED_NOTE;
+}
+
+const createOnlyLease = (ref) => `--force-with-lease=${ref}:`;
+
+function runPush(root, args) {
+  try {
+    execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return { ok: true, out: '' };
+  } catch (e) {
+    return { ok: false, out: `${e.stdout ?? ''}${e.stderr ?? ''}`.trim() || e.message };
+  }
+}
+
+// Delete, newest first, each ref this attempt claimed — only while it still
+// points at this attempt's unique commit. Returns one line per failed release.
+function releaseClaims(root, remote, sha, claimed) {
+  const failures = [];
+  for (const ref of claimed.slice().reverse()) {
+    const r = runPush(root, ['push', `--force-with-lease=${ref}:${sha}`, remote, `:${ref}`]);
+    if (!r.ok) failures.push(`could not release ${ref}: ${describePushFailure(r.out)}`);
+  }
+  return failures;
+}
+
+// Same result contract as pushReservation(), without `--atomic`: one
+// create-only push per ref in sorted order, so racing clones contend on the
+// same first ref and the loser holds nothing.
+function pushReservationSequential(root, remote, refNames) {
+  const sha = createReservationCommit(root);
+  if (!sha) {
+    return { ok: false, collision: false, error: 'failed to create a reservation commit object (git commit-tree)' };
+  }
+  const claimed = [];
+  for (const ref of [...refNames].sort()) {
+    const lease = createOnlyLease(ref);
+    const r = runPush(root, ['push', ...AZURE_PUSH_FLAGS, lease, remote, `${sha}:${ref}`]);
+    if (r.ok) {
+      claimed.push(ref);
+      continue;
+    }
+    const collision = /stale info/i.test(r.out);
+    const released = releaseClaims(root, remote, sha, claimed);
+    return { ok: false, collision, error: [describePushFailure(r.out), ...released].join('\n') };
+  }
+  return { ok: true };
+}
+
+function reservationPush(root, remote, refNames) {
+  if (reservationTransportFor(root, remote) === 'azure-sequential') return pushReservationSequential(root, remote, refNames);
+  return pushReservation(root, remote, refNames);
+}
+
 // D2/D8: attempt to reserve `startNumber` for every member (a singleton for
 // the uncoupled case, D7's full group otherwise), retrying the NEXT number on
 // a create-only rejection up to `capAttempts` (default 50). Exported for
@@ -489,7 +604,7 @@ export function reserveAtomic(root, remote, members, startNumber, capAttempts = 
   let n = startNumber;
   for (let attempt = 0; attempt < capAttempts; attempt += 1) {
     const refNames = members.map((m) => reservationRef(displayId(m.prefix, n, m.width)));
-    const res = pushReservation(root, remote, refNames);
+    const res = reservationPush(root, remote, refNames);
     if (res.ok) return { ok: true, number: n, refNames };
     if (!res.collision) return { ok: false, collision: false, number: n, refNames, error: res.error };
     n += 1;
@@ -1220,7 +1335,7 @@ function runReserveCompletion(root, opts) {
   const group = coupledGroupFor(coupledGroups, prefix);
   const members = group.map((pfx) => ({ prefix: pfx, width }));
   const refNames = members.map((m) => reservationRef(displayId(m.prefix, num, m.width)));
-  const res = pushReservation(root, 'origin', refNames);
+  const res = reservationPush(root, 'origin', refNames);
   if (res.ok) {
     const updated = removeProvisionalMarker(content);
     if (updated == null) die(4, `--reserve: ${rel} frontmatter could not be updated. No writes.`);

@@ -4639,3 +4639,13 @@
 {"v":1,"ts":"2026-11-26T10:47:18Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"skill-description-canonical-prompt-pointer","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-26T10:47:18Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-skill-description-canonical-prompt-pointer","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-26T10:47:18Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-skill-description-canonical-prompt-pointer","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-26T14:53:44Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-azure-rejects-doc-number-reservation-push","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-08","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:01:15Z","actor":"ales_holubec.net","event":"ac_status","ref":"azure-rejects-doc-number-reservation-push/Spec-AC-09","payload":{"from":"planned","to":"done"}}

@@ -43,7 +43,7 @@ cleanup() {
 trap cleanup EXIT
 
 log_pass() { echo "PASS: $*"; }
-log_fail() { echo "FAIL: $*" >&2; exit 1; }
+log_fail() { echo "FAIL: ${CUR_TEST:+$CUR_TEST: }$*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
@@ -63,6 +63,7 @@ check_deps() {
 
 PROJECT_FILES=(
   .aai/scripts/allocate-doc-number.mjs
+  .aai/scripts/pr-platform.mjs
   .aai/scripts/generate-docs-index.mjs
   .aai/scripts/docs-audit.mjs
   .aai/scripts/append-event.mjs
@@ -973,6 +974,445 @@ test_109_excluded_guard_unit_probe() {
   log_pass "TEST-109 isExcludedTree guard probe (nested + separator + negatives)"
 }
 
+# =============================================================================
+# Azure Repos reservation transport (ISSUE-DRAFT azure-rejects-doc-number-
+# reservation-push / SPEC-DRAFT spec-azure-rejects-doc-number-reservation-push).
+#
+# The Azure-shaped stub: a LOCAL bare origin with receive.advertiseAtomic=false
+# (Azure Repos does not advertise atomic push), a clone pre-push hook that
+# prints the git-lfs locking advisory and exits 0, and `platform: azure`
+# recorded in docs/ai/pr-config.yaml. Every new test exports
+# GIT_ALLOW_PROTOCOL=file, so no transport but the local file system can be
+# reached even where an origin URL names an Azure host.
+
+# mk_azure_repo <label> [platform-record]  — echoes the repo path. An empty
+# record leaves docs/ai/pr-config.yaml absent (detection from the URL only).
+mk_azure_repo() {
+  local label="$1" record="${2-azure}"
+  local d; d="$(mk_repo "$label")"
+  local bare="$TEST_DIR/origin-$label.git"
+  git -C "$bare" config receive.advertiseAtomic false
+  git -C "$d" config core.hooksPath .git/hooks
+  mkdir -p "$d/.git/hooks"
+  cat > "$d/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "Locking support detected on remote \"$1\". Consider enabling it with:" >&2
+echo "  \$ git config lfs.$2/info/lfs.locksverify true" >&2
+cat >/dev/null
+exit 0
+HOOK
+  chmod +x "$d/.git/hooks/pre-push"
+  if [[ -n "$record" ]]; then
+    printf 'platform: %s\n' "$record" > "$d/docs/ai/pr-config.yaml"
+    (cd "$d" && git add docs/ai/pr-config.yaml && git commit -qm "chore: record platform" >/dev/null)
+  fi
+  printf '%s' "$d"
+}
+
+# The stub must refuse --atomic exactly as Azure does, or the tests prove
+# nothing (a vacuous green on an atomic-capable stub).
+assert_stub_refuses_atomic() {
+  local d="$1" out sha
+  sha="$(git -C "$d" commit-tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 -m stub-probe)"
+  set +e
+  out="$(cd "$d" && git push --atomic origin "${sha}:refs/aai/stub-probe" 2>&1)"
+  set -e
+  [[ "$out" == *"does not support --atomic push"* ]] \
+    || log_fail "stub origin must refuse --atomic like Azure Repos: $out"
+}
+
+write_coupled_config() {  # write_coupled_config <repo>
+  local d="$1"
+  printf 'coupled_families:\n  - FAMA+FAMB\n' > "$d/docs/ai/docs-audit.yaml"
+  seed_numbered "$d" issues FAMA 5 change
+  seed_numbered "$d" issues FAMB 3 change
+  (cd "$d" && git add docs/ai/docs-audit.yaml && git commit -qm "docs: coupled_families config" >/dev/null)
+}
+
+# TEST-4141 (Spec-AC-01)
+test_301_azure_singleton_confirmed() {
+  local CUR_TEST=TEST-4141
+  log_info "TEST-4141: Azure stub, singleton -> confirmed number, ref in origin, no marker..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t301)"
+  local bare="$TEST_DIR/origin-t301.git"
+  assert_stub_refuses_atomic "$d"
+  (cd "$d" && git checkout -q -b feature/az-one)
+  write_draft "$d" rfc RFC az-one
+  (cd "$d" && git add docs/rfc && git commit -qm "docs: draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-az-one.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "allocation must exit 0: $(cat "$d/alloc.log")"
+  assert_file "$d/docs/rfc/RFC-0001-az-one.md"
+  ref_exists "$bare" "refs/aai/docnums/RFC-0001" \
+    || log_fail "refs/aai/docnums/RFC-0001 must exist in the Azure-shaped origin: $(cat "$d/alloc.log")"
+  assert_not_contains "$d/docs/rfc/RFC-0001-az-one.md" "number_reserved"
+  assert_not_contains "$d/alloc.log" "WARNING"
+  rm -rf "$d"
+  log_pass "TEST-4141 Azure singleton reserved without --atomic; no provisional marker"
+}
+
+# TEST-4142 (Spec-AC-02)
+test_302_azure_coupled_family_confirmed() {
+  local CUR_TEST=TEST-4142
+  log_info "TEST-4142: Azure stub, coupled FAMA+FAMB -> both refs at 6, no marker..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t302)"
+  local bare="$TEST_DIR/origin-t302.git"
+  write_coupled_config "$d"
+  (cd "$d" && git checkout -q -b feature/az-pair)
+  write_draft "$d" issues FAMA az-pair
+  (cd "$d" && git add docs/issues && git commit -qm "docs: draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/issues/FAMA-DRAFT-az-pair.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "coupled allocation must exit 0: $(cat "$d/alloc.log")"
+  assert_file "$d/docs/issues/FAMA-0006-az-pair.md"
+  ref_exists "$bare" "refs/aai/docnums/FAMA-0006" || log_fail "FAMA-0006 must exist: $(cat "$d/alloc.log")"
+  ref_exists "$bare" "refs/aai/docnums/FAMB-0006" || log_fail "FAMB-0006 must exist: $(cat "$d/alloc.log")"
+  assert_not_contains "$d/docs/issues/FAMA-0006-az-pair.md" "number_reserved"
+  rm -rf "$d"
+  log_pass "TEST-4142 Azure coupled family reserved member by member; no marker"
+}
+
+# TEST-4143 (Spec-AC-02)
+test_303_azure_coupled_partial_released() {
+  local CUR_TEST=TEST-4143
+  log_info "TEST-4143: Azure stub, FAMB-0006 taken -> FAMA-0006 released, pair lands on 7..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t303)"
+  local bare="$TEST_DIR/origin-t303.git"
+  push_raw_ref "$bare" "refs/aai/docnums/FAMB-0006" "racer-owns-famb-6"
+  cat > "$d/probe.mjs" <<'EOF'
+import { reserveAtomic } from './.aai/scripts/allocate-doc-number.mjs';
+import assert from 'node:assert';
+const r = reserveAtomic(process.cwd(), 'origin',
+  [{ prefix: 'FAMA', width: 4 }, { prefix: 'FAMB', width: 4 }], 6, 50);
+assert.strictEqual(r.ok, true, 'Azure pair reservation must succeed: ' + JSON.stringify(r));
+assert.strictEqual(r.number, 7, 'pair must retry past 6 and land on 7: ' + JSON.stringify(r));
+console.log('ok');
+EOF
+  (cd "$d" && node probe.mjs) > "$d/probe.log" 2>&1 \
+    || log_fail "TEST-4143 partial claim not handled: $(cat "$d/probe.log")"
+  if ref_exists "$bare" "refs/aai/docnums/FAMA-0006"; then
+    log_fail "FAMA-0006 was claimed then must have been released when FAMB-0006 collided"
+  fi
+  ref_exists "$bare" "refs/aai/docnums/FAMB-0006" || log_fail "the racer's FAMB-0006 must be untouched"
+  ref_exists "$bare" "refs/aai/docnums/FAMA-0007" || log_fail "FAMA-0007 must exist"
+  ref_exists "$bare" "refs/aai/docnums/FAMB-0007" || log_fail "FAMB-0007 must exist"
+  rm -rf "$d"
+  log_pass "TEST-4143 Azure partial claim released; family retried together at 7"
+}
+
+# TEST-4144 (Spec-AC-03)
+test_304_azure_race_one_winner() {
+  local CUR_TEST=TEST-4144
+  log_info "TEST-4144: two clones on one Azure stub reserve from 5 -> exactly one gets 5..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d1; d1="$(mk_azure_repo t304)"
+  local d2="$TEST_DIR/iso-t304b"
+  rm -rf "$d2"; cp -R "$d1" "$d2"
+  local d probe
+  for d in "$d1" "$d2"; do
+    cat > "$d/probe.mjs" <<'EOF'
+import { reserveAtomic } from './.aai/scripts/allocate-doc-number.mjs';
+const fam = process.argv[2] === 'pair'
+  ? [{ prefix: 'FAMA', width: 4 }, { prefix: 'FAMB', width: 4 }]
+  : [{ prefix: process.argv[2], width: 4 }];
+const r = reserveAtomic(process.cwd(), 'origin', fam, 5, 50);
+console.log(r.ok ? `won ${r.number}` : `failed ${r.collision ? 'collision' : 'other'}`);
+EOF
+  done
+  local a b round
+  # Arm 1 (deterministic contention): clone 1 first, then clone 2 from the same start.
+  a="$(cd "$d1" && node probe.mjs SEQ)"; b="$(cd "$d2" && node probe.mjs SEQ)"
+  [[ "$a" == "won 5" && "$b" == "won 6" ]] \
+    || log_fail "sequential contenders must get 5 then 6 (got '$a' / '$b')"
+  # Arm 2 (concurrent): singleton and coupled pair, started together.
+  for round in CHANGE pair; do
+    (cd "$d1" && node probe.mjs "$round" > "race-$round.out" 2>&1) &
+    local p1=$!
+    (cd "$d2" && node probe.mjs "$round" > "race-$round.out" 2>&1) &
+    local p2=$!
+    wait "$p1"; wait "$p2"
+    a="$(cat "$d1/race-$round.out")"; b="$(cat "$d2/race-$round.out")"
+    local fives=0
+    [[ "$a" == "won 5" ]] && fives=$((fives + 1))
+    [[ "$b" == "won 5" ]] && fives=$((fives + 1))
+    [[ "$fives" -eq 1 ]] || log_fail "race ($round): exactly one clone must win 5 (got '$a' / '$b')"
+    [[ "$a" != "$b" ]] || log_fail "race ($round): both clones reported '$a'"
+  done
+  rm -rf "$d1" "$d2"
+  log_pass "TEST-4144 Azure contention: one winner per number, sequential and concurrent"
+}
+
+# TEST-4145 (Spec-AC-04)
+test_305_azure_reserve_completes_provisional() {
+  local CUR_TEST=TEST-4145
+  log_info "TEST-4145: Azure stub, existing number_reserved: false doc -> --reserve completes; taken ref exits 4..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t305)"
+  local bare="$TEST_DIR/origin-t305.git"
+  cat > "$d/docs/issues/CHANGE-0005-gamma.md" <<'MD'
+---
+id: gamma
+type: change
+number: 5
+status: draft
+number_reserved: false
+links:
+  pr: []
+---
+# Gamma
+MD
+  (cd "$d" && git add docs/issues/CHANGE-0005-gamma.md)
+  local rc
+  set +e
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard-blocked.log 2>&1); rc=$?
+  set -e
+  [[ "$rc" -eq 4 ]] || log_fail "unreserved marker must exit 4 before completion (got $rc)"
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --reserve \
+      --path docs/issues/CHANGE-0005-gamma.md > reserve.log 2>&1) \
+    || log_fail "--reserve must exit 0: $(cat "$d/reserve.log")"
+  assert_not_contains "$d/docs/issues/CHANGE-0005-gamma.md" "number_reserved"
+  ref_exists "$bare" "refs/aai/docnums/CHANGE-0005" \
+    || log_fail "completion must create the ref on the Azure stub: $(cat "$d/reserve.log")"
+  (cd "$d" && git add docs/issues/CHANGE-0005-gamma.md)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard-clean.log 2>&1) \
+    || log_fail "guard must pass after completion: $(cat "$d/guard-clean.log")"
+  cat > "$d/docs/issues/CHANGE-0006-delta.md" <<'MD'
+---
+id: delta
+type: change
+number: 6
+status: draft
+number_reserved: false
+links:
+  pr: []
+---
+# Delta
+MD
+  push_raw_ref "$bare" "refs/aai/docnums/CHANGE-0006" "collides-with-delta"
+  set +e
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --reserve \
+      --path docs/issues/CHANGE-0006-delta.md > reserve2.log 2>&1); rc=$?
+  set -e
+  [[ "$rc" -eq 4 ]] || log_fail "--reserve on a taken ref must exit 4 (got $rc): $(cat "$d/reserve2.log")"
+  grep -qE '^number_reserved:[[:space:]]*false[[:space:]]*$' "$d/docs/issues/CHANGE-0006-delta.md" \
+    || log_fail "the marker must stay on an exit-4 completion"
+  rm -rf "$d"
+  log_pass "TEST-4145 Azure --reserve completes a provisional doc; guard clean; collision exits 4"
+}
+
+# TEST-4146 (Spec-AC-05)
+test_306_azure_rejection_reason_verbatim() {
+  local CUR_TEST=TEST-4146
+  log_info "TEST-4146: Azure stub refusing refs/aai/* -> one push, marker, remote reason verbatim, no lfs line..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t306)"
+  local bare="$TEST_DIR/origin-t306.git"
+  local count="$TEST_DIR/t306-hook-count"
+  : > "$count"
+  cat > "$bare/hooks/pre-receive" <<HOOK
+#!/bin/sh
+echo invoked >> "$count"
+while read old new ref; do
+  case "\$ref" in
+    refs/heads/*|refs/tags/*) ;;
+    *) echo "TF401999-STUB: custom ref namespace \$ref is refused by this server" >&2; exit 1 ;;
+  esac
+done
+exit 0
+HOOK
+  chmod +x "$bare/hooks/pre-receive"
+  (cd "$d" && git checkout -q -b feature/az-refused)
+  write_draft "$d" rfc RFC az-refused
+  (cd "$d" && git add docs/rfc && git commit -qm "docs: draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-az-refused.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "a refused reservation must still exit 0 (provisional): $(cat "$d/alloc.log")"
+  grep -qE '^number_reserved:[[:space:]]*false[[:space:]]*$' "$d/docs/rfc/RFC-0001-az-refused.md" \
+    || log_fail "a refused reservation must stamp number_reserved: false"
+  assert_contains "$d/alloc.log" "remote: TF401999-STUB: custom ref namespace refs/aai/docnums/RFC-0001 is refused by this server"
+  assert_contains "$d/alloc.log" "(pre-receive hook declined)"
+  assert_not_contains "$d/alloc.log" "Locking support detected"
+  assert_contains "$d/alloc.log" "git-lfs locking advisory omitted"
+  local n; n="$(wc -l < "$count" | tr -d ' ')"
+  [[ "$n" -eq 1 ]] || log_fail "a non-collision refusal must make exactly one push (hook ran $n times)"
+  rm -rf "$d"
+  log_pass "TEST-4146 Azure refusal: one push, provisional, remote reason verbatim, lfs advisory set aside"
+}
+
+# TEST-4147 (Spec-AC-05)
+test_307_push_failure_masks_credentials() {
+  local CUR_TEST=TEST-4147
+  log_info "TEST-4147: describePushFailure masks URL credentials and drops the lfs advisory..."
+  local d; d="$(mk_repo t307 no)"
+  cat > "$d/probe.mjs" <<'EOF'
+import assert from 'node:assert';
+const m = await import('./.aai/scripts/allocate-doc-number.mjs');
+assert.strictEqual(typeof m.describePushFailure, 'function', 'describePushFailure must be exported');
+const raw = [
+  'Locking support detected on remote "origin". Consider enabling it with:',
+  '  $ git config lfs.https://dev.azure.com/acme/p/_git/r.git/info/lfs.locksverify true',
+  "fatal: unable to access 'https://user:s3cr3t-pat@dev.azure.com/acme/p/_git/r/': The requested URL returned error: 403",
+].join('\n');
+const out = m.describePushFailure(raw);
+assert.ok(!out.includes('s3cr3t-pat'), 'credential must be masked: ' + out);
+assert.ok(out.includes('https://dev.azure.com/acme/p/_git/r/'), 'host and path must stay: ' + out);
+assert.ok(out.includes('returned error: 403'), 'reason must stay verbatim: ' + out);
+assert.ok(!out.includes('Locking support detected'), 'lfs advisory must be dropped: ' + out);
+assert.ok(out.includes('git-lfs locking advisory omitted'), 'omission must be named: ' + out);
+assert.strictEqual(m.describePushFailure('error: plain'), 'error: plain', 'no advisory, no note');
+console.log('ok');
+EOF
+  (cd "$d" && node probe.mjs) > "$d/probe.log" 2>&1 || log_fail "$(cat "$d/probe.log")"
+  rm -rf "$d"
+  log_pass "TEST-4147 credentials masked, reason verbatim, lfs advisory named and dropped"
+}
+
+# TEST-4148 (Spec-AC-06)
+test_308_transport_selected_by_detection() {
+  local CUR_TEST=TEST-4148
+  log_info "TEST-4148: transport chosen only by resolvePlatform (record or Azure URL)..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  # Arm a: Azure origin URL, no record; pushes go to the local stub via pushurl.
+  local d; d="$(mk_azure_repo t308a "")"
+  local bare="$TEST_DIR/origin-t308a.git"
+  [[ ! -f "$d/docs/ai/pr-config.yaml" ]] || log_fail "arm a must have no platform record"
+  (cd "$d" && git remote set-url origin "https://dev.azure.com/acme/proj/_git/repo" \
+     && git remote set-url --push origin "$bare")
+  write_coupled_config "$d"
+  (cd "$d" && git checkout -q -b feature/az-url)
+  write_draft "$d" issues FAMA az-url
+  (cd "$d" && git add docs/issues && git commit -qm "docs: draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/issues/FAMA-DRAFT-az-url.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "arm a allocation must exit 0: $(cat "$d/alloc.log")"
+  assert_not_contains "$d/docs/issues/FAMA-0006-az-url.md" "number_reserved"
+  ref_exists "$bare" "refs/aai/docnums/FAMA-0006" || log_fail "arm a: FAMA-0006 must exist: $(cat "$d/alloc.log")"
+  ref_exists "$bare" "refs/aai/docnums/FAMB-0006" || log_fail "arm a: FAMB-0006 must exist"
+  # Arm b: the exported choice for each other classification.
+  local g; g="$(mk_azure_repo t308b github)"
+  local u; u="$(mk_azure_repo t308c "")"
+  local n; n="$(mk_repo t308d no)"
+  local z; z="$(mk_azure_repo t308e azure)"
+  cat > "$d/probe.mjs" <<'EOF'
+import assert from 'node:assert';
+const m = await import(process.argv[2] + '/.aai/scripts/allocate-doc-number.mjs');
+assert.strictEqual(typeof m.reservationTransportFor, 'function', 'reservationTransportFor must be exported');
+const [, , , g, u, n, z] = process.argv;
+assert.strictEqual(m.reservationTransportFor(g, 'origin'), 'default', 'recorded github -> default');
+assert.strictEqual(m.reservationTransportFor(u, 'origin'), 'default', 'unknown local origin -> default');
+assert.strictEqual(m.reservationTransportFor(n, 'origin'), 'default', 'no origin -> default');
+assert.strictEqual(m.reservationTransportFor(z, 'origin'), 'azure-sequential', 'recorded azure -> azure-sequential');
+assert.strictEqual(m.reservationTransportFor(z, 'upstream'), 'default', 'a non-origin remote -> default');
+console.log('ok');
+EOF
+  (cd "$d" && node probe.mjs "$d" "$g" "$u" "$n" "$z") > "$d/probe.log" 2>&1 \
+    || log_fail "arm b: $(cat "$d/probe.log")"
+  # Arm c: recorded github on the non-atomic stub keeps the default transport.
+  local gb="$TEST_DIR/origin-t308b.git"
+  write_coupled_config "$g"
+  (cd "$g" && git checkout -q -b feature/gh)
+  write_draft "$g" issues FAMA gh-pair
+  (cd "$g" && git add docs/issues && git commit -qm "docs: draft" >/dev/null)
+  (cd "$g" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/issues/FAMA-DRAFT-gh-pair.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "arm c allocation must exit 0: $(cat "$g/alloc.log")"
+  grep -qE '^number_reserved:[[:space:]]*false[[:space:]]*$' "$g/docs/issues/FAMA-0006-gh-pair.md" \
+    || log_fail "arm c: github on a non-atomic server must stay provisional (no Azure transport)"
+  if ref_exists "$gb" "refs/aai/docnums/FAMA-0006"; then
+    log_fail "arm c: the default transport must not split a coupled push"
+  fi
+  rm -rf "$d" "$g" "$u" "$n" "$z"
+  log_pass "TEST-4148 Azure transport selected by record or Azure URL only"
+}
+
+# TEST-4149 (Spec-AC-07)
+test_309_azure_guard_cross_branch_collision() {
+  local CUR_TEST=TEST-4149
+  log_info "TEST-4149: Azure stub, --guard still exits 4 on a cross-branch collision..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t309)"
+  cat > "$d/docs/issues/CHANGE-0005-alpha.md" <<'MD'
+---
+id: alpha
+type: change
+number: 5
+status: done
+links:
+  pr: []
+---
+# Alpha
+MD
+  (cd "$d" && git add docs/issues && git commit -qm "docs: alpha on main" \
+     && git push -q origin HEAD:refs/heads/main)
+  local d2="$TEST_DIR/iso-t309b"
+  rm -rf "$d2"; cp -R "$d" "$d2"
+  rm -f "$d2/docs/issues/CHANGE-0005-alpha.md"
+  cat > "$d2/docs/issues/CHANGE-0005-beta.md" <<'MD'
+---
+id: beta
+type: change
+number: 5
+status: done
+links:
+  pr: []
+---
+# Beta
+MD
+  (cd "$d2" && git add docs/issues)
+  local rc
+  set +e
+  (cd "$d2" && node .aai/scripts/allocate-doc-number.mjs --guard --base-ref origin/main > guard.log 2>&1); rc=$?
+  set -e
+  [[ "$rc" -eq 4 ]] || log_fail "cross-branch collision on Azure must exit 4 (got $rc): $(cat "$d2/guard.log")"
+  assert_contains "$d2/guard.log" "cross-branch collision"
+  rm -rf "$d" "$d2"
+  log_pass "TEST-4149 the guard still catches a cross-branch number on Azure"
+}
+
+# TEST-4150 (Spec-AC-08)
+test_310_default_transport_unchanged() {
+  local CUR_TEST=TEST-4150
+  log_info "TEST-4150: no record + local origin -> default transport; a non-atomic server keeps the pair provisional..."
+  local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
+  local d; d="$(mk_azure_repo t310 "")"
+  local bare="$TEST_DIR/origin-t310.git"
+  write_coupled_config "$d"
+  (cd "$d" && git checkout -q -b feature/default)
+  write_draft "$d" issues FAMA default-pair
+  (cd "$d" && git add docs/issues && git commit -qm "docs: draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/issues/FAMA-DRAFT-default-pair.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "allocation must exit 0: $(cat "$d/alloc.log")"
+  grep -qE '^number_reserved:[[:space:]]*false[[:space:]]*$' "$d/docs/issues/FAMA-0006-default-pair.md" \
+    || log_fail "the default transport must not reserve a coupled pair on a non-atomic server"
+  if ref_exists "$bare" "refs/aai/docnums/FAMA-0006" || ref_exists "$bare" "refs/aai/docnums/FAMB-0006"; then
+    log_fail "the default transport must create no ref of the pair on a non-atomic server"
+  fi
+  rm -rf "$d"
+  log_pass "TEST-4150 default transport untouched: coupled pair stays provisional on a non-atomic server"
+}
+
+# TEST-4151 (Spec-AC-09)
+test_311_azure_docs() {
+  local CUR_TEST=TEST-4151
+  log_info "TEST-4151: user docs describe the Azure transport, its detection and --reserve completion..."
+  local ug="$PROJECT_ROOT/docs/USER_GUIDE.md" tech="$PROJECT_ROOT/docs/TECHNOLOGY.md"
+  local cl="$PROJECT_ROOT/CHANGELOG.md"
+  local prod="$PROJECT_ROOT/docs/product/azure-rejects-doc-number-reservation-push.md"
+  assert_contains "$ug" "**Azure Repos:**"
+  assert_contains "$ug" "platform: azure"
+  assert_contains "$ug" "does not support --atomic push"
+  assert_contains "$ug" "allocate-doc-number.mjs --reserve --path <doc>"
+  assert_contains "$tech" "Azure Repos does not advertise atomic push"
+  grep -qE '^## \[unreleased\] — .*Azure Repos' "$cl" || log_fail "CHANGELOG needs an [unreleased] Azure Repos entry"
+  assert_file "$prod"
+  assert_contains "$prod" "platform: azure"
+  log_pass "TEST-4151 USER_GUIDE, TECHNOLOGY, CHANGELOG and product doc describe the Azure transport"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Number Reservation Test Suite (CHANGE-0035 / SPEC-0047)"
@@ -1015,6 +1455,17 @@ main() {
   test_106_rewrite_trees_constants_probe
   test_107_regression_doc_numbering_suite
   test_108_targeted_suites_wiring
+  test_301_azure_singleton_confirmed
+  test_302_azure_coupled_family_confirmed
+  test_303_azure_coupled_partial_released
+  test_304_azure_race_one_winner
+  test_305_azure_reserve_completes_provisional
+  test_306_azure_rejection_reason_verbatim
+  test_307_push_failure_masks_credentials
+  test_308_transport_selected_by_detection
+  test_309_azure_guard_cross_branch_collision
+  test_310_default_transport_unchanged
+  test_311_azure_docs
 
   echo ""
   echo "All doc-number-reservation tests passed."

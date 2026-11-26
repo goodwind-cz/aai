@@ -12,13 +12,13 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-azure-rejects-doc-number-reservation-push | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-azure-rejects-doc-number-reservation-push.md |
+| spec-azure-rejects-doc-number-reservation-push | specs | implementing | 9 done | docs/specs/SPEC-DRAFT-spec-azure-rejects-doc-number-reservation-push.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (52)
+## Product (53)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -29,6 +29,7 @@ _None._
 | aai-update | aai-update | 7 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
+| azure-rejects-doc-number-reservation-push | azure-rejects-doc-number-reservation-push | 1 | docs/product/azure-rejects-doc-number-reservation-push.md |
 | bootstrap-on-node | bootstrap-on-node | 1 | docs/product/bootstrap-on-node.md |
 | ci-test-impact-selection | ci-test-impact-selection | 4 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 2 | docs/product/configurable-merge-policy-lanes.md |
@@ -822,7 +823,7 @@ _None._
 
 _None._
 
-## Broken references (627)
+## Broken references (633)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -994,11 +995,17 @@ _None._
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/CHANGE-0005-gamma.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/CHANGE-0005-provisional.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/CHANGE-0006-delta.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-az-pair.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-az-url.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-default-pair.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-gh-pair.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-paired-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/knowledge/widen-notes.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/product/uses-draft.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/product/x.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/project-sessions/2026-07-27-widen.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-az-one.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-az-refused.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-dryrun-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-excl-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-four-topic.md | NOT FOUND |
