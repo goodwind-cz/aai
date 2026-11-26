@@ -56,7 +56,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   runAudit, suggestedStep, gateDoc, gateFile, lintBody, lintFile, acFlipCheckDoc,
-  scanAuditDocs, loadConfig, CONFIG_PATH,
+  scanAuditDocs, loadConfig, CONFIG_PATH, readScannedDoc, vanishedNoteLine,
 } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, normalizeNewlines } from './lib/docs-model.mjs';
 import fs from 'node:fs';
@@ -119,12 +119,15 @@ function runLintBody(args) {
   const files = scanAuditDocs(ROOT, { scopePath: args.path, scanExclude: config?.scan_exclude ?? [] });
   const findings = [];
   let scanned = 0;
+  const vanished = [];
   for (const f of files) {
     if (planMode === 'lenient' && f.rel.startsWith('docs/plans/')) continue;
+    const content = readScannedDoc(ROOT, f.rel, vanished);
+    if (content === null) continue;
     scanned += 1;
-    const content = fs.readFileSync(path.join(ROOT, f.rel), 'utf8');
     for (const bl of lintBody(content)) findings.push({ rel: f.rel, ...bl });
   }
+  for (const rel of vanished) console.error(vanishedNoteLine(rel));
   console.log(`## Body Lint — ${new Date().toISOString().slice(0, 10)}`);
   console.log('');
   console.log(`- Scanned: ${scanned} docs${args.path ? ` | Scope: ${args.path}` : ''}`);
@@ -524,6 +527,9 @@ function main() {
   if (counts.docsAiNonCanon > 0) {
     lines.push(`- docs/ai non-canonical: ${counts.docsAiNonCanon} (${counts.docsAiNonCanonNames.join(', ')})`);
   }
+  // A document that vanished between the scan and its read is skipped, not a
+  // finding (degrade-with-NOTE); one line per file, never a verdict.
+  for (const rel of result.vanished ?? []) lines.push(vanishedNoteLine(rel));
   lines.push('');
 
   if (mode === 'report-only') {

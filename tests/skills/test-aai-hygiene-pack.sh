@@ -6334,6 +6334,87 @@ test_4025_kept_native_gate_and_bite() {  # TEST-4025 / Spec-AC-02
   log_pass "test_4025: the strict script-class check is clean on the tree, matches the section 1 grep count for every live file, and names each of the seeded violations (TEST-4025)"
 }
 
+# test-infra-p2-fixes D9 - a scan for assertions pinned to one world. A test
+# that reads the real tree and holds only in the checkout it was written in
+# (a moving origin/main, the last line of a run ledger, the bare unreleased
+# changelog heading) goes red the moment another ride moves that state.
+# Three line shapes; each ERE is assigned on one line. A line is exempt when it,
+# or the line above, carries "one-world-ok: <reason>". Comment lines are skipped.
+OW_MOVING_REF_RE='origin/main(:|\.\.)|\.\.origin/main'
+OW_LAST_INDEX_RE='tail +-1([^0-9]|$)|tail +-n *1([^0-9]|$)|\.at\(-1\)'
+OW_UNRELEASED_RE='\\\[\(?unreleased'
+
+# one_world_scan <file>... -> "ONE-WORLD <shape> <file>:<line>" per hit; nothing
+# else on stdout. An empty file list is a hard failure (exit 2).
+one_world_scan() {
+  [[ "$#" -gt 0 ]] || { echo "one_world_scan: empty file list" >&2; return 2; }
+  OW_MOVING_REF_RE="$OW_MOVING_REF_RE" OW_LAST_INDEX_RE="$OW_LAST_INDEX_RE" OW_UNRELEASED_RE="$OW_UNRELEASED_RE" awk '
+    function hit(shape) { print "ONE-WORLD " shape " " FILENAME ":" FNR }
+    FNR == 1 { prev = "" }
+    {
+      line = $0
+      exempt = (index(line, "one-world-ok:") > 0) || (index(prev, "one-world-ok:") > 0)
+      prev = line
+      if (exempt) next
+      if (line ~ /^[[:space:]]*(#|\/\/)/) next
+      if (line ~ ENVIRON["OW_MOVING_REF_RE"] && index(line, "PROJECT_ROOT") > 0) hit("moving-ref")
+      if (line ~ ENVIRON["OW_LAST_INDEX_RE"] \
+          && (line ~ /(\$PROJECT_ROOT|\$\{PROJECT_ROOT\})\/docs\/ai\/(decisions|EVENTS|METRICS)\.jsonl/ \
+              || line ~ /(^|[^\/A-Za-z0-9_.-])docs\/ai\/(decisions|EVENTS|METRICS)\.jsonl/)) hit("last-index")
+      if (line ~ ENVIRON["OW_UNRELEASED_RE"] && index(line, "unreleased|") == 0 && index(line, "unreleased\\]|") == 0 && index(line, "unreleased\\\\]|") == 0 \
+          && (line ~ /(\$PROJECT_ROOT|\$\{PROJECT_ROOT\})\/CHANGELOG\.md/ || line ~ /(^|[[:space:]])CHANGELOG\.md/)) hit("unreleased-only")
+    }
+  ' "$@"
+}
+
+test_4139_one_world_scan_bites() {
+  log_info "Test: one_world_scan names each one-world shape and none of the controls (TEST-4139)..."
+  local d out f
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+  d="$TEST_DIR/t4139"
+  [[ "$TEST_DIR" == /* ]] || log_fail "TEST-4139: scratch dir is not absolute"
+  mkdir -p "$d"
+  # one planted file per shape
+  printf '%s\n' 'git -C "$PROJECT_ROOT" show origin/main:docs/x.md > "$out"' > "$d/p-moving.sh"  # one-world-ok: planted scan input
+  printf '%s\n' 'last="$(tail -1 "$PROJECT_ROOT/docs/ai/decisions.jsonl")"' > "$d/p-last.sh"  # one-world-ok: planted scan input
+  printf '%s\n' 'last="$(tail -n1 "${PROJECT_ROOT}/docs/ai/EVENTS.jsonl")"' > "$d/p-last-braced.sh"  # one-world-ok: planted scan input
+  printf '%s\n' 'last="$(tail -n 1 docs/ai/METRICS.jsonl)"' > "$d/p-last-bare.sh"  # one-world-ok: planted scan input
+  printf '%s\n' "grep -q '\\[unreleased\\]' \"\$PROJECT_ROOT/CHANGELOG.md\"" > "$d/p-unreleased.sh"  # one-world-ok: planted scan input
+  # controls: the dual form (plain and regex-escaped), a fixture-path ledger, a fixture-repo origin/main, a marked line, a comment line
+  printf '%s\n' "grep -qE '^## \\[(unreleased|v[0-9.]+)\\]' \"\$PROJECT_ROOT/CHANGELOG.md\"" > "$d/c-dual.sh"  # one-world-ok: planted scan input
+  printf '%s\n' "grep -qE '^## (\\[unreleased\\]|\\[v?[0-9]{4}\\]) x' \"\$PROJECT_ROOT/CHANGELOG.md\"" > "$d/c-dual-esc.sh"  # one-world-ok: planted scan input
+  printf '%s\n' 'last="$(tail -1 "$fx/docs/ai/decisions.jsonl")"' > "$d/c-fixture-ledger.sh"  # one-world-ok: planted scan input
+  printf '%s\n' 'git -C "$fixture_repo" show origin/main:docs/x.md > "$out"' > "$d/c-fixture-ref.sh"  # one-world-ok: planted scan input
+  printf '%s\n' '# one-world-ok: holds in both worlds' 'git -C "$PROJECT_ROOT" show origin/main:docs/x.md > "$out"' > "$d/c-marked.sh"  # one-world-ok: planted scan input
+  printf '%s\n' '# git -C "$PROJECT_ROOT" show origin/main:docs/x.md > "$out"' > "$d/c-comment.sh"  # one-world-ok: planted scan input
+  out="$(one_world_scan "$d"/p-*.sh "$d"/c-*.sh)" || log_fail "TEST-4139: the scan exited non-zero over the planted files"
+  [[ "$out" == *"ONE-WORLD moving-ref $d/p-moving.sh:1"* ]] || log_fail "TEST-4139: moving-ref plant not named: $out"
+  [[ "$out" == *"ONE-WORLD last-index $d/p-last.sh:1"* ]] || log_fail "TEST-4139: last-index plant not named: $out"
+  [[ "$out" == *"ONE-WORLD last-index $d/p-last-braced.sh:1"* ]] || log_fail "TEST-4139: braced last-index plant not named: $out"
+  [[ "$out" == *"ONE-WORLD last-index $d/p-last-bare.sh:1"* ]] || log_fail "TEST-4139: bare last-index plant not named: $out"
+  [[ "$out" == *"ONE-WORLD unreleased-only $d/p-unreleased.sh:1"* ]] || log_fail "TEST-4139: unreleased-only plant not named: $out"
+  for f in c-dual c-dual-esc c-fixture-ledger c-fixture-ref c-marked c-comment; do
+    [[ "$out" != *"$d/$f.sh"* ]] || log_fail "TEST-4139: the control $f was named: $out"
+  done
+  [[ "$(printf '%s\n' "$out" | grep -c '^ONE-WORLD ' || true)" -eq 5 ]] || log_fail "TEST-4139: expected exactly five ONE-WORLD lines: $out"
+  local rc=0; one_world_scan >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-4139: an empty file list must be a hard failure"
+  rm -rf "$d"
+  log_pass "one_world_scan names the three planted shapes (and the bare and braced ledger forms) and none of the six controls (TEST-4139)"
+}
+
+test_4140_one_world_live_corpus_clean() {
+  log_info "Test: no live test pins an assertion to one world (TEST-4140)..."
+  local files=() f out
+  for f in "$PROJECT_ROOT"/tests/skills/*.sh "$PROJECT_ROOT"/tests/*.sh "$PROJECT_ROOT"/tests/skills/lib/*.sh "$PROJECT_ROOT"/tests/skills/lib/*.mjs; do
+    [[ -f "$f" ]] && files+=("$f")
+  done
+  [[ "${#files[@]}" -ge 100 ]] || log_fail "TEST-4140: the scan saw only ${#files[@]} files"
+  out="$(one_world_scan "${files[@]}")" || log_fail "TEST-4140: the scan exited non-zero"
+  [[ -z "$out" ]] || log_fail "TEST-4140: assertions pinned to one world (mark with one-world-ok: <reason> or fix): $out"
+  log_pass "one_world_scan over ${#files[@]} live test files prints no line (TEST-4140)"
+}
+
 # The cases whose subject is the whole checkout or a whole tree (the git index,
 # all of docs/specs, all suite files, the run ledgers). They run in
 # tests/skills/test-aai-hygiene-corpus.sh, which sources this file; main()
@@ -6370,6 +6451,7 @@ HYGIENE_CORPUS_CASES="
   test_138_ci_node_pins
   test_815_suite_map_and_registration
   test_4025_kept_native_gate_and_bite
+  test_4140_one_world_live_corpus_clean
 "
 
 main() {
@@ -6441,6 +6523,7 @@ main() {
   test_817_marker_order_and_ownership_are_exact
   test_818_ps1_upgrade_is_byte_exact_and_order_checked
   test_819_nonregular_slot_is_refused_before_any_write
+  test_4139_one_world_scan_bites
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

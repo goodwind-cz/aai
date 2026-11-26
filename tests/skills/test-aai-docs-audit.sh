@@ -8706,12 +8706,14 @@ DOCS_AUDIT_CONTENT_CASES="
 # SPEC docs-audit-content-engine-split: case inventory, input closure, e2e.
 # ---------------------------------------------------------------------------
 
-# Names registered in a main() read from stdin: bare two-space-indented words.
+# Names registered in a main() (the baseline form) or in the DA_MAIN_STEPS array
+# (the test-infra-p2-fixes form, D7) read from stdin: bare two-space-indented words.
 docs_audit_main_names() {
   awk '
     /^main\(\) \{/ { on = 1; next }
-    on && /^}/ { on = 0 }
-    on && /^  [a-z][a-z0-9_]*$/ && $1 != "fi" { print $1 }
+    /^DA_MAIN_STEPS=\(/ { on = 1; next }
+    on && (/^}/ || /^\)/) { on = 0 }
+    on && /^  [a-z][a-z0-9_]*$/ && $1 != "fi" && $1 != "done" { print $1 }
   '
 }
 
@@ -10104,12 +10106,87 @@ test_4074_changelog_and_product_doc() {  # TEST-4074 / Spec-AC-05
   log_pass "CHANGELOG heading and product doc are in place (TEST-4074)"
 }
 
-main() {
-  if [[ $# -gt 0 ]]; then
-    "$1"
-    return
+# test-infra-p2-fixes D6 — a scanned document that vanishes between the scan
+# and its read degrades to a NOTE; the verdict is the one the run gives when
+# the file was never there.
+test_4136_vanished_doc_degrades() {  # TEST-4136 / Spec-AC-07
+  log_info "Test: a doc that vanishes mid-scan is skipped with a NOTE, same exit code, no ENOENT (TEST-4136)..."
+  igs_own_root
+  local d base_rc=0 van_rc=0 pre
+  d="$(setup_iso_repo v4136)"
+  mkdir -p "$d/docs/issues"
+  printf 'legacy_until_date: 2020-01-01\nstale_after_days: 90\nscan_exclude: []\nbacklog_globs: []\nclose_gate: report-only\ndoc_number_guard: report-only\nprotected_paths_l3: []\n' > "$d/docs/ai/docs-audit.yaml"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  printf -- '---\nid: issue-v4136-keep\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n# Keep\n' > "$d/docs/issues/ISSUE-DRAFT-keep.md"
+  (cd "$d" && git add -A && git commit -qm base) || log_fail "TEST-4136: fixture commit failed"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event) > "$d/base.out" 2> "$d/base.err" || base_rc=$?
+  # plant the draft that will vanish; a preload unlinks it on its first read
+  printf -- '---\nid: issue-v4136-gone\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n# Gone\n' > "$d/docs/issues/ISSUE-DRAFT-gone.md"
+  pre="$d/vanish-preload.mjs"
+  cat > "$pre" <<'JS'
+import { createRequire } from 'node:module';
+const fs = createRequire(import.meta.url)('node:fs');
+const real = fs.readFileSync;
+let armed = true;
+fs.readFileSync = function (p, ...rest) {
+  if (armed && typeof p === 'string' && p.endsWith('ISSUE-DRAFT-gone.md')) {
+    armed = false;
+    fs.unlinkSync(p);
+  }
+  return real.call(this, p, ...rest);
+};
+JS
+  (cd "$d" && node --import "$pre" .aai/scripts/docs-audit.mjs --check --no-event) > "$d/van.out" 2> "$d/van.err" || van_rc=$?
+  [[ -f "$d/docs/issues/ISSUE-DRAFT-gone.md" ]] && log_fail "TEST-4136: setup invalid - the preload did not remove the planted draft"
+  [[ "$van_rc" == "$base_rc" ]] || log_fail "TEST-4136: exit code must equal the run without the file (base $base_rc, vanished $van_rc): $(head -c 400 "$d/van.err")"
+  grep -qF "NOTE: vanished during the scan" "$d/van.out" || log_fail "TEST-4136: stdout must carry the NOTE line: $(head -c 400 "$d/van.out") / $(head -c 400 "$d/van.err")"
+  grep -qF "ISSUE-DRAFT-gone.md" "$d/van.out" || log_fail "TEST-4136: the NOTE must name the vanished file"
+  if grep -qF "ENOENT" "$d/van.out" "$d/van.err"; then log_fail "TEST-4136: no ENOENT error may be printed: $(head -c 400 "$d/van.err")"; fi
+  if grep -qF "vanished" "$d/base.out"; then log_fail "TEST-4136: the baseline run must carry no NOTE"; fi
+  rm -rf "$d"
+  igs_release_root
+  log_pass "A vanished doc degrades to a NOTE and the verdict is unchanged (TEST-4136)"
+}
+
+# test-infra-p2-fixes D7 - a selected arm replays its setup steps and declared
+# producers, so a fixture-dependent arm runs alone. Nested selector runs of this
+# suite, each in its own fixture.
+test_4137_selected_arm_replays_its_setup() {  # TEST-4137 / Spec-AC-08
+  log_info "Test: a single selected arm replays its setup steps and producers (TEST-4137)..."
+  igs_own_root
+  local d="$TEST_DIR/n4137" fn rc
+  mkdir -p "$d"
+  for fn in test_drift_verdicts test_reviewby_literals; do
+    rc=0
+    env -u AAI_ROLE bash "$SUITE_FILE" "$fn" > "$d/$fn.out" 2> "$d/$fn.err" || rc=$?
+    [[ "$rc" == "0" ]] || log_fail "TEST-4137: selecting $fn must exit 0, got $rc: $(head -c 300 "$d/$fn.out") / $(head -c 300 "$d/$fn.err")"
+  done
+  grep -qF "All drift verdicts correct" "$d/test_drift_verdicts.out" \
+    || log_fail "TEST-4137: the drift run must print the test_drift_verdicts pass text"
+  grep -qF "Review-By literals and combos accepted" "$d/test_reviewby_literals.out" \
+    || log_fail "TEST-4137: the review-by run must print the test_reviewby_literals pass text"
+  if grep -qF "Report-only mode is lenient" "$d/test_drift_verdicts.out"; then
+    log_fail "TEST-4137: the drift run must not run test_report_only_without_config"
   fi
-  echo "Testing $TEST_NAME skill (engine + fixtures)"
+  if grep -qF "Testing $TEST_NAME skill" "$d/test_drift_verdicts.out" || grep -qF "All $TEST_NAME tests passed" "$d/test_drift_verdicts.out"; then
+    log_fail "TEST-4137: a selected run must not print the full-suite banner"
+  fi
+  rc=0
+  env -u AAI_ROLE bash "$SUITE_FILE" test_no_such_arm_4137 > "$d/undef.out" 2> "$d/undef.err" || rc=$?
+  [[ "$rc" == "2" ]] || log_fail "TEST-4137: an undefined name must exit 2, got $rc"
+  grep -qF "unknown test function" "$d/undef.err" || log_fail "TEST-4137: an undefined name must say unknown test function"
+  rc=0
+  env -u AAI_ROLE bash "$SUITE_FILE" "" > "$d/empty.out" 2> "$d/empty.err" || rc=$?
+  [[ "$rc" != "0" ]] || log_fail "TEST-4137: an empty selector must be a hard failure"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "A selected arm replays its setup steps and declared producers; unknown and empty selectors fail (TEST-4137)"
+}
+
+# The no-argument run order (D7 of test-infra-p2-fixes). One entry per line,
+# two-space indented, so docs_audit_main_names reads it. main() iterates it and
+# da_replay_setup replays the setup entries that precede a selected arm.
+DA_MAIN_STEPS=(
   test_broken_refs_selector_isolates
   check_deps
   test_change0007_lint_body_node
@@ -10318,6 +10395,60 @@ main() {
   test_4072_bytes_and_strict_unchanged  # index-schema-warning-prominence
   test_4073_hook_shows_dropped_doc  # index-schema-warning-prominence
   test_4074_changelog_and_product_doc  # index-schema-warning-prominence
+  test_4136_vanished_doc_degrades  # test-infra-p2-fixes
+  test_4137_selected_arm_replays_its_setup  # test-infra-p2-fixes
+)
+
+# Producer arms: a selected arm that reads another arm's output names that arm
+# here, so the selector runs it after the setup steps and before the arm. One
+# case entry per fixture-dependent arm; no other arm is run (a full-prefix
+# replay would run every earlier arm, the confound the selector exists to avoid).
+da_prereqs_of() {
+  case "$1" in
+    test_drift_verdicts) echo test_orphan_split ;;
+    test_quick_mode) echo test_events_emission ;;
+    test_classification_listing) echo test_compound_ids_and_frozen_markers ;;
+  esac
+}
+
+# Run, in DA_MAIN_STEPS order, every setup step positioned before $1 plus the
+# producer arms da_prereqs_of names. A function absent from DA_MAIN_STEPS (a
+# helper-invoked case) replays nothing and is called bare.
+da_replay_setup() {
+  local fn="$1" step p producers listed=0
+  producers="$(da_prereqs_of "$fn")"
+  for step in "${DA_MAIN_STEPS[@]}"; do
+    if [[ "$step" == "$fn" ]]; then listed=1; fi
+  done
+  [[ "$listed" == "1" ]] || return 0
+  for step in "${DA_MAIN_STEPS[@]}"; do
+    if [[ "$step" == "$fn" ]]; then break; fi
+    case "$step" in
+      check_deps|write_config|setup_*) "$step" ;;
+      *) for p in $producers; do
+           if [[ "$step" == "$p" ]]; then "$step"; fi
+         done ;;
+    esac
+  done
+}
+
+da_run_selected() {
+  local fn="$1"
+  declare -F "$fn" >/dev/null || { echo "FAIL: unknown test function: $fn" >&2; exit 2; }
+  da_replay_setup "$fn"
+  "$fn"
+}
+
+main() {
+  if [[ $# -gt 0 ]]; then
+    da_run_selected "$1"
+    return
+  fi
+  echo "Testing $TEST_NAME skill (engine + fixtures)"
+  local step
+  for step in "${DA_MAIN_STEPS[@]}"; do
+    "$step"
+  done
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

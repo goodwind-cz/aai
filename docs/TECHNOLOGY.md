@@ -179,7 +179,17 @@
   `AAI_RESIDUE_IN_TEST=1`; inside a test the cleanup refuses any CLI but the
   AAI test stub. A refusal of the cleanup itself turns the command's 0 into
   exit 13. `tests/skills/test-framework.sh` and `mutation-run.mjs` isolate
-  every suite the same way, with no opt-in.
+  every suite the same way, with no opt-in. The wrapper also
+  always overrides `XDG_CACHE_HOME` (a private directory removed on exit, with
+  no opt-out, so a caller's value, usually the real cache, is not passed on),
+  and the framework gives every suite its own; pwsh keeps its startup profile
+  data under that directory, so a suite can no longer write the real
+  `~/.cache/powershell`. On Linux, when `PLAYWRIGHT_BROWSERS_PATH` is unset the
+  wrapper points it at the caller's own `$XDG_CACHE_HOME/ms-playwright` (or
+  `$HOME/.cache/ms-playwright`), so installed Playwright browsers stay
+  visible; the directory is only read, never created or changed, and a
+  caller-set `PLAYWRIGHT_BROWSERS_PATH` is kept. Other tools that keep
+  installed artefacts under `XDG_CACHE_HOME` need their own path variable.
 
   Temp root and leftover processes (CHANGE test-residue-files-and-processes):
   the wrapper that owns a run (no inherited `AAI_TEST_OWNER`; outside a test,

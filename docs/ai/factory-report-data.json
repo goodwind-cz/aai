@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-26T17:24:59.843Z",
+  "generatedAt": "2026-11-26T17:28:35.518Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 277,
-    "delivered": 716,
+    "rides": 279,
+    "delivered": 718,
     "active_weeks": 22,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (716 closes vs 277 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 716,
-    "delivered_per_week_avg": 32.5,
+    "note": "\"delivered\" counts every work_item_closed event (718 closes vs 279 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 718,
+    "delivered_per_week_avg": 32.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -36,7 +36,7 @@
       "2026-W45": 28,
       "2026-W46": 26,
       "2026-W47": 32,
-      "2026-W48": 18
+      "2026-W48": 20
     },
     "delivered_groups": [
       {
@@ -683,7 +683,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 108,
+        "count": 110,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -791,6 +791,8 @@
           "spec-secrets-gate-false-positives",
           "skill-description-canonical-prompt-pointer",
           "spec-skill-description-canonical-prompt-pointer",
+          "test-infra-p2-fixes",
+          "spec-test-infra-p2-fixes",
           "azure-rejects-doc-number-reservation-push",
           "spec-azure-rejects-doc-number-reservation-push"
         ]
@@ -3655,31 +3657,39 @@
           "lead_time_seconds": null
         },
         {
-          "ref": "azure-rejects-doc-number-reservation-push",
+          "ref": "test-infra-p2-fixes",
+          "lead_time_seconds": 72786
+        },
+        {
+          "ref": "spec-test-infra-p2-fixes",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "azure-rejects-doc-number-reservation-push",
+          "lead_time_seconds": 9884
         },
         {
           "ref": "spec-azure-rejects-doc-number-reservation-push",
           "lead_time_seconds": null
         }
       ],
-      "median_seconds": 8475,
-      "mean_seconds": 73550.8,
-      "measured": 270,
+      "median_seconds": 8573,
+      "mean_seconds": 73314,
+      "measured": 272,
       "unmeasurable": 446
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 4777,
-      "mean": 11138.7,
-      "measured": 275
+      "median": 4792,
+      "mean": 11351.1,
+      "measured": 277
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 601004,
-        "tokens": 63138412
+        "duration_seconds": 606789,
+        "tokens": 63699579
       },
       {
         "role": "Implementation",
@@ -3688,23 +3698,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 313889,
-        "tokens": 28950390
+        "duration_seconds": 316252,
+        "tokens": 29743665
       },
       {
         "role": "Remediation",
-        "duration_seconds": 562996,
+        "duration_seconds": 608944,
         "tokens": 22375197
       },
       {
         "role": "Validation",
-        "duration_seconds": 1076767,
-        "tokens": 83001451
+        "duration_seconds": 1101423,
+        "tokens": 84491393
       },
       {
         "role": "Planning",
-        "duration_seconds": 231781,
-        "tokens": 18467076
+        "duration_seconds": 234143,
+        "tokens": 18779835
       },
       {
         "role": "Other",
@@ -5097,6 +5107,16 @@
         "ref": "skill-description-canonical-prompt-pointer",
         "busy_seconds": 34219,
         "remediation_runs": 2
+      },
+      {
+        "ref": "test-infra-p2-fixes",
+        "busy_seconds": 72305,
+        "remediation_runs": 4
+      },
+      {
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "busy_seconds": 8809,
+        "remediation_runs": 2
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -5106,15 +5126,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 639330,
-      "mean": 1469998.6,
-      "measured": 152
+      "median": 647551,
+      "mean": 1471408.7,
+      "measured": 154
     },
-    "tokens_total": 223439792,
+    "tokens_total": 226596935,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 63138412
+        "tokens": 63699579
       },
       {
         "role": "Implementation",
@@ -5122,7 +5142,7 @@
       },
       {
         "role": "Code Review",
-        "tokens": 28950390
+        "tokens": 29743665
       },
       {
         "role": "Remediation",
@@ -5130,11 +5150,11 @@
       },
       {
         "role": "Validation",
-        "tokens": 83001451
+        "tokens": 84491393
       },
       {
         "role": "Planning",
-        "tokens": 18467076
+        "tokens": 18779835
       },
       {
         "role": "Other",
@@ -5142,8 +5162,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 904,
-      "total_runs": 2003,
+      "runs_with_marker": 921,
+      "total_runs": 2028,
       "pct": 45,
       "by_week": [
         {
@@ -5274,9 +5294,9 @@
         },
         {
           "week": "2026-W48",
-          "runs_with_marker": 54,
-          "total_runs": 60,
-          "pct": 90
+          "runs_with_marker": 71,
+          "total_runs": 85,
+          "pct": 84
         }
       ]
     },
@@ -5284,12 +5304,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 307,
-          "runs_marked": 166,
-          "runs_sentinel": 10,
+          "runs_total": 311,
+          "runs_marked": 169,
+          "runs_sentinel": 11,
           "runs_unmarked": 131,
-          "tokens_total": 63138412,
-          "median_tokens_per_run": 209091,
+          "tokens_total": 63699579,
+          "median_tokens_per_run": 208753,
           "share_pct": 28
         },
         {
@@ -5304,42 +5324,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 395,
-          "runs_marked": 194,
+          "runs_total": 400,
+          "runs_marked": 199,
           "runs_sentinel": 25,
           "runs_unmarked": 176,
-          "tokens_total": 28950390,
-          "median_tokens_per_run": 132449,
+          "tokens_total": 29743665,
+          "median_tokens_per_run": 132952,
           "share_pct": 13
         },
         {
           "role": "Remediation",
-          "runs_total": 370,
+          "runs_total": 376,
           "runs_marked": 143,
-          "runs_sentinel": 48,
-          "runs_unmarked": 179,
+          "runs_sentinel": 50,
+          "runs_unmarked": 183,
           "tokens_total": 22375197,
           "median_tokens_per_run": 146737,
           "share_pct": 10
         },
         {
           "role": "Validation",
-          "runs_total": 572,
-          "runs_marked": 269,
+          "runs_total": 580,
+          "runs_marked": 277,
           "runs_sentinel": 47,
           "runs_unmarked": 256,
-          "tokens_total": 83001451,
-          "median_tokens_per_run": 151860,
+          "tokens_total": 84491393,
+          "median_tokens_per_run": 152852,
           "share_pct": 37
         },
         {
           "role": "Planning",
-          "runs_total": 219,
-          "runs_marked": 102,
-          "runs_sentinel": 15,
+          "runs_total": 221,
+          "runs_marked": 103,
+          "runs_sentinel": 16,
           "runs_unmarked": 102,
-          "tokens_total": 18467076,
-          "median_tokens_per_run": 160949,
+          "tokens_total": 18779835,
+          "median_tokens_per_run": 160981,
           "share_pct": 8
         },
         {
@@ -6199,8 +6219,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 12,
-              "median_tokens": 139459
+              "runs_marked": 15,
+              "median_tokens": 151108
             },
             {
               "role": "Implementation",
@@ -6209,8 +6229,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 12,
-              "median_tokens": 141020
+              "runs_marked": 17,
+              "median_tokens": 156763
             },
             {
               "role": "Remediation",
@@ -6219,13 +6239,13 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 19,
-              "median_tokens": 176296
+              "runs_marked": 27,
+              "median_tokens": 179313
             },
             {
               "role": "Planning",
-              "runs_marked": 3,
-              "median_tokens": 300157
+              "runs_marked": 4,
+              "median_tokens": 302483
             },
             {
               "role": "Other",
@@ -6240,16 +6260,16 @@
   "quality": {
     "first_pass_clean": {
       "clean": 123,
-      "flagged": 251,
+      "flagged": 253,
       "rate_pct": 49
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 125,
       "1": 35,
-      "2": 33,
+      "2": 34,
       "3": 28,
-      "4": 14,
+      "4": 15,
       "5": 6,
       "6": 3,
       "7": 2,
@@ -6258,10 +6278,10 @@
       "15": 1,
       "n/a": 26
     },
-    "avg_validation_fails": 0.5,
+    "avg_validation_fails": 0.6,
     "avg_review_fails": 0.3,
     "verdict_mix": {
-      "PASS": 220,
+      "PASS": 222,
       "null": 57
     },
     "review_events": 27,
@@ -6276,7 +6296,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 98,
+    "field_derived": 100,
     "marker_derived": 36,
     "mixed": 2,
     "no_basis": 141,
@@ -7665,6 +7685,16 @@
         "ref": "skill-description-canonical-prompt-pointer",
         "verdict_source": "field",
         "cost_basis": "total-blended"
+      },
+      {
+        "ref": "test-infra-p2-fixes",
+        "verdict_source": "field",
+        "cost_basis": "mixed"
+      },
+      {
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "verdict_source": "field",
+        "cost_basis": "mixed"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -7840,16 +7870,16 @@
     },
     {
       "week": "2026-W48",
-      "delivered": 18,
+      "delivered": 20,
       "median_lead_time_seconds": 31441,
-      "busy_seconds": 162342,
-      "tokens": 8709381,
-      "first_pass_rate": 17
+      "busy_seconds": 243456,
+      "tokens": 11866524,
+      "first_pass_rate": 13
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 365,
+    "open_count": 369,
     "oldest_age_days": 74,
     "items": [
       {
@@ -7882,14 +7912,6 @@
         "severity": "P3",
         "age_days": 73,
         "what": "branch-guard.mjs:319 -- the GIT_DIR deference in pinDirFast (added for validation round-2 NB-1) has no test a mutation reddens.",
-        "status": "open"
-      },
-      {
-        "id": "fu-prompt-diet-fixture-real-root-race",
-        "ref": "test-framework-sweep",
-        "severity": "P2",
-        "age_days": 73,
-        "what": "a real-tree write hazard, observed under the validator's own concurrency: one regression run of test-aai-docs-audit.sh exited 1 with TEST-005 crashing on ENOENT for docs/issues/prompt-diet-e2e-dry-run. Mechanism: when suites are invoked BARE (outside the framework's per-suite isolation), tests/skills/test-aai-prompt-diet.sh creates and deletes that file in the REAL project root (:34 E2E_DRAFT, created in test_004, removed by rm -f and an EXIT trap), and a concurrent real-tree corpus walk by docs-audit opened it between enumeration and read.",
         "status": "open"
       },
       {
@@ -8074,22 +8096,6 @@
         "severity": "P3",
         "age_days": 69,
         "what": "lib/tree-hash.mjs listTreeFiles -z has no test of its own: reverting it leaves the mutation-gate suite green and no record targets lib/tree-hash.mjs",
-        "status": "open"
-      },
-      {
-        "id": "fu-suite-fail-text-blocks-attribution",
-        "ref": "close-ceremony-sweep",
-        "severity": "P2",
-        "age_days": 69,
-        "what": "a suite whose log_fail wrapper prints no literal FAIL text (test-aai-intake.sh) cannot have a redden attributed by mutation-run, however correct the mutation",
-        "status": "open"
-      },
-      {
-        "id": "fu-docs-audit-suite-has-no-selector",
-        "ref": "close-ceremony-sweep",
-        "severity": "P2",
-        "age_days": 69,
-        "what": "tests/skills/test-aai-docs-audit.sh runs every arm on every invocation, so any mutation targeting a shared file crashes an earlier arm and comes back INCONCLUSIVE",
         "status": "open"
       },
       {
@@ -8282,14 +8288,6 @@
         "severity": "P2",
         "age_days": 62,
         "what": "nothing in the factory runs aai-feedback-status.mjs or the triage engine except /aai-wrap-up",
-        "status": "open"
-      },
-      {
-        "id": "fu-runtests-capture-is-unscored-noise",
-        "ref": "friction-channel-sweep",
-        "severity": "P2",
-        "age_days": 62,
-        "what": "the wrapper's automatic capture supplies confidence: low and no impact on every non-zero exit, including every deliberate TDD RED run",
         "status": "open"
       },
       {
@@ -8618,30 +8616,6 @@
         "severity": "P3",
         "age_days": 54,
         "what": "aai-release's unlogged-PR warning collapses three different situations into one line, so the operator cannot tell a genuine omission from a formatting artefact",
-        "status": "open"
-      },
-      {
-        "id": "fu-assertions-pinned-to-one-world",
-        "ref": "release-v2026-10-02",
-        "severity": "P2",
-        "age_days": 54,
-        "what": "three separate assertions were written so they can only hold in one state of the world, by the very change that produces the other state; there is no check for the shape",
-        "status": "open"
-      },
-      {
-        "id": "fu-lib-graph-narrowing-after-sharding",
-        "ref": "ci-test-selection-narrowing-and-sharding",
-        "severity": "P2",
-        "age_days": 54,
-        "what": "Narrow the shared-lib FULL_RUN rule by the lib reverse-import graph, and shard the selected-mode job too",
-        "status": "open"
-      },
-      {
-        "id": "fu-framework-discover-exit-swallowed",
-        "ref": "ci-test-selection-narrowing-and-sharding",
-        "severity": "P2",
-        "age_days": 54,
-        "what": "test-framework.sh --skill: a missing test file makes discover_tests exit 2 inside < <(...), the exit is lost and the run continues with only the suites listed before it",
         "status": "open"
       },
       {
@@ -9621,14 +9595,6 @@
         "status": "open"
       },
       {
-        "id": "fu-reuse-docs-closure-suites",
-        "ref": "precise-suite-evidence-reuse",
-        "severity": "P2",
-        "age_days": 25,
-        "what": "expensive docs/-closure suites can never be reused (framework-appended test-runs.jsonl, EVENTS/STATE churn, shared-lib prose literals)",
-        "status": "open"
-      },
-      {
         "id": "fu-aai-live-output-normalize",
         "ref": "node-first-small-pairs",
         "severity": "P3",
@@ -10360,7 +10326,7 @@
         "id": "fu-parity-win-odd-root-cause",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "Name the child process of the frozen bash updater that creates the odd root directories on Windows (4 entries per run, AAI-ODD-SEEN UP-01 sh entries=4); the shipped launcher and Node module path create none",
         "status": "open"
       },
@@ -10693,11 +10659,67 @@
         "status": "open"
       },
       {
+        "id": "fu-id-mention-map-swallows-read-errors",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "buildIdMentionDateMap in lib/docs-audit-core.mjs swallows every read error with a bare catch { continue }",
+        "status": "open"
+      },
+      {
+        "id": "fu-friction-stall-tests-share-no-helper",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-004, TEST-005, TEST-655, TEST-659, TEST-4133 and TEST-4134 each wait out a 2s watchdog stall with their own fixture code",
+        "status": "open"
+      },
+      {
+        "id": "fu-docs-audit-producer-order-unchecked",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "da_prereqs_of in test-aai-docs-audit.sh declares producers by hand; a producer missing or placed after its consumer in DA_MAIN_STEPS fails silently into the old single-arm failure",
+        "status": "open"
+      },
+      {
+        "id": "fu-line-ratchets-push-awkward-idioms",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the nested-suite-lint and cd-subshell ratchets are line-based, so new tests are pushed toward temp-file idioms instead of a selector-aware allowance",
+        "status": "open"
+      },
+      {
         "id": "fu-sg-r1-keyword-coverage",
         "ref": "secrets-gate-false-positives",
         "severity": "P3",
         "age_days": 0,
         "what": "R1 (ordinary files) keeps the old keyword set; token/pwd/secret/access_key keys there are not judged, and Spec-AC-26 wording reads broader",
+        "status": "open"
+      },
+      {
+        "id": "fu-docs-audit-gate-note-untested",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the stderr NOTE docs-audit prints in gate and lint-body modes when a doc vanishes mid-walk (D6) has no test; TEST-4136 covers only --check",
+        "status": "open"
+      },
+      {
+        "id": "fu-t4130-probe-scope-vs-pwsh-arm",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the TEST-4130 probe loop scans the whole fake HOME while its real-pwsh arm scans only the fake XDG and fake HOME/.cache",
+        "status": "open"
+      },
+      {
+        "id": "fu-verify-closures-label-order-doc",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "document that a DROPPED or NOT CLOSED label governs the text after it up to the next label; a row with the id before the label is not covered and a mid-table label changes every later row",
         "status": "open"
       },
       {
@@ -10730,6 +10752,46 @@
         "severity": "P3",
         "age_days": 0,
         "what": "No consumer-side step runs sync-harness-skills --check (pointer arm) automatically after aai-sync",
+        "status": "open"
+      },
+      {
+        "id": "fu-fail-wrapper-guard-not-selected",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the FAIL-wrapper guard (TEST-4138) lives in aai-mutation-gate, which select-suites drops for a PR that edits only an existing suite file such as test-aai-intake.sh",
+        "status": "open"
+      },
+      {
+        "id": "fu-runner-xdg-hides-other-tool-caches",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the runner private XDG_CACHE_HOME hides installed artefacts of Linux tools other than Playwright (only PLAYWRIGHT_BROWSERS_PATH is passed through)",
+        "status": "open"
+      },
+      {
+        "id": "fu-test-id-range-reused-across-rides",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-4130..4140 of this ride reuse ids already taken by SPEC-0317 (4123-4135) and SPEC-0318 (4130-4140), merged concurrently; 175 ids now have plan rows in more than one spec (170 on main)",
+        "status": "open"
+      },
+      {
+        "id": "fu-one-world-dual-form-needs-version",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "one_world_scan now accepts an escaped alternation with no version branch, e.g. (\\[unreleased\\]|\\[Unreleased\\]), as a dual form",
+        "status": "open"
+      },
+      {
+        "id": "fu-xdg-fallback-path-is-shared",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "when mktemp fails, aai-run-tests.sh (and test-framework.sh:1305) fall back to the fixed XDG_CACHE_HOME /nonexistent/aai-test-no-xdg-cache, which a root-run wrapped tool can create; it is then shared across runs and never cleaned up",
         "status": "open"
       },
       {
@@ -11107,6 +11169,40 @@
         "remediation_runs": 5,
         "remediation_tokens": 921543,
         "remediation_share_pct": 40
+      },
+      {
+        "ref": "test-infra-p2-fixes",
+        "date_utc": "2026-11-26",
+        "runs_total": 16,
+        "elapsed_wall_seconds": 72659,
+        "agent_seconds": 72305,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 12,
+        "tokens_total": 2425528,
+        "remediation_runs": 4,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
       },
       {
         "ref": "deslop-corpus-honesty",
@@ -14193,6 +14289,40 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "date_utc": "2026-11-26",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 9701,
+        "agent_seconds": 8809,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 731615,
+        "remediation_runs": 2,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },

@@ -1151,6 +1151,24 @@ export function lintBody(content) {
   return findings;
 }
 
+// A scanned document can vanish between the directory scan and its read (a
+// concurrent writer, a draft removed by a test). That is not a finding: the
+// document is skipped and reported by name (degrade-with-NOTE). Only ENOENT is
+// narrowed; every other read error still throws.
+export function readScannedDoc(root, rel, vanished) {
+  try {
+    return fs.readFileSync(path.join(root, rel), 'utf8');
+  } catch (err) {
+    if (err?.code !== 'ENOENT') throw err;
+    vanished.push(rel);
+    return null;
+  }
+}
+
+export function vanishedNoteLine(rel) {
+  return `NOTE: vanished during the scan (not audited): ${rel}`;
+}
+
 export function runAudit(root, { quick = false, scopePath = null, today = new Date(), strict = false, strictTypes = false } = {}) {
   const config = loadConfig(root);
   const mode = quick ? 'quick' : ((config || strict) ? 'enforced' : 'report-only');
@@ -1194,8 +1212,10 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   // live state) — contributes nothing, no false positive.
   const canonicalTrace = [];         // [{ rel, id, requirements: [{ id, provenance }] }]
 
+  const vanished = [];
   for (const f of files) {
-    const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
+    const content = readScannedDoc(root, f.rel, vanished);
+    if (content === null) continue;
     const fm = parseFrontmatter(content);
     const ac = parseAcTable(content);
     // SPEC-0011 G4 — near-miss AC table detection (report-only; NEVER hardFail).
@@ -1672,7 +1692,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
     parentProgress, duplicateDocIds, openDecisionDoneDocs, nearMissWarnings,
     reviewClaimUnbacked, missingCloseTelemetry, bodyLint, provenanceDrift,
-    docsAiNonCanon, counts, hardFail,
+    docsAiNonCanon, counts, hardFail, vanished,
   };
 }
 
@@ -1996,9 +2016,13 @@ function gateContent(content, extraMethods) {
 function scanGateEntries(root, { staged = false } = {}) {
   const config = staged ? loadStagedConfig(root) : loadConfig(root);
   const scanExclude = config?.scan_exclude ?? [];
+  const vanished = [];
   const files = staged
     ? readStagedDocSet(root, scanExclude)
-    : scanAuditDocs(root, { scanExclude }).map(f => ({ ...f, content: fs.readFileSync(path.join(root, f.rel), 'utf8') }));
+    : scanAuditDocs(root, { scanExclude })
+      .map(f => ({ ...f, content: readScannedDoc(root, f.rel, vanished) }))
+      .filter(f => f.content !== null);
+  for (const rel of vanished) process.stderr.write(vanishedNoteLine(rel) + '\n');
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
   const entries = files.map(f => {
     const fm = parseFrontmatter(f.content);

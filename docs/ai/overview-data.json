@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-26T17:25:33.309Z",
+  "generatedAt": "2026-11-26T17:28:30.545Z",
   "project": "aai",
   "counts": {
-    "delivered": 389,
+    "delivered": 390,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 221435143
+    "tokens_total": 223860671
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -222,6 +222,19 @@
       "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T113651Z.md"
     },
     {
+      "ref": "test-infra-p2-fixes",
+      "title": "Test infrastructure: close the nine open P2 follow-ups",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0271-test-infra-p2-fixes.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 1205,
+      "token_total": 2425528,
+      "spec": "docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-test-infra-p2-fixes-20261126T153327Z.md"
+    },
+    {
       "ref": "onboarding-tech-contract-and-lint-gaps",
       "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
       "type": "issue",
@@ -245,7 +258,7 @@
       "token_total": 731615,
       "spec": "docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261126T172014Z-azure-rejects-doc-number-reservation-push.md"
     },
     {
       "ref": "node-first-cleanup",
@@ -5306,6 +5319,19 @@
           "review": "docs/ai/reviews/review-skill-description-canonical-prompt-pointer-20261126T113651Z.md"
         },
         {
+          "ref": "test-infra-p2-fixes",
+          "title": "Test infrastructure: close the nine open P2 follow-ups",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0271-test-infra-p2-fixes.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 1205,
+          "token_total": 2425528,
+          "spec": "docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-test-infra-p2-fixes-20261126T153327Z.md"
+        },
+        {
           "ref": "onboarding-tech-contract-and-lint-gaps",
           "title": "Onboarding leaves the technology contract empty and generates a broken lint skill",
           "type": "issue",
@@ -5329,7 +5355,7 @@
           "token_total": 731615,
           "spec": "docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261126T172014Z-azure-rejects-doc-number-reservation-push.md"
         },
         {
           "ref": "node-first-cleanup",

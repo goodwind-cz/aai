@@ -203,10 +203,12 @@ fi
 
 # --- CAPTURE POINT 1 — deterministic friction capture (CHANGE deterministic-
 # friction-capture) ----------------------------------------------------------
-# When the wrapped command fails, append ONE raw schema-v2 observation to the
+# When the wrapped command is killed by the watchdog (a stall; an ordinary
+# non-zero exit is the test's own verdict, not friction), append ONE raw schema-v2 observation to the
 # offline spool via the existing aai-friction.mjs `record` CLI, so the friction
 # loop gathers deterministic evidence no prose hook depends on. RAW only — no
-# ownership judgment here; confidence is `low` and triage stays review-mode.
+# ownership judgment here; the caller passes confidence and impact (a stall is
+# medium/low, signal 3) and triage stays review-mode.
 #
 # NEVER-MASK-THE-CALLER: this helper is best-effort and ALWAYS returns 0; every
 # failure (absent CLI/node, unwritable spool, rejected input) is swallowed so
@@ -222,7 +224,8 @@ fi
 #     write a spool. The spool dir is AAI_FRICTION_SPOOL_DIR when set, else this
 #     script's own repo-root docs/ai/friction.
 aai_capture_friction() {
-  # $1 = exit code (integer), $2 = failure_class (taxonomy enum)
+  # $1 = exit code (integer), $2 = failure_class (taxonomy enum),
+  # $3 = confidence, $4 = impact (schema v2 signal fields)
   [ "${AAI_FRICTION_CAPTURE:-1}" != "0" ] || return 0
   command -v node >/dev/null 2>&1 || return 0
   fc_scriptdir="$AAI_SELF_DIR"
@@ -239,7 +242,7 @@ aai_capture_friction() {
   # JSON-hostile characters (double-quote, backslash, control chars) and cap the
   # length, so a command with odd characters can never produce invalid JSON.
   fc_cmd=$(printf '%s' "$AAI_CMD_DESC" | tr -d '"\\' | tr -d '[:cntrl:]' | cut -c1-180)
-  fc_json=$(printf '{"schema_version":2,"skill_id":"aai-run-tests","skill_phase":"test-execution","failure_class":"%s","expected_behavior":"the wrapped command exits 0 under aai-run-tests","observed_behavior":"wrapped command exited %s: %s","confidence":"low"}' "$2" "$1" "$fc_cmd")
+  fc_json=$(printf '{"schema_version":2,"skill_id":"aai-run-tests","skill_phase":"test-execution","failure_class":"%s","expected_behavior":"the wrapped command exits 0 under aai-run-tests","observed_behavior":"wrapped command exited %s: %s","confidence":"%s","impact":"%s"}' "$2" "$1" "$fc_cmd" "$3" "$4")
   printf '%s' "$fc_json" | AAI_FRICTION_SPOOL_DIR="$fc_dir" node "$fc_cli" record --input - >/dev/null 2>&1 || true
   return 0
 }
@@ -910,9 +913,56 @@ aai_residue_finish() {
   return 0
 }
 
-trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 130' INT
-trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 143' TERM
-trap 'aai_reap_group; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
+# Private XDG_CACHE_HOME (test-infra-p2-fixes D1): pwsh keeps its startup
+# profile data under $XDG_CACHE_HOME/powershell (falling back to
+# $HOME/.cache/powershell), so a caller's cache - usually the owner's real one -
+# must never reach the wrapped command. A caller-provided value is NOT
+# respected and there is no opt-out. An owned run keeps the cache inside its
+# temp root (removed with it); otherwise it is a mktemp directory of its own,
+# and when neither can be made the value is a path that cannot exist.
+AAI_XDG_CACHE_OWN=0
+AAI_XDG_CACHE_DIR=''
+if [ "$AAI_TREE_OWN" -eq 1 ]; then
+  AAI_XDG_CACHE_DIR="$AAI_TREE_ROOT/xdg-cache"
+  mkdir -- "$AAI_XDG_CACHE_DIR" 2>/dev/null || AAI_XDG_CACHE_DIR=''
+fi
+if [ -z "$AAI_XDG_CACHE_DIR" ]; then
+  AAI_XDG_CACHE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/aai-xdg-cache.XXXXXX" 2>/dev/null) || AAI_XDG_CACHE_DIR=''
+  if [ -n "$AAI_XDG_CACHE_DIR" ]; then AAI_XDG_CACHE_OWN=1; fi
+fi
+[ -n "$AAI_XDG_CACHE_DIR" ] || AAI_XDG_CACHE_DIR='/nonexistent/aai-test-no-xdg-cache'
+# Tool paths that follow XDG_CACHE_HOME: on Linux Playwright keeps its browsers
+# under $XDG_CACHE_HOME/ms-playwright, so the private cache would hide the
+# ones the caller installed. When PLAYWRIGHT_BROWSERS_PATH is unset it is
+# pointed at the caller's own location (read-only pass-through: the wrapper
+# never creates or changes that directory); a caller value is kept. Off Linux
+# Playwright does not use XDG_CACHE_HOME, so nothing is exported there.
+if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ "$UNAME_S" = Linux ]; then
+  if [ -n "${XDG_CACHE_HOME:-}" ]; then
+    PLAYWRIGHT_BROWSERS_PATH="$XDG_CACHE_HOME/ms-playwright"
+    export PLAYWRIGHT_BROWSERS_PATH
+  elif [ -n "${HOME:-}" ]; then
+    PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright"
+    export PLAYWRIGHT_BROWSERS_PATH
+  fi
+fi
+XDG_CACHE_HOME="$AAI_XDG_CACHE_DIR"
+export XDG_CACHE_HOME
+
+# aai_xdg_cache_finish - once: remove the mktemp cache this wrapper made. Only
+# an absolute path whose basename starts with aai-xdg-cache. is ever removed.
+aai_xdg_cache_finish() {
+  [ "$AAI_XDG_CACHE_OWN" -eq 1 ] || return 0
+  AAI_XDG_CACHE_OWN=0
+  case "$AAI_XDG_CACHE_DIR" in
+    /*/aai-xdg-cache.*) rm -rf -- "$AAI_XDG_CACHE_DIR" 2>/dev/null ;;
+  esac
+  return 0
+}
+
+trap 'aai_reap_group; aai_xdg_cache_finish; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 130' INT
+trap 'aai_reap_group; aai_xdg_cache_finish; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 143' TERM
+trap 'aai_reap_group; aai_xdg_cache_finish; aai_tree_finish; aai_iso_cleanup; aai_residue_finish; exit 129' HUP
 
 # Launch the command as the leader of a NEW session / process group so that even
 # descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
@@ -1015,13 +1065,6 @@ WATCHDOG_PID=$!
 # Wait for the command; capture its REAL exit status.
 wait "$CMD_PID"
 STATUS=$?
-# AAI_CMD_REAL_STATUS is the wrapped command's own exit status, fixed here
-# before anything below (namely the AAI_SHIPPING_WRITE_FATAL escalation to 12
-# further down) can overwrite $STATUS. Friction capture at the tail of this
-# script must judge the wrapped command by this value, not by the wrapper's
-# own final exit code - a dirty-but-successful ad-hoc command escalated to 12
-# did not fail, and must never be recorded as a deterministic_script_failure.
-AAI_CMD_REAL_STATUS=$STATUS
 
 # Stop the watchdog (it may already have exited).
 kill "$WATCHDOG_PID" 2>/dev/null
@@ -1038,6 +1081,7 @@ rm -f "$TIMED_OUT_FILE"
 # is TERM'd, then KILL'd after a short grace - the same aai_reap_group the
 # signal traps above now call, so this path and a Ctrl-C cannot disagree.
 aai_reap_group
+aai_xdg_cache_finish
 
 # Leftover processes and the temp root of an owned run (after the group reap,
 # so only what escaped the group is left to prove and signal).
@@ -1118,10 +1162,7 @@ fi
 
 if [ "$TIMED_OUT" -eq 1 ]; then
   echo "aai-run-tests: TIMED OUT after ${TIMEOUT}s with no progress -- raise the ceiling with AAI_TEST_TIMEOUT=<seconds>" >&2
-  aai_capture_friction 124 stalled_progress
+  aai_capture_friction 124 stalled_progress medium low
   exit 124
-fi
-if [ "$AAI_CMD_REAL_STATUS" -ne 0 ]; then
-  aai_capture_friction "$AAI_CMD_REAL_STATUS" deterministic_script_failure
 fi
 exit "$STATUS"

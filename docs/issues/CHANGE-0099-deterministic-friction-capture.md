@@ -130,3 +130,26 @@ links:
   two script edits plus a pin suite, fully covered by the AC table above and the
   new deterministic test file — a separate frozen spec would add ceremony without
   adding measurable AC coverage.
+
+## Amendment 2026-11-25 (test-infra-p2-fixes)
+
+Additive. The original text above stays as written. This section withdraws one
+acceptance criterion.
+
+- Original AC-001: "a failing command (exit N != 0, non-timeout) through
+  `aai-run-tests.sh` appends exactly one observation with `skill_id:
+  aai-run-tests` and `failure_class: deterministic_script_failure`; the wrapper
+  still exits N."
+- New rule (test-infra-p2-fixes D4): an ordinary non-zero exit of the wrapped
+  command is the test's own verdict, not friction. A failing non-timeout
+  command records zero observations and the wrapper still exits N. Only a
+  watchdog stall is recorded (AC-002), now with confidence `medium` and impact
+  `low`, so one stall is retained and a repeat reaches `review_candidate`.
+- Edited tests: `tests/skills/test-aai-friction-capture-points.sh` TEST-001
+  asserts zero records for a failing command; TEST-004 and TEST-005 drive a
+  timed-out command (`AAI_TEST_TIMEOUT=2`, `sleep 30`) so their gates are
+  still exercised. New TEST-4133 and TEST-4134 pin the zero-record and the
+  stall-signal behavior.
+
+Canon assigns this scope change to HITL. No prior sign-off was obtained; the
+owner may reverse it.
