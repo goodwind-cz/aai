@@ -2520,12 +2520,14 @@ test_4048_cleanup_wiring() {  # Spec-AC-12 / TEST-4048
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-cleanup-wiring.XXXXXX")"
   ( cd "$PROJECT_ROOT" && node .aai/scripts/spec-amend.mjs list --json --status all --strict ) > "$tmp/out.json" 2> "$tmp/err.txt" \
     || { cat "$tmp/err.txt" >&2; rm -rf "$tmp"; log_fail "TEST-4048: spec-amend list --strict did not exit 0"; }
-  out="$(cat "$tmp/out.json")"; rm -rf "$tmp"
-  missing="$(printf '%s' "$out" | node -e '
-    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  # the list is large (over 800 KB) and grows with the ledger: the checker reads the file itself, never a shell variable (holding it in
+  # bash and printf-piping it aborted on the Ubuntu runner with glibc "double free or corruption", fu-suite-select-test4048-heap-crash)
+  missing="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const have = new Set(j.items.filter((r) => r.ref_id === "node-first-cleanup").map((r) => (/SPEC-(\d{4})-/.exec(r.spec || "") || [])[1]));
     process.stdout.write(["0310", "0281", "0307", "0306", "0283", "0308", "0284", "0279", "0311"].filter((x) => !have.has(x)).join(" "));
-  ')" || log_fail "TEST-4048: the amendment list was not parseable"
+  ' "$tmp/out.json")" || { rm -rf "$tmp"; log_fail "TEST-4048: the amendment list was not parseable"; }
+  rm -rf "$tmp"
   [[ -z "$missing" ]] || log_fail "TEST-4048: no node-first-cleanup amendment record for SPEC-$missing"
   log_pass "TEST-4048 (heading, four changes, spec-amend list --strict exit 0, nine D-AMEND records)"
 }

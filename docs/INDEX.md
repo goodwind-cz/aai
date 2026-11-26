@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (51)
+## Product (52)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -53,6 +53,7 @@ _None._
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
 | pre-commit-installer-on-node | pre-commit-installer-on-node | 1 | docs/product/pre-commit-installer-on-node.md |
+| pre-commit-secrets-gate | pre-commit-secrets-gate | 1 | docs/product/pre-commit-secrets-gate.md |
 | precise-suite-evidence-reuse | precise-suite-evidence-reuse | 4 | docs/product/precise-suite-evidence-reuse.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
@@ -73,7 +74,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (707)
+## Done (709)
 
 | ID | Type | Path |
 |---|---|---|
@@ -448,6 +449,7 @@ _None._
 | ISSUE-0123 | issues | docs/issues/ISSUE-0123-precommit-sentinel-trap.md |
 | ISSUE-0124 | issues | docs/issues/ISSUE-0124-precommit-residual-defects.md |
 | ISSUE-0125 | issues | docs/issues/ISSUE-0125-index-schema-warning-prominence.md |
+| ISSUE-0126 | issues | docs/issues/ISSUE-0126-secrets-gate-false-positives.md |
 | ISSUE-0127 | issues | docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
@@ -780,6 +782,7 @@ _None._
 | SPEC-0313 | specs | docs/specs/SPEC-0313-spec-node-first-cleanup.md |
 | SPEC-0314 | specs | docs/specs/SPEC-0314-spec-index-schema-warning-prominence.md |
 | SPEC-0315 | specs | docs/specs/SPEC-0315-spec-mutation-tooling-p2-fixes.md |
+| SPEC-0316 | specs | docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md |
 | SPEC-0317 | specs | docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md |
 | SPEC-0318 | specs | docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
@@ -817,7 +820,7 @@ _None._
 
 _None._
 
-## Broken references (622)
+## Broken references (627)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1307,6 +1310,11 @@ _None._
 | tests/skills/test-aai-planning-probes.sh | docs/ai/briefs/CHANGE-0113.md | NOT FOUND |
 | tests/skills/test-aai-planning-probes.sh | docs/analysis/altitude-disposition-PLANNING.md | NOT FOUND |
 | tests/skills/test-aai-planning-probes.sh | docs/specs/SPEC-DRAFT-x.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/issues/CHANGE-DRAFT-x.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/pk-mention.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/pk-prose.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/secret-rotation.md | NOT FOUND |
+| tests/skills/test-aai-pre-commit-checks.sh | docs/specs/SPEC-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/canonical/auth.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/issues/CHANGE-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/cap-t013.md | NOT FOUND |

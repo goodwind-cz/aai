@@ -3,7 +3,8 @@
 # Test: aai-pre-commit-checks
 # (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461; the later cases TEST-3831..3868
 # and TEST-3871..3882 belong to the staged-content and batched-read specs, TEST-3883..3887 to
-# spec-precommit-sentinel-trap, TEST-3918..3922 to spec-precommit-residual-defects)
+# spec-precommit-sentinel-trap, TEST-3918..3922 to spec-precommit-residual-defects, TEST-4080..4112 to
+# secrets-gate-false-positives)
 #
 # Two things: the PowerShell pre-commit checks are a deprecation launcher (one retired line
 # naming pre-commit-checks.sh, exit 1), and the bash checks no longer pipe into an
@@ -235,9 +236,14 @@ test_3454_small_input_parity() {
   # then +50 -9 from precommit-residual-defects (the read-and-count loop with one re-read, a pipe probe before the batch read, STATE matched in the
   # shell, line lists walked by parameter expansion, tools looked up in a subshell);
   # then +1 -1 from node-first-leftovers (D-BOM: the doc_number_guard grep accepts an optional leading BOM);
-  # the seven fixtures above stay byte-identical.
-  [[ "$numstat" == "243 40" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '243 40'"
-  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 243 added and 40 removed lines"
+  # the seven fixtures above stay byte-identical;
+  # then +620 -42 in total after secrets-gate-false-positives (CHECK 2 rewritten: value-shape rules, key-file and NUL name block, the
+  # reviewed allowlist read from the index, fingerprints; the awk programs and their grep prefilter),
+  # then +45 -0 from its VALIDATION r1 remediation (NUL-free awk copy of a blob, R5 real-dotenv rule, bracket-only catch-all globs),
+  # then +101 -0 from its VALIDATION r3 remediation (inline private key markers, R6 any-key judging in name-hit files, bracket expression parser),
+  # then +10 -0 from its VALIDATION r4 remediation (a letters-only value under a keyword key blocks unless it is a short capitalised label)
+  [[ "$numstat" == "777 42" ]] || log_fail "TEST-3454 (TEST-3877 pin): git diff --numstat $BASE_SHA on the script reads '$numstat', expected '777 42'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 767 added and 42 removed lines"
 }
 
 # shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
@@ -516,8 +522,12 @@ test_3461_line_budget_and_follow_up() {
   # then 472/357 after its VALIDATION r3 B3 fix (descriptor-safe reads, independent count cross-checks, scan-open
   # checks, +47/+32), then 480/360 after its VALIDATION r4 remediation (+8/+3), then 485/361 after
   # precommit-sentinel-trap (PCC_PARSED initialised, +5/+1), then 526/390 after precommit-residual-defects (the
-  # re-read loop, a pipe probe, in-shell STATE matches, parameter-expansion line walks, +41/+29).
-  [[ "$sh_t" == 526 && "$sh_c" == 390 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 526 and 390"
+  # re-read loop, a pipe probe, in-shell STATE matches, parameter-expansion line walks, +41/+29), then 901/747 after
+  # secrets-gate-false-positives (CHECK 2 rewritten: the value-shape awk program, the allowlist read and parse, fingerprints, +375/+357),
+  # then 947/788 after its VALIDATION r1 remediation (NUL-free awk copy, R5 real-dotenv rule, bracket-only catch-all globs, +45/+41),
+  # then 1048/887 after its VALIDATION r3 remediation (inline private key markers, R6 any-key judging in name-hit files, bracket expression parser, +101/+99),
+  # then 1058/897 after its VALIDATION r4 remediation (keyword-key judging of letters-only values, +10/+10).
+  [[ "$sh_t" == 1058 && "$sh_c" == 897 ]] || log_fail "TEST-3461 (TEST-3877 pin): pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 1058 and 897"
   node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -588,18 +598,43 @@ test_3832_content_scan_reads_staged_blob() {
   log_pass "TEST-3832: the content scan reads the staged blob, inside and outside the evidence folders"
 }
 
+# sg_value: a credential-shaped value, assembled at run time so this suite does not trip CHECK 2 itself.
+sg_value() { printf '%s%s' q7Rk2xZ p9LmW4n; }
+
+# sg_line <path>: the one line a name-hit fixture holds when it must be a finding (JSON for .json, dotenv otherwise).
+sg_line() {
+  case "$1" in
+    *.json) printf '{"%s": "%s"}' password "$(sg_value)" ;;
+    *) printf '%s=%s' DB_PASSWORD "$(sg_value)" ;;
+  esac
+}
+
 test_3833_sensitive_names_still_blocked() {
   local p fx i=0 n
-  for p in .env .env.local config/credentials.json keys/secret.key docs/ai/validation/.env docs/ai/tdd/.env.prod; do
+  # secrets-gate-false-positives (D-NAME, D-KEYFILE): a name hit holding nothing credential-shaped passes; one holding
+  # a real-looking value blocks by content; a key file still blocks by name whatever it holds.
+  for p in .env .env.local config/credentials.json docs/ai/validation/.env docs/ai/tdd/.env.prod; do
     i=$((i + 1))
     fx="$TEST_DIR/t3833-$i"
     make_fx "$fx"
     stage_file "$fx" "$p" "harmless"
     run_checks "$fx"
-    n="$(count_in "$OUT" "$SENSITIVE: $p")"
-    [[ "$RC" == 1 && "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3833: staged $p exited $RC with $n '$SENSITIVE: $p' line(s), expected 1 and 1"; }
+    [[ "$RC" == 0 && "$(count_in "$OUT" "$SENSITIVE")" == 0 && "$(count_in "$OUT" "$SECRET_HIT")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3833: staged $p holding harmless exited $RC, expected a pass with no secret line"; }
+    fx="$TEST_DIR/t3833-v$i"
+    make_fx "$fx"
+    stage_file "$fx" "$p" "$(sg_line "$p")"
+    run_checks "$fx"
+    n="$(count_in "$OUT" "$SECRET_HIT $p")"
+    [[ "$RC" == 1 && "$n" == 1 && "$(count_in "$OUT" "$SENSITIVE")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3833: staged $p holding a real-looking value exited $RC with $n '$SECRET_HIT $p' line(s), expected 1 and 1"; }
   done
-  log_pass "TEST-3833: .env, .env.local, credentials.json, secret.key and dotenv files inside evidence folders are still blocked by name"
+  p=keys/secret.key
+  fx="$TEST_DIR/t3833-key"
+  make_fx "$fx"
+  stage_file "$fx" "$p" "harmless"
+  run_checks "$fx"
+  n="$(count_in "$OUT" "$SENSITIVE: $p")"
+  [[ "$RC" == 1 && "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3833: staged $p exited $RC with $n '$SENSITIVE: $p' line(s), expected 1 and 1"; }
+  log_pass "TEST-3833: .env, .env.local, credentials.json and dotenv files inside evidence folders pass holding harmless text and block by content holding a value; secret.key still blocks by name"
 }
 
 # --- hook-gate-staged-content: every staged file is checked on its staged blob --------------------
@@ -623,14 +658,20 @@ test_3864_deleted_worktree_copy_still_scanned() {
 
 test_3865_suffix_dotenv_blocked_in_evidence() {
   local p fx i=0 n
+  # secrets-gate-false-positives: a *.env basename is still a name hit in each evidence folder, now judged by content.
   for p in docs/ai/tdd/prod.env docs/ai/reports/x.env docs/ai/validation/stage.env docs/ai/reviews/a.env; do
     i=$((i + 1))
     fx="$TEST_DIR/t3865-$i"
     make_fx "$fx"
     stage_file "$fx" "$p" "harmless"
     run_checks "$fx"
-    n="$(count_in "$OUT" "$SENSITIVE: $p")"
-    [[ "$RC" == 1 && "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3865: staged $p exited $RC with $n '$SENSITIVE: $p' line(s), expected 1 and 1"; }
+    [[ "$RC" == 0 && "$(count_in "$OUT" "$SENSITIVE")" == 0 && "$(count_in "$OUT" "$SECRET_HIT")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3865: staged $p holding harmless exited $RC, expected a pass"; }
+    fx="$TEST_DIR/t3865-v$i"
+    make_fx "$fx"
+    stage_file "$fx" "$p" "$(sg_line "$p")"
+    run_checks "$fx"
+    n="$(count_in "$OUT" "$SECRET_HIT $p")"
+    [[ "$RC" == 1 && "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3865: staged $p holding a real-looking value exited $RC with $n '$SECRET_HIT $p' line(s), expected 1 and 1"; }
   done
   fx="$TEST_DIR/t3865-neg"
   make_fx "$fx"
@@ -638,7 +679,7 @@ test_3865_suffix_dotenv_blocked_in_evidence() {
   run_checks "$fx"
   n="$(count_in "$OUT" "$SENSITIVE")"
   [[ "$RC" == 0 && "$n" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-3865: docs/ai/tdd/environment-notes.txt exited $RC with $n '$SENSITIVE' line(s), expected 0 and 0"; }
-  log_pass "TEST-3865: a *.env basename is blocked by name in each evidence folder; an env-named note is not"
+  log_pass "TEST-3865: a *.env basename in each evidence folder passes holding harmless text and blocks by content holding a value; an env-named note is not a name hit"
 }
 
 test_3866_non_ascii_names_checked() {
@@ -646,13 +687,13 @@ test_3866_non_ascii_names_checked() {
   make_fx "$fx"
   line="$(printf '%s = "%s"' api_key abcdefgh1234)"
   stage_file "$fx" "app/café.txt" "$line"
-  stage_file "$fx" "secrets/clé.txt" "harmless"
+  stage_file "$fx" "secrets/clé.key" "harmless"
   run_checks "$fx"
   [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3866: staged non-ASCII names exited $RC, expected 1"; }
   n="$(count_in "$OUT" "$SECRET_HIT app/café.txt")"
   [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3866: '$SECRET_HIT app/café.txt' printed $n time(s), expected 1"; }
-  n="$(count_in "$OUT" "$SENSITIVE: secrets/clé.txt")"
-  [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3866: '$SENSITIVE: secrets/clé.txt' printed $n time(s), expected 1"; }
+  n="$(count_in "$OUT" "$SENSITIVE: secrets/clé.key")"
+  [[ "$n" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3866: '$SENSITIVE: secrets/clé.key' printed $n time(s), expected 1"; }
   log_pass "TEST-3866: staged names git would quote are checked under their real path (content and name)"
 }
 
@@ -693,6 +734,7 @@ pre_batch_script() {
 # record's status gets one extra leading space, so a record holds five spaces), late (logs like log; right
 # after it answers the first diff --cached --raw it stages late.txt with the real git, standing in for another
 # process changing the index between the script's two list reads).
+# blobfail (secrets-gate-false-positives): `git cat-file blob` exits 128 (the allowlist read from the index fails).
 make_git_wrapper() {
   local d="$1" mode="$2" log="${3:-/dev/null}"
   mkdir -p "$d"
@@ -701,6 +743,7 @@ make_git_wrapper() {
     cat <<'WRAP'
 if [ "$MODE" = log ] || [ "$MODE" = late ]; then printf '%s\n' "$*" >> "$LOG"; fi
 is_batch=0; is_list=0
+if [ "$MODE" = blobfail ]; then case " $* " in *" cat-file blob "*) echo "fatal: simulated failure" >&2; exit 128 ;; esac; fi
 case " $* " in *" cat-file --batch "*) is_batch=1 ;; esac
 case " $* " in *" diff --cached --raw "*) is_list=1 ;; esac
 if [ "$is_batch" = 1 ]; then
@@ -1240,6 +1283,9 @@ test_3922_changelog_and_product_doc() {
   log_pass "TEST-3922: one CHANGELOG heading, and the product doc states the deletion policy"
 }
 
+# sg_strip_detail <file>: the file without the finding detail lines D-OUTPUT adds under each secret hit.
+sg_strip_detail() { sed -E '/^    line [0-9]+, fingerprint [0-9a-f]+$/d;/^    \.\.\. and [0-9]+ more$/d' "$1"; }
+
 # build_ac06 <dir> <script>: the Spec-AC-06 fixture, staged and unstaged shapes in one repository.
 build_ac06() {
   local d="$1" line n sub
@@ -1291,7 +1337,9 @@ test_3876_semantics_match_the_baseline_script() {
   run_with "$a" ""; rca="$RC"; cp "$OUT" "$TEST_DIR/t3876-new.out"; cp "$ERR" "$TEST_DIR/t3876-new.err"
   run_with "$b" ""; rcb="$RC"; cp "$OUT" "$TEST_DIR/t3876-old.out"; cp "$ERR" "$TEST_DIR/t3876-old.err"
   [[ "$rca" == "$rcb" ]] || log_fail "TEST-3876: exit code $rca differs from the 03f3e6df script's $rcb"
-  cmp -s "$TEST_DIR/t3876-new.out" "$TEST_DIR/t3876-old.out" || { diff "$TEST_DIR/t3876-old.out" "$TEST_DIR/t3876-new.out" >&2 || true; log_fail "TEST-3876: stdout differs from the 03f3e6df script"; }
+  # secrets-gate-false-positives (D-AMEND): the new script's finding detail lines are removed from ITS output only
+  sg_strip_detail "$TEST_DIR/t3876-new.out" > "$TEST_DIR/t3876-new.flt"
+  cmp -s "$TEST_DIR/t3876-new.flt" "$TEST_DIR/t3876-old.out" || { diff "$TEST_DIR/t3876-old.out" "$TEST_DIR/t3876-new.flt" >&2 || true; log_fail "TEST-3876: stdout differs from the 03f3e6df script"; }
   cmp -s "$TEST_DIR/t3876-new.err" "$TEST_DIR/t3876-old.err" || log_fail "TEST-3876: stderr differs from the 03f3e6df script"
   [[ "$(count_in "$TEST_DIR/t3876-new.out" "$FAIL_CLOSED")" == 0 ]] || log_fail "TEST-3876: a fail-closed line was printed on the fixture"
   [[ "$(count_in "$TEST_DIR/t3876-new.out" "$SECRET_HIT")" -ge 5 ]] || { cat "$TEST_DIR/t3876-new.out" >&2; log_fail "TEST-3876: positive control: fewer than 5 secret hits, the fixture is not exercising the scan"; }
@@ -1315,7 +1363,8 @@ test_3876_semantics_match_the_baseline_script() {
     ( cd "$gd/.git" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$SH_CHECKS" ) >"$TEST_DIR/t3876-gd-new.out" 2>"$TEST_DIR/t3876-gd-new.err" || rcn=$?
     ( cd "$gd/.git" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$base" ) >"$TEST_DIR/t3876-gd-old.out" 2>"$TEST_DIR/t3876-gd-old.err" || rco=$?
     [[ "$rcn" == "$rco" ]] || { cat "$TEST_DIR/t3876-gd-new.out" >&2; log_fail "TEST-3876: cwd inside .git, $shape shape: exit code $rcn differs from the 03f3e6df script's $rco"; }
-    cmp -s "$TEST_DIR/t3876-gd-new.out" "$TEST_DIR/t3876-gd-old.out" || { diff "$TEST_DIR/t3876-gd-old.out" "$TEST_DIR/t3876-gd-new.out" >&2 || true; log_fail "TEST-3876: cwd inside .git, $shape shape: stdout differs from the 03f3e6df script"; }
+    sg_strip_detail "$TEST_DIR/t3876-gd-new.out" > "$TEST_DIR/t3876-gd-new.flt"
+    cmp -s "$TEST_DIR/t3876-gd-new.flt" "$TEST_DIR/t3876-gd-old.out" || { diff "$TEST_DIR/t3876-gd-old.out" "$TEST_DIR/t3876-gd-new.flt" >&2 || true; log_fail "TEST-3876: cwd inside .git, $shape shape: stdout differs from the 03f3e6df script"; }
     cmp -s "$TEST_DIR/t3876-gd-new.err" "$TEST_DIR/t3876-gd-old.err" || log_fail "TEST-3876: cwd inside .git, $shape shape: stderr differs from the 03f3e6df script"
     if [[ "$shape" == secret ]]; then
       [[ "$rcn" == 1 ]] || log_fail "TEST-3876: cwd inside .git, secret shape: exit $rcn, expected 1 (the staged secret must block)"
@@ -1379,6 +1428,894 @@ test_3879_installed_hook_reads_the_commits_index() {
   [[ "$RC" == 0 ]] || { cat "$TEST_DIR/c3879b.out" >&2; log_fail "TEST-3879: committing 40 clean files through the hook exited $RC"; }
   [[ "$(git -C "$fx" rev-parse HEAD)" != "$head_before" ]] || log_fail "TEST-3879: HEAD did not move for the 40-file commit"
   log_pass "TEST-3879: through the installed hook a partial commit is judged on the commit's own index (blocked, HEAD unmoved) and 40 clean staged files commit"
+}
+
+# --- secrets-gate-false-positives (docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md, TEST-4080..4110) -------
+# CHECK 2 judges values by shape, a name hit selects rules instead of blocking, and a reviewed allowlist read from
+# the index exempts false positives. Every fixture value any rule would flag is assembled at run time (D-FIXTURES),
+# so this suite passes the gate it tests with no allowlist entry (TEST-4100).
+SG_ALLOW="docs/ai/secrets-allowlist.txt"
+SG_ALLOWED_LINE="Secrets allowlist: "
+
+# sg_gen <n>: n deterministic letters and digits (no repeated or placeholder-looking run).
+sg_gen() { awk -v n="$1" 'BEGIN { s = "aB3dE5gH7jK9mN2pQ4sT6vW8yZ1"; o = ""; for (i = 0; i < n; i++) o = o substr(s, (i % 27) + 1, 1); printf "%s", o }'; }
+sg_aws() { printf '%s%s%s' AK IA "$(sg_gen 16 | tr a-z A-Z)"; }
+sg_ghp() { printf '%s_%s' "${1:-ghp}" "$(sg_gen 36)"; }
+sg_pat() { printf '%s_%s_%s_%s' github pat "$(sg_gen 22)" "$(sg_gen 59)"; }
+# sg_block <words incl. trailing blank or empty> [body]: a private key block (header, body line, footer).
+sg_block() { printf '%s%s%s\n%s\n%s%s%s' '-----BEGIN ' "$1" 'PRIVATE KEY-----' "${2:-$(sg_gen 64)}" '-----END ' "$1" 'PRIVATE KEY-----'; }
+
+# sg_count <kind> <path>: lines of the last run's stdout that print exactly that kind and path.
+sg_count() { count_in "$OUT" "$1 $2"$'\033'; }
+
+# sg_found <file>: the paths the file's CHECK 2 lines report as holding a secret.
+sg_found() { sed -n 's/^.*Potential secret detected in \(.*\)'$'\033''\[0m$/\1/p' "$1"; }
+
+# sg_pass <TEST id> <fixture>: the run exits 0 and prints neither a secret nor a sensitive-file line.
+sg_pass() {
+  run_checks "$2"
+  [[ "$RC" == 0 && "$(count_in "$OUT" "$SECRET_HIT")" == 0 && "$(count_in "$OUT" "$SENSITIVE")" == 0 ]] || { cat "$OUT" >&2; log_fail "$1: exit $RC, expected 0 with no '$SECRET_HIT' and no '$SENSITIVE' line"; }
+}
+
+# sg_blocks <TEST id> <fixture> <kind> <path>...: exit 1 and exactly one line of that kind for each path, no other.
+sg_blocks() {
+  local id="$1" fx="$2" kind="$3" p
+  shift 3
+  run_checks "$fx"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "$id: exit $RC, expected 1"; }
+  for p in "$@"; do
+    [[ "$(sg_count "$kind" "$p")" == 1 ]] || { cat "$OUT" >&2; log_fail "$id: '$kind $p' printed $(sg_count "$kind" "$p") time(s), expected 1"; }
+  done
+  [[ "$(count_in "$OUT" "$kind")" == "$#" ]] || { cat "$OUT" >&2; log_fail "$id: $(count_in "$OUT" "$kind") '$kind' line(s), expected $#"; }
+}
+
+# sg_labels <fixture> <value> <key>...: stages one YAML file per key holding key: "value" (assembled).
+sg_stage_kv() { stage_file "$1" "$2" "$(printf '%s: "%s"' "$3" "$4")"; }
+
+test_4080_labels_with_blanks_pass() {
+  local fx="$TEST_DIR/t4080"
+  make_fx "$fx"
+  sg_stage_kv "$fx" locales/en.yml forgotPassword 'Forgot your password?'
+  stage_file "$fx" locales/en.js "$(printf '  %s: "%s",' forgotPassword 'Forgot your password?')"
+  stage_file "$fx" locales/en.json "$(printf '{"%s": "%s"}' forgotPassword 'Forgot your password?')"
+  stage_file "$fx" scripts/ask.sh "$(printf "%s='%s'" password 'Enter your password')"
+  sg_stage_kv "$fx" locales/tab.yml passwd "$(printf 'abcd\tefgh%s' 12345)"
+  sg_pass TEST-4080 "$fx"
+  log_pass "TEST-4080: keyed assignments whose value holds a space or a tab (YAML, JS, JSON, shell) are not findings"
+}
+
+test_4081_wordlike_labels_pass() {
+  local fx="$TEST_DIR/t4081"
+  make_fx "$fx"
+  sg_stage_kv "$fx" locales/de.yml resetPassword Passwort
+  sg_stage_kv "$fx" locales/cs.yml password 'Přihlášení'
+  sg_stage_kv "$fx" locales/fr.yml passwordHint 'Mot-de-passe'
+  sg_stage_kv "$fx" locales/en.yml password 'Forgot-password?'
+  sg_pass TEST-4081 "$fx"
+  log_pass "TEST-4081: word-like values (Passwort, Přihlášení, Mot-de-passe, Forgot-password?) are not findings"
+}
+
+test_4082_references_pass() {
+  local fx="$TEST_DIR/t4082"
+  make_fx "$fx"
+  stage_file "$fx" ci/a.sh "$(printf '%s="%s"' password '${DB_PASSWORD}')"
+  sg_stage_kv "$fx" ci/b.yml api_key '$API_KEY'
+  sg_stage_kv "$fx" ci/c.yml password '{{vault_db_password}}'
+  sg_stage_kv "$fx" ci/d.js apiKey 'process.env.API_KEY'
+  sg_stage_kv "$fx" ci/e.yml password '%DB_PASSWORD%'
+  sg_pass TEST-4082 "$fx"
+  log_pass "TEST-4082: variable and template references are not findings"
+}
+
+test_4083_placeholders_pass() {
+  local fx="$TEST_DIR/t4083" v i=0
+  make_fx "$fx"
+  for v in '<your-api-key>' xxxxxxxx '********' changeme123 your-api-key-here REPLACE_ME_LATER; do
+    i=$((i + 1))
+    sg_stage_kv "$fx" "cfg/p$i.yml" api_key "$v"
+  done
+  sg_pass TEST-4083 "$fx"
+  log_pass "TEST-4083: placeholder values (angle brackets, repeated characters, changeme, your-...-here, REPLACE_ME) are not findings"
+}
+
+test_4084_plain_urls_pass() {
+  local fx="$TEST_DIR/t4084"
+  make_fx "$fx"
+  stage_file "$fx" .env.example "$(printf '%s=%s' TOKEN_URL https://auth.acme.io/oauth/token)"
+  stage_file "$fx" cfg/url.yml "$(printf '%s: "%s"' token_url https://auth.acme.io/oauth/token)"
+  sg_pass TEST-4084 "$fx"
+  log_pass "TEST-4084: a URL without credentials is not a finding (a .env.example with a token URL commits)"
+}
+
+test_4085_name_hits_scanned_not_blocked() {
+  local fx="$TEST_DIR/t4085"
+  make_fx "$fx"
+  stage_file "$fx" .env.example "$(printf '%s=\n%s=%s' API_KEY DB_PASSWORD '<your-password>')"
+  stage_file "$fx" .env.sample "$(printf '%s=%s' SECRET_KEY changeme)"
+  stage_file "$fx" .env.template "$(printf '%s=%s' STRIPE_TOKEN '${STRIPE_TOKEN}')"
+  stage_file "$fx" .env "$(printf 'NODE_ENV=production\nPORT=3000')"
+  stage_file "$fx" config/credentials.json '{"service": "billing", "region": "eu"}'
+  stage_file "$fx" docs/secret-rotation.md "Rotate the keys every 90 days; each token expires after one hour."
+  stage_file "$fx" docs/ai/tdd/.env.prod "$(printf '%s=' DB_PASSWORD)"
+  sg_pass TEST-4085 "$fx"
+  log_pass "TEST-4085: name-hit files with empty, placeholder, reference or plain values are scanned and pass (no Sensitive line)"
+}
+
+test_4086_keyfiles_and_binary_blocked() {
+  local fx p i=0 e
+  for e in key pem p12 pfx jks keystore; do
+    i=$((i + 1))
+    fx="$TEST_DIR/t4086-$i"
+    make_fx "$fx"
+    stage_file "$fx" "keys/secret.$e" "harmless"
+    sg_blocks TEST-4086 "$fx" "$SENSITIVE:" "keys/secret.$e"
+  done
+  fx="$TEST_DIR/t4086-bin"
+  make_fx "$fx"
+  mkdir -p "$fx/blobs"
+  printf 'ab\0cd\n' > "$fx/blobs/secret-store.dat"
+  git -C "$fx" add -f blobs/secret-store.dat
+  sg_blocks TEST-4086 "$fx" "$SENSITIVE:" blobs/secret-store.dat
+  fx="$TEST_DIR/t4086-neg"
+  make_fx "$fx"
+  stage_file "$fx" certs/server.pem "harmless"
+  stage_file "$fx" docs/ai/tdd/secret-notes.key "harmless"
+  sg_pass TEST-4086 "$fx"
+  log_pass "TEST-4086: key-file extensions and a NUL blob under a name-hit path block by name (one line each); the same extension outside a name hit, and in an evidence folder, does not"
+}
+
+test_4087_aws_key_blocked() {
+  local fx="$TEST_DIR/t4087" k
+  k="$(sg_aws)"
+  make_fx "$fx"
+  stage_file "$fx" app/keyed.txt "$(printf 'aws_access = %s' "$k")"
+  stage_file "$fx" app/bare.txt "$k"
+  sg_blocks TEST-4087 "$fx" "$SECRET_HIT" app/keyed.txt app/bare.txt
+  fx="$TEST_DIR/t4087-ok"
+  make_fx "$fx"
+  stage_file "$fx" app/doc.txt "$(printf '%s%s%s' AK IA IOSFODNN7EXAMPLE)"
+  stage_file "$fx" app/xs.txt "$(printf '%s%s%s' AK IA XXXXXXXXXXXXXXXX)"
+  stage_file "$fx" app/long.txt "$(printf 'Z%s' "$k")"
+  sg_pass TEST-4087 "$fx"
+  log_pass "TEST-4087: an AWS access key id is a finding keyed or bare; the EXAMPLE key, an x-filled one and one inside a longer run pass"
+}
+
+test_4088_github_classic_blocked() {
+  local fx="$TEST_DIR/t4088"
+  make_fx "$fx"
+  stage_file "$fx" app/a.txt "$(sg_ghp ghp)"
+  stage_file "$fx" app/b.txt "$(printf 'export GH=%s' "$(sg_ghp gho)")"
+  sg_blocks TEST-4088 "$fx" "$SECRET_HIT" app/a.txt app/b.txt
+  fx="$TEST_DIR/t4088-ok"
+  make_fx "$fx"
+  stage_file "$fx" app/x.txt "$(printf 'ghp_%s' "$(printf '%36s' '' | tr ' ' x)")"
+  stage_file "$fx" app/short.txt "ghp_abc123"
+  sg_pass TEST-4088 "$fx"
+  log_pass "TEST-4088: ghp_ and gho_ tokens are findings; an x-filled one and a short one pass"
+}
+
+test_4089_github_fine_grained_blocked() {
+  local fx="$TEST_DIR/t4089"
+  make_fx "$fx"
+  stage_file "$fx" app/pat.txt "$(sg_pat)"
+  sg_blocks TEST-4089 "$fx" "$SECRET_HIT" app/pat.txt
+  fx="$TEST_DIR/t4089-ok"
+  make_fx "$fx"
+  stage_file "$fx" app/short.txt "$(printf 'github_pat_%s_%s' "$(sg_gen 10)" "$(sg_gen 20)")"
+  sg_pass TEST-4089 "$fx"
+  log_pass "TEST-4089: a github_pat_ token of the 22 plus 59 shape is a finding; a short one passes"
+}
+
+test_4090_private_key_blocks_blocked() {
+  local fx="$TEST_DIR/t4090" w i=0
+  make_fx "$fx"
+  for w in "RSA " "OPENSSH " ""; do
+    i=$((i + 1))
+    stage_file "$fx" "keys-in/block$i.txt" "$(sg_block "$w")"
+  done
+  stage_file "$fx" keys-in/pgp.txt "$(sg_block 'PGP ' | sed 's/PRIVATE KEY-----/PRIVATE KEY BLOCK-----/')"
+  stage_file "$fx" keys-in/enc.txt "$(sg_block 'RSA ' 'Proc-Type: 4,ENCRYPTED')"
+  sg_blocks TEST-4090 "$fx" "$SECRET_HIT" keys-in/block1.txt keys-in/block2.txt keys-in/block3.txt keys-in/pgp.txt keys-in/enc.txt
+  fx="$TEST_DIR/t4090-ok"
+  make_fx "$fx"
+  stage_file "$fx" docs/mention.txt "$(printf '%s%s\n%s' '-----BEGIN ' 'PRIVATE KEY-----' 'is the line a key file starts with')"
+  stage_file "$fx" docs/short.txt "$(sg_block '' 'short')"
+  sg_pass TEST-4090 "$fx"
+  log_pass "TEST-4090: RSA, OPENSSH, PKCS8, PGP and encrypted private key blocks are findings; a header-only mention and a block with a short body pass"
+}
+
+test_4091_name_hit_values_blocked() {
+  local fx="$TEST_DIR/t4091" v
+  v="$(sg_value)"
+  make_fx "$fx"
+  stage_file "$fx" .env "$(printf '%s=%s' DB_PASSWORD "$v")"
+  stage_file "$fx" .env.local "$(printf '%s=sk_live_%s' STRIPE_SECRET_KEY "$v")"
+  stage_file "$fx" config/credentials.json "$(printf '{"%s": "%s"}' password "$v")"
+  stage_file "$fx" deploy/.env.url "$(printf '%s=postgres://app:%s@db:5432/app' DATABASE_URL "$v")"
+  stage_file "$fx" docs/ai/tdd/.env.prod "$(printf 'export %s=%s' DB_PASSWORD "$v")"
+  sg_blocks TEST-4091 "$fx" "$SECRET_HIT" .env .env.local config/credentials.json deploy/.env.url docs/ai/tdd/.env.prod
+  log_pass "TEST-4091: dotenv, JSON and URL-credential values in name-hit files are findings, one line per file"
+}
+
+test_4092_quoted_keyed_blocked() {
+  local fx="$TEST_DIR/t4092" v
+  v="$(sg_value)"
+  make_fx "$fx"
+  stage_file "$fx" app/a.txt "$(secret_line)"
+  stage_file "$fx" app/b.txt "$(printf "%s: '%s'" access_token "$v")"
+  stage_file "$fx" app/c.yml "$(printf '%s="%s"' passwd "$v")"
+  sg_blocks TEST-4092 "$fx" "$SECRET_HIT" app/a.txt app/b.txt app/c.yml
+  log_pass "TEST-4092: quoted credential values behind api_key, access_token and passwd keys are findings in ordinary files"
+}
+
+# sg_corpus <fixture>: the false-positive and true-positive fixtures above, one per file in ordinary paths, plus the
+# unkeyed shapes only a name hit may flag. Prints nothing; the files are staged.
+sg_corpus() {
+  local fx="$1" v n=0 l
+  v="$(sg_value)"
+  while IFS= read -r l; do
+    n=$((n + 1))
+    stage_file "$fx" "corpus/c$(printf '%02d' "$n").txt" "$l"
+  done <<EOF_CORPUS
+$(printf '%s: "%s"' forgotPassword 'Forgot your password?')
+$(printf "%s='%s'" password 'Enter your password')
+$(printf '%s: "%s"' resetPassword Passwort)
+$(printf '%s: "%s"' password 'Přihlášení')
+$(printf '%s="%s"' password '${DB_PASSWORD}')
+$(printf '%s: "%s"' api_key '$API_KEY')
+$(printf '%s: "%s"' apiKey 'process.env.API_KEY')
+$(printf '%s: "%s"' api_key '<your-api-key>')
+$(printf '%s: "%s"' password changeme123)
+$(printf '%s: "%s"' token_url https://auth.acme.io/oauth/token)
+$(printf '%s: "%s"' api_key "$v")
+$(printf "%s: '%s'" access_token "$v")
+$(printf '%s=%s' DB_PASSWORD "$v")
+$(printf '%s=postgres://app:%s@db:5432/app' DATABASE_URL "$v")
+$(printf '{"%s": "%s"}' password "$v")
+$(printf '%s: "%s"' api_key "ab'$(sg_gen 12)")
+$(secret_line)
+$(sg_aws)
+$(printf '%s%s%s' AK IA IOSFODNN7EXAMPLE)
+$(sg_ghp ghp)
+$(sg_pat)
+EOF_CORPUS
+  stage_file "$fx" corpus/block.txt "$(sg_block 'RSA ')"
+  stage_file "$fx" corpus/mention.txt "$(printf '%s%s' '-----BEGIN ' 'PRIVATE KEY-----')"
+}
+
+# sg_oracle <file>: 0 when the old content regex or an R4 token pattern matches the file.
+sg_oracle() {
+  local old='(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{8,}'
+  local aws gh pat key
+  aws="$(printf '%s%s' '(AK|AS)' 'IA[A-Z0-9]{16}')"
+  gh='gh[pousr]_[A-Za-z0-9]{36}'
+  pat='github_pat_[A-Za-z0-9]{22}_[A-Za-z0-9]{59}'
+  key='^-----BEGIN .*PRIVATE KEY'
+  "$GREP" -qEi "$old" "$1" && return 0
+  "$GREP" -qE "$aws|$gh|$pat|$key" "$1" && return 0
+  return 1
+}
+
+test_4093_monotone_outside_name_hits() {
+  local fx="$TEST_DIR/t4093" p n=0 bad=""
+  make_fx "$fx"
+  sg_corpus "$fx"
+  run_checks "$fx"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4093: the corpus run exited $RC, expected 1 (it holds findings)"; }
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    n=$((n + 1))
+    sg_oracle "$fx/$p" || bad="$bad $p"
+  done <<EOF_REPORTED
+$(sg_found "$OUT")
+EOF_REPORTED
+  [[ "$n" -ge 7 ]] || { cat "$OUT" >&2; log_fail "TEST-4093: only $n corpus files were reported, the corpus is not exercising the rules"; }
+  [[ -z "$bad" ]] || log_fail "TEST-4093: reported outside the old-regex-or-token oracle:$bad"
+  log_pass "TEST-4093: in ordinary paths the $n reported corpus files are all matched by the old regex or an R4 token pattern"
+}
+
+# sg_allow_commit <fixture> <allowlist text...>: writes the allowlist, commits it (tracked) and leaves the index clean.
+sg_allow_commit() {
+  local fx="$1"
+  shift
+  mkdir -p "$fx/docs/ai"
+  printf '%s\n' "$@" > "$fx/$SG_ALLOW"
+  git -C "$fx" add -f "$SG_ALLOW"
+  git -C "$fx" commit -q -m allowlist
+}
+
+test_4094_allowlist_path_entries() {
+  local fx="$TEST_DIR/t4094" v
+  v="$(sg_value)"
+  make_fx "$fx"
+  sg_allow_commit "$fx" "# reviewed" "path locales/*.yml"
+  sg_stage_kv "$fx" locales/de.yml api_key "$v"
+  sg_stage_kv "$fx" locales/sub/x.yml api_key "$v"
+  sg_stage_kv "$fx" config/app.yml api_key "$v"
+  sg_blocks TEST-4094 "$fx" "$SECRET_HIT" config/app.yml
+  [[ "$(count_in "$OUT" "${SG_ALLOWED_LINE}2 finding(s) allowed by $SG_ALLOW")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4094: the allowed-count line was not printed once with 2"; }
+  git -C "$fx" rm -q --cached -f config/app.yml
+  sg_pass TEST-4094 "$fx"
+  [[ "$(count_in "$OUT" "${SG_ALLOWED_LINE}2 finding(s)")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4094: the allowed-count line was not printed on the passing run"; }
+  log_pass "TEST-4094: a tracked allowlist path entry allows two findings (counted once), another file still blocks, and without it the commit passes"
+}
+
+test_4095_fingerprint_lines_and_entries() {
+  local fx="$TEST_DIR/t4095" v i line want got n h1 h2
+  v="$(sg_value)"
+  make_fx "$fx"
+  for i in 1 2 3 4 5; do
+    printf '%s: "%s%s"\n' api_key "$v" "$i"
+  done > "$TEST_DIR/t4095.txt"
+  mkdir -p "$fx/app"
+  cp "$TEST_DIR/t4095.txt" "$fx/app/many.yml"
+  git -C "$fx" add app/many.yml
+  run_checks "$fx"
+  [[ "$RC" == 1 && "$(sg_count "$SECRET_HIT" app/many.yml)" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4095: five findings did not print one '$SECRET_HIT' line (exit $RC)"; }
+  [[ "$("$GREP" -c '^    line [0-9]*, fingerprint [0-9a-f]*$' "$OUT" || true)" == 3 ]] || { cat "$OUT" >&2; log_fail "TEST-4095: expected exactly 3 detail lines"; }
+  [[ "$(count_in "$OUT" "    ... and 2 more")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4095: the '... and 2 more' line is missing"; }
+  for i in 1 2 3; do
+    line="$(sed -n "${i}p" "$TEST_DIR/t4095.txt")"
+    want="$(printf '%s\n%s' app/many.yml "$line" | git hash-object --stdin)"
+    [[ "$(count_in "$OUT" "    line $i, fingerprint $want")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4095: detail line $i does not carry the D-FP fingerprint $want"; }
+  done
+  for line in "$v" "${v}1"; do
+    [[ "$(count_in "$OUT" "$line")" == 0 && "$(count_in "$ERR" "$line")" == 0 ]] || log_fail "TEST-4095: the fixture value was printed"
+  done
+  # two lines; one fingerprint allowed: that finding passes, the other still blocks
+  fx="$TEST_DIR/t4095b"
+  make_fx "$fx"
+  mkdir -p "$fx/app"
+  sed -n '1,2p' "$TEST_DIR/t4095.txt" > "$fx/app/two.yml"
+  h1="$(printf '%s\n%s' app/two.yml "$(sed -n 1p "$TEST_DIR/t4095.txt")" | git hash-object --stdin)"
+  h2="$(printf '%s\n%s' app/two.yml "$(sed -n 2p "$TEST_DIR/t4095.txt")" | git hash-object --stdin)"
+  git -C "$fx" add app/two.yml
+  mkdir -p "$fx/docs/ai"
+  printf 'fingerprint %s\n' "$h1" > "$fx/$SG_ALLOW"
+  git -C "$fx" add -f "$SG_ALLOW"
+  run_checks "$fx"
+  [[ "$RC" == 1 && "$(sg_count "$SECRET_HIT" app/two.yml)" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4095: with one fingerprint allowed the other line must still block (exit $RC)"; }
+  [[ "$(count_in "$OUT" "    line 2, fingerprint $h2")" == 1 && "$(count_in "$OUT" "    line 1,")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-4095: the allowed finding was reported or the other not"; }
+  [[ "$(count_in "$OUT" "${SG_ALLOWED_LINE}1 finding(s)")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4095: the allowed-count line is missing"; }
+  printf 'fingerprint %s\nfingerprint %s\n' "$h1" "$h2" > "$fx/$SG_ALLOW"
+  git -C "$fx" add -f "$SG_ALLOW"
+  sg_pass TEST-4095 "$fx"
+  n="$(count_in "$OUT" "${SG_ALLOWED_LINE}2 finding(s)")"
+  [[ "$n" == 1 ]] || log_fail "TEST-4095: both fingerprints allowed: the count line printed $n time(s), expected 1"
+  log_pass "TEST-4095: detail lines carry the D-FP fingerprint (3 shown, '... and k more'), no value is printed, and a fingerprint entry allows exactly its own finding"
+}
+
+test_4096_catch_all_and_malformed_rejected() {
+  local fx v bad i=0 want
+  # each bad line, then a clean staged file: one error naming the reason
+  for bad in '*|catch' '**|catch' '**/*|catch' '*.*|catch' '?*|catch' '[a-z]*|catch' 'pathx a|unrecognised' 'fingerprint xyz|unrecognised' \
+    "fingerprint $(printf '%039d' 0)|unrecognised" 'path |unrecognised' 'bogus|unrecognised'; do
+    i=$((i + 1))
+    want="${bad##*|}"
+    bad="${bad%|*}"
+    fx="$TEST_DIR/t4096-$i"
+    make_fx "$fx"
+    case "$want" in
+      catch) printf 'path %s\n' "$bad" > "$TEST_DIR/t4096.al" ;;
+      *) printf '%s\n' "$bad" > "$TEST_DIR/t4096.al" ;;
+    esac
+    mkdir -p "$fx/docs/ai"
+    cp "$TEST_DIR/t4096.al" "$fx/$SG_ALLOW"
+    stage_file "$fx" app/clean.txt "clean"
+    git -C "$fx" add -f "$SG_ALLOW"
+    run_checks "$fx"
+    [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4096: the allowlist line '$bad' exited $RC, expected 1"; }
+    [[ "$(count_in "$OUT" "Secrets allowlist line 1:")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4096: '$bad' did not print exactly one 'Secrets allowlist line 1:' error"; }
+    case "$want" in
+      catch) [[ "$(count_in "$OUT" "catch-all")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4096: '$bad' did not name a catch-all"; } ;;
+      *) [[ "$(count_in "$OUT" "unrecognised")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4096: '$bad' did not name an unrecognised entry"; } ;;
+    esac
+  done
+  fx="$TEST_DIR/t4096-ok"
+  make_fx "$fx"
+  mkdir -p "$fx/docs/ai"
+  printf '# reviewed\n\npath locales/*.yml\r\npath *.json\n   \nfingerprint %s\n' "$(printf '%040d' 0)" > "$fx/$SG_ALLOW"
+  stage_file "$fx" app/clean.txt "clean"
+  git -C "$fx" add -f "$SG_ALLOW"
+  sg_pass TEST-4096 "$fx"
+  [[ "$(count_in "$OUT" "Secrets allowlist line")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-4096: a valid allowlist raised an error"; }
+  # a bad allowlist with no judged file stays silent (the allowlist is staged and nothing else is)
+  fx="$TEST_DIR/t4096-none"
+  make_fx "$fx"
+  mkdir -p "$fx/docs/ai"
+  printf 'bogus\n' > "$fx/$SG_ALLOW"
+  git -C "$fx" add -f "$SG_ALLOW"
+  git -C "$fx" commit -q -m al
+  git -C "$fx" rm -q --cached "$SG_ALLOW"
+  sg_pass TEST-4096 "$fx"
+  log_pass "TEST-4096: a catch-all path glob or a malformed line blocks with one error naming the reason; comments, blank, CRLF and narrow globs raise none"
+}
+
+# wrapper mode blobfail (added to make_git_wrapper): `git cat-file blob` fails.
+test_4097_allowlist_read_from_index() {
+  local fx v wd="$TEST_DIR/w4097"
+  v="$(sg_value)"
+  # untracked: present in the work tree only
+  fx="$TEST_DIR/t4097-untracked"
+  make_fx "$fx"
+  mkdir -p "$fx/docs/ai"
+  printf 'path locales/*.yml\n' > "$fx/$SG_ALLOW"
+  sg_stage_kv "$fx" locales/de.yml api_key "$v"
+  sg_blocks TEST-4097 "$fx" "$SECRET_HIT" locales/de.yml
+  # unstaged edit: tracked without the entry, the work tree adds it
+  fx="$TEST_DIR/t4097-unstaged"
+  make_fx "$fx"
+  sg_allow_commit "$fx" "# empty"
+  printf 'path locales/*.yml\n' >> "$fx/$SG_ALLOW"
+  sg_stage_kv "$fx" locales/de.yml api_key "$v"
+  sg_blocks TEST-4097 "$fx" "$SECRET_HIT" locales/de.yml
+  # staged deletion: the entry exists in HEAD, the commit deletes the file
+  fx="$TEST_DIR/t4097-deleted"
+  make_fx "$fx"
+  sg_allow_commit "$fx" "path locales/*.yml"
+  git -C "$fx" rm -q "$SG_ALLOW"
+  sg_stage_kv "$fx" locales/de.yml api_key "$v"
+  sg_blocks TEST-4097 "$fx" "$SECRET_HIT" locales/de.yml
+  # staged: the commit adds the allowlist with the entry
+  fx="$TEST_DIR/t4097-staged"
+  make_fx "$fx"
+  mkdir -p "$fx/docs/ai"
+  printf 'path locales/*.yml\n' > "$fx/$SG_ALLOW"
+  git -C "$fx" add -f "$SG_ALLOW"
+  sg_stage_kv "$fx" locales/de.yml api_key "$v"
+  sg_pass TEST-4097 "$fx"
+  # tracked unchanged
+  fx="$TEST_DIR/t4097-tracked"
+  make_fx "$fx"
+  sg_allow_commit "$fx" "path locales/*.yml"
+  sg_stage_kv "$fx" locales/de.yml api_key "$v"
+  sg_pass TEST-4097 "$fx"
+  [[ "$(count_in "$OUT" "${SG_ALLOWED_LINE}1 finding(s)")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4097: the tracked allowlist did not allow the finding"; }
+  # unreadable: the index entry resolves but cat-file blob fails
+  make_git_wrapper "$wd" blobfail
+  run_with "$fx" "$wd"
+  assert_closed TEST-4097 "secrets allowlist"
+  log_pass "TEST-4097: the allowlist is the index's (untracked, unstaged and staged-deleted entries do nothing; staged and tracked ones allow); an unreadable index entry fails closed"
+}
+
+test_4098_git_process_budget() {
+  local wd="$TEST_DIR/w4098" n fx lines5 lines40 v i
+  v="$(sg_value)"
+  make_git_wrapper "$wd" log "$TEST_DIR/t4098.log"
+  for n in 5 40; do
+    fx="$TEST_DIR/t4098-$n"
+    make_fx "$fx"
+    sg_allow_commit "$fx" "path locales/*.yml"
+    for i in $(seq 1 "$n"); do printf 'var x_%d = %d;\n' "$i" "$i" > "$fx/f$i.js"; done
+    git -C "$fx" add -A
+    : > "$TEST_DIR/t4098.log"
+    run_with "$fx" "$wd"
+    [[ "$RC" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-4098: $n clean files with a tracked allowlist exited $RC"; }
+    cp "$TEST_DIR/t4098.log" "$TEST_DIR/t4098-$n.lines"
+    [[ "$(count_in "$TEST_DIR/t4098-$n.lines" hash-object)" == 0 ]] || log_fail "TEST-4098: $n clean files started a hash-object process"
+  done
+  lines5="$(wc -l < "$TEST_DIR/t4098-5.lines" | tr -d ' ')"
+  lines40="$(wc -l < "$TEST_DIR/t4098-40.lines" | tr -d ' ')"
+  [[ "$lines5" == "$lines40" ]] || log_fail "TEST-4098: git invocations grow with the staged count: $lines5 for 5 files, $lines40 for 40"
+  fx="$TEST_DIR/t4098-find"
+  make_fx "$fx"
+  for i in 1 2 3; do sg_stage_kv "$fx" "app/f$i.yml" api_key "$v$i"; done
+  : > "$TEST_DIR/t4098.log"
+  run_with "$fx" "$wd"
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4098: three finding files exited $RC, expected 1"; }
+  [[ "$(count_in "$TEST_DIR/t4098.log" hash-object)" == 1 ]] || { cat "$TEST_DIR/t4098.log" >&2; log_fail "TEST-4098: three finding files started $(count_in "$TEST_DIR/t4098.log" hash-object) hash-object processes, expected 1"; }
+  [[ "$(count_in "$TEST_DIR/t4098.log" cat-file)" == 1 ]] || { cat "$TEST_DIR/t4098.log" >&2; log_fail "TEST-4098: with no allowlist in the index expected exactly one cat-file process"; }
+  log_pass "TEST-4098: 5 and 40 clean files start $lines5 git processes each and no hash-object; three finding files start exactly one hash-object; no allowlist means exactly one cat-file"
+}
+
+# sg_hook_fx <dir>: a fixture with the delivered hook installed on a work branch.
+sg_hook_fx() {
+  make_fx "$1"
+  vendor_hook_installer "$1" sh
+  aai_assert_hooks_under "$1" "$TEST_DIR" || log_fail "TEST-4099: the hooks path of $1 lies outside the scratch root"
+  ( cd "$1" && aai_git_scrubbed bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst4099.out" 2>&1 || { cat "$TEST_DIR/inst4099.out" >&2; log_fail "TEST-4099: the hook installer failed"; }
+  git -C "$1" checkout -q -b work
+}
+
+# sg_commit <fixture>: git commit through the installed hook; sets RC and COMMIT_OUT.
+sg_commit() {
+  RC=0
+  ( cd "$1" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m "$2" ) >"$TEST_DIR/c4099.out" 2>&1 || RC=$?
+  COMMIT_OUT="$TEST_DIR/c4099.out"
+}
+
+test_4099_installed_hook_seam() {
+  local fx="$TEST_DIR/t4099" head v
+  v="$(sg_value)"
+  sg_hook_fx "$fx"
+  sg_stage_kv "$fx" locales/en.yml forgotPassword 'Forgot your password?'
+  stage_file "$fx" .env.example "$(printf '%s=%s' TOKEN_URL https://auth.acme.io/oauth/token)"
+  sg_stage_kv "$fx" ci/ref.yml password '${DB_PASSWORD}'
+  sg_stage_kv "$fx" ci/ph.yml api_key '<your-api-key>'
+  sg_stage_kv "$fx" locales/pt.yml password Passwort
+  head="$(git -C "$fx" rev-parse HEAD)"
+  sg_commit "$fx" labels
+  [[ "$RC" == 0 && "$(git -C "$fx" rev-parse HEAD)" != "$head" ]] || { cat "$COMMIT_OUT" >&2; log_fail "TEST-4099: the false-positive commit through the hook exited $RC or HEAD did not move"; }
+  stage_file "$fx" app/aws.txt "$(sg_aws)"
+  stage_file "$fx" .env "$(printf '%s=%s' DB_PASSWORD "$v")"
+  head="$(git -C "$fx" rev-parse HEAD)"
+  sg_commit "$fx" leak
+  [[ "$RC" != 0 && "$(git -C "$fx" rev-parse HEAD)" == "$head" ]] || { cat "$COMMIT_OUT" >&2; log_fail "TEST-4099: the true-positive commit exited $RC or HEAD moved"; }
+  [[ "$(count_in "$COMMIT_OUT" "$SECRET_HIT app/aws.txt")" == 1 && "$(count_in "$COMMIT_OUT" "$SECRET_HIT .env")" -ge 1 ]] || { cat "$COMMIT_OUT" >&2; log_fail "TEST-4099: the blocked commit does not print the finding lines"; }
+  git -C "$fx" rm -q --cached -f app/aws.txt .env
+  mkdir -p "$fx/docs/ai"
+  printf 'path locales/*.yml\n' > "$fx/$SG_ALLOW"
+  git -C "$fx" add -f "$SG_ALLOW"
+  sg_stage_kv "$fx" locales/de.yml api_key "$v"
+  head="$(git -C "$fx" rev-parse HEAD)"
+  sg_commit "$fx" allowed
+  [[ "$RC" == 0 && "$(git -C "$fx" rev-parse HEAD)" != "$head" ]] || { cat "$COMMIT_OUT" >&2; log_fail "TEST-4099: the allowlisted commit exited $RC or HEAD did not move"; }
+  log_pass "TEST-4099: through the installed hook a false-positive commit lands, a true-positive commit is refused with its finding lines, and an allowlisted commit lands"
+}
+
+# sg_self_corpus <dir> <with allowlist 0|1>: HEAD's tracked files staged in a fresh repository, the working-tree script
+# overlaid (so an uncommitted ride is judged); sets OUT.
+sg_self_corpus() {
+  local d="$1" with="$2"
+  mkdir -p "$d"
+  git -C "$PROJECT_ROOT" archive HEAD | tar -x -C "$d"
+  # files of the ride not committed yet (modified or new) join the corpus (none once it is committed)
+  git -C "$PROJECT_ROOT" ls-files -z -m -o --exclude-standard > "$TEST_DIR/self4100.untracked"
+  if [[ -s "$TEST_DIR/self4100.untracked" ]]; then tar -c --null -T "$TEST_DIR/self4100.untracked" -C "$PROJECT_ROOT" -f - 2>/dev/null | tar -x -C "$d" || true; fi
+  cp "$SH_CHECKS" "$d/.aai/scripts/pre-commit-checks.sh"
+  rm -f "$d/$SG_ALLOW"
+  if [[ "$with" == 1 ]]; then
+    [[ -f "$PROJECT_ROOT/$SG_ALLOW" ]] || log_fail "TEST-4100: $SG_ALLOW is missing from the repository"
+    mkdir -p "$d/docs/ai"
+    cp "$PROJECT_ROOT/$SG_ALLOW" "$d/$SG_ALLOW"
+  fi
+  git -C "$d" init -q
+  git -C "$d" config user.email fixture@example.invalid
+  git -C "$d" config user.name fixture
+  git -C "$d" config core.autocrlf false
+  git -C "$d" add -A -f
+  RC=0
+  ( cd "$d" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh ) >"$TEST_DIR/self4100.out" 2>"$TEST_DIR/self4100.err" || RC=$?
+  OUT="$TEST_DIR/self4100.out"
+}
+
+test_4100_self_corpus() {
+  local d="$TEST_DIR/t4100" found glob p ok al n
+  al="$PROJECT_ROOT/$SG_ALLOW"
+  sg_self_corpus "$d" 1
+  [[ "$(count_in "$OUT" "$SECRET_HIT")" == 0 && "$(count_in "$OUT" "$SENSITIVE")" == 0 && "$(count_in "$OUT" "Secrets allowlist line")" == 0 ]] || { "$GREP" -E 'Potential secret|Sensitive|Secrets allowlist|^    line' "$OUT" >&2 || true; log_fail "TEST-4100: with the repository allowlist the corpus has blocking findings"; }
+  rm -rf "$d"
+  sg_self_corpus "$d" 0
+  cp "$OUT" "$TEST_DIR/t4100-noal.out"
+  OUT="$TEST_DIR/t4100-noal.out"
+  sg_found "$OUT" > "$TEST_DIR/t4100.found"
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    case "$p" in tests/skills/test-aai-pre-commit-checks.sh) log_fail "TEST-4100: this suite needs an allowlist entry" ;; esac
+  done < "$TEST_DIR/t4100.found"
+  n=0
+  while IFS= read -r p; do
+    case "$p" in
+      path\ *)
+        glob="${p#path }"
+        glob="${glob%$'\r'}"
+        ok=0
+        while IFS= read -r found; do
+          case "$found" in $glob) ok=1 ;; esac
+        done < "$TEST_DIR/t4100.found"
+        [[ "$ok" == 1 ]] || log_fail "TEST-4100: the allowlist entry 'path $glob' matches no finding file of the corpus (unused entry)"
+        n=$((n + 1))
+        ;;
+      fingerprint\ *)
+        "$GREP" -qF "fingerprint ${p#fingerprint }" "$OUT" || log_fail "TEST-4100: the allowlist entry '$p' is not among the printed fingerprints (unused entry)"
+        n=$((n + 1))
+        ;;
+    esac
+  done < "$al"
+  log_pass "TEST-4100: every tracked file staged passes CHECK 2 with the repository allowlist; without it the $n allowlist entries each match a finding and this suite needs none"
+}
+
+# sg_fixture_awks: the awks found on PATH (name per line).
+sg_awks() {
+  local a
+  for a in awk mawk gawk nawk; do
+    command -v "$a" >/dev/null 2>&1 && printf '%s\n' "$a"
+  done
+  return 0
+}
+
+# sg_c2_lines <file>: the CHECK 2 lines of a run's stdout.
+sg_c2_lines() { "$GREP" -E 'Potential secret|Sensitive file|^    line |^    \.\.\.|Secrets allowlist|No secrets detected' "$1" || true; }
+
+test_4101_portability_and_anchors() {
+  local prog="$TEST_DIR/t4101.awk" a n bin sd fx ref="" cur a_name nodedir="$TEST_DIR/w4101node" ran=0
+  for a in AL ""; do
+    if [[ "$a" == AL ]]; then
+      awk "/^PCC_AWK_AL='\$/ { f = 1; next } f && /^'\$/ { exit } f" "$SH_CHECKS" > "$prog"
+    else
+      awk "/^PCC_AWK='\$/ { f = 1; next } f && /^'\$/ { exit } f" "$SH_CHECKS" > "$prog"
+    fi
+    [[ "$(wc -l < "$prog" | tr -d ' ')" -ge 8 ]] || log_fail "TEST-4101: the awk program text was not found in pre-commit-checks.sh"
+    if "$GREP" -nE '\{[0-9]' "$prog" >"$TEST_DIR/t4101.bad"; then cat "$TEST_DIR/t4101.bad" >&2; log_fail "TEST-4101: the awk program holds an interval expression"; fi
+    if "$GREP" -nwE 'gensub|IGNORECASE|strtonum|asort|asorti|PROCINFO|systime' "$prog" >"$TEST_DIR/t4101.bad"; then cat "$TEST_DIR/t4101.bad" >&2; log_fail "TEST-4101: the awk program uses a gawk-only feature"; fi
+    if "$GREP" -q "'" "$prog"; then log_fail "TEST-4101: the awk program holds an apostrophe (it sits in shell single quotes)"; fi
+  done
+  for a in 'PCC_VALUE_MINLEN=8' 'PCC_ALLOWLIST="docs/ai/secrets-allowlist.txt"' 'function has_space(v) {' 'function is_wordlike(v) {' \
+    'function is_reference(v) {' 'function is_placeholder(v) {' 'function is_url(v) {' 'AKIA' 'gh[pousr]_' 'github_pat_' 'PRIVATE KEY' \
+    'pcc_namehit=0' 'pcc_namehit=1' 'pcc_keyfile=0' 'pcc_keyfile=1' 'pcc_catch_all=1' '--verify ":$PCC_ALLOWLIST"' ', fingerprint ' \
+    '"$pcc_nfind" -gt 0' 'No secrets detected in staged files'; do
+    n="$("$GREP" -oF -- "$a" "$SH_CHECKS" | wc -l | tr -d ' ')"
+    [[ "$n" == 1 ]] || log_fail "TEST-4101: the anchor '$a' occurs $n times in pre-commit-checks.sh, expected exactly 1"
+  done
+  [[ "$("$GREP" -oF -- 'secrets-allowlist.txt' "$SH_CHECKS" | wc -l | tr -d ' ')" == 1 ]] || log_fail "TEST-4101: the literal secrets-allowlist.txt must occur once"
+  fx="$TEST_DIR/t4101"
+  make_fx "$fx"
+  sg_corpus "$fx"
+  stage_file "$fx" .env "$(printf '%s=%s' DB_PASSWORD "$(sg_value)")"
+  stage_file "$fx" keys/secret.pem "harmless"
+  nodedir="$TEST_DIR/w4101node"
+  mkdir -p "$nodedir"
+  printf '#!/bin/sh\necho "node: unavailable" >&2\nexit 99\n' > "$nodedir/node"
+  chmod +x "$nodedir/node"
+  while IFS= read -r a_name; do
+    [[ -n "$a_name" ]] || continue
+    bin="$(command -v "$a_name")"
+    sd="$TEST_DIR/w4101-$a_name"
+    mkdir -p "$sd"
+    ln -sf "$bin" "$sd/awk"
+    run_with "$fx" "$sd"
+    [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4101: the corpus run under $a_name exited $RC, expected 1"; }
+    sg_c2_lines "$OUT" > "$TEST_DIR/t4101-$a_name.c2"
+    [[ -s "$TEST_DIR/t4101-$a_name.c2" ]] || log_fail "TEST-4101: no CHECK 2 lines under $a_name"
+    if [[ -z "$ref" ]]; then ref="$TEST_DIR/t4101-$a_name.c2"; else cmp -s "$ref" "$TEST_DIR/t4101-$a_name.c2" || { diff "$ref" "$TEST_DIR/t4101-$a_name.c2" >&2 || true; log_fail "TEST-4101: the CHECK 2 output under $a_name differs from the first awk"; }; fi
+    ran=$((ran + 1))
+  done < <(sg_awks)
+  [[ "$ran" -ge 1 ]] || log_fail "TEST-4101: no awk on PATH"
+  run_with "$fx" "$nodedir"
+  sg_c2_lines "$OUT" > "$TEST_DIR/t4101-node.c2"
+  cmp -s "$ref" "$TEST_DIR/t4101-node.c2" || { diff "$ref" "$TEST_DIR/t4101-node.c2" >&2 || true; log_fail "TEST-4101: CHECK 2 differs when node fails (it must not start Node)"; }
+  log_pass "TEST-4101: the awk programs hold no interval expression or gawk-only feature, each D-ANCHORS string occurs once, and CHECK 2 prints identical output under $ran awk(s) and with a failing node first on PATH"
+}
+
+test_4102_preservation() {
+  local sel s
+  for sel in test_3454_small_input_parity test_3455_ratchet_counts_the_file test_3461_line_budget_and_follow_up test_3833_sensitive_names_still_blocked \
+    test_3865_suffix_dotenv_blocked_in_evidence test_3866_non_ascii_names_checked test_3871_one_batched_read_whatever_the_count \
+    test_3876_semantics_match_the_baseline_script test_3919_full_descriptor_table_reports test_3920_no_builtin_redirection_text test_4047_seterr_lint; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-pre-commit-checks.sh" "$sel" >"$TEST_DIR/self4102.out" 2>&1 || { tail -10 "$TEST_DIR/self4102.out" >&2; log_fail "TEST-4102: $sel failed"; }
+  done
+  # the neighbouring suites by selector (a whole-suite run nested here is what the nested-suite lint forbids); the
+  # canonical verification runs the three suites whole
+  for s in test-aai-install-parity.sh:test_3571_wiring test-aai-hook-installer-node.sh:test_3992_rehomed_bash_side \
+    test-aai-hook-installer-node.sh:test_3995_parity_hooks test-aai-hook-installer-node.sh:test_3996_scratch_install \
+    test-aai-git-hook-templates.sh:test_3433_sh_writes_templates test-aai-git-hook-templates.sh:test_3441_downstream_install; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/${s%%:*}" "${s##*:}" >"$TEST_DIR/self4102.out" 2>&1 || { tail -10 "$TEST_DIR/self4102.out" >&2; log_fail "TEST-4102: ${s%%:*} ${s##*:} failed"; }
+  done
+  log_pass "TEST-4102: the parity pins, ratchet, line pin, amended cases, batched read, descriptor and lint cases hold, and the install-parity wiring, hook-installer-node and git-hook-templates install cases pass"
+}
+
+test_4103_sync_leaves_allowlist() {
+  local t1="$TEST_DIR/t4103-with" t2="$TEST_DIR/t4103-without" canon="$PROJECT_ROOT/.aai/system/DOCS_AI_CANON.list"
+  mkdir -p "$t1/docs/ai" "$t2"
+  printf '# project-owned\npath locales/*.yml\n' > "$t1/$SG_ALLOW"
+  cp "$t1/$SG_ALLOW" "$TEST_DIR/t4103.before"
+  git -C "$t1" init -q
+  git -C "$t2" init -q
+  env -u AAI_ROLE bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$t1" --profile core >"$TEST_DIR/t4103a.out" 2>&1 || { tail -10 "$TEST_DIR/t4103a.out" >&2; log_fail "TEST-4103: the sync into the target with an allowlist failed"; }
+  env -u AAI_ROLE bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$t2" --profile core >"$TEST_DIR/t4103b.out" 2>&1 || { tail -10 "$TEST_DIR/t4103b.out" >&2; log_fail "TEST-4103: the sync into the target without one failed"; }
+  cmp -s "$TEST_DIR/t4103.before" "$t1/$SG_ALLOW" || log_fail "TEST-4103: the sync changed the project allowlist"
+  [[ ! -e "$t2/$SG_ALLOW" ]] || log_fail "TEST-4103: the sync created an allowlist in a target without one"
+  "$GREP" -qxF 'secrets-allowlist.txt' "$canon" || log_fail "TEST-4103: DOCS_AI_CANON.list does not list secrets-allowlist.txt"
+  [[ "$("$GREP" -cxF 'secrets-allowlist.txt' "$canon" || true)" == 1 ]] || log_fail "TEST-4103: DOCS_AI_CANON.list lists secrets-allowlist.txt more than once"
+  log_pass "TEST-4103: aai-sync --profile core leaves a project allowlist byte-identical, creates none, and DOCS_AI_CANON.list names it once"
+}
+
+test_4104_docs_and_amendments() {
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/pre-commit-secrets-gate.md" ug="$PROJECT_ROOT/docs/USER_GUIDE.md" n intake out
+  n="$("$GREP" -cE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — fix: the pre-commit secrets gate judges values instead of file names and reads a reviewed allowlist' "$cl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-4104: CHANGELOG.md holds $n headings for this fix, want exactly 1"
+  [[ -f "$doc" ]] || log_fail "TEST-4104: $doc is missing"
+  for n in "$SG_ALLOW" 'path <glob>' 'fingerprint <hex>' 'catch-all'; do
+    "$GREP" -qF -- "$n" "$doc" || log_fail "TEST-4104: the product doc does not name '$n'"
+  done
+  "$GREP" -qF -- "$SG_ALLOW" "$ug" || log_fail "TEST-4104: USER_GUIDE.md does not name $SG_ALLOW"
+  intake="$(ls "$PROJECT_ROOT"/docs/issues/ISSUE-*secrets-gate-false-positives*.md 2>/dev/null | sed -n 1p)"
+  [[ -n "$intake" ]] || log_fail "TEST-4104: the intake document is missing"
+  "$GREP" -qx 'user_visible: true' "$intake" || log_fail "TEST-4104: the intake lacks user_visible: true"
+  out="$(node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --strict --json 2>&1)" || { printf '%s\n' "$out" >&2; log_fail "TEST-4104: spec-amend list --strict failed"; }
+  n="$(printf '%s' "$out" | "$GREP" -o '"ref_id": "secrets-gate-false-positives"' | wc -l | tr -d ' ')"
+  [[ "$n" -ge 3 ]] || log_fail "TEST-4104: spec-amend list holds $n mentions of secrets-gate-false-positives, expected the three D-AMEND records"
+  log_pass "TEST-4104: one CHANGELOG heading, the product doc, USER_GUIDE and intake statements are present and spec-amend list --strict holds the three D-AMEND records"
+}
+
+# --- secrets-gate-false-positives remediation round 1 (VALIDATION V1, V2 and N1; TEST-4105..4107) ---------------------
+
+test_4105_nul_blob_credentials_blocked() {
+  local fx="$TEST_DIR/t4105" k
+  k="$(sg_aws)"
+  make_fx "$fx"
+  mkdir -p "$fx/img"
+  { printf 'x\0y '; printf '%s_key = "%s"\n' api "Qz8$(sg_value)"; } > "$fx/img/keyed.bin"
+  { printf 'x\0y '; printf 'aws_access = %s\n' "$k"; } > "$fx/img/aws.bin"
+  { printf 'junk\0'; sg_block ''; printf '\n'; } > "$fx/img/block.bin"
+  git -C "$fx" add -f -- img/keyed.bin img/aws.bin img/block.bin
+  sg_blocks TEST-4105 "$fx" "$SECRET_HIT" img/keyed.bin img/aws.bin img/block.bin
+  fx="$TEST_DIR/t4105-ok"
+  make_fx "$fx"
+  mkdir -p "$fx/img"
+  { printf 'x\0y '; printf '%s: "%s"\n' password 'Enter your password'; } > "$fx/img/label.bin"
+  git -C "$fx" add -f -- img/label.bin
+  sg_pass TEST-4105 "$fx"
+  log_pass "TEST-4105: a keyed credential, an AWS key id and a private key block after a NUL byte on the same line of an ordinary binary blob are findings; a label there passes"
+}
+
+test_4106_real_dotenv_any_key_blocks() {
+  local fx="$TEST_DIR/t4106" v i=0 key f
+  v="sk_live_$(sg_value)"
+  make_fx "$fx"
+  for key in DB_PASS MYSQL_PWD ENCRYPTION_KEY STRIPE_KEY JWT_SIGNING_KEY; do
+    i=$((i + 1))
+    case "$i" in 1) f=.env ;; 2) f=.env.local ;; 3) f=deploy/prod.env ;; 4) f=.env.production ;; *) f=docs/ai/tdd/.env.test ;; esac
+    stage_file "$fx" "$f" "$(printf 'export %s="%s"' "$key" "$v")"
+  done
+  sg_blocks TEST-4106 "$fx" "$SECRET_HIT" .env .env.local deploy/prod.env .env.production docs/ai/tdd/.env.test
+  fx="$TEST_DIR/t4106-ok"
+  make_fx "$fx"
+  stage_file "$fx" .env "$(printf 'NODE_ENV=production\nPORT=3000\nLOG_LEVEL=debug\nAPI_BASE_URL=https://api.example.com\nGREETING=Hello there\nEMPTY_KEY=\n# a plain comment line without any assignment')"
+  stage_file "$fx" .env.example "$(printf '%s=\n%s=%s' STRIPE_KEY SESSION_KEY '<your-key>')"
+  stage_file "$fx" .env.sample "$(printf '%s=%s' STRIPE_KEY "$v")"
+  stage_file "$fx" .env.defaults "$(printf '%s=%s' JWT_SIGNING_KEY "$v")"
+  sg_pass TEST-4106 "$fx"
+  log_pass "TEST-4106: in a real dotenv file every key holding a credential-shaped value is a finding (DB_PASS, MYSQL_PWD, ENCRYPTION_KEY, STRIPE_KEY, JWT_SIGNING_KEY); plain settings, URLs, empty values, plain comments and template forms pass"
+}
+
+test_4107_negated_class_catch_all_rejected() {
+  local fx bad i=0
+  for bad in '[!z]*' '*[!z]' '[!.]*' '[a-z]?*' '*/[!z]*' '?[!z]*'; do
+    i=$((i + 1))
+    fx="$TEST_DIR/t4107-$i"
+    make_fx "$fx"
+    mkdir -p "$fx/docs/ai"
+    printf 'path %s\n' "$bad" > "$fx/$SG_ALLOW"
+    stage_file "$fx" app/clean.txt "clean"
+    git -C "$fx" add -f "$SG_ALLOW"
+    run_checks "$fx"
+    [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4107: the allowlist glob '$bad' exited $RC, expected 1"; }
+    [[ "$(count_in "$OUT" "catch-all")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4107: '$bad' did not print exactly one catch-all error"; }
+  done
+  fx="$TEST_DIR/t4107-ok"
+  make_fx "$fx"
+  mkdir -p "$fx/docs/ai"
+  printf 'path locales/[!z]*.yml\npath [ab]foo/*\npath app/?.json\n' > "$fx/$SG_ALLOW"
+  stage_file "$fx" app/clean.txt "clean"
+  git -C "$fx" add -f "$SG_ALLOW"
+  sg_pass TEST-4107 "$fx"
+  [[ "$(count_in "$OUT" "catch-all")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-4107: an anchored bracket glob was rejected as a catch-all"; }
+  log_pass "TEST-4107: a path glob with no literal character outside wildcards and bracket expressions is a catch-all; anchored globs with a class are accepted"
+}
+
+# --- secrets-gate-false-positives remediation round 3 (VALIDATION round 2 V3, V4 and N5; TEST-4108..4110) -----------
+
+test_4108_inline_private_key_blocks() {
+  local fx="$TEST_DIR/t4108" b m e kc ks ku
+  kc="$(printf '%s%s' private Key)"
+  ks="$(printf '%s%s' private_ key)"
+  ku="$(printf '%s' "$ks" | tr a-z A-Z)"
+  b="MIIEvQIBADANBgkqhkiG9w0BAQEFAASC$(sg_gen 40)"
+  m="$(printf '%s%s%s' '-----BEGIN ' 'PRIVATE KEY-----')"
+  e="$(printf '%s%s%s' '-----END ' 'PRIVATE KEY-----' '')"
+  make_fx "$fx"
+  stage_file "$fx" src/firebase.js "$(printf 'const %s = "%s\\n%s\\n%s\\n";' "$kc" "$m" "$b" "$e")"
+  stage_file "$fx" infra/main.tf "$(printf '%s = "%s\\n%s\\n%s"' "$ks" "$m" "$b" "$e")"
+  stage_file "$fx" app/settings.py "$(printf "%s = '%s\\\\\\\\n%s\\\\\\\\n%s'" "$ku" "$m" "$b" "$e")"
+  stage_file "$fx" config/app.yml "$(printf '%s: "%s\\n%s\\n%s"' "$ks" "$m" "$b" "$e")"
+  stage_file "$fx" .env "$(printf '%s="%s\\n%s\\n%s"' "$ku" "$m" "$b" "$e")"
+  stage_file "$fx" .env.local "$(printf 'GITHUB_APP_%s="%s\n%s\n%s"' "$ku" "$m" "$b" "$e")"
+  stage_file "$fx" config/service-account.json "$(printf '{"type": "service_account", "%s": "%s\\n%s\\n%s\\n"}' "$ks" "$m" "$b" "$e")"
+  stage_file "$fx" src/concat.js "$(printf 'const k = "%s\\n" +\n  "%s\\n" +\n  "%s";' "$m" "$b" "$e")"
+  sg_blocks TEST-4108 "$fx" "$SECRET_HIT" src/firebase.js infra/main.tf app/settings.py config/app.yml .env .env.local config/service-account.json src/concat.js
+  fx="$TEST_DIR/t4108-ok"
+  make_fx "$fx"
+  stage_file "$fx" docs/pk-mention.md "$(printf 'The file starts with `%s` and ends with `%s`.' "$m" "$e")"
+  stage_file "$fx" docs/pk-prose.md "$(printf '%s header, then the base64 body\nis described in the next section.' "$m")"
+  stage_file "$fx" src/short.js "$(printf 'const k = "%s\\n%s\\n";' "$m" short)"
+  stage_file "$fx" config/placeholder.yml "$(printf '%s: "%s\\n<your-key-here>\\n%s"' "$ks" "$m" "$e")"
+  sg_pass TEST-4108 "$fx"
+  log_pass "TEST-4108: a private key begin marker anywhere in a line, followed by a base64 body on the line (escaped or not) or on the next line, is a finding in JS, Terraform, Python, YAML, JSON, .env, .env.local and concatenated strings; a mention, a short or placeholder body passes"
+}
+
+test_4109_name_hit_any_key_blocks() {
+  local fx="$TEST_DIR/t4109" v
+  v="sk_live_$(sg_value)"
+  make_fx "$fx"
+  stage_file "$fx" .envrc "$(printf 'export DB_PASS=Zq9%s\nexport STRIPE_KEY=%s' "$(sg_gen 17)" "$v")"
+  stage_file "$fx" k8s/db-secret.yaml "$(printf 'apiVersion: v1\nkind: Secret\ndata:\n  DB_PASS: %sZz9=' "$(sg_gen 20)")"
+  stage_file "$fx" config/credentials.json "$(printf '{"stripe": "%s"}' "$v")"
+  stage_file "$fx" deploy/secrets.toml "$(printf 'stripe = "%s"' "$v")"
+  stage_file "$fx" .env.staging "$(printf '# STRIPE_KEY=%s' "$v")"
+  stage_file "$fx" ops/secrets.yml "$(printf -- '- stripe: %s' "$v")"
+  stage_file "$fx" scripts/load-secrets.sh "$(printf 'export DB_PASS=Zq9%s' "$(sg_gen 17)")"
+  sg_blocks TEST-4109 "$fx" "$SECRET_HIT" .envrc k8s/db-secret.yaml config/credentials.json deploy/secrets.toml .env.staging ops/secrets.yml scripts/load-secrets.sh
+  fx="$TEST_DIR/t4109-ok"
+  make_fx "$fx"
+  stage_file "$fx" .envrc "$(printf 'export NODE_ENV=production\nexport PATH_ADD=$HOME/bin\nexport GREETING="Hello there"\nexport DB_PASS=${DB_PASS}\nexport REGION=\nexport STRIPE_KEY=<your-key>')"
+  stage_file "$fx" k8s/db-secret.yaml "$(printf 'kind: Secret\n  title: Přihlášení\n  label: "Forgot your password?"\n  hint: Forgot-your-password\n  url: https://auth.acme.io/oauth/token\n  DB_PASS: <your-password>')"
+  stage_file "$fx" config/credentials.json '{"service": "billing", "url": "https://auth.acme.io/x", "region": "eu"}'
+  stage_file "$fx" docs/secret-rotation.md "$(printf -- '---\nspec: docs/specs/SPEC-0001-x.md\nupdated: 2026-11-25\n---\nRotate the keys every 90 days; each token expires after one hour.')"
+  stage_file "$fx" src/secrets.js "$(printf 'const base = basename(path);\nconst tok = argv[i];\n// KEY=v/KEY=/absent -> exists')"
+  stage_file "$fx" tools/read-secrets.sh "$(printf 'E2E_DRAFT="docs/issues/CHANGE-DRAFT-x.md"\n# .env KEY=v/KEY=/absent -> exists')"
+  stage_file "$fx" .env.example "$(printf '%s=%s\nSTRIPE_KEY=%s' OTHER "$v" "$v")"
+  sg_pass TEST-4109 "$fx"
+  log_pass "TEST-4109: in name-hit files that are not dotenv templates a credential-shaped value under any key (export, YAML, JSON, TOML, commented) is a finding in a data or config file, and an export line in any other file; labels, references, placeholders, empty values, prose, documents and code with plain assignments pass"
+}
+
+test_4110_bracket_class_catch_all_rejected() {
+  local fx bad i=0
+  for bad in '[!]z]*' '[![:digit:]z]*' '[^]z]*' '*[!]z]' '[![:digit:][:alpha:]]*'; do
+    i=$((i + 1))
+    fx="$TEST_DIR/t4110-$i"
+    make_fx "$fx"
+    mkdir -p "$fx/docs/ai"
+    printf 'path %s\n' "$bad" > "$fx/$SG_ALLOW"
+    stage_file "$fx" app/clean.txt "clean"
+    git -C "$fx" add -f "$SG_ALLOW"
+    run_checks "$fx"
+    [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4110: the allowlist glob '$bad' exited $RC, expected 1"; }
+    [[ "$(count_in "$OUT" "catch-all")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-4110: '$bad' did not print exactly one catch-all error"; }
+  done
+  fx="$TEST_DIR/t4110-ok"
+  make_fx "$fx"
+  mkdir -p "$fx/docs/ai"
+  printf 'path []a]foo/*\npath [[:alpha:]]bar/*\npath docs/[![:digit:]]x.md\n' > "$fx/$SG_ALLOW"
+  stage_file "$fx" app/clean.txt "clean"
+  git -C "$fx" add -f "$SG_ALLOW"
+  sg_pass TEST-4110 "$fx"
+  [[ "$(count_in "$OUT" "catch-all")" == 0 ]] || { cat "$OUT" >&2; log_fail "TEST-4110: an anchored bracket glob was rejected as a catch-all"; }
+  log_pass "TEST-4110: a negated class holding a leading ] or a POSIX class is parsed as one bracket expression, so a glob made only of such classes is a catch-all; anchored ones are accepted"
+}
+
+# --- secrets-gate-false-positives remediation round 4 (VALIDATION round 3 V5; TEST-4111..4112) -----------------------
+
+test_4111_keyword_key_plain_words_block() {
+  local fx="$TEST_DIR/t4111" w
+  w="$(printf '%s%s' abcdefghijklm nopqrstuvwxyz)"
+  make_fx "$fx"
+  stage_file "$fx" notes/config.txt "$(printf '%s = "%s"' api_key "$w")"
+  stage_file "$fx" notes/pass.txt "$(printf '%s = "%s"' password correcthorsebattery)"
+  stage_file "$fx" notes/camel.yml "$(printf '%s: "%s"' password CorrectHorseBattery)"
+  stage_file "$fx" notes/caps.yml "$(printf '%s: "%s"' secret_key SUPERSECRETVALUE)"
+  stage_file "$fx" notes/long.yml "$(printf '%s: "%s"' password Wordthatistoolongforalabel)"
+  stage_file "$fx" .env "$(printf 'DB_%s=%s' PASSWORD correcthorsebattery)"
+  sg_blocks TEST-4111 "$fx" "$SECRET_HIT" notes/config.txt notes/pass.txt notes/camel.yml notes/caps.yml notes/long.yml .env
+  log_pass "TEST-4111: a letters-only value under a keyword key blocks unless it is a short capitalised label (the 26-letter run, a lowercase word, CamelCase, ALLCAPS, a 26-byte word, a dotenv password)"
+}
+
+test_4112_short_labels_pass() {
+  local fx="$TEST_DIR/t4112"
+  make_fx "$fx"
+  sg_stage_kv "$fx" locales/a.yml passwordLabel Password
+  sg_stage_kv "$fx" locales/b.yml password Heslo
+  sg_stage_kv "$fx" locales/c.yml forgotPassword 'Forgot your password?'
+  sg_stage_kv "$fx" locales/d.yml password 'Přihlášení'
+  sg_stage_kv "$fx" locales/e.yml token 'Čeština'
+  sg_stage_kv "$fx" locales/f.yml password 'Forgot-password'
+  stage_file "$fx" .env "$(printf 'NODE_ENV=production\nLOG_LEVEL=debug\nAPP_MODE=development\nDB_PASSWORD=Production')"
+  sg_pass TEST-4112 "$fx"
+  log_pass "TEST-4112: short capitalised or non-ASCII labels (Password, Heslo, Přihlášení, Čeština), a label with blanks and plain dotenv settings under non-keyword keys are not findings"
+}
+
+test_4113_pass_keys_name_a_secret() {
+  local fx="$TEST_DIR/t4113"
+  make_fx "$fx"
+  stage_file "$fx" .env "$(printf 'DB_%s=%s' PASS sunshinesunny)"
+  stage_file "$fx" .env.local "$(printf 'GPG_%s=%s' PASSPHRASE correcthorsebattery)"
+  stage_file "$fx" .env.prod "$(printf 'export SMTP_%s=%s' PASS sunshinesunny)"
+  sg_blocks TEST-4113 "$fx" "$SECRET_HIT" .env .env.local .env.prod
+  fx="$TEST_DIR/t4113b"
+  make_fx "$fx"
+  stage_file "$fx" .env "$(printf 'BY%s_CACHE=%s\nCOM%s_URL=%s' PASS sunshinesunny PASS sunshinesunny)"
+  sg_pass TEST-4113 "$fx"
+  log_pass "TEST-4113: DB_PASS and GPG_PASSPHRASE name a secret (a plain word blocks), BYPASS_CACHE and COMPASS_URL do not (the same plain word passes)"
 }
 
 test_4047_seterr_lint() {
@@ -1464,7 +2401,7 @@ test_4056_shell_mirrors_bom() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3887, TEST-3918..3922)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461, TEST-3831..3868, TEST-3871..3887, TEST-3918..3922, TEST-4080..4112)"
   check_deps
   setup_fixture
   test_3448_ps1_retired_run
@@ -1511,6 +2448,40 @@ main() {
   test_3921_preservation_and_moved_pins
   test_3922_changelog_and_product_doc
   test_4047_seterr_lint
+  test_4080_labels_with_blanks_pass
+  test_4081_wordlike_labels_pass
+  test_4082_references_pass
+  test_4083_placeholders_pass
+  test_4084_plain_urls_pass
+  test_4085_name_hits_scanned_not_blocked
+  test_4086_keyfiles_and_binary_blocked
+  test_4087_aws_key_blocked
+  test_4088_github_classic_blocked
+  test_4089_github_fine_grained_blocked
+  test_4090_private_key_blocks_blocked
+  test_4091_name_hit_values_blocked
+  test_4092_quoted_keyed_blocked
+  test_4093_monotone_outside_name_hits
+  test_4094_allowlist_path_entries
+  test_4095_fingerprint_lines_and_entries
+  test_4096_catch_all_and_malformed_rejected
+  test_4097_allowlist_read_from_index
+  test_4098_git_process_budget
+  test_4099_installed_hook_seam
+  test_4100_self_corpus
+  test_4101_portability_and_anchors
+  test_4102_preservation
+  test_4103_sync_leaves_allowlist
+  test_4104_docs_and_amendments
+  test_4105_nul_blob_credentials_blocked
+  test_4106_real_dotenv_any_key_blocks
+  test_4107_negated_class_catch_all_rejected
+  test_4108_inline_private_key_blocks
+  test_4109_name_hit_any_key_blocks
+  test_4110_bracket_class_catch_all_rejected
+  test_4111_keyword_key_plain_words_block
+  test_4112_short_labels_pass
+  test_4113_pass_keys_name_a_secret
   test_4055_guard_config_bom
   test_4056_shell_mirrors_bom
   echo ""
