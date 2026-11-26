@@ -506,7 +506,7 @@ function pushReservation(root, remote, refNames) {
 // --- Azure Repos transport (spec-azure-rejects-doc-number-reservation-push) ---
 
 const AZURE_PUSH_FLAGS = [];
-const LFS_ADVISORY = /^\s*(?:Locking support detected on remote\b.*|\$ git config lfs\..*\.locksverify true)\s*$/;
+const LFS_ADVISORY = /^\s*(?:Locking support detected on remote\b.*|Remote \S+ does not support the Git LFS locking API\b.*|\$ git config lfs\..*\.locksverify (?:true|false))\s*$/;
 const URL_USERINFO = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^\s/'"]*@/g;
 const LFS_OMITTED_NOTE = '(git-lfs locking advisory omitted: it is not the rejection reason)';
 

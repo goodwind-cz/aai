@@ -1015,7 +1015,7 @@ assert_stub_refuses_atomic() {
   local d="$1" out sha
   sha="$(git -C "$d" commit-tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 -m stub-probe)"
   set +e
-  out="$(cd "$d" && git push --atomic origin "${sha}:refs/aai/stub-probe" 2>&1)"
+  out="$(git -C "$d" push --atomic origin "${sha}:refs/aai/stub-probe" 2>&1)"
   set -e
   [[ "$out" == *"does not support --atomic push"* ]] \
     || log_fail "stub origin must refuse --atomic like Azure Repos: $out"
@@ -1048,7 +1048,7 @@ test_301_azure_singleton_confirmed() {
     || log_fail "refs/aai/docnums/RFC-0001 must exist in the Azure-shaped origin: $(cat "$d/alloc.log")"
   assert_not_contains "$d/docs/rfc/RFC-0001-az-one.md" "number_reserved"
   assert_not_contains "$d/alloc.log" "WARNING"
-  rm -rf "$d"
+  rm -rf "${d:?}"
   log_pass "TEST-4141 Azure singleton reserved without --atomic; no provisional marker"
 }
 
@@ -1070,7 +1070,7 @@ test_302_azure_coupled_family_confirmed() {
   ref_exists "$bare" "refs/aai/docnums/FAMA-0006" || log_fail "FAMA-0006 must exist: $(cat "$d/alloc.log")"
   ref_exists "$bare" "refs/aai/docnums/FAMB-0006" || log_fail "FAMB-0006 must exist: $(cat "$d/alloc.log")"
   assert_not_contains "$d/docs/issues/FAMA-0006-az-pair.md" "number_reserved"
-  rm -rf "$d"
+  rm -rf "${d:?}"
   log_pass "TEST-4142 Azure coupled family reserved member by member; no marker"
 }
 
@@ -1099,7 +1099,7 @@ EOF
   ref_exists "$bare" "refs/aai/docnums/FAMB-0006" || log_fail "the racer's FAMB-0006 must be untouched"
   ref_exists "$bare" "refs/aai/docnums/FAMA-0007" || log_fail "FAMA-0007 must exist"
   ref_exists "$bare" "refs/aai/docnums/FAMB-0007" || log_fail "FAMB-0007 must exist"
-  rm -rf "$d"
+  rm -rf "${d:?}"
   log_pass "TEST-4143 Azure partial claim released; family retried together at 7"
 }
 
@@ -1110,7 +1110,7 @@ test_304_azure_race_one_winner() {
   local GIT_ALLOW_PROTOCOL=file; export GIT_ALLOW_PROTOCOL
   local d1; d1="$(mk_azure_repo t304)"
   local d2="$TEST_DIR/iso-t304b"
-  rm -rf "$d2"; cp -R "$d1" "$d2"
+  rm -rf "${d2:?}"; cp -R "$d1" "$d2"
   local d probe
   for d in "$d1" "$d2"; do
     cat > "$d/probe.mjs" <<'EOF'
@@ -1124,7 +1124,8 @@ EOF
   done
   local a b round
   # Arm 1 (deterministic contention): clone 1 first, then clone 2 from the same start.
-  a="$(cd "$d1" && node probe.mjs SEQ)"; b="$(cd "$d2" && node probe.mjs SEQ)"
+  (cd "$d1" && node probe.mjs SEQ > seq.out 2>&1); (cd "$d2" && node probe.mjs SEQ > seq.out 2>&1)
+  a="$(cat "$d1/seq.out")"; b="$(cat "$d2/seq.out")"
   [[ "$a" == "won 5" && "$b" == "won 6" ]] \
     || log_fail "sequential contenders must get 5 then 6 (got '$a' / '$b')"
   # Arm 2 (concurrent): singleton and coupled pair, started together.
@@ -1141,7 +1142,7 @@ EOF
     [[ "$fives" -eq 1 ]] || log_fail "race ($round): exactly one clone must win 5 (got '$a' / '$b')"
     [[ "$a" != "$b" ]] || log_fail "race ($round): both clones reported '$a'"
   done
-  rm -rf "$d1" "$d2"
+  rm -rf "${d1:?}" "${d2:?}"
   log_pass "TEST-4144 Azure contention: one winner per number, sequential and concurrent"
 }
 
@@ -1199,7 +1200,7 @@ MD
   [[ "$rc" -eq 4 ]] || log_fail "--reserve on a taken ref must exit 4 (got $rc): $(cat "$d/reserve2.log")"
   grep -qE '^number_reserved:[[:space:]]*false[[:space:]]*$' "$d/docs/issues/CHANGE-0006-delta.md" \
     || log_fail "the marker must stay on an exit-4 completion"
-  rm -rf "$d"
+  rm -rf "${d:?}"
   log_pass "TEST-4145 Azure --reserve completes a provisional doc; guard clean; collision exits 4"
 }
 
@@ -1238,7 +1239,7 @@ HOOK
   assert_contains "$d/alloc.log" "git-lfs locking advisory omitted"
   local n; n="$(wc -l < "$count" | tr -d ' ')"
   [[ "$n" -eq 1 ]] || log_fail "a non-collision refusal must make exactly one push (hook ran $n times)"
-  rm -rf "$d"
+  rm -rf "${d:?}"
   log_pass "TEST-4146 Azure refusal: one push, provisional, remote reason verbatim, lfs advisory set aside"
 }
 
@@ -1254,6 +1255,8 @@ assert.strictEqual(typeof m.describePushFailure, 'function', 'describePushFailur
 const raw = [
   'Locking support detected on remote "origin". Consider enabling it with:',
   '  $ git config lfs.https://dev.azure.com/acme/p/_git/r.git/info/lfs.locksverify true',
+  'Remote "origin" does not support the Git LFS locking API. Consider disabling it with:',
+  '  $ git config lfs.https://dev.azure.com/acme/p/_git/r.git/info/lfs.locksverify false',
   "fatal: unable to access 'https://user:s3cr3t-pat@dev.azure.com/acme/p/_git/r/': The requested URL returned error: 403",
 ].join('\n');
 const out = m.describePushFailure(raw);
@@ -1261,12 +1264,13 @@ assert.ok(!out.includes('s3cr3t-pat'), 'credential must be masked: ' + out);
 assert.ok(out.includes('https://dev.azure.com/acme/p/_git/r/'), 'host and path must stay: ' + out);
 assert.ok(out.includes('returned error: 403'), 'reason must stay verbatim: ' + out);
 assert.ok(!out.includes('Locking support detected'), 'lfs advisory must be dropped: ' + out);
+assert.ok(!out.includes('Git LFS locking API') && !out.includes('locksverify'), 'every lfs locking advisory line must be dropped: ' + out);
 assert.ok(out.includes('git-lfs locking advisory omitted'), 'omission must be named: ' + out);
 assert.strictEqual(m.describePushFailure('error: plain'), 'error: plain', 'no advisory, no note');
 console.log('ok');
 EOF
   (cd "$d" && node probe.mjs) > "$d/probe.log" 2>&1 || log_fail "$(cat "$d/probe.log")"
-  rm -rf "$d"
+  rm -rf "${d:?}"
   log_pass "TEST-4147 credentials masked, reason verbatim, lfs advisory named and dropped"
 }
 
@@ -1324,7 +1328,7 @@ EOF
   if ref_exists "$gb" "refs/aai/docnums/FAMA-0006"; then
     log_fail "arm c: the default transport must not split a coupled push"
   fi
-  rm -rf "$d" "$g" "$u" "$n" "$z"
+  rm -rf "${d:?}" "${g:?}" "${u:?}" "${n:?}" "${z:?}"
   log_pass "TEST-4148 Azure transport selected by record or Azure URL only"
 }
 
@@ -1348,7 +1352,7 @@ MD
   (cd "$d" && git add docs/issues && git commit -qm "docs: alpha on main" \
      && git push -q origin HEAD:refs/heads/main)
   local d2="$TEST_DIR/iso-t309b"
-  rm -rf "$d2"; cp -R "$d" "$d2"
+  rm -rf "${d2:?}"; cp -R "$d" "$d2"
   rm -f "$d2/docs/issues/CHANGE-0005-alpha.md"
   cat > "$d2/docs/issues/CHANGE-0005-beta.md" <<'MD'
 ---
@@ -1368,7 +1372,7 @@ MD
   set -e
   [[ "$rc" -eq 4 ]] || log_fail "cross-branch collision on Azure must exit 4 (got $rc): $(cat "$d2/guard.log")"
   assert_contains "$d2/guard.log" "cross-branch collision"
-  rm -rf "$d" "$d2"
+  rm -rf "${d:?}" "${d2:?}"
   log_pass "TEST-4149 the guard still catches a cross-branch number on Azure"
 }
 
@@ -1391,7 +1395,7 @@ test_310_default_transport_unchanged() {
   if ref_exists "$bare" "refs/aai/docnums/FAMA-0006" || ref_exists "$bare" "refs/aai/docnums/FAMB-0006"; then
     log_fail "the default transport must create no ref of the pair on a non-atomic server"
   fi
-  rm -rf "$d"
+  rm -rf "${d:?}"
   log_pass "TEST-4150 default transport untouched: coupled pair stays provisional on a non-atomic server"
 }
 

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 204f26df129b12fd072e466426c8896011cab166dee83c8bdc082e7c627e86e5
+frozen_sha256: 7a7871d2168e6cd0572c7f9fd0772c02346ab7bd0d713fb2c780dc565b5519b0
 ceremony_level: 3
 links:
   requirement: azure-rejects-doc-number-reservation-push
@@ -93,7 +93,8 @@ answer states Azure Repos runs a custom Git server that does not advertise
   first), so the report is no evidence against it. If Azure refuses the
   namespace, this scope does not fix numbering on Azure; it surfaces the
   remote's own reason verbatim (Spec-AC-05) so the next report names it. A
-  live check is filed as a follow-up (fu-azure-docnum-live-namespace).
+  live check is filed as a follow-up (fu-azure-docnum-live-namespace, filed in
+  remediation round 1).
 - Azure lets a pusher delete a ref it created (needed for the coupled-family
   release in D-ROLLBACK). A refused release is named, never silent.
 
@@ -138,8 +139,11 @@ result keeps the failing push's classification: `(stale info)` is a
 collision and the whole family retries the next number (existing cap 50);
 anything else is a non-collision failure and the existing D4 provisional
 path applies. A release that fails is named in the error text
-(`could not release <ref>: <reason>`); the orphan ref only burns that number,
-which the candidate scan (D3c) never re-grants.
+(`could not release <ref>: <reason>`); the orphan ref burns that number,
+which the candidate scan (D3c) never re-grants. When the failing push was a
+non-collision one, the doc is stamped provisional at that same number, so a
+later `--reserve` meets the orphan and exits 4 asking for a renumber (see
+Amendment A2).
 
 ### D-REASON: the remote's reason verbatim, the git-lfs advisory set aside
 
@@ -266,8 +270,9 @@ None.
 
 - Live Azure behaviour for the `refs/aai/*` namespace and for deleting a ref
   is assumed (see Root cause); no automated test can cross it.
-- A process killed between claim and release leaves an orphan ref; it burns
-  one number and nothing else.
+- A process killed between claim and release, or a release the server
+  refuses, leaves an orphan ref; it burns one number, and when the doc was
+  stamped provisional at that number its `--reserve` exits 4 (renumber).
 - Windows runtime of the new path is not executed locally (CI covers bash
   suites on Linux and macOS only for this suite).
 
@@ -339,4 +344,20 @@ none
 - TEST-4148 Description: the selector was followed by a colon, which
   mutation-run.mjs read as part of the selector name. Wording only.
 - No Spec-AC, verification command or observable changed.
+
+## Amendment A2 (Remediation round 1, disclosure only, additive)
+
+- Validation round 1 (docs/ai/reports/VALIDATION-20261126T161000Z-azure-rejects-doc-number-reservation-push.md)
+  N1: D-ROLLBACK and the residual risks understated a failed release. The text
+  now says that a provisional doc whose own orphan remains makes `--reserve`
+  exit 4. Tracked as fu-azure-docnum-release-orphan; the untested
+  could-not-release branch (N2) as fu-azure-docnum-release-fail-test.
+- N3: fu-azure-docnum-live-namespace and fu-azure-docnum-network-deadline,
+  named in D-535 and Root cause, are now filed in the follow-up ledger.
+- N4: D-REASON's set-aside lines also cover the sibling git-lfs advisory
+  (`Remote <name> does not support the Git LFS locking API` and its
+  `locksverify false` line); TEST-4147's probe asserts it. No Spec-AC,
+  verification command or mutation changed.
+- B1 (test-file cd-in-substitution ratchet) was a test-hygiene defect fixed in
+  the suite; no contract text changed for it.
 
