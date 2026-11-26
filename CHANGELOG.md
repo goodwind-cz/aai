@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: doc-number reservation works on Azure Repos
+
+Azure Repos does not advertise atomic push, so every reservation push the doc-number allocator sent there stopped in the git client with `fatal: the receiving end does not support --atomic push`: each numbered doc was stamped `number_reserved: false`, `--reserve` kept failing and the merge guard blocked the pull request. The git-lfs line `Locking support detected on remote` shown above that error is an advisory, not the cause. When the platform resolves to Azure (`platform: azure` in `docs/ai/pr-config.yaml`, or an Azure DevOps origin URL), `allocate-doc-number.mjs` now reserves with one create-only push per ref and no `--atomic`; a coupled family that collides part-way releases the refs it already claimed and retries at the next number. A refused Azure push quotes the remote's own reason with the git-lfs advisory left out and URL credentials masked. Docs already stamped `number_reserved: false` complete with `allocate-doc-number.mjs --reserve --path <doc>`. GitHub and every other platform keep the existing transport.
+
 ## [unreleased] — Test infrastructure: the nine P2 follow-ups
 
 Nine open test-infrastructure follow-ups are closed. Two of them change what a caller of the test runner sees, and the rest make suites easier to select, attribute and trust.

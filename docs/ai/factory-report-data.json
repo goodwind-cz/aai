@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-26T15:36:55.674Z",
+  "generatedAt": "2026-11-26T17:28:35.518Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 278,
-    "delivered": 716,
+    "rides": 279,
+    "delivered": 718,
     "active_weeks": 22,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (716 closes vs 278 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 716,
-    "delivered_per_week_avg": 32.5,
+    "note": "\"delivered\" counts every work_item_closed event (718 closes vs 279 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 718,
+    "delivered_per_week_avg": 32.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -36,7 +36,7 @@
       "2026-W45": 28,
       "2026-W46": 26,
       "2026-W47": 32,
-      "2026-W48": 18
+      "2026-W48": 20
     },
     "delivered_groups": [
       {
@@ -683,7 +683,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 108,
+        "count": 110,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -792,7 +792,9 @@
           "skill-description-canonical-prompt-pointer",
           "spec-skill-description-canonical-prompt-pointer",
           "test-infra-p2-fixes",
-          "spec-test-infra-p2-fixes"
+          "spec-test-infra-p2-fixes",
+          "azure-rejects-doc-number-reservation-push",
+          "spec-azure-rejects-doc-number-reservation-push"
         ]
       }
     ],
@@ -3661,24 +3663,32 @@
         {
           "ref": "spec-test-infra-p2-fixes",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "azure-rejects-doc-number-reservation-push",
+          "lead_time_seconds": 9884
+        },
+        {
+          "ref": "spec-azure-rejects-doc-number-reservation-push",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 8511,
-      "mean_seconds": 73548,
-      "measured": 271,
-      "unmeasurable": 445
+      "median_seconds": 8573,
+      "mean_seconds": 73314,
+      "measured": 272,
+      "unmeasurable": 446
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 4785,
-      "mean": 11360.3,
-      "measured": 276
+      "median": 4792,
+      "mean": 11351.1,
+      "measured": 277
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 606538,
+        "duration_seconds": 606789,
         "tokens": 63699579
       },
       {
@@ -3688,22 +3698,22 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 315549,
-        "tokens": 29447328
+        "duration_seconds": 316252,
+        "tokens": 29743665
       },
       {
         "role": "Remediation",
-        "duration_seconds": 608697,
+        "duration_seconds": 608944,
         "tokens": 22375197
       },
       {
         "role": "Validation",
-        "duration_seconds": 1095146,
-        "tokens": 84056115
+        "duration_seconds": 1101423,
+        "tokens": 84491393
       },
       {
         "role": "Planning",
-        "duration_seconds": 232812,
+        "duration_seconds": 234143,
         "tokens": 18779835
       },
       {
@@ -5102,6 +5112,11 @@
         "ref": "test-infra-p2-fixes",
         "busy_seconds": 72305,
         "remediation_runs": 4
+      },
+      {
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "busy_seconds": 8809,
+        "remediation_runs": 2
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -5111,11 +5126,11 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 647363,
-      "mean": 1476243.9,
-      "measured": 153
+      "median": 647551,
+      "mean": 1471408.7,
+      "measured": 154
     },
-    "tokens_total": 225865320,
+    "tokens_total": 226596935,
     "by_role": [
       {
         "role": "TDD Implementation",
@@ -5127,7 +5142,7 @@
       },
       {
         "role": "Code Review",
-        "tokens": 29447328
+        "tokens": 29743665
       },
       {
         "role": "Remediation",
@@ -5135,7 +5150,7 @@
       },
       {
         "role": "Validation",
-        "tokens": 84056115
+        "tokens": 84491393
       },
       {
         "role": "Planning",
@@ -5147,8 +5162,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 916,
-      "total_runs": 2019,
+      "runs_with_marker": 921,
+      "total_runs": 2028,
       "pct": 45,
       "by_week": [
         {
@@ -5279,9 +5294,9 @@
         },
         {
           "week": "2026-W48",
-          "runs_with_marker": 66,
-          "total_runs": 76,
-          "pct": 87
+          "runs_with_marker": 71,
+          "total_runs": 85,
+          "pct": 84
         }
       ]
     },
@@ -5289,9 +5304,9 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 310,
+          "runs_total": 311,
           "runs_marked": 169,
-          "runs_sentinel": 10,
+          "runs_sentinel": 11,
           "runs_unmarked": 131,
           "tokens_total": 63699579,
           "median_tokens_per_run": 208753,
@@ -5309,19 +5324,19 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 398,
-          "runs_marked": 197,
+          "runs_total": 400,
+          "runs_marked": 199,
           "runs_sentinel": 25,
           "runs_unmarked": 176,
-          "tokens_total": 29447328,
-          "median_tokens_per_run": 132661,
+          "tokens_total": 29743665,
+          "median_tokens_per_run": 132952,
           "share_pct": 13
         },
         {
           "role": "Remediation",
-          "runs_total": 374,
+          "runs_total": 376,
           "runs_marked": 143,
-          "runs_sentinel": 48,
+          "runs_sentinel": 50,
           "runs_unmarked": 183,
           "tokens_total": 22375197,
           "median_tokens_per_run": 146737,
@@ -5329,19 +5344,19 @@
         },
         {
           "role": "Validation",
-          "runs_total": 577,
-          "runs_marked": 274,
+          "runs_total": 580,
+          "runs_marked": 277,
           "runs_sentinel": 47,
           "runs_unmarked": 256,
-          "tokens_total": 84056115,
-          "median_tokens_per_run": 152966,
+          "tokens_total": 84491393,
+          "median_tokens_per_run": 152852,
           "share_pct": 37
         },
         {
           "role": "Planning",
-          "runs_total": 220,
+          "runs_total": 221,
           "runs_marked": 103,
-          "runs_sentinel": 15,
+          "runs_sentinel": 16,
           "runs_unmarked": 102,
           "tokens_total": 18779835,
           "median_tokens_per_run": 160981,
@@ -6214,8 +6229,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 15,
-              "median_tokens": 163583
+              "runs_marked": 17,
+              "median_tokens": 156763
             },
             {
               "role": "Remediation",
@@ -6224,8 +6239,8 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 24,
-              "median_tokens": 180690
+              "runs_marked": 27,
+              "median_tokens": 179313
             },
             {
               "role": "Planning",
@@ -6245,14 +6260,14 @@
   "quality": {
     "first_pass_clean": {
       "clean": 123,
-      "flagged": 252,
+      "flagged": 253,
       "rate_pct": 49
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 125,
       "1": 35,
-      "2": 33,
+      "2": 34,
       "3": 28,
       "4": 15,
       "5": 6,
@@ -6266,7 +6281,7 @@
     "avg_validation_fails": 0.6,
     "avg_review_fails": 0.3,
     "verdict_mix": {
-      "PASS": 221,
+      "PASS": 222,
       "null": 57
     },
     "review_events": 27,
@@ -6281,7 +6296,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 99,
+    "field_derived": 100,
     "marker_derived": 36,
     "mixed": 2,
     "no_basis": 141,
@@ -7675,6 +7690,11 @@
         "ref": "test-infra-p2-fixes",
         "verdict_source": "field",
         "cost_basis": "mixed"
+      },
+      {
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "verdict_source": "field",
+        "cost_basis": "mixed"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -7850,16 +7870,16 @@
     },
     {
       "week": "2026-W48",
-      "delivered": 18,
-      "median_lead_time_seconds": 36469,
-      "busy_seconds": 234647,
-      "tokens": 11134909,
-      "first_pass_rate": 14
+      "delivered": 20,
+      "median_lead_time_seconds": 31441,
+      "busy_seconds": 243456,
+      "tokens": 11866524,
+      "first_pass_rate": 13
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 367,
+    "open_count": 369,
     "oldest_age_days": 74,
     "items": [
       {
@@ -7986,7 +8006,7 @@
         "id": "fu-replay-vanished-target-counter",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 72,
+        "age_days": 73,
         "what": "mutation-run.mjs --replay counts a vanished-target record in failures but prints INCONCLUSIVE, so the summary line's own arithmetic disagrees with the printed row",
         "status": "open"
       },
@@ -7994,7 +8014,7 @@
         "id": "fu-tdd-block-needs-fail-line-grammar",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 72,
+        "age_days": 73,
         "what": "SKILL_TDD.prompt.md's mutation BLOCK line is unconditional, but the FAIL-line grammar mutation-run.mjs classifies a RED verdict against is an AAI-suite output convention, not a property of test runners in general",
         "status": "open"
       },
@@ -8250,7 +8270,7 @@
         "id": "fu-roadmap-pair-pinned-by-index",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 62,
+        "age_days": 63,
         "what": "TEST-565 and TEST-583 pinned the live roadmap's admissible pair by INDEX, so every completed pair broke them; fixed here by deriving the first unfinished pair from the shipped file",
         "status": "open"
       },
@@ -8498,7 +8518,7 @@
         "id": "fu-hooks-merge-group-level-keys",
         "ref": "sync-deletes-target-only-hooks",
         "severity": "P2",
-        "age_days": 56,
+        "age_days": 57,
         "what": "the hooks merge proves the group's matcher but not the group's other keys, so a user-added group-level key is lost when a source change moves the hook to a different matcher group",
         "status": "open"
       },
@@ -8522,7 +8542,7 @@
         "id": "fu-redact-entropy-fp-hyphen-identifier",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 55,
+        "age_days": 56,
         "what": "redactSummary fires secret_highentropy on an ordinary hyphenated identifier: CAT-17-git-ref-guard is rejected while CAT-17 and cat-git-ref-guard pass, so any AAI phase name shaped CAT-NN-some-name is silently redacted out of a friction summary",
         "status": "open"
       },
@@ -8874,7 +8894,7 @@
         "id": "fu-merge-ledger-reset-window",
         "ref": "merge-cleanup-ride-leftovers",
         "severity": "P3",
-        "age_days": 45,
+        "age_days": 46,
         "what": "a crash between the ride-ledger reset and its reset record makes a later identical ride tail count as moved (kept only in the archive)",
         "status": "open"
       },
@@ -8882,7 +8902,7 @@
         "id": "fu-merge-skip-worktree-hidden-edit",
         "ref": "merge-cleanup-ride-leftovers",
         "severity": "P2",
-        "age_days": 45,
+        "age_days": 46,
         "what": "a ride worktree edit hidden with update-index --skip-worktree is removed without a worktree_dirty refusal",
         "status": "open"
       },
@@ -9010,7 +9030,7 @@
         "id": "fu-platform-azure-links-pr-url",
         "ref": "git-platform-detected-at-bootstrap",
         "severity": "P3",
-        "age_days": 40,
+        "age_days": 41,
         "what": "merge-cleanup deliveredDoneDocs matches links.pr only as a number, #N or a GitHub /pull/N URL; an Azure .../pullrequest/N URL is not recognised, so that ride doc skips delivered detection and implied amendment signoff",
         "status": "open"
       },
@@ -9018,7 +9038,7 @@
         "id": "fu-platform-record-ghe-unknown",
         "ref": "git-platform-detected-at-bootstrap",
         "severity": "P2",
-        "age_days": 40,
+        "age_days": 41,
         "what": "platform.mjs record writes platform: unknown for GitHub Enterprise hosts (e.g. github.acme.corp); re-bootstrap moves a working legacy-github install into generic mode and /aai-merge refuses platform_generic",
         "status": "open"
       },
@@ -9058,7 +9078,7 @@
         "id": "fu-release-nested-merge-test",
         "ref": "docs/specs/SPEC-0233-spec-release-command-finish.md",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "No TEST-050 arm covers a numbered merge nested inside a numbered merge range (the !merge half of the covered-skip guard in release-finish.mjs audit); validation r13 mutant mC survives",
         "status": "open"
       },
@@ -9066,7 +9086,7 @@
         "id": "fu-release-pr-lookup-failure-cause",
         "ref": "docs/specs/SPEC-0233-spec-release-command-finish.md",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "When the gh api commits/{sha}/pulls lookup fails (rate limit, network, bad JSON) release-finish reports missing-notes instead of a lookup failure",
         "status": "open"
       },
@@ -9074,7 +9094,7 @@
         "id": "fu-release-issue-ref-as-pr",
         "ref": "docs/specs/SPEC-0233-spec-release-command-finish.md",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "A branch commit inside a merge-commit PR whose subject ends with an issue reference like (#7) is audited as PR #7",
         "status": "open"
       },
@@ -9698,7 +9718,7 @@
         "id": "fu-migrate-state-split-index-expire",
         "ref": "retire-legacy-migrations",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "migrate-state-to-local index restore can point at an expired sharedindex when core.splitIndex with maxPercentChange=0 and sharedIndexExpire=now are both set; it then prints the index is unchanged",
         "status": "open"
       },
@@ -9706,7 +9726,7 @@
         "id": "fu-delete-retired-legacy-migrations",
         "ref": "retire-legacy-migrations",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "In the release after the one that retires them, delete .aai/SKILL_CANONICALIZE.prompt.md, the four aai-canonicalize skill wrappers, and the four launchers aai-canonicalize.sh/.ps1 and migrate-yaml-to-jsonl.sh/.ps1, with their pins and diet-ledger lines",
         "status": "open"
       },
@@ -9818,7 +9838,7 @@
         "id": "fu-release-azure-remote-finish",
         "ref": "release-publish-on-node",
         "severity": "P3",
-        "age_days": 17,
+        "age_days": 18,
         "what": "an Azure DevOps release group for the platform adapter so the remote release finish runs there",
         "status": "open"
       },
@@ -9834,7 +9854,7 @@
         "id": "fu-hook-gate-empty-target-nogh",
         "ref": "hook-gate-on-node",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "operator-marker merge with no PR target and gh absent is still allowed without a sweep check",
         "status": "open"
       },
@@ -9842,7 +9862,7 @@
         "id": "fu-hook-gate-herestring-tmpfile",
         "ref": "hook-gate-on-node",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the launcher's here-string (node hook-gate.mjs <<<\"$PAYLOAD\") needs a temp file, and bash 3.2 and 5.x fail it when neither TMPDIR nor /tmp is writable",
         "status": "open"
       },
@@ -9850,7 +9870,7 @@
         "id": "fu-parity-fixture-infra-test",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "install-parity.mjs fixtureRun/InfraFixtureTimeout -> exit 4 (mjs:487) has no test; only the twin-step INFRA path is tested",
         "status": "open"
       },
@@ -9858,7 +9878,7 @@
         "id": "fu-parity-probe-timeout-infra",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "toolOk (mjs:751) and the other probes run under the step bound, so a slow 'bash --version' under AAI_PARITY_STEP_TIMEOUT=1 reads as missing tool exit 3, not infra exit 4",
         "status": "open"
       },
@@ -9866,7 +9886,7 @@
         "id": "fu-parity-stamp-rows-paired",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "allowlist stamp rows are not required to be paired per twin side",
         "status": "open"
       },
@@ -9874,7 +9894,7 @@
         "id": "fu-parity-node22-step-wire",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "the Node 22 skill-suite step runs the real-twin parity node tests (about 179 s locally) which D-WIRE does not name",
         "status": "open"
       },
@@ -9882,7 +9902,7 @@
         "id": "fu-parity-win-supervisor-test",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "the Windows supervisor path (taskkill /T /F, INFRA exit 4) has no win32 run of the hang-twin INFRA test, which skips on non-posix",
         "status": "open"
       },
@@ -9906,7 +9926,7 @@
         "id": "fu-reset-block-force-eats-block",
         "ref": "round-cap-hardening",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "state.mjs reset-block last_validation --force code_review resets only last_validation: parseArgs lets --force consume the next word, so forced=false is recorded and the call exits 0 as a half reset",
         "status": "open"
       },
@@ -10306,7 +10326,7 @@
         "id": "fu-parity-win-odd-root-cause",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "Name the child process of the frozen bash updater that creates the odd root directories on Windows (4 entries per run, AAI-ODD-SEEN UP-01 sh entries=4); the shipped launcher and Node module path create none",
         "status": "open"
       },
@@ -10607,22 +10627,6 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-friction-channel-sweep-2-c89ed0",
-        "ref": "test-infra-p2-fixes",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-channel-sweep: TEST-655 and TEST-659 drive a timed-out command instead of a failing one; asserted properties unchanged",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-deterministic-friction-capture",
-        "ref": "test-infra-p2-fixes",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to deterministic-friction-capture: AC-001 (a failing non-timeout command records one observation) is withdrawn; TEST-001 asserts zero records",
-        "status": "open"
-      },
-      {
         "id": "fu-sg-allowlist-near-catch-all",
         "ref": "secrets-gate-false-positives",
         "severity": "P3",
@@ -10652,14 +10656,6 @@
         "severity": "P3",
         "age_days": 0,
         "what": "private-key lookahead needs a pure base64 next line: PGP Version: header or body ending in \\ or \", passes",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-docs-index-broken-refs-s-ef9352",
-        "ref": "test-infra-p2-fixes",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-docs-index-broken-refs-scope: One argument to tests/skills/test-aai-docs-audit.sh runs that function after its setup steps and declared producers, not only that function (the no-argument run order moves into DA_MAIN_STEPS); Spec-AC-08 and TEST-012 hold as written",
         "status": "open"
       },
       {
@@ -10700,14 +10696,6 @@
         "severity": "P3",
         "age_days": 0,
         "what": "R1 (ordinary files) keeps the old keyword set; token/pwd/secret/access_key keys there are not judged, and Spec-AC-26 wording reads broader",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-spec-test-infra-p2-fixes",
-        "ref": "test-infra-p2-fixes",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-test-infra-p2-fixes: Spec-AC-01 pwsh clause now names the cache (StartupProfileData under XDG_CACHE_HOME/powershell or HOME/.cache/powershell) instead of any powershell entry; TEST-4135 also asserts the copied suite's TMPDIR is empty afterwards and its mutation targets the new e2e_root assignment; the DROPPED row of the Registry table moves to a labelled DROPPED block",
         "status": "open"
       },
       {
@@ -10796,6 +10784,54 @@
         "severity": "P3",
         "age_days": 0,
         "what": "one_world_scan now accepts an escaped alternation with no version branch, e.g. (\\[unreleased\\]|\\[Unreleased\\]), as a dual form",
+        "status": "open"
+      },
+      {
+        "id": "fu-xdg-fallback-path-is-shared",
+        "ref": "test-infra-p2-fixes",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "when mktemp fails, aai-run-tests.sh (and test-framework.sh:1305) fall back to the fixed XDG_CACHE_HOME /nonexistent/aai-test-no-xdg-cache, which a root-run wrapped tool can create; it is then shared across runs and never cleaned up",
+        "status": "open"
+      },
+      {
+        "id": "fu-azure-docnum-live-namespace",
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "run one live Azure Repos reservation (refs/aai/docnums push, lease-bound delete) on the first downstream Azure adoption",
+        "status": "open"
+      },
+      {
+        "id": "fu-azure-docnum-network-deadline",
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "route the Azure sequential reservation pushes through PR #535's bounded networkGit once #535 merges",
+        "status": "open"
+      },
+      {
+        "id": "fu-azure-docnum-release-orphan",
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a non-collision failure on member k whose release of earlier claims also fails leaves the family's own ref, so --reserve later exits 4; let --reserve recognise its own orphan or renumber",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-azure-rejects-doc-number-d5f519",
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-azure-rejects-doc-number-reservation-push: TEST-4152 added under Spec-AC-05: a refused release is named on the collision path too",
+        "status": "open"
+      },
+      {
+        "id": "fu-docnum-inflight-race-not-collision",
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a concurrent push that loses on the server side ((reference already exists) / (atomic transaction failed)) is classified non-collision, so the loser goes provisional instead of retrying",
         "status": "open"
       }
     ]
@@ -14253,6 +14289,40 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "azure-rejects-doc-number-reservation-push",
+        "date_utc": "2026-11-26",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 9701,
+        "agent_seconds": 8809,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 731615,
+        "remediation_runs": 2,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },

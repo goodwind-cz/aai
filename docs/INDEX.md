@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (52)
+## Product (53)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -28,6 +28,7 @@ _None._
 | aai-update | aai-update | 7 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
+| azure-rejects-doc-number-reservation-push | azure-rejects-doc-number-reservation-push | 1 | docs/product/azure-rejects-doc-number-reservation-push.md |
 | bootstrap-on-node | bootstrap-on-node | 1 | docs/product/bootstrap-on-node.md |
 | ci-test-impact-selection | ci-test-impact-selection | 4 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 2 | docs/product/configurable-merge-policy-lanes.md |
@@ -74,7 +75,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (711)
+## Done (713)
 
 | ID | Type | Path |
 |---|---|---|
@@ -452,6 +453,7 @@ _None._
 | ISSUE-0125 | issues | docs/issues/ISSUE-0125-index-schema-warning-prominence.md |
 | ISSUE-0126 | issues | docs/issues/ISSUE-0126-secrets-gate-false-positives.md |
 | ISSUE-0127 | issues | docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md |
+| ISSUE-0128 | issues | docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -787,6 +789,7 @@ _None._
 | SPEC-0317 | specs | docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md |
 | SPEC-0318 | specs | docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md |
 | SPEC-0319 | specs | docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md |
+| SPEC-0320 | specs | docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -822,7 +825,7 @@ _None._
 
 _None._
 
-## Broken references (627)
+## Broken references (633)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -994,11 +997,17 @@ _None._
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/CHANGE-0005-gamma.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/CHANGE-0005-provisional.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/CHANGE-0006-delta.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-az-pair.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-az-url.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-default-pair.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-gh-pair.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/issues/FAMA-DRAFT-paired-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/knowledge/widen-notes.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/product/uses-draft.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/product/x.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/project-sessions/2026-07-27-widen.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-az-one.md | NOT FOUND |
+| tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-az-refused.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-dryrun-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-excl-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-four-topic.md | NOT FOUND |

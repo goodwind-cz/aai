@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-26T15:36:49.910Z",
+  "generatedAt": "2026-11-26T17:28:30.545Z",
   "project": "aai",
   "counts": {
-    "delivered": 389,
+    "delivered": 390,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 223129056
+    "tokens_total": 223860671
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
       "validation": null,
       "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+    },
+    {
+      "ref": "azure-rejects-doc-number-reservation-push",
+      "title": "Issue — Doc numbering is unusable on Azure Repos: the reservation push is rejected",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md",
+      "closed_on": "2026-11-26",
+      "agent_minutes": 147,
+      "token_total": 731615,
+      "spec": "docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261126T172014Z-azure-rejects-doc-number-reservation-push.md"
     },
     {
       "ref": "node-first-cleanup",
@@ -5330,6 +5343,19 @@
           "spec": "docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md",
           "validation": null,
           "review": "docs/ai/reviews/review-onboarding-tech-contract-and-lint-gaps-20261126T063300Z.md"
+        },
+        {
+          "ref": "azure-rejects-doc-number-reservation-push",
+          "title": "Issue — Doc numbering is unusable on Azure Repos: the reservation push is rejected",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md",
+          "closed_on": "2026-11-26",
+          "agent_minutes": 147,
+          "token_total": 731615,
+          "spec": "docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261126T172014Z-azure-rejects-doc-number-reservation-push.md"
         },
         {
           "ref": "node-first-cleanup",
