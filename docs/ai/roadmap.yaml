@@ -189,7 +189,7 @@ pairs:
   - capability: skill-description-canonical-prompt-pointer
     status: done
   - capability: test-infra-p2-fixes
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

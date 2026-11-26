@@ -1,10 +1,10 @@
 ---
 id: spec-test-infra-p2-fixes
 type: spec
-number: null
-status: implementing
+number: 319
+status: done
 mutation_gate: v1
-frozen_sha256: 9653df0fcb5021462b2dbd86c000b62bc2d04bc585ad17356558a2f6a7ba38db
+frozen_sha256: a237cc98fc7d357d7d6defcefdc3d2a950d2dfbc9234a8d8adc1ddc7f2b920c2
 ceremony_level: 2
 links:
   requirement: test-infra-p2-fixes
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-test-infra-p2-fixes.md (owner
+- Requirement: docs/issues/CHANGE-0271-test-infra-p2-fixes.md (owner
   brief 2026-11-25).
 - Prior scopes whose frozen text or tests this scope changes (see D-AMEND):
   docs/issues/CHANGE-0099-deterministic-friction-capture.md (AC-001, the
@@ -68,8 +68,8 @@ SPEC-FROZEN: true
   docs/issues/CHANGE-0099-deterministic-friction-capture.md;
   docs/specs/SPEC-0185-spec-friction-channel-sweep.md;
   docs/specs/SPEC-0231-spec-docs-index-broken-refs-scope.md;
-  docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md;
-  docs/issues/CHANGE-DRAFT-test-infra-p2-fixes.md.
+  docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md;
+  docs/issues/CHANGE-0271-test-infra-p2-fixes.md.
 
 ## Measurements (origin/main 5f02b0e5, 2026-11-25)
 
@@ -412,17 +412,17 @@ the CHANGELOG, TECHNOLOGY.md and the D-AMEND sections, as article 5 requires.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN aai-run-tests.sh runs a command with a fake HOME and a fake XDG_CACHE_HOME (and again with XDG_CACHE_HOME unset) THEN the command SHALL see an XDG_CACHE_HOME that is neither the fake XDG path nor under the fake HOME, that directory SHALL not exist after the wrapper exits, and neither the fake XDG path nor the fake HOME SHALL contain a powershell entry; where pwsh is installed a real pwsh start through the wrapper SHALL leave no powershell cache entry (StartupProfileData under XDG_CACHE_HOME/powershell or HOME/.cache/powershell) in either fake (the data folder pwsh creates under HOME/.local/share/powershell is not the cache and is outside this clause), and where it is not the test SHALL print a NOTE naming the skipped arm. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4130.log | — | D1, item 9 |
-| Spec-AC-02 | WHEN test-framework.sh runs two fixture suites with a fake HOME and a fake XDG_CACHE_HOME, both with isolation on and with AAI_TEST_ISOLATION=0 THEN each suite SHALL see its own XDG_CACHE_HOME, the two SHALL differ, neither SHALL equal the fake XDG path or lie under the fake HOME, neither SHALL exist after the run, and the fake XDG path SHALL hold no powershell entry. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4131.log | — | D2, item 9 |
-| Spec-AC-03 | WHEN test-framework.sh is given --skill for an existing suite and --skill for a missing one THEN it SHALL exit 2 with Test file not found and SHALL print no Found line and run no suite; an empty --skill value SHALL exit 2 the same way. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4132.log | — | D3, item 5 |
-| Spec-AC-04 | WHEN a command run through aai-run-tests.sh exits 7 or 127 with friction capture on and a fixture spool THEN the spool SHALL hold zero observations and the wrapper SHALL exit 7 or 127. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4133.log | — | D4, item 4 |
-| Spec-AC-05 | WHEN a command run through aai-run-tests.sh is killed by the watchdog THEN the spool SHALL gain exactly one stalled_progress observation with confidence medium and impact low; aai-feedback-triage.mjs over one such observation SHALL report the cluster retain, and over two of the same command SHALL report it review_candidate. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4134.log | — | D4, item 4 |
-| Spec-AC-06 | WHEN the prompt-diet TEST-004 arm runs in a scratch project whose real-root draft path holds a sentinel file THEN the arm SHALL pass and the sentinel SHALL be byte-identical afterwards, with no other file under the scratch project root created, changed or removed. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4135.log | — | D5, item 1 |
-| Spec-AC-07 | WHEN a scanned document disappears between the docs-audit scan and its read THEN docs-audit.mjs --check --no-event SHALL exit with the same code as the same run without that file, SHALL print NOTE vanished during the scan naming the file, and SHALL print no ENOENT error. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4136.log | — | D6, item 1 |
-| Spec-AC-08 | WHEN test-aai-docs-audit.sh is run with one argument THEN test_drift_verdicts and test_reviewby_literals SHALL each exit 0 with their pass text, the drift run SHALL not print the pass text of test_report_only_without_config or the full-suite banner, and an undefined function name SHALL exit 2 with unknown test function. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4137.log | — | D7, item 3 |
-| Spec-AC-09 | The fail-wrapper guard SHALL report zero offending suites over tests/skills and tests, SHALL name a planted wrapper without FAIL, and SHALL not name a conforming one; each of the four fixed wrappers called with TEST-9999 probe SHALL print a line matching the mutation-run attribution form. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4138.log | — | D8, item 2 |
-| Spec-AC-10 | one_world_scan SHALL print one ONE-WORLD line with the right shape for each planted moving-ref, last-index and unreleased-only file and none for the six controls; over the live test corpus it SHALL print zero lines. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4140.log | — | D9, item 7 |
-| Spec-AC-11 | CHANGELOG.md SHALL hold the D-WIRE heading in its unreleased or rolled form, docs/TECHNOLOGY.md SHALL name the XDG_CACHE_HOME override, CHANGE-0099, SPEC-0185 and SPEC-0231 SHALL each hold the D-AMEND heading, spec-amend.mjs list --strict SHALL exit 0, and follow-ups.mjs list --status open --json SHALL list none of the nine ids, each closed with resolved_by test-infra-p2-fixes. | implementing | docs/ai/tdd/test-infra-p2-fixes/green/TEST-4141.log | — | D-AMEND, D-WIRE, D10, D11 |
+| Spec-AC-01 | WHEN aai-run-tests.sh runs a command with a fake HOME and a fake XDG_CACHE_HOME (and again with XDG_CACHE_HOME unset) THEN the command SHALL see an XDG_CACHE_HOME that is neither the fake XDG path nor under the fake HOME, that directory SHALL not exist after the wrapper exits, and neither the fake XDG path nor the fake HOME SHALL contain a powershell entry; where pwsh is installed a real pwsh start through the wrapper SHALL leave no powershell cache entry (StartupProfileData under XDG_CACHE_HOME/powershell or HOME/.cache/powershell) in either fake (the data folder pwsh creates under HOME/.local/share/powershell is not the cache and is outside this clause), and where it is not the test SHALL print a NOTE naming the skipped arm. | done | TEST-4130 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D1, item 9 |
+| Spec-AC-02 | WHEN test-framework.sh runs two fixture suites with a fake HOME and a fake XDG_CACHE_HOME, both with isolation on and with AAI_TEST_ISOLATION=0 THEN each suite SHALL see its own XDG_CACHE_HOME, the two SHALL differ, neither SHALL equal the fake XDG path or lie under the fake HOME, neither SHALL exist after the run, and the fake XDG path SHALL hold no powershell entry. | done | TEST-4131 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D2, item 9 |
+| Spec-AC-03 | WHEN test-framework.sh is given --skill for an existing suite and --skill for a missing one THEN it SHALL exit 2 with Test file not found and SHALL print no Found line and run no suite; an empty --skill value SHALL exit 2 the same way. | done | TEST-4132 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D3, item 5 |
+| Spec-AC-04 | WHEN a command run through aai-run-tests.sh exits 7 or 127 with friction capture on and a fixture spool THEN the spool SHALL hold zero observations and the wrapper SHALL exit 7 or 127. | done | TEST-4133 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D4, item 4 |
+| Spec-AC-05 | WHEN a command run through aai-run-tests.sh is killed by the watchdog THEN the spool SHALL gain exactly one stalled_progress observation with confidence medium and impact low; aai-feedback-triage.mjs over one such observation SHALL report the cluster retain, and over two of the same command SHALL report it review_candidate. | done | TEST-4134 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D4, item 4 |
+| Spec-AC-06 | WHEN the prompt-diet TEST-004 arm runs in a scratch project whose real-root draft path holds a sentinel file THEN the arm SHALL pass and the sentinel SHALL be byte-identical afterwards, with no other file under the scratch project root created, changed or removed. | done | TEST-4135 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D5, item 1 |
+| Spec-AC-07 | WHEN a scanned document disappears between the docs-audit scan and its read THEN docs-audit.mjs --check --no-event SHALL exit with the same code as the same run without that file, SHALL print NOTE vanished during the scan naming the file, and SHALL print no ENOENT error. | done | TEST-4136 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D6, item 1 |
+| Spec-AC-08 | WHEN test-aai-docs-audit.sh is run with one argument THEN test_drift_verdicts and test_reviewby_literals SHALL each exit 0 with their pass text, the drift run SHALL not print the pass text of test_report_only_without_config or the full-suite banner, and an undefined function name SHALL exit 2 with unknown test function. | done | TEST-4137 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D7, item 3 |
+| Spec-AC-09 | The fail-wrapper guard SHALL report zero offending suites over tests/skills and tests, SHALL name a planted wrapper without FAIL, and SHALL not name a conforming one; each of the four fixed wrappers called with TEST-9999 probe SHALL print a line matching the mutation-run attribution form. | done | TEST-4138 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D8, item 2 |
+| Spec-AC-10 | one_world_scan SHALL print one ONE-WORLD line with the right shape for each planted moving-ref, last-index and unreleased-only file and none for the six controls; over the live test corpus it SHALL print zero lines. | done | TEST-4139 and TEST-4140 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D9, item 7 |
+| Spec-AC-11 | CHANGELOG.md SHALL hold the D-WIRE heading in its unreleased or rolled form, docs/TECHNOLOGY.md SHALL name the XDG_CACHE_HOME override, CHANGE-0099, SPEC-0185 and SPEC-0231 SHALL each hold the D-AMEND heading, spec-amend.mjs list --strict SHALL exit 0, and follow-ups.mjs list --status open --json SHALL list none of the nine ids, each closed with resolved_by test-infra-p2-fixes. | done | TEST-4141 green; mutation record RED; docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md | — | D-AMEND, D-WIRE, D10, D11 |
 
 ## Implementation plan
 
@@ -441,7 +441,7 @@ Order. Each step is RED first, with the RED log under
    producer entries.
 6. D8 (TEST-4138), then D9 (TEST-4139, TEST-4140) and the live-hit marker.
 7. D-AMEND, D-WIRE (CHANGELOG, TECHNOLOGY.md), then the nine ledger closes:
-   `node .aai/scripts/follow-ups.mjs close --id <id> --resolved-by test-infra-p2-fixes --source docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md`.
+   `node .aai/scripts/follow-ups.mjs close --id <id> --resolved-by test-infra-p2-fixes --source docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md`.
    Items 6 and 8 carry the D10 and D11 reasons in their close note. The
    allocator renames the spec at merge; run `spec-amend.mjs list --strict`
    and the mutation gate after any allocator step. TEST-4141 last.

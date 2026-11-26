@@ -4670,3 +4670,12 @@
 {"v":1,"ts":"2026-11-26T15:30:22Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"validation","head":"22d27a304fdb95aae3eef14257ba7c6a627db8f1","seen":"run_at:2026-11-26T15:30:21Z"}}
 {"v":1,"ts":"2026-11-26T15:30:22Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-infra-p2-fixes","payload":{"status":"pass","hash":"91ab9b7bc2c70ab7758c7da4a6fbd4c24cef664e5401fd8d1d1c63cd3b383ff9"}}
 {"v":1,"ts":"2026-11-26T15:30:27Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"code_review","head":"22d27a304fdb95aae3eef14257ba7c6a627db8f1","seen":"reports:2"}}
+{"v":1,"ts":"2026-11-26T15:34:40Z","actor":"ales_holubec.net","event":"check_verdict","ref":"test-infra-p2-fixes","payload":{"role":"code_review","head":"cc9f6b19fe095ecd03e776a5e73aa4daebbca1c3","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-11-26T15:34:40Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"validation","head":"4867a909364ea9cc7885891bff9e05623c06bfa5","seen":"run_at:2026-11-26T15:30:21Z"}}
+{"v":1,"ts":"2026-11-26T15:34:46Z","actor":"ales_holubec.net","event":"check_verdict","ref":"test-infra-p2-fixes","payload":{"role":"validation","head":"22d27a304fdb95aae3eef14257ba7c6a627db8f1","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-11-26T15:34:46Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"validation","head":"4867a909364ea9cc7885891bff9e05623c06bfa5","seen":"run_at:2026-11-26T15:34:45Z"}}
+{"v":1,"ts":"2026-11-26T15:34:47Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-infra-p2-fixes","payload":{"status":"pass","hash":"023ff810bfefe1668f377c6e53ed9c1f1184936a1a8a0b02c00b186628016035"}}
+{"v":1,"ts":"2026-11-26T15:36:39Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-infra-p2-fixes","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:36:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-infra-p2-fixes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-26T15:36:39Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-infra-p2-fixes","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-26T15:36:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-infra-p2-fixes","payload":{"validation":"pass","code_review":"pass"}}

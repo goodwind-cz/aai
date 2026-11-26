@@ -4,7 +4,7 @@
 - reviewer: dispatched Code Review role (claude-opus-5-5), SKILL_CODE_REVIEW prompt hash 8e6aae0d5197, fresh context
 - worktree: /Users/ales/Projects/aai-worktrees/p2-test-infra, branch chore/p2-test-infra, HEAD cc9f6b19
 - scope: `git diff 5f02b0e5..cc9f6b19` minus the docs/ai ledgers and docs/INDEX.md (the STATE `code_review.scope` path list, 23 paths)
-- spec: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md (frozen, amended once in remediation)
+- spec: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md (frozen, amended once in remediation)
 - validation input: docs/ai/reports/VALIDATION-20261125T225507Z-test-infra-p2-fixes.md (PASS, round 2)
 - reviewed: 2026-11-26T00:47:43Z
 
@@ -15,7 +15,7 @@ security_relevant: false
 ```yaml
 review:
   scope: "5f02b0e5..cc9f6b19 (STATE code_review.scope path list; docs/ai ledgers and docs/INDEX.md excluded)"
-  spec: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md
+  spec: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -42,7 +42,7 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-mutation-gate.sh, line: 3754,
           issue: "The D8 corpus guard lives in aai-mutation-gate, which CI selected mode does not pick for an edit to an existing suite file.",
           failure_scenario: "A PR reverts tests/skills/test-aai-intake.sh log_fail to `echo \"✗ $*\"`. select-suites --files-from on that one path prints CORE x5, SELECTED aai-intake and aai-prompt-diet, DROPPED 138, so TEST-4138 does not run. The PR is green, and the next push-to-main or nightly full run reds aai-mutation-gate on unrelated work." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md, line: 186,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md, line: 186,
           issue: "D5 still states `e2e_root=\"$(e2e_fixture_root)\"` (that text occurs once). The code deliberately uses the global E2E_ROOT (the B1 fix), and the text occurs zero times. The remediation amendment covers only the TEST-4135 mutation cell. D3 (line 151) also says an empty --skill fails in discover_tests, but the argument parser refuses it first.",
           failure_scenario: "The next reader, or a future mechanical check of the 'occurs once' anchors, takes the frozen D5 as the contract. Restoring the command-substitution form reintroduces the fixture-root leak that validation round 1 found." }
       - { rank: NON-BLOCKING, file: tests/skills/test-framework.sh, line: 1302,
@@ -124,7 +124,7 @@ On Linux, Playwright keeps its browsers under `$XDG_CACHE_HOME/ms-playwright`. S
 Reproduced with `select-suites.mjs --files-from` on `tests/skills/test-aai-intake.sh` alone: aai-mutation-gate is DROPPED. This is the "ratchet that cannot run on the change it exists to catch" pattern that suite-map.yaml's core comment rejects. A new suite file escalates to FULL_RUN (unmapped), so only edits to existing suites escape.
 - Recommended: (b) follow-up `fu-fail-wrapper-guard-not-selected`, to move TEST-4138 into the always-on hygiene corpus half. That is a spec-level placement change.
 
-**NB-3 (P3, leaves a false record). docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md:186. The D5 prose contradicts the code.**
+**NB-3 (P3, leaves a false record). docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md:186. The D5 prose contradicts the code.**
 The prose still names `e2e_root="$(e2e_fixture_root)"` as text that "occurs once"; it occurs zero times. D3's empty-`--skill` mechanism is also misdescribed.
 - Recommended: (a) remediate in tree, with an additive amendment sentence on D5 (and D3) under the existing `fu-amend-spec-test-infra-p2-fixes` tracker. Because it leaves a false record, disposition (d) is not available.
 

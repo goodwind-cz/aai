@@ -4,7 +4,7 @@
 - reviewer: dispatched Code Review role (claude-opus-5-5), SKILL_CODE_REVIEW prompt hash 8e6aae0d5197, fresh context
 - worktree: /Users/ales/Projects/aai-worktrees/p2-test-infra, branch chore/p2-test-infra, HEAD d80b73a8
 - scope: the ride's own changes, `git diff d636a218^2 d80b73a8` (origin/main as merged at d636a218 → HEAD), restricted to the STATE `code_review.scope` path list (23 paths plus docs/INDEX.md). The round-1 delta is b3c245b7, ff243a5b and d80b73a8. The merge resolution in d636a218 (CHANGELOG, ledgers, roadmap, the prompt-diet case list) was checked for correctness.
-- spec: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md (frozen; amended in b3c245b7 and d80b73a8)
+- spec: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md (frozen; amended in b3c245b7 and d80b73a8)
 - validation input: docs/ai/reports/VALIDATION-20261126T132504Z-test-infra-p2-fixes.md (PASS, full sweep test-20261126-140124 rc 0, run on macOS)
 - round 1: docs/ai/reviews/review-test-infra-p2-fixes-20261126T004743Z.md
 - reviewed: 2026-11-26T14:33:54Z
@@ -16,7 +16,7 @@ security_relevant: false
 ```yaml
 review:
   scope: "d636a218^2..d80b73a8 (ride-only; STATE code_review.scope path list; merge resolution of d636a218 checked)"
-  spec: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md
+  spec: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -37,7 +37,7 @@ review:
       - { rank: BLOCKING, file: tests/skills/test-aai-run-tests.sh, line: 1357,
           issue: "The pw_xdg (1357) and pw_home (1359) arms of TEST-4130 do not unset an inherited PLAYWRIGHT_BROWSERS_PATH. Only pw_darwin does. The b3c245b7 pass-through makes every Linux outer wrapper export that variable, so the nested wrapper keeps it as a caller value and both arms fail.",
           failure_scenario: "On any Linux host (including WSL, and the WSL route of aai-run-tests.ps1), the canonical `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`, or the single-suite form, fails with `FAIL: TEST-4130 (pw_xdg): PLAYWRIGHT_BROWSERS_PATH was '<caller XDG>/ms-playwright', expected '<fixture>/xdg/ms-playwright'`. The same happens to a Linux user who has PLAYWRIGHT_BROWSERS_PATH exported. Validation ran on macOS and CI runs test-framework.sh without the wrapper, so neither saw it. backed-by: docs/ai/reviews/repro-test-infra-p2-fixes-pw-inherited.sh (exit 1 on HEAD; exit 0 on a scratch clone with `-u PLAYWRIGHT_BROWSERS_PATH` added to both arms)" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md, line: 494,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md, line: 494,
           issue: "TEST-4133's Mutation cell still injects `aai_capture_friction \"$AAI_CMD_REAL_STATUS\" ...`. b3c245b7 removed that variable, and the wrapper runs under `set -u` (line 119), so the mutant now aborts with `AAI_CMD_REAL_STATUS: unbound variable` (exit 1) and writes no friction. TEST-4133 goes RED on its exit-code assertion, not on the spool assertion that the record's first_fail names.",
           failure_scenario: "Replaying the mutation gives RED for a different reason (reviewer probe: rc 1, spool empty). A later edit that drops TEST-4133's spool_count assertion, or routes ordinary failures into the spool another way, keeps the declared mutant RED. The gate passes while Spec-AC-04's zero-observations half has no working mutant. The stored record (base 0463de47, first_fail 'ordinary failures must leave the spool empty (got 2)') no longer describes what the mutant does at HEAD, which is a false record." }
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-hygiene-pack.sh, line: 6364,
@@ -95,7 +95,7 @@ The pass-through added in b3c245b7 runs in the outer wrapper too. On Linux, the 
 
 ### NON-BLOCKING (WARNINGs; H6 dispositions recommended, the orchestrator records them)
 
-**NB-7 (P2, leaves a false record). docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md:494. TEST-4133's declared mutant now dies on `set -u` instead of recording friction.**
+**NB-7 (P2, leaves a false record). docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md:494. TEST-4133's declared mutant now dies on `set -u` instead of recording friction.**
 Reviewer probe on a scratch clone at HEAD, with the cell applied: `sh .aai/scripts/aai-run-tests.sh sh -c 'exit 7'` exits 1 with `line 1168: AAI_CMD_REAL_STATUS: unbound variable`, and the fixture spool stays empty. TEST-4133 is still RED, but through `exit 7 must pass through (got 1)`. The stored record (`mutation-TEST-4133.txt`, base 0463de47) names the spool assertion as first_fail.
 - Recommended disposition: (a) remediate in tree in the same round as B-2. Change the cell to `sed:s/^exit "\$STATUS"$/aai_capture_friction "$STATUS" deterministic_script_failure low low; exit "$STATUS"/m` with an additive amendment sentence under `fu-amend-spec-test-infra-p2-fixes`, then re-record TEST-4133 and check that first_fail is the spool assertion again. (d) is not available because the finding leaves a false record.
 

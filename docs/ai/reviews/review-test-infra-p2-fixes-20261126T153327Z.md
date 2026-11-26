@@ -3,8 +3,8 @@
 - ref: test-infra-p2-fixes
 - reviewer: dispatched Code Review role (claude-opus-5-5), SKILL_CODE_REVIEW prompt hash 8e6aae0d5197, fresh context
 - worktree: /Users/ales/Projects/aai-worktrees/p2-test-infra, branch chore/p2-test-infra, HEAD 22d27a30
-- scope: `git diff d80b73a8..HEAD` (commits 4e22f20d review report and repro, 04a6db2a remediation, 22d27a30 telemetry). The code and spec delta is in 04a6db2a: tests/skills/test-aai-run-tests.sh (2 lines), docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md (frozen_sha256 restamp and the TEST-4133 row), and docs/ai/decisions.jsonl (2 appended lines).
-- spec: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md (frozen, amended)
+- scope: `git diff d80b73a8..HEAD` (commits 4e22f20d review report and repro, 04a6db2a remediation, 22d27a30 telemetry). The code and spec delta is in 04a6db2a: tests/skills/test-aai-run-tests.sh (2 lines), docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md (frozen_sha256 restamp and the TEST-4133 row), and docs/ai/decisions.jsonl (2 appended lines).
+- spec: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md (frozen, amended)
 - previous review: docs/ai/reviews/review-test-infra-p2-fixes-20261126T143354Z.md (round 2, FAIL on B-2)
 - validation input: docs/ai/reports/VALIDATION-20261126T145544Z-test-infra-p2-fixes.md (PASS at 04a6db2a)
 - reviewed: 2026-11-26T15:33:27Z
@@ -16,7 +16,7 @@ security_relevant: false
 ```yaml
 review:
   scope: "d80b73a8..22d27a30 (round-4 remediation delta; code change = tests/skills/test-aai-run-tests.sh:1357,1359; spec row TEST-4133)"
-  spec: docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md
+  spec: docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -82,7 +82,7 @@ None new. The delta is two `env -u` additions and a spec cell with its amendment
 - Negative control (pw_home unset removed, outer AAI_UNAME=Linux): rc 1 on pw_home.
 - TEST-4130 declared mutant on a HEAD export: rc 1 on the owned arm.
 - TEST-4133 new declared mutant on a HEAD export: rc 1 on the spool assertion. HEAD single run: rc 0.
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md`: LINT PASS. `node .aai/scripts/spec-amend.mjs list --strict`: rc 0. `node .aai/scripts/mutation-gate.mjs --spec ... --require-evidence`: GATE PASS, 12 rows, degraded 0. (The gate is local-only; the replays above are the independent check.)
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md`: LINT PASS. `node .aai/scripts/spec-amend.mjs list --strict`: rc 0. `node .aai/scripts/mutation-gate.mjs --spec ... --require-evidence`: GATE PASS, 12 rows, degraded 0. (The gate is local-only; the replays above are the independent check.)
 - No full sweep (per dispatch). The scratch exports were removed, and no process is left running.
 
 ## Warning dispositions (H6)

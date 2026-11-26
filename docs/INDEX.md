@@ -6,13 +6,12 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-test-infra-p2-fixes | specs | implementing | 11 implementing | docs/specs/SPEC-DRAFT-spec-test-infra-p2-fixes.md |
 
 ## Canonical layer (0)
 
@@ -75,7 +74,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (709)
+## Done (711)
 
 | ID | Type | Path |
 |---|---|---|
@@ -344,6 +343,7 @@ _None._
 | CHANGE-0268 | issues | docs/issues/CHANGE-0268-node-first-cleanup.md |
 | CHANGE-0269 | issues | docs/issues/CHANGE-0269-mutation-tooling-p2-fixes.md |
 | CHANGE-0270 | issues | docs/issues/CHANGE-0270-skill-description-canonical-prompt-pointer.md |
+| CHANGE-0271 | issues | docs/issues/CHANGE-0271-test-infra-p2-fixes.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -786,16 +786,16 @@ _None._
 | SPEC-0316 | specs | docs/specs/SPEC-0316-spec-secrets-gate-false-positives.md |
 | SPEC-0317 | specs | docs/specs/SPEC-0317-spec-onboarding-tech-contract-and-lint-gaps.md |
 | SPEC-0318 | specs | docs/specs/SPEC-0318-spec-skill-description-canonical-prompt-pointer.md |
+| SPEC-0319 | specs | docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (13)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
-| test-infra-p2-fixes (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-test-infra-p2-fixes.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

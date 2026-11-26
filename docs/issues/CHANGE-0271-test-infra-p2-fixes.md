@@ -1,8 +1,8 @@
 ---
 id: test-infra-p2-fixes
 type: change
-number: null
-status: draft
+number: 271
+status: done
 capability: test-infra-p2-fixes
 user_visible: false
 links:
