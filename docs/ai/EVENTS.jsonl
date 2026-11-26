@@ -4654,3 +4654,6 @@
 {"v":1,"ts":"2026-11-26T13:24:41Z","actor":"ales_holubec.net","event":"round_reset","ref":"test-infra-p2-fixes","payload":{"block":"last_validation","from":"fail","forced":true}}
 {"v":1,"ts":"2026-11-26T14:23:49Z","actor":"ales_holubec.net","event":"full_sweep","ref":"test-infra-p2-fixes","payload":{"head":"ff243a5b494df7ab46018b19635c3e08161499ce","rc":0,"run_id":"test-20261126-140124"}}
 {"v":1,"ts":"2026-11-26T14:23:50Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"test-infra-p2-fixes","payload":{"head":"ff243a5b494df7ab46018b19635c3e08161499ce","clean":true,"flags":0}}
+{"v":1,"ts":"2026-11-26T14:28:45Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"validation","head":"d80b73a80c0fa6128104991968b892a1195a4ec6","seen":"run_at:2026-11-26T14:28:44Z"}}
+{"v":1,"ts":"2026-11-26T14:28:45Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-infra-p2-fixes","payload":{"status":"pass","hash":"d9622c20ba25e0648ef9b69c94e4fd5f8d464e404cbe672e1811169aea8642b8"}}
+{"v":1,"ts":"2026-11-26T14:28:49Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"test-infra-p2-fixes","payload":{"role":"code_review","head":"d80b73a80c0fa6128104991968b892a1195a4ec6","seen":"reports:1"}}
