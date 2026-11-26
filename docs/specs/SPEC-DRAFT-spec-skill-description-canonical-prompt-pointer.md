@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 1e5306b724b09d6403fc94e04e104fd5d3260e46ad2869877585ed8bbea1ba5b
+frozen_sha256: 80650b2626d60c19693a81474970fe129d320aa990b434553505af1340919aa9
 ceremony_level: 2
 links:
   requirement: skill-description-canonical-prompt-pointer
@@ -274,17 +274,17 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN sync-harness-skills.mjs --check runs on the live tree THEN it SHALL exit 0 and print OK 42 wrapper description(s) name their canonical source; an independent reader SHALL find in each of the 42 source descriptions exactly one D1 suffix whose target is the body's first canonical reference and an existing file. | done | TEST-4130 green | — | D1, M1, M2 |
-| Spec-AC-02 | WHEN a wrapper's description lacks the pointer, names a missing file, names a target other than its body's, or its body names no canonical source THEN --check SHALL exit 1 with exactly one DIVERGE pointer line naming that wrapper and the D4 reason; the unmutated fixture SHALL exit 0. | done | TEST-4131 green | — | D4 checks 3 to 6 |
-| Spec-AC-03 | WHEN a description is an unquoted scalar holding a colon followed by a space, or a double-quoted scalar holding an inner double quote THEN --check SHALL exit 1 naming the wrapper as not a YAML-safe one-line scalar; the same text double-quoted SHALL pass; the four M3 wrappers SHALL be quoted. | done | TEST-4132 green | — | D3, M3 |
-| Spec-AC-04 | WHEN a description with a valid pointer is 1025 code points long under the shipped 1024 limit THEN --check SHALL exit 1 naming the wrapper, its length and the limit; a 1024 code point description SHALL pass. | done | TEST-4133 green | — | D2 |
-| Spec-AC-05 | A manifest without a pointer section SHALL check no pointer and print no pointer line; WHEN the pointer section has a max of 0, of 1025, a non-integer max, an empty source, or two rows THEN both --check and --write SHALL exit 2 naming the cause and leave every tree byte-identical. | done | TEST-4134 green | — | D4 opt-in |
-| Spec-AC-06 | WHEN a pointer target is absent but listed under extended in the root's PROFILES.yaml THEN --check SHALL report no drift for it, and an absent unlisted target SHALL still be named missing; WHEN a wrapper body holds the AAI-DYNAMIC-SKILL marker THEN --check SHALL print SKIPPED pointer for it and exclude it from the count. | done | TEST-4135 green | — | D5, M5, M6 |
-| Spec-AC-07 | In a scratch consumer installed by aai-sync.mjs with the default profile and another with --profile core, every wrapper in .claude, .agents, .codex and .gemini skills SHALL carry its source description byte for byte with a D1 pointer whose target exists, or (core only) is listed under extended in the consumer's PROFILES.yaml; the consumer's own --check SHALL exit 0 and print the pointer OK line. | done | TEST-4136 green | — | AC-001 consumer view, M4, M5 |
-| Spec-AC-08 | .aai/SKILL_SHIP.prompt.md STRICT RULES SHALL hold the END-OF-TURN INVARIANT rule naming the three legal endings, ride-status.mjs and the set-human-input park command; autopilot default 2's required or L3 branch SHALL name HITL-7, set-human-input and the HITL block. | done | TEST-4137 green | — | D6 |
-| Spec-AC-09 | WHEN the set-human-input command the invariant prescribes is run against a scratch STATE whose ride-status reads blocker none THEN state.mjs SHALL exit 0 and ride-status.mjs --json SHALL report blocker kind human_input with the given question. | done | TEST-4138 green | — | D6 seam |
-| Spec-AC-10 | The committed docs/skill-catalog-data.json SHALL carry every source description verbatim, and test-aai-deslop.sh TEST-014 SHALL pass (committed catalog equals a fresh render). | done | TEST-4139 green | — | M7 |
-| Spec-AC-11 | CHANGELOG.md SHALL hold the heading ## [unreleased] — Skill wrappers name their canonical source; /aai-ship never ends a turn silently (or its rolled version form). | done | TEST-4140 green | — | AC-005 |
+| Spec-AC-01 | WHEN sync-harness-skills.mjs --check runs on the live tree THEN it SHALL exit 0 and print OK 42 wrapper description(s) name their canonical source; an independent reader SHALL find in each of the 42 source descriptions exactly one D1 suffix whose target is the body's first canonical reference and an existing file. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4130.log | — | D1, M1, M2 |
+| Spec-AC-02 | WHEN a wrapper's description lacks the pointer, names a missing file, names a target other than its body's, or its body names no canonical source THEN --check SHALL exit 1 with exactly one DIVERGE pointer line naming that wrapper and the D4 reason; the unmutated fixture SHALL exit 0. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4131.log | — | D4 checks 3 to 6 |
+| Spec-AC-03 | WHEN a description is an unquoted scalar holding a colon followed by a space, or a double-quoted scalar holding an inner double quote THEN --check SHALL exit 1 naming the wrapper as not a YAML-safe one-line scalar; the same text double-quoted SHALL pass; the four M3 wrappers SHALL be quoted. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4132.log | — | D3, M3 |
+| Spec-AC-04 | WHEN a description with a valid pointer is 1025 code points long under the shipped 1024 limit THEN --check SHALL exit 1 naming the wrapper, its length and the limit; a 1024 code point description SHALL pass. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4133.log | — | D2 |
+| Spec-AC-05 | A manifest without a pointer section SHALL check no pointer and print no pointer line; WHEN the pointer section has a max of 0, of 1025, a non-integer max, an empty source, or two rows THEN both --check and --write SHALL exit 2 naming the cause and leave every tree byte-identical. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4134.log | — | D4 opt-in |
+| Spec-AC-06 | WHEN a pointer target is absent but listed under extended in the root's PROFILES.yaml THEN --check SHALL report no drift for it, and an absent unlisted target SHALL still be named missing; WHEN a wrapper body holds the AAI-DYNAMIC-SKILL marker THEN --check SHALL print SKIPPED pointer for it and exclude it from the count. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4135.log | — | D5, M5, M6 |
+| Spec-AC-07 | In a scratch consumer installed by aai-sync.mjs with the default profile and another with --profile core, every wrapper in .claude, .agents, .codex and .gemini skills SHALL carry its source description byte for byte with a D1 pointer whose target exists, or (core only) is listed under extended in the consumer's PROFILES.yaml; the consumer's own --check SHALL exit 0 and print the pointer OK line. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4136.log | — | AC-001 consumer view, M4, M5 |
+| Spec-AC-08 | .aai/SKILL_SHIP.prompt.md STRICT RULES SHALL hold the END-OF-TURN INVARIANT rule naming the three legal endings, ride-status.mjs and the set-human-input park command; autopilot default 2's required or L3 branch SHALL name HITL-7, set-human-input and the HITL block. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4137.log | — | D6 |
+| Spec-AC-09 | WHEN the set-human-input command the invariant prescribes is run against a scratch STATE whose ride-status reads blocker none THEN state.mjs SHALL exit 0 and ride-status.mjs --json SHALL report blocker kind human_input with the given question. | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4138.log | — | D6 seam |
+| Spec-AC-10 | The committed docs/skill-catalog-data.json SHALL carry every source description verbatim, and test-aai-deslop.sh TEST-014 SHALL pass (committed catalog equals a fresh render). | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4139.log | — | M7 |
+| Spec-AC-11 | CHANGELOG.md SHALL hold the heading ## [unreleased] — Skill wrappers name their canonical source; /aai-ship never ends a turn silently (or its rolled version form). | done | docs/ai/tdd/skill-description-canonical-prompt-pointer/green/TEST-4140.log | — | AC-005 |
 
 ## Implementation plan
 
@@ -489,3 +489,8 @@ this record).
 - A4: `mk_root` in `test-aai-harness-shims.sh` copies the `SKILL_*.prompt.md`
   files, the two script targets and `PROFILES.yaml` into its fixture, so the
   live manifest's pointer check runs there.
+- A5: `test_4019_wiring` in `test-aai-sync-node.sh` pinned every
+  `.aai/*.prompt.md` byte-equal to commit 077ee649; the SKILL_SHIP edit
+  (D6) breaks that. The byte comparison now skips
+  `.aai/SKILL_SHIP.prompt.md`; the file-set equality check still requires it
+  to exist, and the TEST-4019 pass text says so.

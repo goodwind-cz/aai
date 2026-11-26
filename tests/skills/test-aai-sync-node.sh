@@ -941,7 +941,7 @@ test_4019_wiring() {
     process.stdout.write(bad.join("; "));
   ' "$PROJECT_ROOT/.github/workflows/ps1-quality.yml")" || log_fail "TEST-4019: the path-list check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4019: ps1-quality.yml: $out"
-  # the prompt corpus (.aai/*.prompt.md and .aai/AGENTS.md) is byte-equal to the commit before the ride
+  # the prompt corpus (.aai/*.prompt.md and .aai/AGENTS.md) is byte-equal to the commit before the ride, except SKILL_SHIP (edited by a later ride; its presence stays pinned by the file-set check)
   out="$(PROJECT_ROOT="$PROJECT_ROOT" node -e '
     const { execFileSync } = require("child_process");
     const fs = require("fs");
@@ -954,6 +954,7 @@ test_4019_wiring() {
     if (names.length < 30) bad.push("the corpus at 077ee649 lists only " + names.length + " files");
     if (JSON.stringify(names.slice().sort()) !== JSON.stringify(now)) bad.push("the corpus file set differs from 077ee649");
     for (const n of names) {
+      if (n === ".aai/SKILL_SHIP.prompt.md") continue;
       let want;
       try { want = git(["show", "077ee649:" + n]); } catch { bad.push(n + " unreadable at 077ee649"); continue; }
       if (!fs.existsSync(root + "/" + n) || Buffer.compare(want, fs.readFileSync(root + "/" + n)) !== 0) bad.push(n + " differs");
@@ -962,7 +963,7 @@ test_4019_wiring() {
   ')" || log_fail "TEST-4019: the prompt corpus check failed to run"
   [[ -z "$out" ]] || log_fail "TEST-4019: the prompt corpus: $out"
   safe_rm_own "$work"
-  log_pass "TEST-4019: select-suites routes the module, launchers, libs, reference copies, test files, the Pester file and git-env-scrub.sh to aai-sync-node (FULL_RUN for the two libs), every row naming aai-sync.sh names the module and none names the bash library, the weights rows and fallback lines hold, test_090, test_128, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1 for aai-sync.sh, both ps1-quality path lists are identical and hold the D-WIRE entries, and the prompt corpus equals 077ee649"
+  log_pass "TEST-4019: select-suites routes the module, launchers, libs, reference copies, test files, the Pester file and git-env-scrub.sh to aai-sync-node (FULL_RUN for the two libs), every row naming aai-sync.sh names the module and none names the bash library, the weights rows and fallback lines hold, test_090, test_128, test_129, test_034 and test_035 pass, the lint and checks exit 0, the baseline holds 1 for aai-sync.sh, both ps1-quality path lists are identical and hold the D-WIRE entries, and the prompt corpus equals 077ee649 apart from .aai/SKILL_SHIP.prompt.md, which must exist (it grew in a later ride)"
 }
 
 main() {
