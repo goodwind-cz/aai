@@ -1411,7 +1411,9 @@ test_311_azure_docs() {
   assert_contains "$ug" "does not support --atomic push"
   assert_contains "$ug" "allocate-doc-number.mjs --reserve --path <doc>"
   assert_contains "$tech" "Azure Repos does not advertise atomic push"
-  grep -qE '^## \[unreleased\] — .*Azure Repos' "$cl" || log_fail "CHANGELOG needs an [unreleased] Azure Repos entry"
+  # A release cut rolls [unreleased] into a dated version heading; accept both.
+  grep -qE '^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}[^]]*)\] — .*Azure Repos' "$cl" \
+    || log_fail "CHANGELOG needs an [unreleased] or released Azure Repos entry"
   assert_file "$prod"
   assert_contains "$prod" "platform: azure"
   log_pass "TEST-4151 USER_GUIDE, TECHNOLOGY, CHANGELOG and product doc describe the Azure transport"
