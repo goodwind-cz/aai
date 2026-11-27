@@ -359,9 +359,9 @@ function parsePrNumber(commits, grammars) {
 // the next list item, so a label's value may sit on the next line). An item
 // claims what follows a "Paired <words> half|ride:" label anywhere in it, or
 // what follows a "Carried ...:" / "Also carried ...:" label at its head. A
-// label that is negated ("not carried:") claims nothing. Everything else in
+// label with `not` in it or in the clause before it claims nothing. Everything else in
 // an item is a mention, never a claim.
-const PAIRED_LABEL_RE = /\bpaired(?: [a-z]+)* (?:half|ride)\b[^:\n]{0,30}:/gi;
+const PAIRED_LABEL_RE = /\bpaired(?: [a-z]+){0,6} (?:half|ride)\b[^:\n]{0,30}:/gi;
 const CARRIED_HEAD_RE = /^\s*(?:[-*+]|\d+[.)])?\s*\**\s*(?:also )?carried\b[^:\n]{0,40}:/i;
 const ITEM_START_RE = /^\s*(?:[-*+]|\d+[.)])\s/;
 function claimSpans(body) {
@@ -378,7 +378,8 @@ function claimSpans(body) {
     const head = item.match(CARRIED_HEAD_RE);
     if (head && !/\bnot\b/i.test(head[0])) spans.push(item.slice(head[0].length));
     for (const m of item.matchAll(PAIRED_LABEL_RE)) {
-      if (/\bnot\s*$/i.test(item.slice(Math.max(0, m.index - 8), m.index))) continue;
+      // Negated: `not` inside the label, or in the same clause before it.
+      if (/\bnot\b/i.test(m[0]) || /\bnot\b[^.;:\n]{0,40}$/i.test(item.slice(Math.max(0, m.index - 40), m.index))) continue;
       spans.push(item.slice(m.index + m[0].length));
     }
   }

@@ -1375,8 +1375,9 @@ test_4160_claim_not_mention() {
   write_issue_doc "$dir/docs/issues/ISSUE-0004-t4160d.md" "t4160-substr" "draft"
   write_issue_doc "$dir/docs/issues/ISSUE-0005-t4160e.md" "t4160-multiline" "draft"
   write_issue_doc "$dir/docs/issues/ISSUE-0006-t4160f.md" "t4160-pathonly" "draft"
+  write_issue_doc "$dir/docs/issues/ISSUE-0007-t4160g.md" "t4160-negated" "draft"
   git -C "$dir" add -A
-  git -C "$dir" commit -q -m "seed six untouched open docs"
+  git -C "$dir" commit -q -m "seed seven untouched open docs"
   base=$(git -C "$dir" rev-parse HEAD)
   cat > "$dir/docs/issues/ISSUE-0010-carrier.md" <<'DOC'
 ---
@@ -1406,6 +1407,8 @@ links:
 - Paired maintenance half (registry item): `fu-t4160-substr`.
 - The roadmap pairs this ride (`wave-1`). Paired maintenance ride:
   `t4160-multiline`.
+- Paired maintenance half (not taken): `t4160-negated`.
+- This is not a paired maintenance half: `t4160-negated`.
 DOC
   echo '{"v":1,"ts":"2020-01-01T00:00:00Z","actor":"test","event":"work_item_closed","ref":"t4160-carrier-ref","payload":{}}' >> "$dir/docs/ai/EVENTS.jsonl"
   git -C "$dir" add -A
@@ -1419,6 +1422,7 @@ DOC
   assert_payload_not_contains "$out" "id=t4160-disclosed" "TEST-4160: a disclosed doc (not absorbed, a different ride) must not be itemed"
   assert_payload_not_contains "$out" "id=t4160-substr" "TEST-4160: an id inside a longer token (a follow-up id) must not be itemed"
   assert_payload_not_contains "$out" "id=t4160-pathonly" "TEST-4160: a path under a non-claim label must not be itemed"
+  assert_payload_not_contains "$out" "id=t4160-negated" "TEST-4160: a Paired label negated inside it or in the clause before it must not be itemed"
   log_pass "TEST-4160: id-mention-unpaired items the three claimed open docs (paired by id, carried by path, a label continued on the next line) and none of the three mentioned ones (disclosed, inside a follow-up id, a path under a non-claim label)"
 }
 

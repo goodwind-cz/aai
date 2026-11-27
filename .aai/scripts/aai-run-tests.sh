@@ -935,6 +935,8 @@ if [ -z "$AAI_XDG_CACHE_DIR" ]; then
 fi
 if [ -z "$AAI_XDG_CACHE_DIR" ]; then
   echo "AAI-XDG: REFUSED - no private XDG_CACHE_HOME could be made (no temp root of this run, and mktemp -d under ${TMPDIR:-/tmp} failed); the command was not run, so it cannot reach a shared or the real cache." >&2
+  aai_iso_cleanup
+  rm -f -- "$AAI_TW_BEFORE" "$AAI_TW_AFTER" 2>/dev/null
   aai_tree_finish
   aai_residue_finish
   exit 125

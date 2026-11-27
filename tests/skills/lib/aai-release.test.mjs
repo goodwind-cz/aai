@@ -918,3 +918,22 @@ test('TEST-4027 M18 and M20 give the New column of DR-R2 and DR-R4 under the new
     }
   }
 });
+
+// TEST-4168 (ci-flake-root-causes Spec-AC-02, validation round 1): the REAL git spawn reports the signal that killed
+// the git child. The child kills only itself, so node's own handler never runs and the child's signal alone decides.
+for (const [sig, exit] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGKILL', 20]]) {
+  test(`TEST-4168 a real git child killed by ${sig} alone (node not signalled) ends the local cut with exit ${exit}`, () => {
+    const dir = fixture();
+    const bin = path.join(scratch('self'), 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const real = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+    fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" commit "*) kill -${sig.slice(3)} $$;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+    const r = spawnSync(process.execPath, [MODULE, '--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], {
+      cwd: dir, encoding: 'utf8', env: HOST_FREE({ PATH: `${bin}${path.delimiter}${process.env.PATH}` }),
+    });
+    assert.equal(r.status, exit, `${r.stdout}${r.stderr}`);
+    if (exit !== 20) assert.equal(r.stderr, `REFUSED: interrupted (${sig}) — the temporary worktree was removed.\n`);
+    else assert.match(r.stderr, /^REFUSED: git-command — git commit /);
+    assert.equal(git(dir, 'worktree', 'list').trim().split('\n').length, 1, 'git worktree list shows only the main tree');
+  });
+}

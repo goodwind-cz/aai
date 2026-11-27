@@ -1127,12 +1127,13 @@ test_4165_run_dir_claim_survives_a_racy_mkdir() {
 exec "$real_date" "\$@"
 SHIM
   chmod +x "$bin/date" || { log_fail "TEST-4165: the date shim could not be made"; return; }
-  ( cd "$d" && PATH="$bin:$PATH" bash "$d/tests/skills/test-framework.sh" ) >"$d.o1" 2>&1 || true
-  ( cd "$d" && PATH="$bin:$PATH" bash "$d/tests/skills/test-framework.sh" ) >"$d.o2" 2>&1 || true
+  ( cd "$d" && PATH="$bin:$PATH" bash "$d/tests/skills/test-framework.sh" ) >"$d.shim/o1" 2>&1 || true
+  ( cd "$d" && PATH="$bin:$PATH" bash "$d/tests/skills/test-framework.sh" ) >"$d.shim/o2" 2>&1 || true
   ids="$(sed -n 's/.*"run_id":"\([^"]*\)".*/\1/p' "$ledger" | sort -u | wc -l | tr -d ' ')"
   [[ "$ids" -eq 2 ]] || { log_info "TEST-4165: the ledger carries $ids distinct run_id(s), want 2: $(cat "$ledger")"; ok=0; }
   dirs="$(find "$d/tests/skills/results" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
   [[ "$dirs" -eq 2 ]] || { log_info "TEST-4165: $dirs run directories, want 2"; ok=0; }
+  [[ $ok -eq 1 ]] || { log_info "TEST-4165: run 1 output:"; cat "$d.shim/o1"; log_info "TEST-4165: run 2 output:"; cat "$d.shim/o2"; }
   [[ $ok -eq 1 ]] && log_pass "TEST-4165 (Spec-AC-01) with a mkdir that exits 0 for an existing directory, two framework runs still claimed two run directories and recorded two run_ids" \
     || log_fail "TEST-4165 (Spec-AC-01) the run directory claim does not trust the mkdir command"
 }

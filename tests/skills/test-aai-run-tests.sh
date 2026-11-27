@@ -1447,7 +1447,7 @@ test_4161_no_private_cache_refuses() {
   # A regular FILE as TMPDIR: nothing can be created under it (ENOTDIR), so
   # neither the owned temp root nor mktemp -d can make the private cache.
   fh="$root/home"; missing="$root/tmpdir-is-a-file"
-  mkdir -p "$fh" && : > "$missing" || { rm -rf "$root"; log_fail "TEST-4161: fixture dirs could not be made"; }
+  mkdir -p "$fh" && : > "$missing" || { rm -rf "${root:?}"; log_fail "TEST-4161: fixture dirs could not be made"; }
   for mode in inherited owned; do
     rm -f "$root/ran" "$root/err"
     rc=0
@@ -1458,13 +1458,13 @@ test_4161_no_private_cache_refuses() {
                    sh "$RUN_TESTS_SCRIPT" sh -c ': > "$AAI_T4161_OUT"' >/dev/null 2>"$root/err" || rc=$? ;;
     esac
     err="$(cat "$root/err" 2>/dev/null || true)"
-    [[ "$rc" -eq 125 ]] || { rm -rf "$root"; log_fail "TEST-4161 ($mode): want exit 125 when no private cache can be made, got $rc: $err"; }
-    [[ ! -e "$root/ran" ]] || { rm -rf "$root"; log_fail "TEST-4161 ($mode): the command ran without a private XDG_CACHE_HOME"; }
-    [[ "$err" == *"AAI-XDG: REFUSED"* ]] || { rm -rf "$root"; log_fail "TEST-4161 ($mode): stderr does not name the refusal: $err"; }
-    [[ "$err" != *"/nonexistent/aai-test-no-xdg-cache"* ]] || { rm -rf "$root"; log_fail "TEST-4161 ($mode): the fixed shared path is still named: $err"; }
+    [[ "$rc" -eq 125 ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): want exit 125 when no private cache can be made, got $rc: $err"; }
+    [[ ! -e "$root/ran" ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): the command ran without a private XDG_CACHE_HOME"; }
+    [[ "$err" == *"AAI-XDG: REFUSED"* ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): stderr does not name the refusal: $err"; }
+    [[ "$err" != *"/nonexistent/aai-test-no-xdg-cache"* ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): the fixed shared path is still named: $err"; }
   done
-  [[ -z "$(find "$fh" -mindepth 1 2>/dev/null)" ]] || { rm -rf "$root"; log_fail "TEST-4161: something was written under the fake HOME"; }
-  rm -rf "$root"
+  [[ -z "$(find "$fh" -mindepth 1 2>/dev/null)" ]] || { rm -rf "${root:?}"; log_fail "TEST-4161: something was written under the fake HOME"; }
+  rm -rf "${root:?}"
   log_pass "TEST-4161: with no private XDG_CACHE_HOME possible (inherited and owned mode) the wrapper refused with exit 125, named the refusal and never started the command"
 }
 

@@ -500,6 +500,11 @@ test_4164_child_signal_decides() {
   log_pass "TEST-4164: a git step killed by SIGINT or SIGTERM reports the interrupt even when node's own handler has not run yet; any other signal stays a git-command refusal"
 }
 
+test_4168_real_child_signal() {
+  run_ar_tests TEST-4168
+  log_pass "TEST-4168: a real git child killed by SIGINT or SIGTERM alone ends the cut with 130 or 143 and the interrupted line; SIGKILL stays exit 20"
+}
+
 test_3538_no_origin() {
   run_ar_tests TEST-3538
   log_pass "TEST-3538: DB-20, a repository with no origin and no record blocks the plan and refuses release-platform"
@@ -936,6 +941,7 @@ main() {
   test_3536_early_close
   test_3537_group_signal
   test_4164_child_signal_decides
+  test_4168_real_child_signal
   test_3538_no_origin
   echo ""
   log_pass "All $TEST_NAME tests passed"

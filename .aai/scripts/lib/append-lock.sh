@@ -71,7 +71,10 @@ aai_append_lock_age() {
 # The subshell keeps noclobber out of the caller.
 aai_claim_dir() {
   mkdir "$1" 2>/dev/null || return 1
-  ( set -C; date +%s > "$1/$2" ) 2>/dev/null || return 1
+  # A failed create leaves an EMPTY dir only when no owner wrote its claim
+  # file (ENOSPC, EDQUOT); rmdir removes just that orphan and fails harmlessly
+  # on a dir another process holds.
+  ( set -C; date +%s > "$1/$2" ) 2>/dev/null || { rmdir "$1" 2>/dev/null; return 1; }
   return 0
 }
 

@@ -62,12 +62,15 @@ function dry(dir,args=[],env= {
 // an empty HOME, where Pester is absent, and the two arms failed on base and on the rolled payload alike. Probe the
 // reader's own environment once: absent Pester is a named skip here and a failure on CI, never a false red.
 let pesterProbe=null;
-function pesterOr(t) {
+function pesterReason() {
   if(pesterProbe===null) {
     const r=run(process.env.AAI_RELEASE_DRY_PWSH||'pwsh',['-NoProfile','-NonInteractive','-Command','Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop'],root);
     pesterProbe=r.status===0?'':(r.error?`pwsh did not start (${r.error.code||r.error.message})`:`Pester 5 is not importable (pwsh exit ${r.status})`);
   }
-  if(!pesterProbe)return true;
+  return pesterProbe;
+}
+function pesterOr(t) {
+  if(!pesterReason())return true;
   assert.ok(!process.env.CI,`real Pester is required on CI: ${pesterProbe}`);
   t.skip(`SKIP-CASE: ${pesterProbe} in this environment (HOME=${process.env.HOME||''}), so real Pester was not run`);
   return false;
@@ -295,18 +298,21 @@ test('TEST-006 PR workflow aggregate executes every mode and all three languages
       assert.equal(execution.status,result==='success'?0:1,mode+' '+execution.stdout+execution.stderr);
     }
   }
-  if(!pesterOr(t))return;
-  const dir=fixture(t,{
+  // The node and shell halves run in every environment; only the Pester half needs real Pester (validation round 1).
+  const pester=pesterReason()==='';
+  const files={
     'tests/all.test.mjs':`// ${changelog}\nimport test from 'node:test';test('first',()=>console.log('NODE_FIRST'));test('last',()=>console.log('NODE_LAST'));`,
-    'tests/test-all.sh':`#!/bin/bash\n# ${changelog}\necho SHELL_EXECUTED\n`,
-    'tests/all.Tests.ps1':`# ${changelog}\nDescribe 'all' { It 'executed' { Write-Host PESTER_EXECUTED; 1 | Should -Be 1 } }`
-  });
+    'tests/test-all.sh':`#!/bin/bash\n# ${changelog}\necho SHELL_EXECUTED\n`
+  };
+  if(pester)files['tests/all.Tests.ps1']=`# ${changelog}\nDescribe 'all' { It 'executed' { Write-Host PESTER_EXECUTED; 1 | Should -Be 1 } }`;
+  const dir=fixture(t,files);
   const report=path.join(dir,'all-results.json');
   const execution=dry(dir,['--report',report]);
   assert.equal(execution.status,0,execution.text);
   const results=JSON.parse(fs.readFileSync(report)).results;
-  assert.equal(results.length,3);
-  for(const marker of ['NODE_FIRST','NODE_LAST','SHELL_EXECUTED','PESTER_EXECUTED'])assert.ok(results.some(r=>r.output.includes(marker)),marker);
+  assert.equal(results.length,pester?3:2);
+  for(const marker of ['NODE_FIRST','NODE_LAST','SHELL_EXECUTED',...(pester?['PESTER_EXECUTED']:[])])assert.ok(results.some(r=>r.output.includes(marker)),marker);
+  pesterOr(t);
 });
 test('TEST-006 failure diagnostic budget fits the actual workflow deadline',()=> {
   const workflow=fs.readFileSync(path.join(root,'.github/workflows/skill-suite.yml'),'utf8');
