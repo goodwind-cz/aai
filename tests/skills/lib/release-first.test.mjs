@@ -665,7 +665,7 @@ test('TEST-4163 the real-Pester arms are hermetic under the release preflight en
   Object.assign(env,{HOME:path.join(tmp,'home'),USERPROFILE:path.join(tmp,'home'),XDG_CACHE_HOME:path.join(tmp,'cache'),XDG_CONFIG_HOME:path.join(tmp,'config'),GIT_CONFIG_NOSYSTEM:'1',GIT_TERMINAL_PROMPT:'0'});
   const probe=spawnSync(env.AAI_RELEASE_DRY_PWSH||'pwsh',['-NoProfile','-NonInteractive','-Command','Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop'],{env,encoding:'utf8',timeout:120000});
   const pester=probe.status===0;
-  const arms=(extra)=>spawnSync(process.execPath,['--test','--test-name-pattern','^TEST-00[46] ',fileURLToPath(import.meta.url)],{cwd:root,env:{...env,...extra},encoding:'utf8',timeout:600000,maxBuffer:8*1024*1024});
+  const arms=(extra)=>spawnSync(process.execPath,['--test','--test-reporter=tap','--test-name-pattern','^TEST-004 |^TEST-006 PR workflow',fileURLToPath(import.meta.url)],{cwd:root,env:{...env,...extra},encoding:'utf8',timeout:600000,maxBuffer:8*1024*1024});
   const r=arms({});
   const out=`${r.stdout}${r.stderr}`;
   assert.equal(r.status,0,out);
