@@ -180,6 +180,8 @@ fi
 # permanently red. The framework tripwire is the one that fails a run.
 AAI_TW_ARMED=0
 AAI_TW_WHY=''
+AAI_TW_BEFORE=''
+AAI_TW_AFTER=''
 AAI_TW_DIR="$AAI_SELF_DIR"
 if [ -z "$AAI_TW_DIR" ]; then
   AAI_TW_WHY='cannot resolve this script directory'
@@ -936,7 +938,9 @@ fi
 if [ -z "$AAI_XDG_CACHE_DIR" ]; then
   echo "AAI-XDG: REFUSED - no private XDG_CACHE_HOME could be made (no temp root of this run, and mktemp -d under ${TMPDIR:-/tmp} failed); the command was not run, so it cannot reach a shared or the real cache." >&2
   aai_iso_cleanup
-  rm -f -- "$AAI_TW_BEFORE" "$AAI_TW_AFTER" 2>/dev/null
+  for aai_tw_f in "$AAI_TW_BEFORE" "$AAI_TW_AFTER"; do
+    [ -z "$aai_tw_f" ] || rm -f -- "$aai_tw_f" 2>/dev/null
+  done
   aai_tree_finish
   aai_residue_finish
   exit 125

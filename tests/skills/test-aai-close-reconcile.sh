@@ -1423,7 +1423,7 @@ DOC
   assert_payload_not_contains "$out" "id=t4160-substr" "TEST-4160: an id inside a longer token (a follow-up id) must not be itemed"
   assert_payload_not_contains "$out" "id=t4160-pathonly" "TEST-4160: a path under a non-claim label must not be itemed"
   assert_payload_not_contains "$out" "id=t4160-negated" "TEST-4160: a Paired label negated inside it or in the clause before it must not be itemed"
-  log_pass "TEST-4160: id-mention-unpaired items the three claimed open docs (paired by id, carried by path, a label continued on the next line) and none of the three mentioned ones (disclosed, inside a follow-up id, a path under a non-claim label)"
+  log_pass "TEST-4160: id-mention-unpaired items the three claimed open docs (paired by id, carried by path, a label continued on the next line) and none of the four mentioned ones (disclosed, inside a follow-up id, a path under a non-claim label, under negated Paired labels)"
 }
 
 # --- TEST-4167 (ci-flake-root-causes Spec-AC-06) ------------------------------

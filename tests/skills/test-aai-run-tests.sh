@@ -1464,8 +1464,19 @@ test_4161_no_private_cache_refuses() {
     [[ "$err" != *"/nonexistent/aai-test-no-xdg-cache"* ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): the fixed shared path is still named: $err"; }
   done
   [[ -z "$(find "$fh" -mindepth 1 2>/dev/null)" ]] || { rm -rf "${root:?}"; log_fail "TEST-4161: something was written under the fake HOME"; }
+  # The wrapper's not-armed layout (review round 2): a copy of the scripts
+  # without lib/repo-tripwire.sh must refuse the same way under `set -u`.
+  local lay="$root/no-tripwire"
+  mkdir -p "$lay" && cp -R "$(dirname "$RUN_TESTS_SCRIPT")/." "$lay/" && rm -f "$lay/lib/repo-tripwire.sh" \
+    || { rm -rf "${root:?}"; log_fail "TEST-4161: the no-tripwire layout could not be made"; }
+  rm -f "$root/ran"; rc=0
+  env HOME="$fh" TMPDIR="$missing" AAI_T4161_OUT="$root/ran" \
+    sh "$lay/$(basename "$RUN_TESTS_SCRIPT")" sh -c ': > "$AAI_T4161_OUT"' >/dev/null 2>"$root/err" || rc=$?
+  err="$(cat "$root/err" 2>/dev/null || true)"
+  [[ "$rc" -eq 125 && ! -e "$root/ran" && "$err" == *"AAI-XDG: REFUSED"* && "$err" != *"unbound variable"* ]] \
+    || { rm -rf "${root:?}"; log_fail "TEST-4161 (no tripwire lib): want exit 125 and the refusal without an unbound variable, got $rc: $err"; }
   rm -rf "${root:?}"
-  log_pass "TEST-4161: with no private XDG_CACHE_HOME possible (inherited and owned mode) the wrapper refused with exit 125, named the refusal and never started the command"
+  log_pass "TEST-4161: with no private XDG_CACHE_HOME possible (inherited and owned mode, and without the tripwire library) the wrapper refused with exit 125, named the refusal and never started the command"
 }
 
 ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 4130_private_xdg_cache 4141_changelog_amendments_and_ledger 4161_no_private_cache_refuses"

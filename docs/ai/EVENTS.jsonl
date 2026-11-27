@@ -4715,3 +4715,7 @@
 {"v":1,"ts":"2026-11-27T00:01:59Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ci-flake-root-causes","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-11-27T00:43:54Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"ci-flake-root-causes","payload":{"head":"f7433abf01e630c218b1d011be398c1cffb411e2","clean":false,"flags":1}}
 {"v":1,"ts":"2026-11-27T00:44:00Z","actor":"ales_holubec.net","event":"full_sweep","ref":"ci-flake-root-causes","payload":{"head":"f7433abf01e630c218b1d011be398c1cffb411e2","rc":1,"run_id":"test-20261127-001803"}}
+{"v":1,"ts":"2026-11-27T01:27:41Z","actor":"ales_holubec.net","event":"full_sweep","ref":"ci-flake-root-causes","payload":{"head":"25454d8730c9f17e9864620a3956051e07a126b6","rc":1,"run_id":"test-20261127-005335"}}
+{"v":1,"ts":"2026-11-27T01:27:49Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"ci-flake-root-causes","payload":{"head":"25454d8730c9f17e9864620a3956051e07a126b6","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-27T01:28:34Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"ci-flake-root-causes","payload":{"role":"code_review","head":"25454d8730c9f17e9864620a3956051e07a126b6","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-27T01:28:34Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"ci-flake-root-causes","payload":{"status":"pass","hash":"00ee41f9ee68f03297c0c047e31153ab00412407f8f41c8e9f706f65989bd397"}}

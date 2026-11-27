@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: c55ad9b599ec9913a6f003335d24483b951f7acbf2f904fac08c6d44791a1634
+frozen_sha256: 2486602af1bab3c74e6d2d1fae96fad6abfbfdfd4e6283aa1885f3d32b8e0589
 ceremony_level: 2
 links:
   requirement: ci-flake-root-causes
@@ -223,7 +223,7 @@ TEST ids 4160 to 4166; the highest id on origin/main is TEST-4152.
 | TEST-4168 | Spec-AC-02 | integration | tests/skills/test-aai-release-cut.sh | test_4168_real_child_signal runs the TEST-4168 cases: a real spawn of the module with a git shim that kills only itself on commit (node is never signalled) by SIGINT, SIGTERM or SIGKILL; exit 130 or 143 with the interrupted line, or 20 with the git-command line; one worktree left | `sed:s/signal: r.signal \?\? '', //` on .aai/scripts/aai-release.mjs | green |
 | TEST-4160 | Spec-AC-03 | integration | tests/skills/test-aai-close-reconcile.sh | test_4160_claim_not_mention: fixture repo with six untouched draft docs and one delivered carrier naming three as claims and four as mentions (one of them under two negated Paired labels); the real CLI items exactly the three claims | `sed:s/return rangeClaims.some\(\(span\) => span.includes\(doc.rel\) \|\| id.test\(span\)\);/return touched.some((t) => t.content.includes(doc.fmId));/` on .aai/scripts/close-reconcile.mjs | green |
 | TEST-4163 | Spec-AC-04 | integration | tests/skills/test-aai-release-first.sh | test_4163 runs the TEST-4163 case: the TEST-004 and TEST-006 cases of the same file under an empty HOME, XDG_CACHE_HOME and XDG_CONFIG_HOME exit 0 as passes or named skips by the probe's result, and fail with the CI message when CI is set and Pester is absent | `sed:s/  if\(!pesterOr\(t\)\)return;\n//g` on tests/skills/lib/release-first.test.mjs | green |
-| TEST-4161 | Spec-AC-05 | integration | tests/skills/test-aai-run-tests.sh | test_4161_no_private_cache_refuses: TMPDIR a regular file, inherited and owned mode; exit 125, AAI-XDG REFUSED on stderr, the command never ran, nothing under the fake HOME | `sed:s/^  exit 125$/  :/m` on .aai/scripts/aai-run-tests.sh | green |
+| TEST-4161 | Spec-AC-05 | integration | tests/skills/test-aai-run-tests.sh | test_4161_no_private_cache_refuses: TMPDIR a regular file, inherited and owned mode; exit 125, AAI-XDG REFUSED on stderr, the command never ran, nothing under the fake HOME; again from a copy of the scripts without lib/repo-tripwire.sh (no unbound variable under set -u) | `sed:s/^  exit 125$/  :/m` on .aai/scripts/aai-run-tests.sh | green |
 | TEST-4162 | Spec-AC-05 | integration | tests/skills/test-aai-suite-isolation.sh | test_4162_no_tmpdir_cache_is_per_run: fixture framework, AAI_TEST_ISOLATION=0, TMPDIR a regular file, two suites; each saw its own cache under the run directory, gone afterwards, never the fixed path | `sed:s/elif \[\[ -n "\$\{RUN_DIR:-\}"/elif false && [[ -n "${RUN_DIR:-}"/` on tests/skills/test-framework.sh | green |
 | TEST-4167 | Spec-AC-06 | inspection | tests/skills/test-aai-close-reconcile.sh | test_4167_registry_and_amendments: the four ids closed with resolved_by ci-flake-root-causes, both amendment headings present, spec-amend.mjs list --strict exits 0 | `sed:s/## Amendment 2026-11-27 \(ci-flake-root-causes\)/## Amendment/` on docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md | green |
 
@@ -300,7 +300,7 @@ Open items on the same subjects that this scope touches but does not close:
   remediation: TEST-4168 (the real spawn's signal), the Paired negation rule
   and a bounded label word group, an unclaimed empty lock dir is removed,
   the 125 refusal also removes the wrapper's isolation clone and tripwire
-  files, TEST-006 runs its node and shell halves without Pester.
+  files (review round 2: initialised so the not-armed layout stays at 125), TEST-006 runs its node and shell halves without Pester.
 - Run 45913897767 on the hosted image: `mkdir (uutils coreutils) 0.10.0` at
   `/usr/bin/mkdir -> /usr/lib/cargo/bin/coreutils/mkdir`; two concurrent
   `mkdir` of one path both exited 0 in 20 of 400 races; two concurrent
