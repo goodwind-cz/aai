@@ -1,10 +1,10 @@
 ---
 id: spec-ci-flake-root-causes
 type: spec
-number: null
-status: implementing
+number: 322
+status: done
 mutation_gate: v1
-frozen_sha256: 2486602af1bab3c74e6d2d1fae96fad6abfbfdfd4e6283aa1885f3d32b8e0589
+frozen_sha256: e5c2bc72125d7258c843b1997022732bee9ef0df136c777ad5aea65710e026ea
 ceremony_level: 2
 links:
   requirement: ci-flake-root-causes
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-ci-flake-root-causes.md (owner brief
+- Requirement: docs/issues/ISSUE-0129-ci-flake-root-causes.md (owner brief
   2026-11-27).
 - Prior scopes whose frozen text this scope changes (each carries an
   additive `## Amendment 2026-11-27 (ci-flake-root-causes)` section and a

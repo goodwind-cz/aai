@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "ec9bb00b..f7433abf (branch fix/ci-flake-root-causes, separate read-only clone)"
-  spec: docs/specs/SPEC-DRAFT-spec-ci-flake-root-causes.md
+  spec: docs/specs/SPEC-0322-spec-ci-flake-root-causes.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -46,7 +46,7 @@ review:
     - { claim: "the release race on the uutils host: `rm -rf` of a released lock cannot delete a new holder's stamp that appears during the traversal",
         closes_with: "a hosted loop that races aai_append_lock_release against aai_claim_dir with uutils rm, or reading uutils rm's traversal (re-read vs single readdir)" }
     - { claim: "the RED/GREEN logs, idm-before/after.txt and mutation records cited in the AC table (docs/ai/tdd/ci-flake-root-causes/, docs/ai/tdd/spec-ci-flake-root-causes/)",
-        closes_with: "they are gitignored local evidence missing from the clone; run `mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-ci-flake-root-causes.md --require-evidence` in the ride worktree" }
+        closes_with: "they are gitignored local evidence missing from the clone; run `mutation-gate.mjs --spec docs/specs/SPEC-0322-spec-ci-flake-root-causes.md --require-evidence` in the ride worktree" }
     - { claim: "the 150-merge replay names no doc (before: five)",
         closes_with: "idm-after.txt. The reviewer reproduced only the two historical claims (ISSUE-0040 at e6aae10b, CHANGE-0181 at 7270a29c, both still itemed) and this range (no id-mention-unpaired item)" }
     - { claim: "TEST-4161 owned mode and the whole aai-run-tests suite",
@@ -65,7 +65,7 @@ security_relevant: false
 ## Scope and spec
 
 - Scope: `git diff ec9bb00b..f7433abf` in the read-only clone, 21 files. The whole diff was read: code, tests, CHANGELOG, SPEC-0182/SPEC-0319 amendments, decisions.jsonl and EVENTS.jsonl additions.
-- Spec: docs/specs/SPEC-DRAFT-spec-ci-flake-root-causes.md (frozen).
+- Spec: docs/specs/SPEC-0322-spec-ci-flake-root-causes.md (frozen).
 - Dispatch note (anti-gaming contract): the dispatch prompt listed seven "focus areas worth scrutiny". It did not pre-rate severity or exclude any area. This is recorded as scope steering, and the full diff was reviewed anyway.
 - Clone state after review: `git status --porcelain` clean apart from this report.
 

@@ -1,8 +1,8 @@
 ---
 id: ci-flake-root-causes
 type: issue
-number: null
-status: draft
+number: 129
+status: done
 capability: ci-flake-root-causes
 user_visible: false
 links:

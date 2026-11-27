@@ -4719,3 +4719,7 @@
 {"v":1,"ts":"2026-11-27T01:27:49Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"ci-flake-root-causes","payload":{"head":"25454d8730c9f17e9864620a3956051e07a126b6","clean":false,"flags":1}}
 {"v":1,"ts":"2026-11-27T01:28:34Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"ci-flake-root-causes","payload":{"role":"code_review","head":"25454d8730c9f17e9864620a3956051e07a126b6","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-27T01:28:34Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"ci-flake-root-causes","payload":{"status":"pass","hash":"00ee41f9ee68f03297c0c047e31153ab00412407f8f41c8e9f706f65989bd397"}}
+{"v":1,"ts":"2026-11-27T01:37:27Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ci-flake-root-causes","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-27T01:37:27Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ci-flake-root-causes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-27T01:37:27Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ci-flake-root-causes","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-27T01:37:27Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ci-flake-root-causes","payload":{"validation":"pass","code_review":"pass"}}

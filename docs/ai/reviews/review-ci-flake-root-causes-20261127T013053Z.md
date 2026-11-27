@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "f7433abf..25454d87 (remediation round 1), plus a re-check of round-1 findings 1-6 over ec9bb00b..25454d87"
-  spec: docs/specs/SPEC-DRAFT-spec-ci-flake-root-causes.md
+  spec: docs/specs/SPEC-0322-spec-ci-flake-root-causes.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -34,7 +34,7 @@ review:
     - { claim: "the hosted SIGTERM ordering race is fixed. TEST-4168 proves that the child's own signal decides; the spec now marks the hosted cause INFERRED",
         closes_with: "repeated hosted runs of TEST-3537" }
     - { claim: "gitignored RED/GREEN logs and mutation records, including the re-anchored TEST-4166 cell and the new TEST-4168 cell",
-        closes_with: "`mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-ci-flake-root-causes.md --require-evidence` in the ride worktree" }
+        closes_with: "`mutation-gate.mjs --spec docs/specs/SPEC-0322-spec-ci-flake-root-causes.md --require-evidence` in the ride worktree" }
     - { claim: "TEST-4161 (owned and inherited mode), from the whole aai-run-tests suite",
         closes_with: "the validator's whole-suite run (reported exit 0); no single-test selector exists, so the reviewer ran the inherited case by hand only" }
     - { claim: "TEST-006 and TEST-4163 on a host where Pester is importable under an empty HOME (CI's pass branch)",
