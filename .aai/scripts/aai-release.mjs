@@ -170,7 +170,10 @@ function gitStep(deps, args, cwd) {
   const r = deps.git(args, cwd);
   if (r.status !== 0) {
     const detail = String(r.stderr ?? '').split('\n').find((l) => l.trim()) ?? `exit ${r.status}`;
-    throw new Refusal(`REFUSED: git-command — git ${args.join(' ')}: ${detail.trim()}`);
+    const e = new Refusal(`REFUSED: git-command — git ${args.join(' ')}: ${detail.trim()}`);
+    // The signal that killed the git child, when it was one the cut handles (DB-14).
+    e.signal = SIGNALS[r.signal] ? r.signal : '';
+    throw e;
   }
   return first(r);
 }
@@ -193,9 +196,11 @@ async function localCut(o, version, root, target, deps) {
   }
   deps.arm?.();
   let wt = '';
-  const stop = async () => {
+  // `killed` is the signal that killed a git child. node runs its own handler for the same group signal from the
+  // event loop, which on a loaded runner can still be pending after the tick, so the child's death decides too.
+  const stop = async (killed = '') => {
     await deps.tick();
-    const sig = deps.interrupted();
+    const sig = deps.interrupted() || killed;
     if (!sig) return 0;
     deps.err(`REFUSED: interrupted (${sig}) — the temporary worktree was removed.`);
     return SIGNALS[sig];
@@ -220,7 +225,7 @@ async function localCut(o, version, root, target, deps) {
   } catch (e) {
     if (!(e instanceof Refusal)) throw e;
     // A process-group signal kills the git child too; the interrupt, not the git failure, is what happened (DB-14).
-    const code = await stop();
+    const code = await stop(e.signal);
     if (code) return code;
     deps.err(e.message);
     return EXIT.REFUSED;
@@ -264,7 +269,7 @@ export async function run(argv, deps) {
 function realDeps() {
   const spawn = (cmd, args, cwd) => {
     const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20 });
-    return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? String(r.error.message) : (r.stderr ?? '') };
+    return { status: r.status ?? 1, signal: r.signal ?? '', stdout: r.stdout ?? '', stderr: r.error ? String(r.error.message) : (r.stderr ?? '') };
   };
   const interrupted = { name: '' };
   const handlers = Object.keys(SIGNALS).map((sig) => [sig, () => { interrupted.name = sig; }]);

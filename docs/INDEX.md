@@ -75,7 +75,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (715)
+## Done (717)
 
 | ID | Type | Path |
 |---|---|---|
@@ -455,6 +455,7 @@ _None._
 | ISSUE-0126 | issues | docs/issues/ISSUE-0126-secrets-gate-false-positives.md |
 | ISSUE-0127 | issues | docs/issues/ISSUE-0127-onboarding-tech-contract-and-lint-gaps.md |
 | ISSUE-0128 | issues | docs/issues/ISSUE-0128-azure-rejects-doc-number-reservation-push.md |
+| ISSUE-0129 | issues | docs/issues/ISSUE-0129-ci-flake-root-causes.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -792,6 +793,7 @@ _None._
 | SPEC-0319 | specs | docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md |
 | SPEC-0320 | specs | docs/specs/SPEC-0320-spec-azure-rejects-doc-number-reservation-push.md |
 | SPEC-0321 | specs | docs/specs/SPEC-0321-spec-release-dry-run-reader-timeout.md |
+| SPEC-0322 | specs | docs/specs/SPEC-0322-spec-ci-flake-root-causes.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -828,7 +830,7 @@ _None._
 
 _None._
 
-## Broken references (633)
+## Broken references (636)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -927,8 +929,11 @@ _None._
 | tests/skills/test-aai-check-state.sh | docs/issues/CHANGE-0001.md | NOT FOUND |
 | tests/skills/test-aai-check-state.sh | docs/issues/x.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0001-t001.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0002-t4160b.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0003-t003.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0003-t003half.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0003-t4160c.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0006-t4160f.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0014-t014a.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0014-t014b.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0015-t015.md | NOT FOUND |
@@ -1502,4 +1507,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-26 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-27 — counts above use this date for overdue checks.

@@ -1078,15 +1078,122 @@ test_416_heartbeat_pulses_while_the_sweep_runs() {
     || log_fail "TEST-416 (Spec-AC-09) heartbeat pulses while the sweep runs, and stops when it ends"
 }
 
+# ---------------------------------------------------------------------------
+# ci-flake-root-causes Spec-AC-01 — the mkdir COMMAND is not an atomic
+# test-and-set on every host. Measured on the hosted ubuntu-26.04 runners
+# (diag run 45912859507): two framework runs started in the same second both
+# printed the unsuffixed "Setting up results directory: .../test-<second>",
+# one RUN_DIR held one suite's artifacts and the ledger got the same run_id
+# twice — `mkdir "$RUN_DIR"` had returned 0 in BOTH processes. The same
+# primitive is append-lock.sh's mutex (TEST-005 red on main run 45516525420:
+# 12 records in 14 blocks).
+#
+# fake_racy_mkdir <dir> — a PATH shim reproducing that host deterministically:
+# a `mkdir` of a directory that already exists exits 0, exactly what the
+# losing process of the race observes. Every other call is the real mkdir.
+fake_racy_mkdir() {
+  local bin="$1/racy-bin" real
+  real="$(command -v mkdir)"
+  mkdir -p "$bin" || return 1
+  cat > "$bin/mkdir" <<SHIM
+#!/bin/sh
+for a in "\$@"; do last="\$a"; done
+case "\${1:-}" in -*) ;; *) [ -d "\$last" ] && exit 0 ;; esac
+exec "$real" "\$@"
+SHIM
+  chmod +x "$bin/mkdir" || return 1
+  printf '%s\n' "$bin"
+}
+
+# TEST-4165 (Spec-AC-01) — two framework runs on a host whose mkdir says 0 for
+# an existing directory still get two run directories and two run_ids.
+test_4165_run_dir_claim_survives_a_racy_mkdir() {
+  local d ok=1 bin ledger ids dirs
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-quick 'exit 0'
+  commit_fixture_repo "$d" || { log_fail "TEST-4165 fixture repo init failed"; return; }
+  bin="$(fake_racy_mkdir "$d.shim")" || { log_fail "TEST-4165: the mkdir shim could not be made"; return; }
+  register_workdir "$d.shim"
+  ledger="$d/docs/ai/tests/test-runs.jsonl"
+  : > "$ledger"
+  # The racy outcome is forced, not raced: a pinned clock gives both runs the
+  # same id, and the first run's RUN_DIR exists when the second calls mkdir.
+  local real_date
+  real_date="$(command -v date)"
+  cat > "$bin/date" <<SHIM
+#!/bin/sh
+[ "\$*" = "-u +%Y%m%d-%H%M%S" ] && { echo 20200101-000000; exit 0; }
+exec "$real_date" "\$@"
+SHIM
+  chmod +x "$bin/date" || { log_fail "TEST-4165: the date shim could not be made"; return; }
+  ( cd "$d" && PATH="$bin:$PATH" bash "$d/tests/skills/test-framework.sh" ) >"$d.shim/o1" 2>&1 || true
+  ( cd "$d" && PATH="$bin:$PATH" bash "$d/tests/skills/test-framework.sh" ) >"$d.shim/o2" 2>&1 || true
+  ids="$(sed -n 's/.*"run_id":"\([^"]*\)".*/\1/p' "$ledger" | sort -u | wc -l | tr -d ' ')"
+  [[ "$ids" -eq 2 ]] || { log_info "TEST-4165: the ledger carries $ids distinct run_id(s), want 2: $(cat "$ledger")"; ok=0; }
+  dirs="$(find "$d/tests/skills/results" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+  [[ "$dirs" -eq 2 ]] || { log_info "TEST-4165: $dirs run directories, want 2"; ok=0; }
+  [[ $ok -eq 1 ]] || { log_info "TEST-4165: run 1 output:"; cat "$d.shim/o1"; log_info "TEST-4165: run 2 output:"; cat "$d.shim/o2"; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-4165 (Spec-AC-01) with a mkdir that exits 0 for an existing directory, two framework runs still claimed two run directories and recorded two run_ids" \
+    || log_fail "TEST-4165 (Spec-AC-01) the run directory claim does not trust the mkdir command"
+}
+
+# TEST-4166 (Spec-AC-01) — the append lock is still exclusive on that host: a
+# held lock is not taken by a second process, and twelve concurrent appends
+# still come out as twelve contiguous blocks.
+test_4166_append_lock_survives_a_racy_mkdir() {
+  local d ok=1 bin f rc i pids=() blocks
+  d="$(new_fixture)" || return
+  cp "$APPEND_LOCK_LIB" "$d/append-lock.sh"
+  bin="$(fake_racy_mkdir "$d")" || { log_fail "TEST-4166: the mkdir shim could not be made"; return; }
+  f="$d/ledger.jsonl"
+  : > "$f"
+  # (a) held by this shell, then a second process with a 1 s budget must time out.
+  ( . "$d/append-lock.sh"; aai_append_lock_acquire "$f.aai-lock" ) || { log_fail "TEST-4166: the first acquire failed"; return; }
+  # A stamp in the future keeps the held lock from aging past the 1 s budget,
+  # so the waiter can only time out, never break it as abandoned.
+  echo $(( $(date +%s) + 3600 )) > "$f.aai-lock/stamp"
+  rc=0
+  PATH="$bin:$PATH" AAI_APPEND_LOCK_TIMEOUT=1 sh -c '. "$1"; aai_append_lock_acquire "$2"' sh "$d/append-lock.sh" "$f.aai-lock" || rc=$?
+  [[ "$rc" -eq 1 ]] || { log_info "TEST-4166: a second process took a held lock through the racy mkdir (rc=$rc)"; ok=0; }
+  rm -rf "${f:?}.aai-lock"
+  # (b) twelve concurrent 40-line appends through the shim.
+  for i in $(seq 1 12); do
+    (
+      export PATH="$bin:$PATH"
+      . "$d/append-lock.sh"
+      args=()
+      for _ in $(seq 1 40); do args+=("worker-$i"); done
+      aai_locked_append "$f" "${args[@]}"
+    ) &
+    pids+=("$!")
+  done
+  for i in "${pids[@]}"; do wait "$i" || true; done
+  blocks="$(uniq -c "$f" | wc -l | tr -d ' ')"
+  [[ "$blocks" -eq 12 && "$(wc -l < "$f" | tr -d ' ')" -eq 480 ]] \
+    || { log_info "TEST-4166: 480 lines want 12 contiguous blocks, got $(wc -l < "$f" | tr -d ' ') lines in $blocks block(s)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-4166 (Spec-AC-01) with a mkdir that exits 0 for an existing directory, a held append lock was not taken and twelve concurrent appends stayed twelve contiguous blocks" \
+    || log_fail "TEST-4166 (Spec-AC-01) the append lock does not trust the mkdir command"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
+  if [[ $# -gt 0 ]]; then
+    # One argument runs only that function (the mutation gate's selector).
+    declare -F "$1" >/dev/null || { echo "FAIL: unknown test function: $1" >&2; exit 2; }
+    "$1"
+    [[ $FAILED -eq 0 && ! -s "$FAILURE_REGISTRY" ]] || exit 1
+    exit 0
+  fi
   test_001_width_is_honoured_on_the_clock
   test_002_verdict_set_is_identical_serial_and_concurrent
   test_003_a_sibling_is_never_blamed_for_a_concurrent_detection
   test_004_a_concurrent_wave_still_fails_on_a_working_tree_write
   test_005_concurrent_appends_are_serialised
   test_006_two_concurrent_framework_runs_keep_the_ledger_whole
+  test_4165_run_dir_claim_survives_a_racy_mkdir
+  test_4166_append_lock_survives_a_racy_mkdir
   test_007_a_killed_wave_leaks_no_checkout
   test_008_a_bad_width_degrades_to_serial
   test_009_an_unisolated_run_is_serial

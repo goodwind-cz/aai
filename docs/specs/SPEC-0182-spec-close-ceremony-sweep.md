@@ -5,7 +5,7 @@ number: 182
 status: done
 mutation_gate: v1
 mutation_uncomparable: 10
-frozen_sha256: 0bc3049607b7091c53b6100aea63072e3be417f3d70035e84f5cca3f6374966a
+frozen_sha256: 64ac0c0cdbd32d1628d7899764d725834286c7e02217bc1dcfb284c1324e4ef9
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0188-close-ceremony-sweep.md
@@ -2639,3 +2639,26 @@ Sign-off: none (tracked).
 
 This document defines HOW, not WHAT or WHY. It does not define workflow. Plain
 Markdown headings and body text; no emoji.
+
+## Amendment 2026-11-27 (ci-flake-root-causes)
+
+- Original rule (Spec-AC-04(b)): `close-reconcile.mjs --check` SHALL item "a
+  non-terminal doc whose frontmatter id a range commit names and which has NO
+  paired spec at all". The implementation read "names" as any substring of a
+  touched doc's body.
+- New rule (ci-flake-root-causes Spec-AC-03): the doc is itemed only when a
+  touched doc CLAIMS it: its path or its whole frontmatter id appears under a
+  `Paired <words> half:` or `Paired <words> ride:` label anywhere in a list
+  item or paragraph, or under a `Carried ...:` or `Also carried ...:` label at
+  an item's head. A bare mention, a disclosure ("not absorbed", "a different
+  ride", "owned elsewhere") and an id inside a longer token (a follow-up id)
+  are not claims. Measured: over the last 150 first-parent merges of main the
+  old reading itemed five docs, all mentions; the new one items none, and on
+  the historical trees of PRs 382 and 384 it still items ISSUE-0040 and
+  CHANGE-0181, the two claims this AC was written for.
+- Edited test: TEST-526 now asserts that PR 382's and PR 384's real ranges
+  name DEBT-0003 and DEBT-0007 NOT at all (both are disclosures). Detection
+  stays armed by TEST-525 and by ci-flake-root-causes TEST-4160.
+- Canon assigns a change of a frozen spec's scope to the owner (HITL). No
+  prior sign-off was obtained; the owner's merge of the ride signs it, and the
+  owner may reverse it.

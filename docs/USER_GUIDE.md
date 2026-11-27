@@ -2502,6 +2502,9 @@ bounded**, **reaped on the step boundary**, and **accounted for**.
    e.g. a `Path`/`PATH` pair) before every spawn, and turns a genuine spawn
    failure into an explicit **125** exit with one `AAI-SPAWN-ERROR: [<branch>]
    <exception>` stderr line — never a fake 124 for a command that never ran.
+   The POSIX wrapper also exits **125**, with one `AAI-XDG: REFUSED` line and
+   without starting the command, when it can make no private
+   `XDG_CACHE_HOME`.
    (**78** stays reserved for "no usable POSIX interpreter found" — no run
    attempted at all.)
 

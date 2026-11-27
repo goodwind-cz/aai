@@ -1433,7 +1433,53 @@ if (bad.length) { console.log(bad.join("; ")); process.exit(1); }
   log_pass "TEST-4141: the D-WIRE heading, the TECHNOLOGY.md override sentence, three D-AMEND headings, spec-amend list --strict and nine closed follow-ups"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 4130_private_xdg_cache 4141_changelog_amendments_and_ledger"
+# --- TEST-4161 (ci-flake-root-causes Spec-AC-05) — no private cache, no run.
+# When neither the owned temp root nor a mktemp directory can hold a private
+# XDG_CACHE_HOME, the wrapper used to point the command at the fixed path
+# /nonexistent/aai-test-no-xdg-cache, which a root-run tool can create and every
+# later run then shares (fu-xdg-fallback-path-is-shared). It now refuses with
+# exit 125 before the command starts, in both the owned and the inherited mode.
+test_4161_no_private_cache_refuses() {
+  log_info "TEST-4161: with no private XDG_CACHE_HOME possible the wrapper refuses with 125 and never starts the command..."
+  local root fh missing mode rc err
+  root="$(mktemp -d "${TMPDIR:-/tmp}/aai-t4161.XXXXXX")" || log_fail "TEST-4161: no scratch root could be made"
+  [[ -n "$root" && "$root" == /* && -d "$root" ]] || log_fail "TEST-4161: unsafe scratch root '$root'"
+  # A regular FILE as TMPDIR: nothing can be created under it (ENOTDIR), so
+  # neither the owned temp root nor mktemp -d can make the private cache.
+  fh="$root/home"; missing="$root/tmpdir-is-a-file"
+  mkdir -p "$fh" && : > "$missing" || { rm -rf "${root:?}"; log_fail "TEST-4161: fixture dirs could not be made"; }
+  for mode in inherited owned; do
+    rm -f "$root/ran" "$root/err"
+    rc=0
+    case "$mode" in
+      inherited) env HOME="$fh" TMPDIR="$missing" AAI_T4161_OUT="$root/ran" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c ': > "$AAI_T4161_OUT"' >/dev/null 2>"$root/err" || rc=$? ;;
+      owned)     env -u AAI_TEST_OWNER AAI_RESIDUE_IN_TEST=1 AAI_RESIDUE_SANDBOX="$missing" HOME="$fh" TMPDIR="$missing" AAI_T4161_OUT="$root/ran" \
+                   sh "$RUN_TESTS_SCRIPT" sh -c ': > "$AAI_T4161_OUT"' >/dev/null 2>"$root/err" || rc=$? ;;
+    esac
+    err="$(cat "$root/err" 2>/dev/null || true)"
+    [[ "$rc" -eq 125 ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): want exit 125 when no private cache can be made, got $rc: $err"; }
+    [[ ! -e "$root/ran" ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): the command ran without a private XDG_CACHE_HOME"; }
+    [[ "$err" == *"AAI-XDG: REFUSED"* ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): stderr does not name the refusal: $err"; }
+    [[ "$err" != *"/nonexistent/aai-test-no-xdg-cache"* ]] || { rm -rf "${root:?}"; log_fail "TEST-4161 ($mode): the fixed shared path is still named: $err"; }
+  done
+  [[ -z "$(find "$fh" -mindepth 1 2>/dev/null)" ]] || { rm -rf "${root:?}"; log_fail "TEST-4161: something was written under the fake HOME"; }
+  # The wrapper's not-armed layout (review round 2): a copy of the scripts
+  # without lib/repo-tripwire.sh must refuse the same way under `set -u`.
+  local lay="$root/no-tripwire"
+  mkdir -p "$lay" && cp -R "$(dirname "$RUN_TESTS_SCRIPT")/." "$lay/" && rm -f "$lay/lib/repo-tripwire.sh" \
+    || { rm -rf "${root:?}"; log_fail "TEST-4161: the no-tripwire layout could not be made"; }
+  rm -f "$root/ran"; rc=0
+  env HOME="$fh" TMPDIR="$missing" AAI_T4161_OUT="$root/ran" \
+    sh "$lay/$(basename "$RUN_TESTS_SCRIPT")" sh -c ': > "$AAI_T4161_OUT"' >/dev/null 2>"$root/err" || rc=$?
+  err="$(cat "$root/err" 2>/dev/null || true)"
+  [[ "$rc" -eq 125 && ! -e "$root/ran" && "$err" == *"AAI-XDG: REFUSED"* && "$err" != *"unbound variable"* ]] \
+    || { rm -rf "${root:?}"; log_fail "TEST-4161 (no tripwire lib): want exit 125 and the refusal without an unbound variable, got $rc: $err"; }
+  rm -rf "${root:?}"
+  log_pass "TEST-4161: with no private XDG_CACHE_HOME possible (inherited and owned mode, and without the tripwire library) the wrapper refused with exit 125, named the refusal and never started the command"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 4130_private_xdg_cache 4141_changelog_amendments_and_ledger 4161_no_private_cache_refuses"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"

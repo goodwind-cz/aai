@@ -566,6 +566,36 @@ for (const [sig, exit] of [['SIGINT', 130], ['SIGTERM', 143]]) {
   });
 }
 
+// ci-flake-root-causes: the git child's own death by the signal decides the interrupt. node's handler for the
+// same signal runs from its event loop, and on a loaded Linux runner it had not run yet when the failed git step
+// was read (the CI red of PR #597), so a cut whose handler is late must still report the interrupt.
+for (const [sig, exit] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+  test(`TEST-4164 a git step killed by ${sig} before node's own handler has run still prints the interrupted line and exits ${exit}`, async () => {
+    const { deps, log } = mk({
+      gitFn: (a, cwd, defaults) => (a[0] === 'rev-parse' && a[1] === '-q' ? { status: 1, stdout: '', stderr: '' }
+        : a[0] === 'check-ref-format' || a.join(' ') === 'rev-parse --show-toplevel' || a[0] === 'symbolic-ref' ? defaults(a)
+          : a[0] === 'commit' ? { status: 1, signal: sig, stdout: '', stderr: '' }
+            : { status: 0, stdout: 'abc1234\n', stderr: '' }),
+    });
+    const code = await run(['--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], deps);
+    assert.equal(code, exit, log.err.join('|'));
+    assert.deepEqual(log.err, [`REFUSED: interrupted (${sig}) — the temporary worktree was removed.`]);
+    assert.ok(log.git.some((a) => a[0] === 'worktree' && a[1] === 'remove'), 'the temporary worktree is removed');
+  });
+}
+
+test('TEST-4164 a git step killed by a signal other than SIGINT or SIGTERM stays a git-command refusal', async () => {
+  const { deps, log } = mk({
+    gitFn: (a, cwd, defaults) => (a[0] === 'rev-parse' && a[1] === '-q' ? { status: 1, stdout: '', stderr: '' }
+      : a[0] === 'check-ref-format' || a.join(' ') === 'rev-parse --show-toplevel' || a[0] === 'symbolic-ref' ? defaults(a)
+        : a[0] === 'commit' ? { status: 1, signal: 'SIGKILL', stdout: '', stderr: '' }
+          : { status: 0, stdout: 'abc1234\n', stderr: '' }),
+  });
+  const code = await run(['--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], deps);
+  assert.equal(code, 20, log.err.join('|'));
+  assert.match(log.err[0], /^REFUSED: git-command — git commit /);
+});
+
 test('TEST-3537 the signal handlers are removed after the cut on success, on a git refusal and on an interrupt', async () => {
   const cases = [
     ['success', () => ({ status: 0, stdout: 'abc1234\n', stderr: '' }), '', 0],
@@ -888,3 +918,22 @@ test('TEST-4027 M18 and M20 give the New column of DR-R2 and DR-R4 under the new
     }
   }
 });
+
+// TEST-4168 (ci-flake-root-causes Spec-AC-02, validation round 1): the REAL git spawn reports the signal that killed
+// the git child. The child kills only itself, so node's own handler never runs and the child's signal alone decides.
+for (const [sig, exit] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGKILL', 20]]) {
+  test(`TEST-4168 a real git child killed by ${sig} alone (node not signalled) ends the local cut with exit ${exit}`, () => {
+    const dir = fixture();
+    const bin = path.join(scratch('self'), 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const real = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+    fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" commit "*) kill -${sig.slice(3)} $$;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+    const r = spawnSync(process.execPath, [MODULE, '--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], {
+      cwd: dir, encoding: 'utf8', env: HOST_FREE({ PATH: `${bin}${path.delimiter}${process.env.PATH}` }),
+    });
+    assert.equal(r.status, exit, `${r.stdout}${r.stderr}`);
+    if (exit !== 20) assert.equal(r.stderr, `REFUSED: interrupted (${sig}) — the temporary worktree was removed.\n`);
+    else assert.match(r.stderr, /^REFUSED: git-command — git commit /);
+    assert.equal(git(dir, 'worktree', 'list').trim().split('\n').length, 1, 'git worktree list shows only the main tree');
+  });
+}

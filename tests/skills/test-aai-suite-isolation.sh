@@ -2750,6 +2750,41 @@ test_4132_missing_selected_suite_fails_the_run() {
     || log_fail "TEST-4132 a missing selected suite fails the run"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-4162 (ci-flake-root-causes Spec-AC-05) — with no disposable checkout
+# and a TMPDIR mktemp cannot write, a suite used to run with the fixed shared
+# XDG_CACHE_HOME /nonexistent/aai-test-no-xdg-cache. It now gets a directory
+# of this run's own RUN_DIR, unique to the suite and removed after it.
+# ---------------------------------------------------------------------------
+test_4162_no_tmpdir_cache_is_per_run() {
+  local d root out rc ok=1 seen_a seen_b s
+  d="$(new_fixture)" || return
+  root="$d.t4162"
+  # A regular FILE as TMPDIR: mktemp -d cannot create anything under it.
+  mkdir -p "$root/home" "$root/out" && : > "$root/tmpdir-is-a-file" || { log_fail "TEST-4162: scratch dirs could not be made"; return; }
+  register_workdir "$root"
+  build_framework_repo "$d"
+  local body='printf "%s\n" "${XDG_CACHE_HOME-UNSET}" > "$AAI_T4162_OUT/$(basename "${BASH_SOURCE[0]}").seen"
+exit 0'
+  write_fixture_suite "$d" "t4162a" "$body"
+  write_fixture_suite "$d" "t4162b" "$body"
+  commit_fixture_repo "$d" || { log_fail "TEST-4162: fixture repo init failed"; return; }
+  rc=0
+  out="$(env HOME="$root/home" TMPDIR="$root/tmpdir-is-a-file" AAI_T4162_OUT="$root/out" AAI_TEST_ISOLATION=0 \
+           bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-4162: framework exit=$rc (want 0): $out"; ok=0; }
+  seen_a="$(cat "$root/out/test-aai-t4162a.sh.seen" 2>/dev/null || true)"
+  seen_b="$(cat "$root/out/test-aai-t4162b.sh.seen" 2>/dev/null || true)"
+  [[ "$seen_a" != "$seen_b" ]] || { log_info "TEST-4162: the two suites shared one cache ($seen_a)"; ok=0; }
+  for s in "$seen_a" "$seen_b"; do
+    [[ "$s" == */"$(basename "$d")"/tests/skills/results/test-*/aai-xdg-cache.aai-t4162[ab] ]] || { log_info "TEST-4162: a suite's cache is not a directory of this run's RUN_DIR (got '$s')"; ok=0; }
+    [[ "$s" != */nonexistent/* && "$s" != "$root/home"* ]] || { log_info "TEST-4162: a suite's cache is the fixed path or under HOME ($s)"; ok=0; }
+    [[ ! -e "$s" ]] || { log_info "TEST-4162: the cache $s survived the suite"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-4162 with no disposable checkout and no writable TMPDIR each suite got its own cache inside this run's RUN_DIR, removed afterwards, never the fixed shared path" \
+    || log_fail "TEST-4162 a suite without a TMPDIR cache gets a per-run one"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -2800,6 +2835,7 @@ main() {
     test_402_seeding_failure_never_reads_as_seeded
     test_403_states_isolation_rather_than_inherits
     test_4131_every_suite_gets_a_private_xdg_cache
+    test_4162_no_tmpdir_cache_is_per_run
     test_4132_missing_selected_suite_fails_the_run
   fi
   echo ""

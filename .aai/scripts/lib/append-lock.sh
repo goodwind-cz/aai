@@ -21,8 +21,10 @@
 #
 # CROSS-PROCESS, not merely cross-thread: the mutex is a DIRECTORY beside the
 # target file, so two independent framework processes appending to the same
-# ledger contend on the same lock. `mkdir` is the portable atomic test-and-set
-# — `flock` is absent on macOS and `noclobber` is shell-local.
+# ledger contend on the same lock. `mkdir` makes the directory and an O_EXCL
+# create of its `stamp` file under noclobber decides the owner (aai_claim_dir:
+# the mkdir command alone is not atomic on every host) — `flock` is absent on
+# macOS.
 #
 # CONTRACT
 #   aai_locked_append <file> <line>...
@@ -59,12 +61,29 @@ aai_append_lock_age() {
   return 0
 }
 
+# aai_claim_dir <dir> <claim-file> — 0 when THIS process created <dir> and is
+# the one that holds it, 1 otherwise. The `mkdir` COMMAND is not an atomic
+# test-and-set on every host: on the hosted ubuntu-26.04 runners two
+# concurrent `mkdir d` both exit 0 (ci-flake-root-causes, measured), so a
+# lock or a run directory taken by mkdir alone had two owners. The claim is the
+# O_EXCL create of <dir>/<claim-file> under noclobber (`set -C`, a shell
+# builtin open, POSIX): exactly one process can create it, whatever mkdir said.
+# The subshell keeps noclobber out of the caller.
+aai_claim_dir() {
+  mkdir "$1" 2>/dev/null || return 1
+  # A failed create leaves an EMPTY dir only when no owner wrote its claim
+  # file (ENOSPC, EDQUOT); rmdir removes just that orphan and fails harmlessly
+  # on a dir another process holds.
+  ( set -C; date +%s > "$1/$2" ) 2>/dev/null || { rmdir "$1" 2>/dev/null; return 1; }
+  return 0
+}
+
 # aai_append_lock_acquire <lockdir> — 0 when held, 1 on timeout.
 aai_append_lock_acquire() {
   al_lock="$1"
   al_spins=0
   al_max=$(( AAI_APPEND_LOCK_TIMEOUT * 20 ))
-  while ! mkdir "$al_lock" 2>/dev/null; do
+  while ! aai_claim_dir "$al_lock" stamp; do
     al_age=$(aai_append_lock_age "$al_lock")
     if [ -n "$al_age" ] && [ "$al_age" -gt "$AAI_APPEND_LOCK_TIMEOUT" ]; then
       rm -rf "$al_lock" 2>/dev/null || true
@@ -76,7 +95,6 @@ aai_append_lock_acquire() {
     fi
     sleep 0.05 2>/dev/null || sleep 1
   done
-  date +%s > "$al_lock/stamp" 2>/dev/null || true
   return 0
 }
 

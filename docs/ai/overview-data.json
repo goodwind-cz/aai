@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-26T20:06:56.912Z",
+  "generatedAt": "2026-11-27T01:37:37.182Z",
   "project": "aai",
   "counts": {
-    "delivered": 391,
+    "delivered": 392,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 223860671
@@ -209,6 +209,19 @@
   ],
   "delivered": [
     {
+      "ref": "ci-flake-root-causes",
+      "title": "Recurring CI flakes and the open test-infrastructure P2s, fixed at their cause",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0129-ci-flake-root-causes.md",
+      "closed_on": "2026-11-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0322-spec-ci-flake-root-causes.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-ci-flake-root-causes-20261127T013053Z.md"
+    },
+    {
       "ref": "skill-description-canonical-prompt-pointer",
       "title": "Change: every shipped skill wrapper names its canonical prompt in its one-line description, and an /aai-ship run never stops silently before the PR",
       "type": "change",
@@ -245,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0321-spec-release-dry-run-reader-timeout.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261126T200328Z-release-dry-run-reader-timeout.md"
     },
     {
       "ref": "onboarding-tech-contract-and-lint-gaps",
@@ -5319,6 +5332,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "ci-flake-root-causes",
+          "title": "Recurring CI flakes and the open test-infrastructure P2s, fixed at their cause",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0129-ci-flake-root-causes.md",
+          "closed_on": "2026-11-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0322-spec-ci-flake-root-causes.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-ci-flake-root-causes-20261127T013053Z.md"
+        },
+        {
           "ref": "skill-description-canonical-prompt-pointer",
           "title": "Change: every shipped skill wrapper names its canonical prompt in its one-line description, and an /aai-ship run never stops silently before the PR",
           "type": "change",
@@ -5355,7 +5381,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0321-spec-release-dry-run-reader-timeout.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261126T200328Z-release-dry-run-reader-timeout.md"
         },
         {
           "ref": "onboarding-tech-contract-and-lint-gaps",

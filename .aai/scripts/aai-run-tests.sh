@@ -106,10 +106,12 @@
 # the perl-fallback exec-failure fidelity fix below (ENOENT -> 127, anything
 # else -> 126, matching native POSIX shell semantics); everything else here is
 # characterization only): 124 means a process that RAN and was killed at
-# AAI_TEST_TIMEOUT (the watchdog below); 125 is the aai-run-tests.ps1
-# dispatcher's spawn/infrastructure-failure code and is NEVER produced by
-# this POSIX file. This file has no separate "could not start the command"
-# branch of its own to masquerade as a timeout: an unlaunchable command
+# AAI_TEST_TIMEOUT (the watchdog below); 125 means the command was NEVER
+# STARTED because of an infrastructure failure: the aai-run-tests.ps1
+# dispatcher's spawn failure, and in this POSIX file only the `AAI-XDG:
+# REFUSED` branch (no private XDG_CACHE_HOME could be made; ci-flake-root-
+# causes). This file has no other "could not start the command" branch to
+# masquerade as a timeout: an unlaunchable command
 # surfaces the SHELL's own real code instead — 127 for a command not found,
 # 126 for a file that exists but is not executable — both distinct from, and
 # never confused with, 124.
@@ -180,6 +182,8 @@ fi
 # permanently red. The framework tripwire is the one that fails a run.
 AAI_TW_ARMED=0
 AAI_TW_WHY=''
+AAI_TW_BEFORE=''
+AAI_TW_AFTER=''
 AAI_TW_DIR="$AAI_SELF_DIR"
 if [ -z "$AAI_TW_DIR" ]; then
   AAI_TW_WHY='cannot resolve this script directory'
@@ -918,8 +922,11 @@ aai_residue_finish() {
 # $HOME/.cache/powershell), so a caller's cache - usually the owner's real one -
 # must never reach the wrapped command. A caller-provided value is NOT
 # respected and there is no opt-out. An owned run keeps the cache inside its
-# temp root (removed with it); otherwise it is a mktemp directory of its own,
-# and when neither can be made the value is a path that cannot exist.
+# temp root (removed with it); otherwise it is a mktemp directory of its own.
+# When neither can be made the wrapper refuses with exit 125 (the GNU-timeout
+# code for "the wrapper itself failed") before the command starts: a fixed
+# fallback path is shared by every such run and a root-run tool can create it
+# (ci-flake-root-causes, fu-xdg-fallback-path-is-shared).
 AAI_XDG_CACHE_OWN=0
 AAI_XDG_CACHE_DIR=''
 if [ "$AAI_TREE_OWN" -eq 1 ]; then
@@ -930,7 +937,16 @@ if [ -z "$AAI_XDG_CACHE_DIR" ]; then
   AAI_XDG_CACHE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/aai-xdg-cache.XXXXXX" 2>/dev/null) || AAI_XDG_CACHE_DIR=''
   if [ -n "$AAI_XDG_CACHE_DIR" ]; then AAI_XDG_CACHE_OWN=1; fi
 fi
-[ -n "$AAI_XDG_CACHE_DIR" ] || AAI_XDG_CACHE_DIR='/nonexistent/aai-test-no-xdg-cache'
+if [ -z "$AAI_XDG_CACHE_DIR" ]; then
+  echo "AAI-XDG: REFUSED - no private XDG_CACHE_HOME could be made (no temp root of this run, and mktemp -d under ${TMPDIR:-/tmp} failed); the command was not run, so it cannot reach a shared or the real cache." >&2
+  aai_iso_cleanup
+  for aai_tw_f in "$AAI_TW_BEFORE" "$AAI_TW_AFTER"; do
+    [ -z "$aai_tw_f" ] || rm -f -- "$aai_tw_f" 2>/dev/null
+  done
+  aai_tree_finish
+  aai_residue_finish
+  exit 125
+fi
 # Tool paths that follow XDG_CACHE_HOME: on Linux Playwright keeps its browsers
 # under $XDG_CACHE_HOME/ms-playwright, so the private cache would hide the
 # ones the caller installed. When PLAYWRIGHT_BROWSERS_PATH is unset it is
