@@ -136,7 +136,9 @@
   `AAI-SPAWN-ERROR: [<branch>] <exception>` line on stderr names the failing
   branch (`WSL` or `Git Bash`) and the real exception — the wait logic is
   never reached with a null process, and 124 is never produced for a
-  command that never started. The environment is canonicalized (every
+  command that never started. The POSIX `aai-run-tests.sh` also exits
+  **125** without starting the command when it can make no private
+  `XDG_CACHE_HOME` (one `AAI-XDG: REFUSED` stderr line). The environment is canonicalized (every
   OrdinalIgnoreCase-duplicate key collapsed to one survivor) once per
   dispatch, before any spawn — including the WSL usability probe itself.
 

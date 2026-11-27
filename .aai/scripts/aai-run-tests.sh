@@ -106,10 +106,12 @@
 # the perl-fallback exec-failure fidelity fix below (ENOENT -> 127, anything
 # else -> 126, matching native POSIX shell semantics); everything else here is
 # characterization only): 124 means a process that RAN and was killed at
-# AAI_TEST_TIMEOUT (the watchdog below); 125 is the aai-run-tests.ps1
-# dispatcher's spawn/infrastructure-failure code and is NEVER produced by
-# this POSIX file. This file has no separate "could not start the command"
-# branch of its own to masquerade as a timeout: an unlaunchable command
+# AAI_TEST_TIMEOUT (the watchdog below); 125 means the command was NEVER
+# STARTED because of an infrastructure failure: the aai-run-tests.ps1
+# dispatcher's spawn failure, and in this POSIX file only the `AAI-XDG:
+# REFUSED` branch (no private XDG_CACHE_HOME could be made; ci-flake-root-
+# causes). This file has no other "could not start the command" branch to
+# masquerade as a timeout: an unlaunchable command
 # surfaces the SHELL's own real code instead — 127 for a command not found,
 # 126 for a file that exists but is not executable — both distinct from, and
 # never confused with, 124.
