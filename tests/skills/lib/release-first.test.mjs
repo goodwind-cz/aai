@@ -57,6 +57,21 @@ function dry(dir,args=[],env= {
     ...r,text:r.stdout+'\n'+r.stderr
   };
 }
+// ci-flake-root-causes: the Pester arms run real Pester, which pwsh finds through the module path of the
+// environment the test runs in; a user-scope install lives under HOME. The release preflight runs this file with
+// an empty HOME, where Pester is absent, and the two arms failed on base and on the rolled payload alike. Probe the
+// reader's own environment once: absent Pester is a named skip here and a failure on CI, never a false red.
+let pesterProbe=null;
+function pesterOr(t) {
+  if(pesterProbe===null) {
+    const r=run(process.env.AAI_RELEASE_DRY_PWSH||'pwsh',['-NoProfile','-NonInteractive','-Command','Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop'],root);
+    pesterProbe=r.status===0?'':(r.error?`pwsh did not start (${r.error.code||r.error.message})`:`Pester 5 is not importable (pwsh exit ${r.status})`);
+  }
+  if(!pesterProbe)return true;
+  assert.ok(!process.env.CI,`real Pester is required on CI: ${pesterProbe}`);
+  t.skip(`SKIP-CASE: ${pesterProbe} in this environment (HOME=${process.env.HOME||''}), so real Pester was not run`);
+  return false;
+}
 const nodeReader=(dual=false)=>`import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';test('first',()=>assert.ok(fs.readFileSync('${changelog}','utf8').includes('## [${dual?'v2099.01.01':'unreleased'}] — Fixture')));test('last',()=>assert.ok(true));`;
 function fingerprint(dir) {
   return JSON.stringify({
@@ -126,6 +141,7 @@ test('TEST-003 shell nested isolation observes rolled committed snapshot',t=> {
   assert.match(r.text,/test-aai-planted.sh.*rollup-only/);
 });
 test('TEST-004 executes actual Pester and propagates failure',t=> {
+  if(!pesterOr(t))return;
   const dir=fixture(t, {
     'tests/new.Tests.ps1':`Describe 'rollup' { It 'reads actual content' { (Get-Content '${changelog}' -Raw).Contains('## [unreleased] — Fixture') | Should -BeTrue } }`
   });
@@ -279,6 +295,7 @@ test('TEST-006 PR workflow aggregate executes every mode and all three languages
       assert.equal(execution.status,result==='success'?0:1,mode+' '+execution.stdout+execution.stderr);
     }
   }
+  if(!pesterOr(t))return;
   const dir=fixture(t,{
     'tests/all.test.mjs':`// ${changelog}\nimport test from 'node:test';test('first',()=>console.log('NODE_FIRST'));test('last',()=>console.log('NODE_LAST'));`,
     'tests/test-all.sh':`#!/bin/bash\n# ${changelog}\necho SHELL_EXECUTED\n`,
@@ -629,4 +646,27 @@ test('TEST-4040 a crashing PowerShell probe is recorded as null with its exit st
   const j2=JSON.parse(fs.readFileSync(report,'utf8'));
   assert.equal(j2.interpreters.powershell,null);
   assert.equal(j2.interpreterErrors.powershell,'spawn ENOENT','a missing binary names the spawn error, not exit null');
+});
+// TEST-4163 (ci-flake-root-causes Spec-AC-04): the two real-Pester arms give the same verdict in the release
+// preflight's environment (an empty HOME, XDG_CACHE_HOME and XDG_CONFIG_HOME, no system git config): a pass when
+// Pester is importable there, a named skip when it is not, and a failure only on CI when it is not.
+test('TEST-4163 the real-Pester arms are hermetic under the release preflight environment',t=> {
+  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'aai-t4163.'));
+  t.after(()=>fs.rmSync(tmp,{recursive:true,force:true}));
+  const env={};
+  for(const k of ['PATH','LANG','LC_ALL','TMPDIR','SYSTEMROOT','WINDIR','COMSPEC','PATHEXT','AAI_RELEASE_DRY_PWSH'])if(process.env[k]!==undefined)env[k]=process.env[k];
+  for(const d of ['home','cache','config'])fs.mkdirSync(path.join(tmp,d));
+  Object.assign(env,{HOME:path.join(tmp,'home'),USERPROFILE:path.join(tmp,'home'),XDG_CACHE_HOME:path.join(tmp,'cache'),XDG_CONFIG_HOME:path.join(tmp,'config'),GIT_CONFIG_NOSYSTEM:'1',GIT_TERMINAL_PROMPT:'0'});
+  const probe=spawnSync(env.AAI_RELEASE_DRY_PWSH||'pwsh',['-NoProfile','-NonInteractive','-Command','Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop'],{env,encoding:'utf8',timeout:120000});
+  const pester=probe.status===0;
+  const arms=(extra)=>spawnSync(process.execPath,['--test','--test-name-pattern','^TEST-00[46] ',fileURLToPath(import.meta.url)],{cwd:root,env:{...env,...extra},encoding:'utf8',timeout:600000,maxBuffer:8*1024*1024});
+  const r=arms({});
+  const out=`${r.stdout}${r.stderr}`;
+  assert.equal(r.status,0,out);
+  assert.match(out,/# fail 0/,out);
+  if(pester)assert.match(out,/# pass 2/,out);
+  else assert.equal((out.match(/# SKIP SKIP-CASE: Pester 5 is not importable|# SKIP SKIP-CASE: pwsh did not start/g)||[]).length,2,out);
+  const ci=arms({CI:'true'});
+  if(pester)assert.equal(ci.status,0,`${ci.stdout}${ci.stderr}`);
+  else assert.match(`${ci.stdout}${ci.stderr}`,/real Pester is required on CI/);
 });

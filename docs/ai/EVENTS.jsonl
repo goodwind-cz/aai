@@ -4712,3 +4712,4 @@
 {"v":1,"ts":"2026-11-26T20:06:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-dry-run-reader-timeout","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-26T20:06:47Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-dry-run-reader-timeout","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-26T20:06:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-dry-run-reader-timeout","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-27T00:01:59Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ci-flake-root-causes","payload":{"from":"draft","to":"implementing"}}

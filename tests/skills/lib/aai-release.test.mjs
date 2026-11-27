@@ -566,6 +566,36 @@ for (const [sig, exit] of [['SIGINT', 130], ['SIGTERM', 143]]) {
   });
 }
 
+// ci-flake-root-causes: the git child's own death by the signal decides the interrupt. node's handler for the
+// same signal runs from its event loop, and on a loaded Linux runner it had not run yet when the failed git step
+// was read (the CI red of PR #597), so a cut whose handler is late must still report the interrupt.
+for (const [sig, exit] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+  test(`TEST-4164 a git step killed by ${sig} before node's own handler has run still prints the interrupted line and exits ${exit}`, async () => {
+    const { deps, log } = mk({
+      gitFn: (a, cwd, defaults) => (a[0] === 'rev-parse' && a[1] === '-q' ? { status: 1, stdout: '', stderr: '' }
+        : a[0] === 'check-ref-format' || a.join(' ') === 'rev-parse --show-toplevel' || a[0] === 'symbolic-ref' ? defaults(a)
+          : a[0] === 'commit' ? { status: 1, signal: sig, stdout: '', stderr: '' }
+            : { status: 0, stdout: 'abc1234\n', stderr: '' }),
+    });
+    const code = await run(['--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], deps);
+    assert.equal(code, exit, log.err.join('|'));
+    assert.deepEqual(log.err, [`REFUSED: interrupted (${sig}) — the temporary worktree was removed.`]);
+    assert.ok(log.git.some((a) => a[0] === 'worktree' && a[1] === 'remove'), 'the temporary worktree is removed');
+  });
+}
+
+test('TEST-4164 a git step killed by a signal other than SIGINT or SIGTERM stays a git-command refusal', async () => {
+  const { deps, log } = mk({
+    gitFn: (a, cwd, defaults) => (a[0] === 'rev-parse' && a[1] === '-q' ? { status: 1, stdout: '', stderr: '' }
+      : a[0] === 'check-ref-format' || a.join(' ') === 'rev-parse --show-toplevel' || a[0] === 'symbolic-ref' ? defaults(a)
+        : a[0] === 'commit' ? { status: 1, signal: 'SIGKILL', stdout: '', stderr: '' }
+          : { status: 0, stdout: 'abc1234\n', stderr: '' }),
+  });
+  const code = await run(['--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], deps);
+  assert.equal(code, 20, log.err.join('|'));
+  assert.match(log.err[0], /^REFUSED: git-command — git commit /);
+});
+
 test('TEST-3537 the signal handlers are removed after the cut on success, on a git refusal and on an interrupt', async () => {
   const cases = [
     ['success', () => ({ status: 0, stdout: 'abc1234\n', stderr: '' }), '', 0],

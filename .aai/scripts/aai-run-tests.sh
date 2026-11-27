@@ -918,8 +918,11 @@ aai_residue_finish() {
 # $HOME/.cache/powershell), so a caller's cache - usually the owner's real one -
 # must never reach the wrapped command. A caller-provided value is NOT
 # respected and there is no opt-out. An owned run keeps the cache inside its
-# temp root (removed with it); otherwise it is a mktemp directory of its own,
-# and when neither can be made the value is a path that cannot exist.
+# temp root (removed with it); otherwise it is a mktemp directory of its own.
+# When neither can be made the wrapper refuses with exit 125 (the GNU-timeout
+# code for "the wrapper itself failed") before the command starts: a fixed
+# fallback path is shared by every such run and a root-run tool can create it
+# (ci-flake-root-causes, fu-xdg-fallback-path-is-shared).
 AAI_XDG_CACHE_OWN=0
 AAI_XDG_CACHE_DIR=''
 if [ "$AAI_TREE_OWN" -eq 1 ]; then
@@ -930,7 +933,12 @@ if [ -z "$AAI_XDG_CACHE_DIR" ]; then
   AAI_XDG_CACHE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/aai-xdg-cache.XXXXXX" 2>/dev/null) || AAI_XDG_CACHE_DIR=''
   if [ -n "$AAI_XDG_CACHE_DIR" ]; then AAI_XDG_CACHE_OWN=1; fi
 fi
-[ -n "$AAI_XDG_CACHE_DIR" ] || AAI_XDG_CACHE_DIR='/nonexistent/aai-test-no-xdg-cache'
+if [ -z "$AAI_XDG_CACHE_DIR" ]; then
+  echo "AAI-XDG: REFUSED - no private XDG_CACHE_HOME could be made (no temp root of this run, and mktemp -d under ${TMPDIR:-/tmp} failed); the command was not run, so it cannot reach a shared or the real cache." >&2
+  aai_tree_finish
+  aai_residue_finish
+  exit 125
+fi
 # Tool paths that follow XDG_CACHE_HOME: on Linux Playwright keeps its browsers
 # under $XDG_CACHE_HOME/ms-playwright, so the private cache would hide the
 # ones the caller installed. When PLAYWRIGHT_BROWSERS_PATH is unset it is

@@ -4,7 +4,7 @@ type: spec
 number: 319
 status: done
 mutation_gate: v1
-frozen_sha256: a237cc98fc7d357d7d6defcefdc3d2a950d2dfbc9234a8d8adc1ddc7f2b920c2
+frozen_sha256: 24cc4e2931188956e96231636b697685e2a11409cd1b1c5ee0d1337cf96a64ee
 ceremony_level: 2
 links:
   requirement: test-infra-p2-fixes
@@ -612,3 +612,19 @@ with the reason for each (registry consumer rule):
 - D10 leaves 6 of 40 PRs on a full run that narrowing could have shortened.
 - Ceremony level 2: no file in `protected_paths_l3` and no workflow file is
   touched.
+
+## Amendment 2026-11-27 (ci-flake-root-causes)
+
+- Original rule (D1 and D2): "when neither can be made, the value is
+  `/nonexistent/aai-test-no-xdg-cache`", a fixed path every such run shares
+  and a root-run tool can create (`fu-xdg-fallback-path-is-shared`).
+- New rule (ci-flake-root-causes Spec-AC-05): `aai-run-tests.sh` refuses with
+  exit 125 and `AAI-XDG: REFUSED` before the command starts. `test-framework.sh`
+  falls back to a directory of the run's own RUN_DIR, unique to the suite and
+  removed after it, and refuses the suite only when that cannot be made
+  either. No path is fixed, shared or under the caller's HOME.
+- Edited tests: none of this spec's rows; TEST-4130 and TEST-4131 still hold
+  as written. New rows TEST-4161 and TEST-4162 belong to ci-flake-root-causes.
+- Canon assigns a change of a frozen spec's scope to the owner (HITL). No
+  prior sign-off was obtained; the owner's merge of the ride signs it, and the
+  owner may reverse it.

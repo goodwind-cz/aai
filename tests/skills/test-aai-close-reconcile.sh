@@ -1001,16 +1001,16 @@ test_526_replays_the_two_real_ranges() {
   # not-contains pair below: neither output names ISSUE-0040 or CHANGE-0181
   # by id any more.
   out="$(node "$CLOSE_RECONCILE" --check --range "68fd2e14..e6aae10b" --root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
-  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 382's range expected exit 1 (an unrelated open item, DEBT-0003, is still unpaired), got $rc. Output:\n$out"
-  assert_payload_contains "$out" "console-log-then-exit-across-41-clis" \
-    "TEST-526: PR 382's range must still name the unrelated open item DEBT-0003 (console-log-then-exit-across-41-clis) — proves id-mention-unpaired detection is still armed"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-526: PR 382's range expected exit 0 (SPEC-0180 names DEBT-0003 only to say it does NOT absorb it, ci-flake-root-causes), got $rc. Output:\n$out"
+  assert_payload_not_contains "$out" "console-log-then-exit-across-41-clis" \
+    "TEST-526: PR 382's range must not name DEBT-0003 (console-log-then-exit-across-41-clis): SPEC-0180 discloses it, it does not claim it"
   assert_payload_not_contains "$out" "focus-and-validation-state-go-stale-silently" \
     "TEST-526: PR 382's range must no longer name ISSUE-0040 (focus-and-validation-state-go-stale-silently) — Spec-AC-10 closed it with links.pr 382/links.commits e6aae10b"
 
   out="$(node "$CLOSE_RECONCILE" --check --range "94a983ec..7270a29c" --root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
-  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 384's range expected exit 1 (an unrelated open item, DEBT-0007, is still unpaired), got $rc. Output:\n$out"
-  assert_payload_contains "$out" "withdrawn-claim-sweeps-are-not-verifiable" \
-    "TEST-526: PR 384's range must still name the unrelated open item DEBT-0007 (withdrawn-claim-sweeps-are-not-verifiable) — proves id-mention-unpaired detection is still armed"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-526: PR 384's range expected exit 0 (SPEC-0181 names DEBT-0007 only to say it is NOT resolved, ci-flake-root-causes), got $rc. Output:\n$out"
+  assert_payload_not_contains "$out" "withdrawn-claim-sweeps-are-not-verifiable" \
+    "TEST-526: PR 384's range must not name DEBT-0007 (withdrawn-claim-sweeps-are-not-verifiable): SPEC-0181 discloses it, it does not claim it"
   assert_payload_not_contains "$out" "unrecorded-spec-amendment-is-invisible" \
     "TEST-526: PR 384's range must no longer name CHANGE-0181 (unrecorded-spec-amendment-is-invisible) — Spec-AC-10 closed it with links.pr 384/links.commits 7270a29c"
 
@@ -1359,6 +1359,92 @@ test_811_unknown_platform_refuses_by_name() {
   log_pass "TEST-811: unknown host + unmatched subject refuses by name (platform=unknown grammars-tried=github,azure, doc and EVENTS byte-identical); no origin tries the union for both grammars"
 }
 
+# --- TEST-4160 (ci-flake-root-causes Spec-AC-03) ------------------------------
+# A delivered doc CLAIMS an open doc only under a pairing label ("Paired ...
+# half|ride:" anywhere in a list item, "Carried ...:" / "Also carried ...:" at
+# an item's head) naming the doc's path or its whole frontmatter id. A bare
+# mention, a disclosure ("not absorbed", "a different ride") and an id inside
+# a longer token (a follow-up id) are not claims.
+test_4160_claim_not_mention() {
+  log_info "TEST-4160: id-mention-unpaired items a claimed open doc and never a merely mentioned one..."
+  local dir base head out rc
+  dir=$(init_range_repo "t4160")
+  write_issue_doc "$dir/docs/issues/ISSUE-0001-t4160a.md" "t4160-paired" "draft"
+  write_issue_doc "$dir/docs/issues/ISSUE-0002-t4160b.md" "t4160-disclosed" "draft"
+  write_issue_doc "$dir/docs/issues/ISSUE-0003-t4160c.md" "t4160-carried" "draft"
+  write_issue_doc "$dir/docs/issues/ISSUE-0004-t4160d.md" "t4160-substr" "draft"
+  write_issue_doc "$dir/docs/issues/ISSUE-0005-t4160e.md" "t4160-multiline" "draft"
+  write_issue_doc "$dir/docs/issues/ISSUE-0006-t4160f.md" "t4160-pathonly" "draft"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed six untouched open docs"
+  base=$(git -C "$dir" rev-parse HEAD)
+  cat > "$dir/docs/issues/ISSUE-0010-carrier.md" <<'DOC'
+---
+id: t4160-carrier-ref
+type: change
+status: done
+links:
+  pr:
+    - 528
+  commits:
+    - cafebabecafebabecafebabecafebabecafebabe
+---
+
+# Change — Fixture t4160-carrier-ref
+
+## Links
+- Also carried in full: docs/issues/ISSUE-0003-t4160c.md
+- Related, not absorbed: docs/issues/ISSUE-0002-t4160b.md
+- Overlap assessed, not closed: docs/issues/ISSUE-0006-t4160f.md
+
+## Summary
+- Wave fixture.
+  Paired maintenance half: `t4160-paired`
+  (ISSUE-0001).
+- `t4160-disclosed` is a different ride, and `t4160-multiline` is named here
+  only in passing.
+- Paired maintenance half (registry item): `fu-t4160-substr`.
+- The roadmap pairs this ride (`wave-1`). Paired maintenance ride:
+  `t4160-multiline`.
+DOC
+  echo '{"v":1,"ts":"2020-01-01T00:00:00Z","actor":"test","event":"work_item_closed","ref":"t4160-carrier-ref","payload":{}}' >> "$dir/docs/ai/EVENTS.jsonl"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver the carrier (#528)"
+  head=$(git -C "$dir" rev-parse HEAD)
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-4160: expected exit 1 (three claimed open docs), got $rc. Output:\n$out"
+  assert_payload_contains "$out" "id=t4160-paired reason=id-mention-unpaired" "TEST-4160: the 'Paired maintenance half:' claim by bare id must be itemed"
+  assert_payload_contains "$out" "id=t4160-carried reason=id-mention-unpaired" "TEST-4160: the 'Also carried in full:' claim by path must be itemed"
+  assert_payload_contains "$out" "id=t4160-multiline reason=id-mention-unpaired" "TEST-4160: a label whose value is on the next line must be itemed"
+  assert_payload_not_contains "$out" "id=t4160-disclosed" "TEST-4160: a disclosed doc (not absorbed, a different ride) must not be itemed"
+  assert_payload_not_contains "$out" "id=t4160-substr" "TEST-4160: an id inside a longer token (a follow-up id) must not be itemed"
+  assert_payload_not_contains "$out" "id=t4160-pathonly" "TEST-4160: a path under a non-claim label must not be itemed"
+  log_pass "TEST-4160: id-mention-unpaired items the three claimed open docs (paired by id, carried by path, a label continued on the next line) and none of the three mentioned ones (disclosed, inside a follow-up id, a path under a non-claim label)"
+}
+
+# --- TEST-4167 (ci-flake-root-causes Spec-AC-06) ------------------------------
+test_4167_registry_and_amendments() {
+  log_info "TEST-4167: the ride's four follow-ups are closed by it and both amendments are disclosed..."
+  local id json rc
+  json="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status all --json --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" 2>/dev/null)" \
+    || log_fail "TEST-4167: follow-ups.mjs list failed"
+  for id in fu-sweep-parallel-t006-runid-collision fu-reconcile-mention-vs-disclosure fu-xdg-fallback-path-is-shared fu-azure-docnum-live-namespace; do
+    node -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const it = (d.items || d).find((x) => x.id === process.argv[1]);
+      process.exit(it && it.status === "done" && it.resolved_by === "ci-flake-root-causes" ? 0 : 1);
+    ' "$id" <<<"$json" || log_fail "TEST-4167: $id is not done with resolved_by ci-flake-root-causes"
+  done
+  for f in docs/specs/SPEC-0182-spec-close-ceremony-sweep.md docs/specs/SPEC-0319-spec-test-infra-p2-fixes.md; do
+    grep -qxF '## Amendment 2026-11-27 (ci-flake-root-causes)' "$PROJECT_ROOT/$f" \
+      || log_fail "TEST-4167: $f lacks the amendment heading"
+  done
+  rc=0
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --strict --ledger "$PROJECT_ROOT/docs/ai/decisions.jsonl" >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-4167: spec-amend.mjs list --strict exited $rc"
+  log_pass "TEST-4167: the four follow-ups are done with resolved_by ci-flake-root-causes, SPEC-0182 and SPEC-0319 carry the amendment heading, and spec-amend list --strict exits 0"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1394,6 +1480,8 @@ main() {
   test_595_candidate_pairs_by_links_requirement
   test_810_azure_subject_grammar
   test_811_unknown_platform_refuses_by_name
+  test_4160_claim_not_mention
+  test_4167_registry_and_amendments
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

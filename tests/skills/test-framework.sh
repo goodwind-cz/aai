@@ -956,8 +956,11 @@ setup_results_dir() {
   # takes a suffixed id. The suffix is applied ONLY on a real collision, so the
   # RUN_ID shape every other reader knows stays `test-YYYYmmdd-HHMMSS`
   # whenever there is nothing to disambiguate.
+  # ci-flake-root-causes: the mkdir COMMAND alone is not that test-and-set on
+  # every host (two concurrent `mkdir` both exit 0 on the hosted ubuntu-26.04
+  # runners, measured), so the claim is aai_claim_dir's O_EXCL owner file.
   mkdir -p "$RESULTS_DIR"
-  if ! mkdir "$RUN_DIR" 2>/dev/null; then
+  if ! aai_claim_dir "$RUN_DIR" .run-owner; then
     RUN_ID="$RUN_ID-$$"
     RUN_DIR="$RESULTS_DIR/$RUN_ID"
     mkdir -p "$RUN_DIR"
@@ -1295,14 +1298,21 @@ suite_execute() {
   # startup profile data there, so two suites in one wave must never share a
   # cache and none may reach the caller's. A disposable checkout carries it
   # (iso_destroy removes it); otherwise a mktemp directory removed below;
-  # otherwise a path that cannot exist.
+  # otherwise a directory of this run's own RUN_DIR, unique to the suite and
+  # removed below. When none can be made the suite is not started and fails:
+  # the fixed fallback path this replaced was shared by every such run and a
+  # root-run tool could create it (ci-flake-root-causes,
+  # fu-xdg-fallback-path-is-shared).
   local sx_cache="" sx_cache_tmp=0
   if [[ -n "$iso_base" ]] && mkdir -p "$iso_base/xdg-cache" 2>/dev/null; then
     sx_cache="$iso_base/xdg-cache"
   elif sx_cache="$(mktemp -d "${TMPDIR:-/tmp}/aai-xdg-cache.XXXXXX" 2>/dev/null)" && [[ -n "$sx_cache" ]]; then
     sx_cache_tmp=1
+  elif [[ -n "${RUN_DIR:-}" && "$RUN_DIR" == /* ]] && sx_cache="$RUN_DIR/aai-xdg-cache.$(basename "$log_file" .log)" && mkdir "$sx_cache" 2>/dev/null; then
+    sx_cache_tmp=1
   else
-    sx_cache="/nonexistent/aai-test-no-xdg-cache"
+    echo "AAI-XDG: REFUSED - no private XDG_CACHE_HOME could be made for this suite (no disposable checkout, mktemp -d under ${TMPDIR:-/tmp} failed, and none could be made in the run directory); the suite was not run." > "$log_file"
+    return 1
   fi
   if [[ "$VERBOSE" == "true" && "$use_tee" == "true" ]]; then
     ( [[ -z "$iso_base" ]] || cd "$iso_root"; XDG_CACHE_HOME="$sx_cache" AAI_SUITE_REUSE=0 bash "$iso_target" ) 2>&1 | tee "$log_file" || rc=$?

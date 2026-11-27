@@ -30,6 +30,13 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: the CI flakes of the run ledger, the release cut and the close gate, fixed at their cause
+
+- Run directory and append lock: on hosted ubuntu-26.04 runners the `mkdir` command exited 0 in both of two processes racing on one directory, so two test-framework runs started in the same second shared one results directory and one `run_id`, and two writers held the run-ledger lock at once. `tests/skills/test-framework.sh` and `.aai/scripts/lib/append-lock.sh` now take the directory and decide its owner with an exclusive create of an owner file under noclobber, whatever `mkdir` reports.
+- Release cut interrupted by a process-group signal: when SIGINT or SIGTERM kills a git step of the local cut, `aai-release` reports `REFUSED: interrupted (<SIG>)` and exits 130 or 143 even when node has not run its own handler yet, instead of the git-command refusal with exit 20. A git step killed by any other signal is still a git-command refusal.
+- Close gate: `close-reconcile.mjs` reports `reason=id-mention-unpaired` only for an open doc that a delivered doc claims, by its path or its whole id, under a `Paired ... half:` or `Paired ... ride:` label or a `Carried ...:` label at the head of a list item. A doc that is only mentioned, disclosed as not absorbed, or named inside a follow-up id is no longer reported.
+- Test runner cache fallback: when `aai-run-tests.sh` can make neither its temp root nor a temporary directory for the private `XDG_CACHE_HOME`, it now prints `AAI-XDG: REFUSED` and exits 125 without running the command, instead of pointing the command at the fixed shared path `/nonexistent/aai-test-no-xdg-cache`. The test framework falls back to a per-suite directory inside its own run directory.
+
 ## [v2026.11.26] — ci: the release dry-run gives each reader 900 seconds
 
 `release-dry-run.mjs` now defaults to a 900-second per-reader timeout and an 1800-second executor budget, up from 540 and 1080 seconds. On hosted CI the slowest reader, `tests/skills/test-aai-release-cut.sh`, grew: it passed in 346 to 517 seconds and timed out at 540 seconds in 4 of 19 recent pull-request runs (one more ran out of budget), each time failing the job. A hung reader is still killed at the bound and reported as a timeout; one that hangs on both the rolled and the ordinary payload can now end as budget-exhausted instead of classified, and the job still fails. The `aai-release-cut` scheduling weight is re-measured from five recent main-push runs, from 116 to 408, so the dry-run starts that reader in its first wave. Pass `--timeout-seconds` or `--budget-seconds` to keep the old bounds.

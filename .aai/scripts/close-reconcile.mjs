@@ -168,7 +168,9 @@
 // — only the ride's OWN intake/spec are, and THEY name the maintenance
 // half's id in prose (the "Paired maintenance half: `<id>`" convention).
 // `missingPairedSpecMention` scans every doc the range DID touch for a
-// mention of any OTHER non-terminal corpus doc's id, and fires only when
+// CLAIM of any OTHER non-terminal corpus doc (claimSpans: its path or whole
+// id under a Paired/Carried label; a bare mention or a disclosure is not
+// one — ci-flake-root-causes), and fires only when
 // that id has NO paired spec anywhere in the corpus (a real pairing, even a
 // terminal one, means closing it is somebody else's job, not this range's).
 // Deliberately corpus-wide (not range-scoped): the mentioned doc's OWN path
@@ -352,6 +354,40 @@ function parsePrNumber(commits, grammars) {
   return { prNumber: null, grammar: null };
 }
 
+// claimSpans(body) -> string[]. ci-flake-root-causes Spec-AC-03. A body is cut
+// into list items and paragraphs (an item runs to a blank line, a heading or
+// the next list item, so a label's value may sit on the next line). An item
+// claims what follows a "Paired <words> half|ride:" label anywhere in it, or
+// what follows a "Carried ...:" / "Also carried ...:" label at its head. A
+// label that is negated ("not carried:") claims nothing. Everything else in
+// an item is a mention, never a claim.
+const PAIRED_LABEL_RE = /\bpaired(?: [a-z]+)* (?:half|ride)\b[^:\n]{0,30}:/gi;
+const CARRIED_HEAD_RE = /^\s*(?:[-*+]|\d+[.)])?\s*\**\s*(?:also )?carried\b[^:\n]{0,40}:/i;
+const ITEM_START_RE = /^\s*(?:[-*+]|\d+[.)])\s/;
+function claimSpans(body) {
+  const items = [];
+  let cur = null;
+  for (const line of String(body).split('\n')) {
+    if (!line.trim() || /^\s*#/.test(line)) { if (cur) items.push(cur); cur = null; continue; }
+    if (ITEM_START_RE.test(line) || cur === null) { if (cur) items.push(cur); cur = line; continue; }
+    cur += `\n${line}`;
+  }
+  if (cur) items.push(cur);
+  const spans = [];
+  for (const item of items) {
+    const head = item.match(CARRIED_HEAD_RE);
+    if (head && !/\bnot\b/i.test(head[0])) spans.push(item.slice(head[0].length));
+    for (const m of item.matchAll(PAIRED_LABEL_RE)) {
+      if (/\bnot\s*$/i.test(item.slice(Math.max(0, m.index - 8), m.index))) continue;
+      spans.push(item.slice(m.index + m[0].length));
+    }
+  }
+  return spans;
+}
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function bodyOf(content) {
   if (!content.startsWith('---\n')) return content;
   const end = content.indexOf('\n---', 4);
@@ -524,14 +560,18 @@ function computeItems(root, a, b, platform, grammars) {
     nonTerminalCandidates.push({ rel, fmId: fm.id, status, isSpec, terminal: false });
   }
 
-  // rangeBodies — the content of every doc the range ITSELF touched, scanned
-  // for a literal mention of a candidate's frontmatter id (the "Paired
-  // maintenance half: `<id>`" convention this corpus's own intake/spec docs
-  // already use — see docs/issues/CHANGE-0186-dispatch-state-sweep.md and
+  // rangeClaims — the CLAIM spans of every doc the range ITSELF touched
+  // (claimSpans below: the text under a "Paired ... half|ride:" or
+  // "Carried ...:" label, the convention this corpus's own intake/spec docs
+  // use — see docs/issues/CHANGE-0186-dispatch-state-sweep.md and
   // docs/specs/SPEC-0180-spec-dispatch-state-sweep.md for the real shape).
-  const rangeBodies = touched.map((d) => d.content);
-  function mentionedByRange(id) {
-    return rangeBodies.some((body) => body.includes(id));
+  // ci-flake-root-causes: a bare mention used to count, so a delivered doc
+  // that named an open doc to say it was NOT absorbed, or a follow-up id that
+  // merely contains a doc id, reported that doc as a false-open.
+  const rangeClaims = touched.flatMap((d) => claimSpans(bodyOf(d.content)));
+  function claimedByRange(doc) {
+    const id = new RegExp(`(?<![A-Za-z0-9_-])${escapeRegExp(doc.fmId)}(?![A-Za-z0-9_-])`);
+    return rangeClaims.some((span) => span.includes(doc.rel) || id.test(span));
   }
   // missingTerminalTelemetry(doc) -> bool. Spec-AC-04(a). (Named with a
   // `doc` parameter, not `d` — the two call sites below pass the loop's own
@@ -548,7 +588,7 @@ function computeItems(root, a, b, platform, grammars) {
   // never flagged unpaired for a spec that already, verbatim, claims it.
   function missingPairedSpecMention(doc) {
     if (doc.fmId == null) return false;
-    if (!mentionedByRange(doc.fmId)) return false;
+    if (!claimedByRange(doc)) return false;
     if (specIdsInCorpus.has(`spec-${doc.fmId}`)) return false;
     return !specRequirementsInCorpus.has(doc.rel);
   }
@@ -661,7 +701,7 @@ function runCheck(root, a, b, platform, grammars) {
     }
     if (it.reason === 'id-mention-unpaired') {
       console.log(
-        `close-reconcile: OPEN ${it.rel} id=${it.fmId} reason=id-mention-unpaired — a document this range delivered names this id, and it has no paired spec anywhere in the corpus`
+        `close-reconcile: OPEN ${it.rel} id=${it.fmId} reason=id-mention-unpaired — a document this range delivered claims this doc (a Paired or Carried label), and it has no paired spec anywhere in the corpus`
       );
       continue;
     }
@@ -783,7 +823,7 @@ function runApply(root, a, b, platform, grammars) {
   for (const it of idMentionUnpaired) {
     failed = true;
     process.stderr.write(
-      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=id-mention-unpaired — a delivered document names this id but it has no paired spec anywhere in the corpus; close it manually, nothing written by --apply\n`
+      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=id-mention-unpaired — a delivered document claims this doc (a Paired or Carried label) but it has no paired spec anywhere in the corpus; close it manually, nothing written by --apply\n`
     );
   }
 

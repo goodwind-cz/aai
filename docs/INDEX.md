@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-ci-flake-root-causes | specs | implementing | 6 done | docs/specs/SPEC-DRAFT-spec-ci-flake-root-causes.md |
 
 ## Canonical layer (0)
 
@@ -795,7 +796,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (13)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -811,6 +812,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| ci-flake-root-causes (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-ci-flake-root-causes.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
@@ -828,7 +830,7 @@ _None._
 
 _None._
 
-## Broken references (633)
+## Broken references (636)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -927,8 +929,11 @@ _None._
 | tests/skills/test-aai-check-state.sh | docs/issues/CHANGE-0001.md | NOT FOUND |
 | tests/skills/test-aai-check-state.sh | docs/issues/x.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0001-t001.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0002-t4160b.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0003-t003.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0003-t003half.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0003-t4160c.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0006-t4160f.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0014-t014a.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0014-t014b.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0015-t015.md | NOT FOUND |
@@ -1502,4 +1507,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-26 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-27 — counts above use this date for overdue checks.
